@@ -10,6 +10,8 @@
     .header { background: #312e81; color: white; padding: 16px 20px; display:flex; align-items:center; justify-content:space-between; }
     .header h1 { font-size: 18px; }
     .header .who { font-size: 12px; color: #c7d2fe; cursor:pointer; text-decoration:underline; }
+    .header .home-btn { font-size: 12px; color: #fff; text-decoration:none; border:1px solid #6366f1; padding:5px 12px; border-radius:6px; font-weight:600; }
+    .header .home-btn:hover { background:#6366f1; }
     .tabs { display: flex; background: #4338ca; }
     .tab { flex:1; padding: 14px; text-align: center; cursor: pointer; color: #c7d2fe; border: none; background:none; font-size: 15px; font-weight:600; }
     .tab.active { background: #6366f1; color: white; }
@@ -25,13 +27,14 @@
 </head>
 <body>
   <!--
-    ⚠️ 임시 방편 로그인
-    아래 ADMIN_PASSWORD 상수 하나로만 검증하는 프론트엔드 레벨 간단 체크입니다.
-    소스만 열어보면 비밀번호가 그대로 노출되므로 실제 보안 효과는 없습니다.
-    나중에 진짜 보안 작업(Apps Script 스크립트 속성 + 서버 검증 등)을 할 때
-    이 블록 전체를 교체하세요.
+    ⚠️ 임시 방편 로그인 (현재 비활성화 — 당분간만)
+    편의를 위해 관리자 비밀번호 입장 화면을 잠시 꺼두었습니다.
+    운영 복귀 시 → 아래 loginPanel 의 style="display:none" 를 지우고,
+    <script> 하단의 DOMContentLoaded 리스너 한 줄을 지우면 됩니다.
+    (ADMIN_PASSWORD / tryLogin / logout 코드는 복구용으로 그대로 보존.
+     나중에 진짜 보안 작업 시 Apps Script 스크립트 속성 + 서버 검증으로 교체.)
   -->
-  <div class="login" id="loginPanel">
+  <div class="login" id="loginPanel" style="display:none">
     <h2>제사장의 길 - 관리자</h2>
     <p>관리자 비밀번호를 입력하세요.</p>
     <div>
@@ -44,7 +47,7 @@
   <div id="appPanel">
     <div class="header">
       <h1>제사장의 길 - 관리자</h1>
-      <span class="who" onclick="logout()">로그아웃</span>
+      <a class="home-btn" href="home.html">🏠 홈</a>
     </div>
     <div class="tabs">
       <button class="tab active" data-view="profile" onclick="switchTab('profile', this)">통합 조회</button>
@@ -86,6 +89,14 @@
       document.getElementById('appPanel').style.display = 'none';
       document.getElementById('loginPanel').style.display = 'block';
     }
+
+    // ⚠️ 임시(당분간만): 비밀번호 없이 바로 입장. 운영 복귀 시 이 리스너 한 줄만 제거.
+    function enterDirect() {
+      document.getElementById('loginPanel').style.display = 'none';
+      document.getElementById('appPanel').style.display = 'flex';
+      switchTab('profile', document.querySelector('.tab[data-view="profile"]'));
+    }
+    window.addEventListener('DOMContentLoaded', enterDirect);
 
     function switchTab(view, btnEl) {
       document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));

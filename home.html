@@ -9,7 +9,10 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
     .header { background: #2c3e50; color: white; padding: 16px 20px; display:flex; align-items:center; justify-content:space-between; }
     .header h1 { font-size: 18px; }
+    .header .right { display:flex; align-items:center; gap:10px; }
     .header .user { font-size: 12px; color: #bdc3c7; }
+    .header .home-btn { font-size: 12px; color: #fff; background:none; border:1px solid #3498db; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:600; }
+    .header .home-btn:hover { background:#3498db; }
     .tabs { display: flex; background: #34495e; }
     .tab { flex:1; padding: 14px; text-align: center; cursor: pointer; color: #bdc3c7; border: none; background:none; font-size: 15px; font-weight:600; }
     .tab.active { background: #3498db; color: white; }
@@ -28,7 +31,13 @@
   </style>
 </head>
 <body>
-  <div class="login" id="loginPanel">
+  <!--
+    ⚠️ 임시(당분간만): 편의를 위해 입장(성도고유번호+이름) 화면을 비활성화했습니다.
+    운영 복귀 시 → 아래 loginPanel 의 style="display:none" 를 지우고,
+    <script> 하단의 DOMContentLoaded 리스너 한 줄을 지우면 됩니다.
+    (startSession() 로그인 코드는 복구용으로 그대로 보존)
+  -->
+  <div class="login" id="loginPanel" style="display:none">
     <h2>제사장의 길</h2>
     <div>
       <input type="text" id="memberId" placeholder="성도고유번호" />
@@ -40,7 +49,10 @@
   <div id="appPanel">
     <div class="header">
       <h1>제사장의 길</h1>
-      <span class="user" id="userDisplay"></span>
+      <span class="right">
+        <button class="home-btn" onclick="goHome()">🏠 홈</button>
+        <span class="user" id="userDisplay"></span>
+      </span>
     </div>
     <div class="tabs">
       <button class="tab active" data-room="study" onclick="switchTab('study', this)">공부방</button>
@@ -66,6 +78,18 @@
 
     let memberId = '';
     let name = '';
+
+    // ⚠️ 임시(당분간만): 로그인 없이 바로 입장. 운영 복귀 시 이 리스너 한 줄만 제거.
+    function enterWithoutLogin() {
+      document.getElementById('loginPanel').style.display = 'none';
+      document.getElementById('appPanel').style.display = 'flex';
+      switchTab('study', document.querySelector('.tab[data-room="study"]'));
+    }
+    // 홈 버튼: 첫 화면(공부방)으로 되돌아갑니다.
+    function goHome() {
+      switchTab('study', document.querySelector('.tab[data-room="study"]'));
+    }
+    window.addEventListener('DOMContentLoaded', enterWithoutLogin);
 
     function startSession() {
       memberId = document.getElementById('memberId').value.trim();
