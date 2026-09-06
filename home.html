@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>제사장의 길</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .header { background: #2c3e50; color: white; padding: 16px 20px; display:flex; align-items:center; justify-content:space-between; }
+    .header h1 { font-size: 18px; }
+    .header .user { font-size: 12px; color: #bdc3c7; }
+    .tabs { display: flex; background: #34495e; }
+    .tab { flex:1; padding: 14px; text-align: center; cursor: pointer; color: #bdc3c7; border: none; background:none; font-size: 15px; font-weight:600; }
+    .tab.active { background: #3498db; color: white; }
+    .login { padding: 60px 20px; text-align: center; }
+    .login h2 { margin-bottom: 20px; color:#2c3e50; }
+    .login input { padding: 10px; margin: 6px; width: 220px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+    .login button { padding: 10px 24px; background: #3498db; color: white; border: none; border-radius:6px; cursor: pointer; font-size:14px; font-weight:600; }
+    #appPanel { display:none; flex-direction:column; height:100vh; }
+    .content { flex:1; border: none; width: 100%; }
+    .footer { padding: 8px; text-align: center; font-size: 11px; background:#f4f4f4; position:relative; }
+    .admin-link { cursor: pointer; color: #3498db; text-decoration: underline; }
+    .admin-menu { display:none; position:absolute; bottom: 28px; left:50%; transform:translateX(-50%); background:white; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); overflow:hidden; z-index:10; }
+    .admin-menu.show { display:block; }
+    .admin-menu a { display:block; padding:10px 20px; color:#2c3e50; text-decoration:none; font-size:12px; white-space:nowrap; }
+    .admin-menu a:hover { background:#f4f4f4; }
+  </style>
+</head>
+<body>
+  <div class="login" id="loginPanel">
+    <h2>제사장의 길</h2>
+    <div>
+      <input type="text" id="memberId" placeholder="성도고유번호" />
+      <input type="text" id="name" placeholder="이름" />
+    </div>
+    <button onclick="startSession()">입장</button>
+  </div>
+
+  <div id="appPanel">
+    <div class="header">
+      <h1>제사장의 길</h1>
+      <span class="user" id="userDisplay"></span>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-room="study" onclick="switchTab('study', this)">공부방</button>
+      <button class="tab" data-room="activity" onclick="switchTab('activity', this)">활동방</button>
+      <button class="tab" data-room="feedback" onclick="switchTab('feedback', this)">피드백방</button>
+    </div>
+    <iframe id="content" class="content"></iframe>
+    <div class="footer">
+      <span class="admin-link" onclick="toggleAdmin(event)">관리자 메뉴</span>
+      <div class="admin-menu" id="adminMenu">
+        <a href="admin.html" target="_blank" rel="noopener">관리자 페이지</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 각 방 파일명 — 실제 파일이 이 이름과 같은 폴더에 있어야 합니다.
+    const ROOM_FILES = {
+      study: 'study-room.html',
+      activity: 'activity-room.html',
+      feedback: 'feedback-room.html'
+    };
+
+    let memberId = '';
+    let name = '';
+
+    function startSession() {
+      memberId = document.getElementById('memberId').value.trim();
+      name = document.getElementById('name').value.trim();
+
+      if (!memberId || !name) {
+        alert('성도고유번호와 이름을 입력해주세요.');
+        return;
+      }
+
+      document.getElementById('loginPanel').style.display = 'none';
+      document.getElementById('appPanel').style.display = 'flex';
+      document.getElementById('userDisplay').textContent = `${name} (${memberId})`;
+
+      // 최초 진입 시 공부방 탭 활성화
+      const studyTabBtn = document.querySelector('.tab[data-room="study"]');
+      switchTab('study', studyTabBtn);
+    }
+
+    function switchTab(room, btnEl) {
+      // 탭 버튼 활성 표시 갱신
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      if (btnEl) {
+        btnEl.classList.add('active');
+      } else {
+        const fallback = document.querySelector(`.tab[data-room="${room}"]`);
+        if (fallback) fallback.classList.add('active');
+      }
+
+      const file = ROOM_FILES[room];
+      if (!file) {
+        console.error('알 수 없는 방:', room);
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set('memberId', memberId);
+      params.set('name', name);
+
+      document.getElementById('content').src = `${file}?${params.toString()}`;
+      closeAdmin();
+    }
+
+    function toggleAdmin(e) {
+      e.stopPropagation();
+      document.getElementById('adminMenu').classList.toggle('show');
+    }
+    function closeAdmin() {
+      document.getElementById('adminMenu').classList.remove('show');
+    }
+    document.addEventListener('click', closeAdmin);
+  </script>
+</body>
+</html>

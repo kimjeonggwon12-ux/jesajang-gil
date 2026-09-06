@@ -1,0 +1,24 @@
+# === 내부 자료 (웹 배포 불필요) ===
+
+# Apps Script 백엔드 소스 (.gs) — PROXY_URL 로 이미 배포됨
+backend-source/
+*.gs
+
+# 교재 / 명단 원본 파일
+*.pdf
+*.xlsx
+*.xls
+밭갈이상담교재*
+발갈이상담교재*
+복음방강의대사*
+총회복음방강의교재*
+전주-교사관리*
+
+# 하츠(H.E.A.R.T.S) 원본 React 번들 — 자체 API 키 호출 코드 포함, 배포 대상 아님
+index.html
+
+# === OS / 편집기 ===
+.DS_Store
+Thumbs.db
+desktop.ini
+*~

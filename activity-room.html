@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>제사장의 길 - 활동방</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html, body { margin:0; padding:0; background:#f6f5f4; }
+  * { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; }
+
+  @keyframes hx-fade-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes hx-fade-in-up { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes hx-slide-in { from { opacity:0; transform:translateY(12px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+  .animate-fade-in { animation: hx-fade-in .4s ease-out both; }
+  .animate-fade-in-up { animation: hx-fade-in-up .4s ease-out both; }
+  .animate-slide-in { animation: hx-slide-in .35s cubic-bezier(0.16,1,0.3,1) both; }
+</style>
+</head>
+<body>
+<div id="root" class="max-w-md mx-auto min-h-screen bg-white shadow"></div>
+
+<script>
+const urlParams = new URLSearchParams(window.location.search);
+const paramMemberId = urlParams.get('memberId');
+const paramName = urlParams.get('name');
+if (paramMemberId && paramName) {
+  window.TEST_MEMBER_ID = paramMemberId;
+  window.TEST_NAME = paramName;
+  window.TEST_MODE = true;
+}
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
+
+// ===== 테스트 모드 (개발 단계) =====
+// TEST_MODE = true  : 로그인(성도고유번호 본인확인) 화면을 건너뛰고 아래 임시 계정을 자동 사용
+// TEST_MODE = false : 실제 성도고유번호 + 이름 본인확인 로그인 화면 표시
+// 운영 전환 시 아래 한 줄만 false 로 바꾸면 됩니다. (로그인 화면 코드는 그대로 보존)
+const TEST_MODE = true;
+const TEST_MEMBER = { memberId: "TEST-0001", name: "테스트사용자" };
+
+// ===== 활동 유형 (2026-09-04 확장) =====
+// 기존 6개 항목을 등급 판정 규칙(TierEngine.gs)의 활동 유형 명칭에 맞춰
+// 정리·통합했습니다. 옛 이름 → 새 이름 매핑(과거 데이터 호환용)은
+// TierEngine.gs 의 ACTIVITY_TYPE_ALIASES 참고 — 옛 활동실적 행은 그대로 두고
+// 백엔드에서 읽을 때만 새 이름으로 치환합니다.
+//   상담              → 상담 활동
+//   복음방 교육        → 복음방 교사 교육
+//   동행 복음방        → 동행 교사
+//   센터 수강 (인도자)  → 선교센터 인도자
+//   센터 수강 (섬김이)  → 선교센터 섬김이   (사용자 지정: 같은 활동으로 통합)
+//   센터 수강 (교사)    → 선교센터 교사로 출석
+// 신규 추가: 전도 섭외 / 전도 대상자 만남 / 복음방 이전 상담 활동 / 상담 교육 /
+//           피드백  (승급·강등 규칙에서 요구하는 유형)
+const ACTIVITY_OPTIONS = [
+  '전도 섭외',
+  '전도 대상자 만남',
+  '복음방 이전 상담 활동',
+  '상담 활동',
+  '상담 교육',
+  '복음방 교사 교육',
+  '동행 교사',
+  '피드백',
+  '선교센터 섬김이',
+  '선교센터 교사로 출석',
+  '선교센터 인도자'
+];
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function callApi(payload) {
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  return await res.json();
+}
+
+let state = {
+  tab: 'register',                                  // register | history
+  memberId: TEST_MODE ? TEST_MEMBER.memberId : '',
+  name:     TEST_MODE ? TEST_MEMBER.name : '',
+  identified: TEST_MODE ? true : false,
+  reg: { selected: [], note: '', loading: false, done: false },
+  lead: { name: '', loading: false, done: false },  // 센터 인도 등록 (체크박스와 별개)
+  history: [],
+  historyLoading: false
+};
+
+function render() {
+  const root = document.getElementById('root');
+  root.innerHTML = `
+    <div class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-5 py-4">
+      <div class="text-lg font-bold">활동방</div>
+      <div class="text-amber-50 text-sm">제사장의 길</div>
+    </div>
+    <div class="flex border-b">
+      <button id="tab-register" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='register' ? 'text-amber-700 border-b-2 border-amber-600' : 'text-gray-400'}">활동 등록</button>
+      <button id="tab-history" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='history' ? 'text-amber-700 border-b-2 border-amber-600' : 'text-gray-400'}">내 활동 이력</button>
+    </div>
+    <div id="body" class="p-5"></div>
+  `;
+  document.getElementById('tab-register').onclick = () => { state.tab = 'register'; render(); };
+  document.getElementById('tab-history').onclick = () => {
+    state.tab = 'history';
+    render();
+    if (state.identified) loadMyActivities();
+  };
+
+  const body = document.getElementById('body');
+
+  // ===== 본인 확인 (TEST_MODE=false 일 때만 노출) =====
+  if (!state.identified) {
+    body.innerHTML = `
+      <div class="space-y-3">
+        <div class="text-sm text-gray-500 mb-2">먼저 본인 확인이 필요합니다.</div>
+        <input id="input-memberId" type="text" placeholder="성도 고유번호" class="w-full border rounded-lg px-3 py-2 text-sm" value="${esc(state.memberId)}">
+        <input id="input-name" type="text" placeholder="이름" class="w-full border rounded-lg px-3 py-2 text-sm" value="${esc(state.name)}">
+        <button id="btn-identify" class="w-full bg-amber-600 text-white rounded-lg py-2.5 text-sm font-medium">확인</button>
+      </div>
+    `;
+    document.getElementById('btn-identify').onclick = () => {
+      const mid = document.getElementById('input-memberId').value.trim();
+      const nm = document.getElementById('input-name').value.trim();
+      if (!mid || !nm) { alert('고유번호와 이름을 모두 입력해주세요.'); return; }
+      state.memberId = mid;
+      state.name = nm;
+      state.identified = true;
+      render();
+      if (state.tab === 'history') loadMyActivities();
+    };
+    return;
+  }
+
+  if (state.tab === 'register') {
+    renderRegisterTab(body);
+  } else {
+    renderHistoryTab(body);
+  }
+}
+
+function renderRegisterTab(body) {
+  const reg = state.reg;
+  const cardCls = 'bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 space-y-2.5';
+
+  body.innerHTML = `
+    <div class="animate-fade-in space-y-4">
+      <div class="text-[11px] text-gray-400">${esc(state.name)}님 (${esc(state.memberId)}) · 활동 등록</div>
+
+      <div class="${cardCls}">
+        <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5">
+          <span class="text-amber-500">✅</span> 활동 선택
+          <span class="text-[11px] font-bold text-gray-400">(복수 선택 가능)</span>
+        </h3>
+        <div class="space-y-2">
+          ${ACTIVITY_OPTIONS.map(opt => {
+            const on = reg.selected.includes(opt);
+            return `<button type="button" data-act="${esc(opt)}" class="act-opt w-full flex items-center gap-3 border rounded-[14px] px-3.5 py-3 text-left transition-all ${on ? 'bg-amber-50 border-amber-300 shadow-[0_2px_10px_rgba(245,158,11,0.15)]' : 'bg-gray-50/80 border-gray-200 hover:border-amber-200'}">
+              <span class="w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 ${on ? 'bg-amber-500 border-amber-500' : 'border-gray-300 bg-white'}">
+                ${on ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3.5" d="M5 13l4 4L19 7"/></svg>' : ''}
+              </span>
+              <span class="text-[13.5px] font-bold ${on ? 'text-amber-900' : 'text-gray-600'}">${esc(opt)}</span>
+            </button>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="${cardCls}">
+        <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5">
+          <span class="text-orange-400">📝</span> 비고
+          <span class="text-[11px] font-bold text-gray-400">(선택)</span>
+        </h3>
+        <textarea id="reg-note" rows="3" placeholder="특이사항이 있으면 자유롭게 적어주세요." class="w-full bg-white border border-gray-200 text-gray-900 text-[13.5px] rounded-[16px] p-3.5 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 transition-all resize-none shadow-sm">${esc(reg.note)}</textarea>
+      </div>
+
+      <button id="btn-reg-submit" ${reg.loading ? 'disabled' : ''} class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[16px] py-3.5 text-[14px] font-black shadow-[0_8px_25px_rgba(245,158,11,0.35)] active:scale-[0.98] transition-all disabled:opacity-50">
+        ${reg.loading ? '등록 중...' : '등록'}
+      </button>
+
+      ${reg.done ? `
+      <div class="animate-fade-in-up text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-[16px] p-3.5 flex items-center gap-2 font-bold">
+        <span>🔔</span> 최근 활동이 갱신되었습니다
+      </div>` : ''}
+
+      <div class="${cardCls} border-emerald-200/70">
+        <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5">
+          <span class="text-emerald-500">🎓</span> 센터 인도 등록
+          <span class="text-[11px] font-bold text-gray-400">(위 활동 선택과 별개)</span>
+        </h3>
+        <div class="text-[11.5px] text-gray-500 -mt-1">학생을 센터 수강까지 성공적으로 이끈 경우 1건 등록해주세요.</div>
+        <input id="lead-name" type="text" placeholder="인도받은 사람 이름 (선택)" value="${esc(state.lead.name)}"
+          class="w-full bg-white border border-gray-200 text-gray-900 text-[13.5px] rounded-[14px] px-3.5 py-2.5 outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 transition-all shadow-sm">
+        <button id="btn-lead-submit" ${state.lead.loading ? 'disabled' : ''} class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-[14px] py-3 text-[13.5px] font-black transition-all disabled:opacity-50">
+          ${state.lead.loading ? '등록 중...' : '센터 인도 1건 등록'}
+        </button>
+        ${state.lead.done ? `
+        <div class="animate-fade-in-up text-[12px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-[12px] p-2.5 flex items-center gap-1.5 font-bold">
+          <span>✅</span> 센터 인도 실적이 등록되었습니다
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+
+  body.querySelectorAll('.act-opt').forEach(btn => {
+    btn.onclick = () => {
+      const v = btn.dataset.act;
+      const i = reg.selected.indexOf(v);
+      if (i >= 0) reg.selected.splice(i, 1); else reg.selected.push(v);
+      reg.done = false;
+      render();
+    };
+  });
+
+  const noteEl = document.getElementById('reg-note');
+  if (noteEl) noteEl.oninput = (e) => { reg.note = e.target.value; };
+
+  document.getElementById('btn-reg-submit').onclick = async () => {
+    if (reg.selected.length === 0) { alert('활동을 하나 이상 선택해주세요.'); return; }
+    reg.loading = true;
+    reg.done = false;
+    render();
+    try {
+      // 선택활동 순서를 표시 순서대로 정렬
+      const ordered = ACTIVITY_OPTIONS.filter(o => reg.selected.includes(o));
+      const res = await callApi({
+        action: 'submitActivity',
+        memberId: state.memberId,
+        name: state.name,
+        activities: ordered,
+        note: reg.note
+      });
+      if (res && res.error) throw new Error(res.error);
+      reg.selected = [];
+      reg.note = '';
+      reg.done = true;
+      loadMyActivities();           // 이력 탭에 바로 반영되도록 미리 갱신
+    } catch (err) {
+      alert('등록 중 오류가 발생했습니다: ' + err.message);
+    }
+    reg.loading = false;
+    render();
+  };
+
+  const leadNameEl = document.getElementById('lead-name');
+  if (leadNameEl) leadNameEl.oninput = (e) => { state.lead.name = e.target.value; };
+
+  document.getElementById('btn-lead-submit').onclick = async () => {
+    state.lead.loading = true;
+    state.lead.done = false;
+    render();
+    try {
+      const res = await callApi({
+        action: 'submitCenterLead',
+        memberId: state.memberId,
+        name: state.name,
+        leadName: state.lead.name
+      });
+      if (res && res.error) throw new Error(res.error);
+      state.lead.name = '';
+      state.lead.done = true;
+    } catch (err) {
+      alert('센터 인도 등록 중 오류가 발생했습니다: ' + err.message);
+    }
+    state.lead.loading = false;
+    render();
+  };
+}
+
+async function loadMyActivities() {
+  state.historyLoading = true;
+  if (state.tab === 'history') render();
+  try {
+    const res = await callApi({ action: 'getMyActivities', memberId: state.memberId });
+    state.history = (res && res.rows) || [];
+  } catch (err) {
+    state.history = [];
+  }
+  state.historyLoading = false;
+  render();
+}
+
+function renderHistoryTab(body) {
+  if (state.historyLoading) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">불러오는 중...</div>`;
+    return;
+  }
+  if (state.history.length === 0) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">아직 등록된 활동이 없습니다.</div>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <div class="animate-fade-in">
+      <div class="text-[11px] text-gray-400 mb-3">${esc(state.name)}님 (${esc(state.memberId)}) · 최신순 · 맨 위가 현재 활동 상태입니다</div>
+      ${state.history.map((row, idx) => {
+        const isCurrent = idx === 0;
+        const acts = Array.isArray(row.activities) ? row.activities : (row.activities ? String(row.activities).split(/,\s*/) : []);
+        return `
+          <div class="rounded-[16px] p-4 mb-3 border ${isCurrent ? 'border-amber-300 bg-amber-50/40 ring-2 ring-amber-400/30 shadow-[0_4px_15px_rgba(245,158,11,0.12)]' : 'border-gray-200 bg-white'}">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-[11px] text-gray-400">${esc(row.submittedAt || '')}</span>
+              ${isCurrent ? '<span class="text-[10px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-full tracking-wide">현재</span>' : ''}
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              ${acts.length
+                ? acts.map(a => `<span class="text-[11px] font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded-md">${esc(a)}</span>`).join('')
+                : '<span class="text-[11px] text-gray-400">활동 없음</span>'}
+            </div>
+            ${row.note ? `<div class="text-[12px] text-gray-600 bg-gray-50 rounded-lg p-2 mt-2">${esc(row.note)}</div>` : ''}
+          </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+render();
+</script>
+</body>
+</html>

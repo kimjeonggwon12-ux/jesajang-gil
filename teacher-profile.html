@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제사장의 길 - 교사 통합 조회</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html, body { margin:0; padding:0; background:#f4f6f5; }
+  * { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; }
+  @keyframes tp-fade-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .tp-fade { animation: tp-fade-in .35s ease-out both; }
+</style>
+</head>
+<body>
+<div id="root" class="max-w-4xl mx-auto min-h-screen bg-white shadow"></div>
+
+<script>
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
+
+// 관리자(교육부) 전용 화면 — 로그인 없음.
+// 백엔드는 기존 action(getAllFeedback, getMyActivities/getAllActivities) +
+// 신규 getRoster(교사명단) 만 사용 → 프런트 전용 수정.
+
+let state = {
+  query: '',
+  loading: false,
+  error: '',            // 조회 실패 안내 문구
+  candidates: [],       // 이름 검색 시 동명이인 후보
+  person: null,         // { memberId, name, roster? }
+  registeredNoRecord: false, // 교사명단엔 있지만 활동/피드백 기록이 전혀 없는 경우
+  feedback: [],         // 선택된 사람의 피드백 이력 (최신순)
+  activities: [],       // 선택된 사람의 활동 이력 (최신순)
+  allFeedback: null,    // getAllFeedback 캐시 (검색 인덱스 + 피드백 타임라인 원본)
+  allActivities: null,  // getAllActivities 캐시 (null = 미배포 → 개별조회로 대체)
+  detailLoading: false,
+
+  // 교사명단 (getRoster)
+  roster: null,          // [{memberId,name,dept,region,affiliation,position,tier,note}]
+  rosterById: {},
+  rosterTiers: [],
+  deptList: [],
+
+  // 화면 전환: 'search' | 'dept'
+  view: 'search',
+  deptFilter: ''
+};
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function callApi(payload) {
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  return await res.json();
+}
+
+function parseDate(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+function fmtDateTime(s) {
+  const d = parseDate(s);
+  if (!d) return String(s || '');
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// 피드백 행 → 분류: AI셀프코칭 / 수강생코칭 / 교관에스컬레이션
+function fbCategory(row) {
+  if (row.source === '사람에스컬레이션') return '교관에스컬레이션';
+  const s = String(row.situation || '');
+  if (/^\s*\[(수강생코칭|리딩)/.test(s)) return '수강생코칭';
+  return 'AI셀프코칭';
+}
+
+const CAT_STYLE = {
+  'AI셀프코칭':       'bg-emerald-100 text-emerald-700',
+  '수강생코칭':       'bg-violet-100 text-violet-700',
+  '교관에스컬레이션': 'bg-amber-100 text-amber-700'
+};
+
+// ================= 데이터 로드 =================
+
+// 교사명단 로드 (한 번만). memberId → roster row 맵 + 부서 목록(동적)도 같이 구성.
+async function ensureRoster() {
+  if (state.roster) return;
+  try {
+    const res = await callApi({ action: 'getRoster' });
+    state.roster = (res && Array.isArray(res.rows)) ? res.rows : [];
+    state.rosterTiers = (res && Array.isArray(res.tiers)) ? res.tiers : [];
+  } catch (e) {
+    state.roster = [];
+    state.rosterTiers = [];
+  }
+  const byId = {};
+  state.roster.forEach(r => { byId[r.memberId] = r; });
+  state.rosterById = byId;
+  state.deptList = Array.from(new Set(state.roster.map(r => r.dept).filter(Boolean))).sort();
+}
+
+// 검색 인덱스 로드: 교사명단 + 피드백(필수) + 활동(가능하면). 활동 액션 미배포 시 조용히 생략.
+async function ensureIndex() {
+  const tasks = [];
+  if (!state.roster) tasks.push(ensureRoster());
+  if (!state.allFeedback) {
+    tasks.push(
+      callApi({ action: 'getAllFeedback' }).then(res => {
+        state.allFeedback = (res && res.rows) || [];
+      })
+    );
+  }
+  if (state.allActivities === null) {
+    tasks.push(
+      callApi({ action: 'getAllActivities' })
+        .then(res => {
+          state.allActivities = (res && Array.isArray(res.rows)) ? res.rows : (res && res.error ? undefined : []);
+        })
+        .catch(() => { state.allActivities = undefined; })
+    );
+  }
+  await Promise.all(tasks);
+}
+
+// 교사명단 + 피드백 + 활동 캐시를 합쳐 (memberId → name) 후보 인덱스 구성
+function buildPeopleIndex() {
+  const map = {};
+  const add = (rows) => (rows || []).forEach(r => {
+    const id = String(r.memberId || '').trim();
+    if (!id) return;
+    const nm = String(r.name || '').trim();
+    if (!map[id]) map[id] = { memberId: id, name: nm };
+    else if (!map[id].name && nm) map[id].name = nm;
+  });
+  add(state.roster);
+  add(state.allFeedback);
+  add(Array.isArray(state.allActivities) ? state.allActivities : []);
+  return Object.values(map);
+}
+
+async function doSearch() {
+  const q = state.query.trim();
+  state.error = '';
+  state.candidates = [];
+  state.person = null;
+  state.registeredNoRecord = false;
+  state.feedback = [];
+  state.activities = [];
+  if (!q) { state.error = '이름 또는 성도고유번호를 입력해주세요.'; render(); return; }
+
+  state.loading = true;
+  render();
+
+  let people = [];
+  try {
+    await ensureIndex();
+    people = buildPeopleIndex();
+  } catch (e) {
+    state.loading = false;
+    state.error = '데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+    render();
+    return;
+  }
+
+  const qLower = q.toLowerCase();
+  let cands = people.filter(p =>
+    String(p.memberId).toLowerCase().includes(qLower) ||
+    (p.name && p.name.toLowerCase().includes(qLower))
+  );
+
+  // 어떤 인덱스에도 없으면: 입력값을 고유번호로 간주해 직접 조회 시도
+  if (cands.length === 0) {
+    cands = [{ memberId: q, name: '', _probe: true }];
+  }
+
+  state.loading = false;
+
+  if (cands.length === 1) {
+    await selectPerson(cands[0]);
+  } else {
+    // 이름 완전일치가 있으면 우선
+    const exact = cands.filter(c => c.name === q);
+    state.candidates = (exact.length ? exact : cands).slice(0, 30);
+    render();
+  }
+}
+
+async function selectPerson(cand) {
+  state.candidates = [];
+  state.detailLoading = true;
+  state.registeredNoRecord = false;
+  state.person = { memberId: String(cand.memberId), name: cand.name || '' };
+  render();
+
+  const mid = String(cand.memberId).trim();
+
+  // 교사명단 인덱스가 아직 없으면 확보 (부서별 보기에서 바로 들어온 경우 등)
+  if (!state.roster) { try { await ensureRoster(); } catch (e) {} }
+  const rosterEntry = state.rosterById[mid];
+
+  // 피드백: getAllFeedback 캐시에서 memberId 필터 (getHistory 와 동일 필드 보유)
+  const fbRows = (state.allFeedback || []).filter(r => String(r.memberId).trim() === mid);
+
+  // 활동: 전체 캐시가 있으면 필터, 없으면(미배포) 개별 조회
+  let actRows = [];
+  if (Array.isArray(state.allActivities)) {
+    actRows = state.allActivities.filter(r => String(r.memberId).trim() === mid);
+  } else {
+    try {
+      const res = await callApi({ action: 'getMyActivities', memberId: mid });
+      actRows = (res && res.rows) || [];
+    } catch (e) { actRows = []; }
+  }
+
+  // 이름 보정 (교사명단 → 피드백 → 활동 순)
+  if (!state.person.name) {
+    const n = (rosterEntry && rosterEntry.name) || (fbRows[0] && fbRows[0].name) || (actRows[0] && actRows[0].name) || '';
+    state.person.name = String(n).trim();
+  }
+  if (rosterEntry) state.person.roster = rosterEntry;
+
+  // 기록이 하나도 없는 경우: 교사명단에 있으면 "등록됨/기록없음", 없으면 "찾을 수 없음"
+  if (fbRows.length === 0 && actRows.length === 0) {
+    if (rosterEntry) {
+      state.feedback = [];
+      state.activities = [];
+      state.registeredNoRecord = true;
+      state.detailLoading = false;
+      render();
+      return;
+    }
+    state.person = null;
+    state.error = `"${q_display()}" — 해당 교사를 찾을 수 없습니다. (교사명단에도 없고 활동·피드백 기록도 없습니다)`;
+    state.detailLoading = false;
+    render();
+    return;
+  }
+
+  const sortDesc = (a, b) => {
+    const da = parseDate(a.submittedAt), db = parseDate(b.submittedAt);
+    if (da && db) return db - da;
+    return String(b.submittedAt || '').localeCompare(String(a.submittedAt || ''));
+  };
+  fbRows.sort(sortDesc);
+  actRows.sort(sortDesc);
+
+  state.feedback = fbRows;
+  state.activities = actRows;
+  state.detailLoading = false;
+  render();
+}
+
+function q_display() { return esc(state.query.trim()); }
+
+// ================= 부서별 보기 =================
+
+async function showDeptView() {
+  state.view = 'dept';
+  state.error = '';
+  state.candidates = [];
+  state.person = null;
+  state.registeredNoRecord = false;
+  state.loading = true;
+  render();
+  try { await ensureIndex(); } catch (e) {}
+  state.loading = false;
+  render();
+}
+
+function backToSearch() {
+  state.view = 'search';
+  state.error = '';
+  render();
+}
+
+// 부서별 보기 본문 렌더 (교사명단 + 기록 유무)
+function renderDeptView() {
+  if (state.loading) {
+    return `<div class="text-sm text-gray-400 text-center py-16">불러오는 중...</div>`;
+  }
+  const roster = state.roster || [];
+  if (roster.length === 0) {
+    return `<div class="text-sm text-gray-400 text-center py-16">등록된 교사명단이 없습니다.</div>`;
+  }
+
+  const recordedIds = new Set();
+  (state.allFeedback || []).forEach(r => recordedIds.add(String(r.memberId).trim()));
+  (Array.isArray(state.allActivities) ? state.allActivities : []).forEach(r => recordedIds.add(String(r.memberId).trim()));
+
+  const filtered = state.deptFilter ? roster.filter(r => r.dept === state.deptFilter) : roster;
+  const noRecordCount = filtered.filter(r => !recordedIds.has(r.memberId)).length;
+
+  return `
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+      <div class="flex items-center gap-2">
+        <label class="text-xs text-gray-500">부서</label>
+        <select id="tp-dept-select" class="border rounded-lg px-2 py-1.5 text-sm outline-none focus:border-indigo-500">
+          <option value="" ${!state.deptFilter ? 'selected' : ''}>전체 (${roster.length}명)</option>
+          ${state.deptList.map(d => `<option value="${esc(d)}" ${state.deptFilter === d ? 'selected' : ''}>${esc(d)} (${roster.filter(r => r.dept === d).length}명)</option>`).join('')}
+        </select>
+      </div>
+      <div class="text-xs text-gray-500">기록없음 <span class="font-semibold text-amber-600">${noRecordCount}명</span> / 총 ${filtered.length}명</div>
+    </div>
+    <div class="border rounded-lg overflow-hidden">
+      <div class="max-h-[60vh] overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 sticky top-0">
+            <tr class="text-left">
+              <th class="p-2">이름</th><th class="p-2">고유번호</th><th class="p-2">지역</th>
+              <th class="p-2">소속</th><th class="p-2">교사구분</th><th class="p-2">기록</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map(r => {
+              const has = recordedIds.has(r.memberId);
+              return `<tr class="border-t tp-roster-row cursor-pointer hover:bg-indigo-50/40" data-mid="${esc(r.memberId)}">
+                <td class="p-2 font-medium text-gray-800">${esc(r.name)}</td>
+                <td class="p-2 text-gray-400">${esc(r.memberId)}</td>
+                <td class="p-2 text-gray-500">${esc(r.region)}</td>
+                <td class="p-2 text-gray-500">${esc(r.affiliation)}</td>
+                <td class="p-2 text-gray-500">${esc(r.tier)}</td>
+                <td class="p-2">${has
+                  ? '<span class="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">있음</span>'
+                  : '<span class="text-[10px] font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">없음</span>'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ================= 요약 계산 =================
+
+function buildSummary() {
+  const now = Date.now();
+  const D30 = 30 * 24 * 60 * 60 * 1000;
+
+  let act30 = 0;
+  const typeCount30 = {};
+  const typeCountAll = {};
+  state.activities.forEach(row => {
+    const acts = Array.isArray(row.activities) ? row.activities
+      : (row.activities ? String(row.activities).split(/,\s*/) : []);
+    const d = parseDate(row.submittedAt);
+    const within30 = d && (now - d.getTime() <= D30);
+    if (within30) act30++;
+    acts.forEach(a => {
+      a = String(a).trim(); if (!a) return;
+      typeCountAll[a] = (typeCountAll[a] || 0) + 1;
+      if (within30) typeCount30[a] = (typeCount30[a] || 0) + 1;
+    });
+  });
+
+  const fbByCat = { 'AI셀프코칭': 0, '수강생코칭': 0, '교관에스컬레이션': 0 };
+  state.feedback.forEach(r => { fbByCat[fbCategory(r)]++; });
+
+  return {
+    activityTotal: state.activities.length,
+    activity30: act30,
+    typeCount30, typeCountAll,
+    feedbackTotal: state.feedback.length,
+    fbByCat
+  };
+}
+
+// 교사명단 정보 chip (부서/지역/소속/교사구분)
+function rosterChips(r) {
+  if (!r) return '';
+  const items = [r.dept, r.region, r.affiliation, r.tier].filter(Boolean);
+  if (items.length === 0) return '';
+  return `<div class="flex flex-wrap gap-1.5 mt-2">
+    ${items.map(v => `<span class="text-xs font-medium bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md">${esc(v)}</span>`).join('')}
+  </div>`;
+}
+
+// ================= 렌더 =================
+
+function render() {
+  const root = document.getElementById('root');
+  root.innerHTML = `
+    <div class="bg-indigo-800 text-white px-5 py-4">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <div class="text-lg font-bold">교사 통합 조회</div>
+          <div class="text-indigo-200 text-sm">제사장의 길 · 개인별 활동 / 피드백</div>
+        </div>
+        <button id="tp-dept-btn" class="text-xs bg-indigo-700 hover:bg-indigo-600 text-white px-3 py-1.5 rounded-lg transition-colors">
+          ${state.view === 'dept' ? '검색으로 돌아가기' : '부서별 보기'}
+        </button>
+      </div>
+    </div>
+    <div class="p-5">
+      ${state.view === 'search' ? `
+      <div class="flex gap-2 mb-5">
+        <input id="tp-q" type="text" placeholder="이름 또는 성도고유번호로 검색"
+          class="flex-1 border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+          value="${esc(state.query)}">
+        <button id="tp-search" class="bg-indigo-800 hover:bg-indigo-900 text-white rounded-lg px-5 text-sm font-medium transition-colors">검색</button>
+      </div>` : ''}
+      <div id="tp-body"></div>
+    </div>
+  `;
+
+  document.getElementById('tp-dept-btn').onclick = () => {
+    if (state.view === 'dept') backToSearch(); else showDeptView();
+  };
+
+  if (state.view === 'search') {
+    const qEl = document.getElementById('tp-q');
+    qEl.oninput = (e) => { state.query = e.target.value; };
+    qEl.onkeydown = (e) => { if (e.key === 'Enter') doSearch(); };
+    document.getElementById('tp-search').onclick = doSearch;
+  }
+
+  const body = document.getElementById('tp-body');
+
+  if (state.view === 'dept') {
+    body.innerHTML = renderDeptView();
+    const sel = document.getElementById('tp-dept-select');
+    if (sel) sel.onchange = (e) => { state.deptFilter = e.target.value; render(); };
+    body.querySelectorAll('.tp-roster-row').forEach(tr => {
+      tr.onclick = () => {
+        const mid = tr.dataset.mid;
+        const entry = state.rosterById[mid];
+        state.view = 'search';
+        state.query = mid;
+        render();
+        selectPerson({ memberId: mid, name: entry ? entry.name : '' });
+      };
+    });
+    return;
+  }
+
+  // ===== 이하 'search' 뷰 =====
+
+  if (state.loading) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-16">검색 중...</div>`;
+    return;
+  }
+  if (state.error) {
+    body.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-lg p-4">${esc(state.error)}</div>`;
+    return;
+  }
+  if (state.candidates.length > 0) {
+    body.innerHTML = `
+      <div class="text-sm text-gray-500 mb-2">검색 결과 ${state.candidates.length}명 — 조회할 교사를 선택하세요.</div>
+      <div class="space-y-2">
+        ${state.candidates.map((c, i) => `
+          <button data-cand="${i}" class="tp-cand w-full flex justify-between items-center border rounded-lg px-4 py-3 text-left hover:border-indigo-400 hover:bg-indigo-50/40 transition-colors">
+            <span class="text-sm font-medium text-gray-800">${esc(c.name || '(이름 미상)')}</span>
+            <span class="text-xs text-gray-400">${esc(c.memberId)}</span>
+          </button>`).join('')}
+      </div>
+    `;
+    body.querySelectorAll('.tp-cand').forEach(btn => {
+      btn.onclick = () => selectPerson(state.candidates[parseInt(btn.dataset.cand, 10)]);
+    });
+    return;
+  }
+  if (!state.person) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-16">이름 또는 성도고유번호로 검색해주세요.</div>`;
+    return;
+  }
+
+  const p = state.person;
+
+  // ===== 등록된 교사인데 기록이 전혀 없는 경우 =====
+  if (state.registeredNoRecord) {
+    body.innerHTML = `
+      <div class="tp-fade border border-emerald-200 bg-emerald-50/60 rounded-lg p-5">
+        <div class="flex items-baseline justify-between flex-wrap gap-1">
+          <div class="text-xl font-bold text-gray-800">${esc(p.name || '(이름 미상)')}</div>
+          <div class="text-xs text-gray-400">성도고유번호 ${esc(p.memberId)}</div>
+        </div>
+        ${rosterChips(p.roster)}
+        <div class="text-sm font-medium text-emerald-700 mt-4">
+          ✅ 등록된 교사입니다. 아직 활동/피드백 기록이 없습니다.
+        </div>
+      </div>`;
+    return;
+  }
+
+  // ===== 프로필 =====
+  const loadingTail = state.detailLoading
+    ? `<div class="text-xs text-gray-400 mt-2">상세 이력 불러오는 중...</div>` : '';
+
+  if (state.detailLoading && state.feedback.length === 0 && state.activities.length === 0) {
+    body.innerHTML = `
+      <div class="border rounded-lg p-4">
+        <div class="text-xl font-bold text-gray-800">${esc(p.name || '(이름 미상)')}</div>
+        <div class="text-xs text-gray-400 mt-0.5">${esc(p.memberId)}</div>
+        ${loadingTail}
+      </div>`;
+    return;
+  }
+
+  const s = buildSummary();
+
+  const typeBadges = (obj) => {
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return `<span class="text-xs text-gray-400">기록 없음</span>`;
+    return keys.map(k => `<span class="text-xs font-medium bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md">${esc(k)} ${obj[k]}회</span>`).join('');
+  };
+
+  body.innerHTML = `
+    <div class="tp-fade space-y-6">
+      <div class="border rounded-lg p-5">
+        <div class="flex items-baseline justify-between flex-wrap gap-1">
+          <div class="text-xl font-bold text-gray-800">${esc(p.name || '(이름 미상)')}</div>
+          <div class="text-xs text-gray-400">성도고유번호 ${esc(p.memberId)}</div>
+        </div>
+        ${rosterChips(p.roster)}
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+          <div class="border rounded-lg p-3">
+            <div class="text-xs text-gray-400">최근 30일 활동</div>
+            <div class="text-2xl font-bold text-indigo-800">${s.activity30}<span class="text-sm font-medium text-gray-400">회</span></div>
+          </div>
+          <div class="border rounded-lg p-3">
+            <div class="text-xs text-gray-400">전체 활동</div>
+            <div class="text-2xl font-bold text-slate-700">${s.activityTotal}<span class="text-sm font-medium text-gray-400">회</span></div>
+          </div>
+          <div class="border rounded-lg p-3">
+            <div class="text-xs text-gray-400">전체 피드백 이력</div>
+            <div class="text-2xl font-bold text-slate-700">${s.feedbackTotal}<span class="text-sm font-medium text-gray-400">건</span></div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <div class="text-xs font-medium text-gray-500 mb-1.5">최근 30일 활동 유형별</div>
+          <div class="flex flex-wrap gap-1.5">${typeBadges(s.typeCount30)}</div>
+        </div>
+
+        <div class="mt-4">
+          <div class="text-xs font-medium text-gray-500 mb-1.5">피드백 이력 구분</div>
+          <div class="flex flex-wrap gap-1.5">
+            <span class="text-xs font-medium ${CAT_STYLE['AI셀프코칭']} px-2 py-1 rounded-md">AI셀프코칭 ${s.fbByCat['AI셀프코칭']}건</span>
+            <span class="text-xs font-medium ${CAT_STYLE['수강생코칭']} px-2 py-1 rounded-md">수강생코칭 ${s.fbByCat['수강생코칭']}건</span>
+            <span class="text-xs font-medium ${CAT_STYLE['교관에스컬레이션']} px-2 py-1 rounded-md">교관에스컬레이션 ${s.fbByCat['교관에스컬레이션']}건</span>
+          </div>
+        </div>
+        ${loadingTail}
+      </div>
+
+      <div>
+        <div class="text-sm font-bold text-gray-700 mb-2">활동 이력 <span class="text-gray-400 font-normal">· 최신순 (${state.activities.length})</span></div>
+        ${renderActivityTimeline()}
+      </div>
+
+      <div>
+        <div class="text-sm font-bold text-gray-700 mb-2">피드백 이력 <span class="text-gray-400 font-normal">· 최신순 (${state.feedback.length})</span></div>
+        ${renderFeedbackTimeline()}
+      </div>
+    </div>
+  `;
+}
+
+function renderActivityTimeline() {
+  if (state.activities.length === 0) {
+    return `<div class="text-xs text-gray-400 border rounded-lg p-4 text-center">등록된 활동이 없습니다.</div>`;
+  }
+  return state.activities.map((row, idx) => {
+    const acts = Array.isArray(row.activities) ? row.activities
+      : (row.activities ? String(row.activities).split(/,\s*/) : []);
+    const isCurrent = idx === 0;
+    return `
+      <div class="rounded-lg p-4 mb-2.5 border ${isCurrent ? 'border-indigo-300 bg-indigo-50/40 ring-1 ring-indigo-300/40' : 'border-gray-200'}">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-xs text-gray-400">${esc(fmtDateTime(row.submittedAt))}</span>
+          ${isCurrent ? '<span class="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full">최근</span>' : ''}
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          ${acts.length
+            ? acts.map(a => `<span class="text-xs font-medium bg-indigo-100 text-indigo-800 px-2 py-1 rounded-md">${esc(a)}</span>`).join('')
+            : '<span class="text-xs text-gray-400">활동 없음</span>'}
+        </div>
+        ${row.note ? `<div class="text-xs text-gray-600 bg-gray-50 rounded p-2 mt-2">${esc(row.note)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function renderFeedbackTimeline() {
+  if (state.feedback.length === 0) {
+    return `<div class="text-xs text-gray-400 border rounded-lg p-4 text-center">피드백 이력이 없습니다.</div>`;
+  }
+  return state.feedback.map(row => {
+    const cat = fbCategory(row);
+    const statusBadge = row.status === '완료'
+      ? '<span class="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">완료</span>'
+      : '<span class="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">교관 검토중</span>';
+    return `
+      <div class="border border-gray-200 rounded-lg p-4 mb-2.5">
+        <div class="flex justify-between items-center mb-2 flex-wrap gap-1">
+          <div class="flex items-center gap-1.5">
+            <span class="text-[10px] font-medium ${CAT_STYLE[cat]} px-2 py-0.5 rounded-full">${cat}</span>
+            ${statusBadge}
+          </div>
+          <span class="text-xs text-gray-400">${esc(row.receiptNo || '')} · ${esc(fmtDateTime(row.submittedAt))}</span>
+        </div>
+        <div class="text-sm text-gray-700 mb-2">${esc(row.situation || '')}</div>
+        ${row.aiCoachText ? `<div class="text-xs text-gray-500 bg-gray-50 rounded p-2 mb-1 whitespace-pre-wrap max-h-40 overflow-y-auto">AI: ${esc(row.aiCoachText)}</div>` : ''}
+        ${row.handlerAnswer ? `<div class="text-xs text-blue-700 bg-blue-50 rounded p-2 whitespace-pre-wrap">교관${row.handler ? '('+esc(row.handler)+')' : ''}: ${esc(row.handlerAnswer)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>제사장의 길 - 공부방</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html, body { margin:0; padding:0; background:#f6f5f4; }
+  * { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; }
+
+  @keyframes hx-fade-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes hx-fade-in-up { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes hx-slide-in { from { opacity:0; transform:translateY(12px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+  .animate-fade-in { animation: hx-fade-in .4s ease-out both; }
+  .animate-fade-in-up { animation: hx-fade-in-up .4s ease-out both; }
+  .animate-slide-in { animation: hx-slide-in .35s cubic-bezier(0.16,1,0.3,1) both; }
+
+  input[type=range].study-slider { -webkit-appearance:none; appearance:none; height:6px; border-radius:999px; background:#e0e7ff; outline:none; }
+  input[type=range].study-slider::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:18px; height:18px; border-radius:50%; background:#6366f1; cursor:pointer; box-shadow:0 2px 6px rgba(99,102,241,0.4); }
+  input[type=range].study-slider::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:#6366f1; border:none; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="root" class="max-w-md mx-auto min-h-screen bg-white shadow"></div>
+
+<script>
+  const urlParams = new URLSearchParams(window.location.search);
+  const paramMemberId = urlParams.get('memberId');
+  const paramName = urlParams.get('name');
+  if (paramMemberId && paramName) {
+    window.TEST_MEMBER_ID = paramMemberId;
+    window.TEST_NAME = paramName;
+    window.TEST_MODE = true;
+  }
+  
+  // ← 여기서부터 기존 코드 시작
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
+
+// ===== 테스트 모드 (개발 단계) =====
+// TEST_MODE = true  : 로그인(성도고유번호 본인확인) 화면을 건너뛰고 아래 임시 계정을 자동 사용
+// TEST_MODE = false : 실제 성도고유번호 + 이름 본인확인 로그인 화면 표시
+// 운영 전환 시 아래 한 줄만 false 로 바꾸면 됩니다. (로그인 화면 코드는 그대로 보존)
+const TEST_MODE = true;
+const TEST_MEMBER = { memberId: "TEST-0001", name: "테스트사용자" };
+
+// 필수 이수 교육 4항목 — 백엔드(RequiredEducationBackend.gs)의 REQUIRED_EDU_CATEGORIES
+// 와 동일 순서. getRequiredEducation 응답에 categories 가 실려오면 그걸 우선 쓰고,
+// 아직 미배포라 응답이 없을 때만 이 기본값으로 대체.
+const REQ_EDU_CATEGORIES_DEFAULT = ['섭외전도교육', '상담교육', '복음방교재교육', '교사소양교육'];
+const REQ_EDU_ICONS = { '섭외전도교육': '📣', '상담교육': '💬', '복음방교재교육': '📖', '교사소양교육': '🎓' };
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function callApi(payload) {
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  return await res.json();
+}
+
+let state = {
+  tab: 'courses',                                    // courses | myProgress | reqEdu
+  memberId: TEST_MODE ? TEST_MEMBER.memberId : '',
+  name:     TEST_MODE ? TEST_MEMBER.name : '',
+  identified: TEST_MODE ? true : false,
+  loading: false,
+  courses: [],           // getCourseList 원본: [{courseId, courseName, unitName, order, content, minutes}]
+  progress: {},          // courseId -> {progress, completedAt, lastStudiedAt}
+  expanded: null,        // 펼쳐진 courseId
+  sliderVal: {},         // courseId -> 슬라이더 임시값
+  saving: {},            // courseId -> true(저장 중)
+  reqEdu: null,          // getRequiredEducation 원본: { memberId, name, [카테고리]: 날짜|'', categories }
+  reqEduToggling: {}     // 카테고리명 -> true(토글 처리 중)
+};
+
+function groupCourses() {
+  const groups = [];
+  const idx = {};
+  state.courses.forEach(u => {
+    if (!(u.courseName in idx)) {
+      idx[u.courseName] = groups.length;
+      groups.push({ courseName: u.courseName, units: [] });
+    }
+    groups[idx[u.courseName]].units.push(u);
+  });
+  groups.forEach(g => g.units.sort((a,b) => a.order - b.order));
+  return groups;
+}
+
+function progressOf(courseId) {
+  const p = state.progress[courseId];
+  return p ? Number(p.progress || 0) : 0;
+}
+
+// ===== 다운로드 (워드용 .doc) =====
+// 파일명에 못 쓰는 문자(\/:*?"<>|, 줄바꿈)만 밑줄로 치환 — 내용은 건드리지 않음.
+function sanitizeFilename(s) {
+  return String(s || '').replace(/[\\/:*?"<>|\r\n]+/g, '_').trim();
+}
+
+// 워드가 열 수 있는 최소한의 HTML 문서를 만들어 application/msword로 다운로드.
+// 실제 .docx(zip 기반)가 아니라 "워드가 HTML을 인식해서 열어주는" 방식(.doc 확장자
+// + MS Office 네임스페이스 선언)이라 별도 라이브러리 없이 브라우저에서 바로 생성 가능.
+function downloadUnitAsWord(u) {
+  const paragraphs = String(u.content || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const bodyHtml = paragraphs.map(p =>
+    `<p style="margin:0 0 12pt 0; line-height:1.6;">${esc(p).split('\n').join('<br>')}</p>`
+  ).join('\n');
+
+  const html = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<meta name="ProgId" content="Word.Document">
+<title>${esc(u.unitName)}</title>
+<style>
+  body { font-family: '맑은 고딕', 'Malgun Gothic', sans-serif; font-size: 11pt; }
+  h1 { font-size: 20pt; margin: 0 0 4pt 0; }
+  .subtitle { font-size: 10pt; color: #555555; margin: 0 0 18pt 0; }
+</style>
+</head>
+<body>
+<h1>${esc(u.unitName)}</h1>
+<p class="subtitle">${esc(u.courseName)} · 예상 소요시간 약 ${u.minutes || '-'}분</p>
+${bodyHtml}
+</body>
+</html>`;
+
+  // 맨 앞 UTF-8 BOM — 워드가 한글을 EUC-KR 등으로 오인해 깨지는 것을 방지.
+  const blob = new Blob(['﻿' + html], { type: 'application/msword;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = sanitizeFilename(`${u.courseName}_${u.unitName}.doc`);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function render() {
+  const root = document.getElementById('root');
+  root.innerHTML = `
+    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-4">
+      <div class="text-lg font-bold">공부방</div>
+      <div class="text-indigo-50 text-sm">제사장의 길</div>
+    </div>
+    <div class="flex border-b">
+      <button id="tab-courses" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='courses' ? 'text-indigo-700 border-b-2 border-indigo-600' : 'text-gray-400'}">교재 목록</button>
+      <button id="tab-myProgress" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='myProgress' ? 'text-indigo-700 border-b-2 border-indigo-600' : 'text-gray-400'}">내 학습 현황</button>
+      <button id="tab-reqEdu" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='reqEdu' ? 'text-indigo-700 border-b-2 border-indigo-600' : 'text-gray-400'}">필수교육</button>
+    </div>
+    <div id="body" class="p-5"></div>
+  `;
+  document.getElementById('tab-courses').onclick = () => { state.tab = 'courses'; render(); };
+  document.getElementById('tab-myProgress').onclick = () => { state.tab = 'myProgress'; render(); };
+  document.getElementById('tab-reqEdu').onclick = () => { state.tab = 'reqEdu'; render(); };
+
+  const body = document.getElementById('body');
+
+  // ===== 본인 확인 (TEST_MODE=false 일 때만 노출) =====
+  if (!state.identified) {
+    body.innerHTML = `
+      <div class="space-y-3">
+        <div class="text-sm text-gray-500 mb-2">먼저 본인 확인이 필요합니다.</div>
+        <input id="input-memberId" type="text" placeholder="성도 고유번호" class="w-full border rounded-lg px-3 py-2 text-sm" value="${esc(state.memberId)}">
+        <input id="input-name" type="text" placeholder="이름" class="w-full border rounded-lg px-3 py-2 text-sm" value="${esc(state.name)}">
+        <button id="btn-identify" class="w-full bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-medium">확인</button>
+      </div>
+    `;
+    document.getElementById('btn-identify').onclick = () => {
+      const mid = document.getElementById('input-memberId').value.trim();
+      const nm = document.getElementById('input-name').value.trim();
+      if (!mid || !nm) { alert('고유번호와 이름을 모두 입력해주세요.'); return; }
+      state.memberId = mid;
+      state.name = nm;
+      state.identified = true;
+      render();
+      loadAll();
+    };
+    return;
+  }
+
+  if (state.tab === 'courses') {
+    renderCoursesTab(body);
+  } else if (state.tab === 'myProgress') {
+    renderMyProgressTab(body);
+  } else {
+    renderRequiredEduTab(body);
+  }
+}
+
+async function loadAll() {
+  state.loading = true;
+  render();
+  try {
+    const [courseRes, progRes, reqEduRes] = await Promise.all([
+      callApi({ action: 'getCourseList' }),
+      callApi({ action: 'getMyProgress', memberId: state.memberId }),
+      callApi({ action: 'getRequiredEducation', memberId: state.memberId })
+    ]);
+    state.courses = (courseRes && courseRes.rows) || [];
+    state.progress = {};
+    ((progRes && progRes.rows) || []).forEach(r => { state.progress[r.courseId] = r; });
+    state.reqEdu = (reqEduRes && !reqEduRes.error) ? reqEduRes : null;
+  } catch (err) {
+    state.courses = [];
+    state.progress = {};
+    state.reqEdu = null;
+  }
+  state.loading = false;
+  render();
+}
+
+function renderContentHtml(text) {
+  const paragraphs = String(text || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  return paragraphs.map(p => {
+    const html = esc(p).split('\n').join('<br>');
+    const isHeading = /^[●|]/.test(p);
+    return isHeading
+      ? `<div class="font-black text-indigo-700 text-[13px] mt-2 first:mt-0">${html}</div>`
+      : `<div class="text-[13px] text-gray-700 leading-relaxed mt-1">${html}</div>`;
+  }).join('');
+}
+
+function progressBar(pct, colorCls) {
+  colorCls = colorCls || 'bg-indigo-500';
+  return `
+    <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div class="h-full ${colorCls} rounded-full transition-all" style="width:${Math.max(0,Math.min(100,pct))}%"></div>
+    </div>`;
+}
+
+function renderCoursesTab(body) {
+  if (state.loading) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">불러오는 중...</div>`;
+    return;
+  }
+  const groups = groupCourses();
+  if (groups.length === 0) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">등록된 교재가 없습니다.<br>(관리자: seedStudyCourses_ 실행 필요)</div>`;
+    return;
+  }
+
+  const cardCls = 'bg-white/80 backdrop-blur-md rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 overflow-hidden';
+
+  body.innerHTML = `
+    <div class="animate-fade-in space-y-4">
+      <div class="text-[11px] text-gray-400">${esc(state.name)}님 (${esc(state.memberId)}) · 교재를 눌러 학습 후 진도를 갱신하세요</div>
+      ${groups.map(g => {
+        const total = g.units.length;
+        const avg = total ? Math.round(g.units.reduce((s,u) => s + progressOf(u.courseId), 0) / total) : 0;
+        return `
+        <div class="${cardCls}">
+          <div class="px-4 py-3.5 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100/70">
+            <div class="flex items-center justify-between mb-1.5">
+              <h3 class="text-[13.5px] font-black text-indigo-900">${esc(g.courseName)}</h3>
+              <span class="text-[11px] font-bold text-indigo-500">${avg}%</span>
+            </div>
+            ${progressBar(avg)}
+            <div class="text-[10.5px] text-gray-400 mt-1">총 ${total}단원</div>
+          </div>
+          <div class="divide-y divide-gray-100">
+            ${g.units.map(u => renderUnitRow(u)).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+
+  body.querySelectorAll('.unit-row-head').forEach(el => {
+    el.onclick = () => {
+      const id = el.dataset.course;
+      state.expanded = state.expanded === id ? null : id;
+      if (state.sliderVal[id] === undefined) state.sliderVal[id] = progressOf(id);
+      render();
+    };
+  });
+
+  wireProgressControls(body);
+}
+
+function renderUnitRow(u) {
+  const pct = progressOf(u.courseId);
+  const isExpanded = state.expanded === u.courseId;
+  const done = pct >= 100;
+  return `
+    <div>
+      <div class="unit-row-head px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-indigo-50/40 transition-all" data-course="${esc(u.courseId)}">
+        <span class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black ${done ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'}">
+          ${done ? '✓' : u.order}
+        </span>
+        <div class="flex-1 min-w-0">
+          <div class="text-[12.5px] font-bold text-gray-800 truncate">${esc(u.unitName)}</div>
+          <div class="mt-1">${progressBar(pct, done ? 'bg-emerald-500' : 'bg-indigo-400')}</div>
+        </div>
+        <span class="text-[10.5px] font-bold text-gray-400 w-8 text-right">${pct}%</span>
+        <span class="text-gray-300 text-[10px] transition-transform ${isExpanded ? 'rotate-90' : ''}">▶</span>
+      </div>
+      ${isExpanded ? renderUnitDetail(u) : ''}
+    </div>`;
+}
+
+function renderUnitDetail(u) {
+  const pct = state.sliderVal[u.courseId] !== undefined ? state.sliderVal[u.courseId] : progressOf(u.courseId);
+  const isSaving = !!state.saving[u.courseId];
+  const rec = state.progress[u.courseId];
+  return `
+    <div class="animate-fade-in-up bg-indigo-50/30 px-4 py-4 border-t border-indigo-100/60">
+      <div class="text-[10.5px] text-gray-400 mb-2">예상 소요시간 약 ${u.minutes || '-'}분${rec && rec.lastStudiedAt ? ` · 마지막 학습 ${esc(rec.lastStudiedAt)}` : ''}</div>
+      <div class="bg-white rounded-[14px] p-3.5 max-h-64 overflow-y-auto border border-gray-100 shadow-sm">
+        ${renderContentHtml(u.content)}
+      </div>
+
+      <button class="download-unit-btn mt-2.5 w-full bg-white border border-indigo-200 text-indigo-600 rounded-[12px] py-2 text-[12.5px] font-bold flex items-center justify-center gap-1.5 hover:bg-indigo-50 transition-all" data-course="${esc(u.courseId)}">
+        <span>⬇</span> 워드로 다운로드
+      </button>
+
+      <div class="mt-3.5 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <span class="text-[11.5px] font-black text-gray-600">진도 갱신</span>
+          <span class="text-[13px] font-black text-indigo-600">${pct}%</span>
+        </div>
+        <input type="range" min="0" max="100" step="5" value="${pct}" class="study-slider w-full slider-input" data-course="${esc(u.courseId)}">
+        <div class="grid grid-cols-3 gap-2">
+          <button class="quick-btn py-2 rounded-[10px] text-[12px] font-bold border ${pct===0?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-500 border-gray-200'}" data-course="${esc(u.courseId)}" data-val="0">0%</button>
+          <button class="quick-btn py-2 rounded-[10px] text-[12px] font-bold border ${pct===50?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-500 border-gray-200'}" data-course="${esc(u.courseId)}" data-val="50">50%</button>
+          <button class="quick-btn py-2 rounded-[10px] text-[12px] font-bold border ${pct===100?'bg-emerald-600 text-white border-emerald-600':'bg-white text-gray-500 border-gray-200'}" data-course="${esc(u.courseId)}" data-val="100">100%</button>
+        </div>
+        <button class="save-btn w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-[12px] py-2.5 text-[13px] font-black shadow-[0_6px_18px_rgba(99,102,241,0.3)] active:scale-[0.98] transition-all disabled:opacity-50" data-course="${esc(u.courseId)}" ${isSaving ? 'disabled' : ''}>
+          ${isSaving ? '저장 중...' : '진도 저장'}
+        </button>
+      </div>
+    </div>`;
+}
+
+function wireProgressControls(body) {
+  body.querySelectorAll('.download-unit-btn').forEach(el => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const id = el.dataset.course;
+      const u = state.courses.find(c => c.courseId === id);
+      if (u) downloadUnitAsWord(u);
+    };
+  });
+
+  body.querySelectorAll('.slider-input').forEach(el => {
+    el.addEventListener('input', (e) => {
+      e.stopPropagation();
+      const id = el.dataset.course;
+      state.sliderVal[id] = Number(e.target.value);
+      render();
+    });
+    el.onclick = (e) => e.stopPropagation();
+  });
+
+  body.querySelectorAll('.quick-btn').forEach(el => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const id = el.dataset.course;
+      state.sliderVal[id] = Number(el.dataset.val);
+      render();
+    };
+  });
+
+  body.querySelectorAll('.save-btn').forEach(el => {
+    el.onclick = async (e) => {
+      e.stopPropagation();
+      const id = el.dataset.course;
+      const u = state.courses.find(c => c.courseId === id);
+      if (!u) return;
+      const val = state.sliderVal[id] !== undefined ? state.sliderVal[id] : progressOf(id);
+      state.saving[id] = true;
+      render();
+      try {
+        const res = await callApi({
+          action: 'updateProgress',
+          memberId: state.memberId,
+          name: state.name,
+          courseId: id,
+          courseName: u.courseName,
+          progress: val
+        });
+        if (res && res.error) throw new Error(res.error);
+        state.progress[id] = {
+          courseId: id, courseName: u.courseName,
+          progress: res.progress, completedAt: res.completedAt, lastStudiedAt: res.lastStudiedAt
+        };
+      } catch (err) {
+        alert('진도 저장 중 오류가 발생했습니다: ' + err.message);
+      }
+      state.saving[id] = false;
+      render();
+    };
+  });
+}
+
+function renderMyProgressTab(body) {
+  if (state.loading) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">불러오는 중...</div>`;
+    return;
+  }
+  const groups = groupCourses();
+  if (groups.length === 0) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">등록된 교재가 없습니다.</div>`;
+    return;
+  }
+
+  const totalUnits = groups.reduce((s,g) => s + g.units.length, 0);
+  const doneUnits = groups.reduce((s,g) => s + g.units.filter(u => progressOf(u.courseId) >= 100).length, 0);
+  const overallAvg = totalUnits ? Math.round(groups.reduce((s,g) => s + g.units.reduce((s2,u)=>s2+progressOf(u.courseId),0), 0) / totalUnits) : 0;
+
+  const cardCls = 'bg-white/80 backdrop-blur-md rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 p-4';
+
+  body.innerHTML = `
+    <div class="animate-fade-in space-y-4">
+      <div class="text-[11px] text-gray-400">${esc(state.name)}님 (${esc(state.memberId)}) · 전체 학습 현황</div>
+
+      <div class="rounded-[1.5rem] p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-[0_8px_25px_rgba(99,102,241,0.3)]">
+        <div class="flex items-baseline justify-between">
+          <span class="text-[12px] font-bold text-indigo-100">전체 평균 진도</span>
+          <span class="text-2xl font-black">${overallAvg}%</span>
+        </div>
+        <div class="mt-2 h-2 bg-white/25 rounded-full overflow-hidden">
+          <div class="h-full bg-white rounded-full" style="width:${overallAvg}%"></div>
+        </div>
+        <div class="text-[11px] text-indigo-100 mt-2">완료 ${doneUnits} / 전체 ${totalUnits}단원</div>
+      </div>
+
+      ${groups.map(g => {
+        const total = g.units.length;
+        const done = g.units.filter(u => progressOf(u.courseId) >= 100).length;
+        const avg = total ? Math.round(g.units.reduce((s,u) => s + progressOf(u.courseId), 0) / total) : 0;
+        return `
+        <div class="${cardCls}">
+          <div class="flex items-center justify-between mb-1.5">
+            <h3 class="text-[13px] font-black text-gray-800">${esc(g.courseName)}</h3>
+            <span class="text-[11px] font-bold text-indigo-500">${done}/${total}단원 · ${avg}%</span>
+          </div>
+          ${progressBar(avg)}
+          <div class="mt-3 space-y-1.5">
+            ${g.units.map(u => {
+              const pct = progressOf(u.courseId);
+              const rec = state.progress[u.courseId];
+              const status = pct >= 100 ? { label: '완료', cls: 'bg-emerald-100 text-emerald-700' }
+                           : pct > 0 ? { label: pct + '%', cls: 'bg-indigo-100 text-indigo-700' }
+                           : { label: '미시작', cls: 'bg-gray-100 text-gray-400' };
+              return `
+                <div class="flex items-center justify-between gap-2 py-1">
+                  <span class="text-[12px] text-gray-600 truncate flex-1">${esc(u.unitName)}</span>
+                  ${rec && rec.lastStudiedAt ? `<span class="text-[10px] text-gray-300 shrink-0">${esc(rec.lastStudiedAt)}</span>` : ''}
+                  <span class="text-[10.5px] font-bold px-2 py-0.5 rounded-full shrink-0 ${status.cls}">${status.label}</span>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderReqEduCard(cat, rec) {
+  const date = rec[cat];
+  const done = !!date;
+  const busy = !!state.reqEduToggling[cat];
+  return `
+    <button class="reqedu-card text-left p-3.5 rounded-[1.25rem] border transition-all disabled:opacity-60 ${done ? 'bg-emerald-50 border-emerald-300 shadow-[0_4px_15px_rgba(16,185,129,0.12)]' : 'bg-gray-50 border-gray-200'}" data-category="${esc(cat)}" ${busy ? 'disabled' : ''}>
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-lg">${REQ_EDU_ICONS[cat] || '✅'}</span>
+        <span class="w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 ${done ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300 bg-white'}">
+          ${done ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3.5" d="M5 13l4 4L19 7"/></svg>' : ''}
+        </span>
+      </div>
+      <div class="text-[12.5px] font-black ${done ? 'text-emerald-900' : 'text-gray-600'}">${esc(cat)}</div>
+      <div class="text-[10.5px] mt-1 ${done ? 'text-emerald-600 font-bold' : 'text-gray-400'}">${busy ? '처리 중...' : (done ? esc(date) + ' 이수' : '미이수')}</div>
+    </button>`;
+}
+
+function renderRequiredEduTab(body) {
+  if (state.loading) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">불러오는 중...</div>`;
+    return;
+  }
+  const rec = state.reqEdu || {};
+  const categories = (rec.categories && rec.categories.length) ? rec.categories : REQ_EDU_CATEGORIES_DEFAULT;
+  const doneCount = categories.filter(c => rec[c]).length;
+  const pct = categories.length ? Math.round(doneCount / categories.length * 100) : 0;
+
+  body.innerHTML = `
+    <div class="animate-fade-in space-y-4">
+      <div class="text-[11px] text-gray-400">${esc(state.name)}님 (${esc(state.memberId)}) · 필수 이수 교육</div>
+
+      <div class="rounded-[1.5rem] p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-[0_8px_25px_rgba(99,102,241,0.3)]">
+        <div class="flex items-baseline justify-between">
+          <span class="text-[12px] font-bold text-indigo-100">필수 교육 이수 현황</span>
+          <span class="text-2xl font-black">${doneCount} / ${categories.length}개 이수</span>
+        </div>
+        <div class="mt-2 h-2 bg-white/25 rounded-full overflow-hidden">
+          <div class="h-full bg-white rounded-full transition-all" style="width:${pct}%"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        ${categories.map(cat => renderReqEduCard(cat, rec)).join('')}
+      </div>
+
+      ${!state.reqEdu ? `<div class="text-[11px] text-gray-400 text-center py-2">서버에서 현재 이수 상태를 불러오지 못했습니다. 체크하면 실제 저장된 값으로 갱신됩니다.</div>` : ''}
+    </div>
+  `;
+
+  body.querySelectorAll('.reqedu-card').forEach(el => {
+    el.onclick = async () => {
+      const cat = el.dataset.category;
+      state.reqEduToggling[cat] = true;
+      render();
+      try {
+        const res = await callApi({
+          action: 'toggleRequiredEducation',
+          memberId: state.memberId,
+          name: state.name,
+          category: cat
+        });
+        if (res && res.error) throw new Error(res.error);
+        state.reqEdu = res;
+      } catch (err) {
+        alert('필수교육 상태 변경 중 오류가 발생했습니다: ' + err.message);
+      }
+      delete state.reqEduToggling[cat];
+      render();
+    };
+  });
+}
+
+render();
+loadAll();
+</script>
+</body>
+</html>
