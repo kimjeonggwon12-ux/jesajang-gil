@@ -1,69 +1,87 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko" data-theme="jesagil">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>제사장의 길</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    .header { background: #2c3e50; color: white; padding: 16px 20px; display:flex; align-items:center; justify-content:space-between; }
-    .header h1 { font-size: 18px; }
-    .header .right { display:flex; align-items:center; gap:10px; }
-    .header .user { font-size: 12px; color: #bdc3c7; }
-    .header .home-btn { font-size: 12px; color: #fff; background:none; border:1px solid #3498db; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:600; }
-    .header .home-btn:hover { background:#3498db; }
-    .tabs { display: flex; background: #34495e; }
-    .tab { flex:1; padding: 14px; text-align: center; cursor: pointer; color: #bdc3c7; border: none; background:none; font-size: 15px; font-weight:600; }
-    .tab.active { background: #3498db; color: white; }
-    .login { padding: 60px 20px; text-align: center; }
-    .login h2 { margin-bottom: 20px; color:#2c3e50; }
-    .login input { padding: 10px; margin: 6px; width: 220px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
-    .login button { padding: 10px 24px; background: #3498db; color: white; border: none; border-radius:6px; cursor: pointer; font-size:14px; font-weight:600; }
-    #appPanel { display:none; flex-direction:column; height:100vh; }
-    .content { flex:1; border: none; width: 100%; }
-    .footer { padding: 8px; text-align: center; font-size: 11px; background:#f4f4f4; position:relative; }
-    .admin-link { cursor: pointer; color: #3498db; text-decoration: underline; }
-    .admin-menu { display:none; position:absolute; bottom: 28px; left:50%; transform:translateX(-50%); background:white; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); overflow:hidden; z-index:10; }
-    .admin-menu.show { display:block; }
-    .admin-menu a { display:block; padding:10px 20px; color:#2c3e50; text-decoration:none; font-size:12px; white-space:nowrap; }
-    .admin-menu a:hover { background:#f4f4f4; }
+    /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 HTML 파일에도 동일하게 붙여넣어 사용 */
+    [data-theme="jesagil"] {
+      /* DaisyUI 4.12는 색상 변수를 OKLCH(L% C H)로 받음 — HSL 아님, 주의 */
+      --p: 51.06% 0.2301 276.97;   /* primary: indigo-600 */
+      --pc: 100% 0 0;
+      --s: 66.58% 0.1574 58.32;    /* secondary: amber-600 */
+      --sc: 100% 0 0;
+      --a: 59.60% 0.1274 163.23;   /* accent: emerald-600 */
+      --ac: 100% 0 0;
+      --n: 27.95% 0.0368 260.03;   /* neutral: slate-800 */
+      --nc: 96.70% 0.0029 264.54;
+      --b1: 100% 0 0;              /* base-100: white */
+      --b2: 96.70% 0.0029 264.54;  /* base-200: gray-100 */
+      --b3: 92.76% 0.0058 264.53;  /* base-300: gray-200 */
+      --bc: 27.81% 0.0296 256.85;  /* base-content: gray-800 */
+      --in: 68.47% 0.1479 237.32;
+      --inc: 100% 0 0;
+      --su: 69.59% 0.1491 162.48;
+      --suc: 100% 0 0;
+      --wa: 76.86% 0.1647 70.08;
+      --wac: 0% 0 0;
+      --er: 57.71% 0.2152 27.33;
+      --erc: 100% 0 0;
+      --rounded-box: 0.75rem;
+      --rounded-btn: 0.5rem;
+      --rounded-badge: 1rem;
+    }
+    html, body { height: 100%; margin: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
   </style>
 </head>
-<body>
+<body class="bg-base-200">
   <!--
     ⚠️ 임시(당분간만): 편의를 위해 입장(성도고유번호+이름) 화면을 비활성화했습니다.
     운영 복귀 시 → 아래 loginPanel 의 style="display:none" 를 지우고,
     <script> 하단의 DOMContentLoaded 리스너 한 줄을 지우면 됩니다.
     (startSession() 로그인 코드는 복구용으로 그대로 보존)
   -->
-  <div class="login" id="loginPanel" style="display:none">
-    <h2>제사장의 길</h2>
-    <div>
-      <input type="text" id="memberId" placeholder="성도고유번호" />
-      <input type="text" id="name" placeholder="이름" />
+  <div class="hero min-h-screen" id="loginPanel" style="display:none">
+    <div class="hero-content text-center">
+      <div class="card w-full max-w-sm bg-base-100 shadow-xl">
+        <div class="card-body items-center">
+          <h2 class="card-title text-2xl">제사장의 길</h2>
+          <div class="w-full flex flex-col gap-2 mt-2">
+            <input type="text" id="memberId" placeholder="성도고유번호" class="input input-bordered w-full" />
+            <input type="text" id="name" placeholder="이름" class="input input-bordered w-full" />
+          </div>
+          <button onclick="startSession()" class="btn btn-primary w-full mt-4">입장</button>
+        </div>
+      </div>
     </div>
-    <button onclick="startSession()">입장</button>
   </div>
 
-  <div id="appPanel">
-    <div class="header">
-      <h1>제사장의 길</h1>
-      <span class="right">
-        <button class="home-btn" onclick="goHome()">🏠 홈</button>
-        <span class="user" id="userDisplay"></span>
-      </span>
+  <div id="appPanel" class="flex flex-col h-screen" style="display:none">
+    <div class="navbar bg-neutral text-neutral-content px-4 min-h-0 py-3">
+      <div class="flex-1">
+        <span class="text-lg font-bold">제사장의 길</span>
+      </div>
+      <div class="flex-none flex items-center gap-3">
+        <button class="btn btn-ghost btn-sm" onclick="goHome()">🏠 홈</button>
+        <span class="text-xs text-neutral-content/70" id="userDisplay"></span>
+      </div>
     </div>
-    <div class="tabs">
-      <button class="tab active" data-room="study" onclick="switchTab('study', this)">공부방</button>
-      <button class="tab" data-room="activity" onclick="switchTab('activity', this)">활동방</button>
-      <button class="tab" data-room="feedback" onclick="switchTab('feedback', this)">피드백방</button>
+    <div role="tablist" class="tabs tabs-boxed bg-base-300 rounded-none p-1.5 gap-1">
+      <button role="tab" class="tab tab-active flex-1" data-room="study" onclick="switchTab('study', this)">공부방</button>
+      <button role="tab" class="tab flex-1" data-room="activity" onclick="switchTab('activity', this)">활동방</button>
+      <button role="tab" class="tab flex-1" data-room="feedback" onclick="switchTab('feedback', this)">피드백방</button>
     </div>
-    <iframe id="content" class="content"></iframe>
-    <div class="footer">
-      <span class="admin-link" onclick="toggleAdmin(event)">관리자 메뉴</span>
-      <div class="admin-menu" id="adminMenu">
-        <a href="admin.html" target="_blank" rel="noopener">관리자 페이지</a>
+    <iframe id="content" class="flex-1 w-full border-0"></iframe>
+    <div class="text-center py-2 bg-base-100 border-t border-base-300 text-xs">
+      <div class="dropdown dropdown-top dropdown-center">
+        <div tabindex="0" role="button" class="link link-primary">관리자 메뉴</div>
+        <ul tabindex="0" class="dropdown-content menu menu-sm bg-base-100 rounded-box z-10 w-40 p-2 shadow-md border border-base-300">
+          <li><a href="admin.html" target="_blank" rel="noopener">관리자 페이지</a></li>
+        </ul>
       </div>
     </div>
   </div>
@@ -111,12 +129,12 @@
 
     function switchTab(room, btnEl) {
       // 탭 버튼 활성 표시 갱신
-      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('tab-active'));
       if (btnEl) {
-        btnEl.classList.add('active');
+        btnEl.classList.add('tab-active');
       } else {
         const fallback = document.querySelector(`.tab[data-room="${room}"]`);
-        if (fallback) fallback.classList.add('active');
+        if (fallback) fallback.classList.add('tab-active');
       }
 
       const file = ROOM_FILES[room];
@@ -130,17 +148,7 @@
       params.set('name', name);
 
       document.getElementById('content').src = `${file}?${params.toString()}`;
-      closeAdmin();
     }
-
-    function toggleAdmin(e) {
-      e.stopPropagation();
-      document.getElementById('adminMenu').classList.toggle('show');
-    }
-    function closeAdmin() {
-      document.getElementById('adminMenu').classList.remove('show');
-    }
-    document.addEventListener('click', closeAdmin);
   </script>
 </body>
 </html>

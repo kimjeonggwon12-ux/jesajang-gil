@@ -1,17 +1,45 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="jesagil">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>제사장의 길 - 교관 대시보드</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  html, body { margin:0; padding:0; background:#f4f6f5; }
-  * { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; }
+  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — home.html과 동일 */
+  [data-theme="jesagil"] {
+    /* DaisyUI 4.12는 색상 변수를 OKLCH(L% C H)로 받음 — HSL 아님, 주의 */
+    --p: 51.06% 0.2301 276.97;
+    --pc: 100% 0 0;
+    --s: 66.58% 0.1574 58.32;
+    --sc: 100% 0 0;
+    --a: 59.60% 0.1274 163.23;
+    --ac: 100% 0 0;
+    --n: 27.95% 0.0368 260.03;
+    --nc: 96.70% 0.0029 264.54;
+    --b1: 100% 0 0;
+    --b2: 96.70% 0.0029 264.54;
+    --b3: 92.76% 0.0058 264.53;
+    --bc: 27.81% 0.0296 256.85;
+    --in: 68.47% 0.1479 237.32;
+    --inc: 100% 0 0;
+    --su: 69.59% 0.1491 162.48;
+    --suc: 100% 0 0;
+    --wa: 76.86% 0.1647 70.08;
+    --wac: 0% 0 0;
+    --er: 57.71% 0.2152 27.33;
+    --erc: 100% 0 0;
+    --rounded-box: 0.75rem;
+    --rounded-btn: 0.5rem;
+    --rounded-badge: 1rem;
+  }
+  html, body { margin:0; padding:0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
 </style>
 </head>
-<body>
-<div id="root" class="max-w-2xl mx-auto min-h-screen bg-white shadow"></div>
+<body class="bg-base-200 min-h-screen">
+<div id="root" class="max-w-2xl mx-auto min-h-screen bg-base-100 shadow-sm"></div>
 
 <script>
 const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
@@ -39,15 +67,17 @@ async function loadPending() {
 function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
-    <div class="bg-slate-800 text-white px-5 py-4 flex justify-between items-center">
-      <div>
+    <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
+      <div class="flex-1 flex flex-col items-start">
         <div class="text-lg font-bold">교관 대시보드</div>
-        <div class="text-slate-300 text-sm">대기중인 피드백 요청</div>
+        <div class="text-neutral-content/60 text-sm">대기중인 피드백 요청</div>
       </div>
-      <button id="btn-refresh" class="text-xs bg-slate-700 px-3 py-1.5 rounded-lg">새로고침</button>
+      <div class="flex-none">
+        <button id="btn-refresh" class="btn btn-sm btn-ghost">새로고침</button>
+      </div>
     </div>
     <div class="p-4">
-      <input id="handler-name" type="text" placeholder="담당자 이름 (답변시 기록됨)" value="${state.handler}" class="w-full border rounded-lg px-3 py-2 text-sm mb-4">
+      <input id="handler-name" type="text" placeholder="담당자 이름 (답변시 기록됨)" value="${state.handler}" class="input input-bordered w-full mb-4 text-sm">
       <div id="list"></div>
     </div>
   `;
@@ -56,23 +86,27 @@ function render() {
 
   const list = document.getElementById('list');
   if (state.loading) {
-    list.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">불러오는 중...</div>`;
+    list.innerHTML = `<div class="text-sm text-base-content/40 text-center py-10">
+      <span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...
+    </div>`;
     return;
   }
   if (state.rows.length === 0) {
-    list.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">대기중인 요청이 없습니다.</div>`;
+    list.innerHTML = `<div class="text-sm text-base-content/40 text-center py-10">대기중인 요청이 없습니다.</div>`;
     return;
   }
   list.innerHTML = state.rows.map((row, idx) => `
-    <div class="border rounded-lg p-4 mb-3">
-      <div class="flex justify-between text-xs text-gray-400 mb-2">
-        <span>${row.receiptNo}</span>
-        <span>${row.name} (${row.memberId})</span>
+    <div class="card card-border bg-base-100 shadow-sm mb-3">
+      <div class="card-body p-4">
+        <div class="flex justify-between text-xs text-base-content/40 mb-1">
+          <span>${row.receiptNo}</span>
+          <span>${row.name} (${row.memberId})</span>
+        </div>
+        <div class="text-sm text-base-content/80 mb-2"><span class="font-medium">상황:</span> ${row.situation}</div>
+        <div class="text-xs text-base-content/60 bg-base-200 rounded-lg p-2 mb-3"><span class="font-medium">AI 코칭 결과:</span> ${row.aiCoachText}</div>
+        <textarea id="answer-${idx}" rows="3" placeholder="답변을 입력해주세요" class="textarea textarea-bordered w-full text-sm mb-2"></textarea>
+        <button data-idx="${idx}" class="btn-submit btn btn-neutral w-full">답변 등록</button>
       </div>
-      <div class="text-sm text-gray-700 mb-2"><span class="font-medium">상황:</span> ${row.situation}</div>
-      <div class="text-xs text-gray-500 bg-gray-50 rounded p-2 mb-3"><span class="font-medium">AI 코칭 결과:</span> ${row.aiCoachText}</div>
-      <textarea id="answer-${idx}" rows="3" placeholder="답변을 입력해주세요" class="w-full border rounded-lg px-3 py-2 text-sm mb-2"></textarea>
-      <button data-idx="${idx}" class="btn-submit w-full bg-slate-800 text-white rounded-lg py-2 text-sm font-medium">답변 등록</button>
     </div>
   `).join('');
 

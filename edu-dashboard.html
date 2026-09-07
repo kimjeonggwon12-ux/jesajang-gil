@@ -1,18 +1,46 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="jesagil">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>제사장의 길 - 교육부 대시보드</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
-  html, body { margin:0; padding:0; background:#f4f6f5; }
-  * { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; }
+  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — home.html / coach-dashboard.html과 동일 */
+  [data-theme="jesagil"] {
+    /* DaisyUI 4.12는 색상 변수를 OKLCH(L% C H)로 받음 — HSL 아님, 주의 */
+    --p: 51.06% 0.2301 276.97;
+    --pc: 100% 0 0;
+    --s: 66.58% 0.1574 58.32;
+    --sc: 100% 0 0;
+    --a: 59.60% 0.1274 163.23;
+    --ac: 100% 0 0;
+    --n: 27.95% 0.0368 260.03;
+    --nc: 96.70% 0.0029 264.54;
+    --b1: 100% 0 0;
+    --b2: 96.70% 0.0029 264.54;
+    --b3: 92.76% 0.0058 264.53;
+    --bc: 27.81% 0.0296 256.85;
+    --in: 68.47% 0.1479 237.32;
+    --inc: 100% 0 0;
+    --su: 69.59% 0.1491 162.48;
+    --suc: 100% 0 0;
+    --wa: 76.86% 0.1647 70.08;
+    --wac: 0% 0 0;
+    --er: 57.71% 0.2152 27.33;
+    --erc: 100% 0 0;
+    --rounded-box: 0.75rem;
+    --rounded-btn: 0.5rem;
+    --rounded-badge: 1rem;
+  }
+  html, body { margin:0; padding:0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
 </style>
 </head>
-<body>
-<div id="root" class="max-w-4xl mx-auto min-h-screen bg-white shadow"></div>
+<body class="bg-base-200 min-h-screen">
+<div id="root" class="max-w-4xl mx-auto min-h-screen bg-base-100 shadow-sm"></div>
 
 <script>
 const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
@@ -129,14 +157,14 @@ async function approveTierChange(memberId, newTier) {
 
 function renderTierSection() {
   return `
-    <div class="mb-8 pb-6 border-b border-gray-200">
+    <div class="mb-8 pb-6 border-b border-base-300">
       <div class="flex items-center justify-between mb-1">
-        <div class="text-base font-bold text-gray-800">등급 심사</div>
-        <button id="btn-tier-load" ${tierLoading ? 'disabled' : ''} class="text-xs bg-indigo-700 hover:bg-indigo-800 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+        <div class="text-base font-bold text-base-content">등급 심사</div>
+        <button id="btn-tier-load" ${tierLoading ? 'disabled' : ''} class="btn btn-primary btn-sm">
           ${tierLoading ? '불러오는 중...' : '변경 예정 목록 불러오기'}
         </button>
       </div>
-      <div class="text-xs text-gray-400 mb-4">휴교사 · 교사 · 정교사 · 우수교사 승급/강등 후보 — 확인 후 개별 승인해야 실제 반영됩니다</div>
+      <div class="text-xs text-base-content/40 mb-4">휴교사 · 교사 · 활동교사 · 우수교사 승급/강등 후보 — 확인 후 개별 승인해야 실제 반영됩니다</div>
       ${renderTierTable()}
     </div>
   `;
@@ -144,29 +172,33 @@ function renderTierSection() {
 
 function renderTierTable() {
   if (tierLoading) {
-    return `<div class="text-xs text-gray-400 border rounded-lg p-4 text-center">불러오는 중...</div>`;
+    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">
+      <span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...
+    </div>`;
   }
   if (tierSuggestions === null) {
-    return `<div class="text-xs text-gray-400 border rounded-lg p-4 text-center">"변경 예정 목록 불러오기"를 눌러 확인하세요.</div>`;
+    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">"변경 예정 목록 불러오기"를 눌러 확인하세요.</div>`;
   }
   if (tierSuggestions.length === 0) {
-    return `<div class="text-xs text-gray-400 border rounded-lg p-4 text-center">변경 대상이 없습니다.</div>`;
+    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">변경 대상이 없습니다.</div>`;
   }
   return `
-    <div class="border rounded-lg overflow-hidden overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="bg-gray-50"><tr class="text-left">
-          <th class="p-2">이름</th><th class="p-2">현재등급</th><th class="p-2">제안등급</th><th class="p-2">사유</th><th class="p-2"></th>
+    <div class="overflow-x-auto border border-base-300 rounded-box">
+      <table class="table table-zebra table-sm">
+        <thead><tr>
+          <th>이름</th><th>현재등급</th><th>제안등급</th><th>사유</th><th></th>
         </tr></thead>
         <tbody>
           ${tierSuggestions.map(s => `
-            <tr class="border-t">
-              <td class="p-2 font-medium text-gray-800">${esc(s.name)}<div class="text-[10px] text-gray-400">${esc(s.memberId)}</div></td>
-              <td class="p-2 text-gray-500">${esc(s.currentTier)}</td>
-              <td class="p-2 font-medium ${s.suggestedTier === s.currentTier ? 'text-slate-600' : 'text-indigo-700'}">${esc(s.suggestedTier)}</td>
-              <td class="p-2 text-gray-500">${esc(s.reason)}</td>
-              <td class="p-2 whitespace-nowrap">
-                <button class="tier-approve-btn text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-md disabled:opacity-50" data-mid="${esc(s.memberId)}" data-tier="${esc(s.suggestedTier)}" ${tierApplying[s.memberId] ? 'disabled' : ''}>
+            <tr>
+              <td class="font-medium">${esc(s.name)}<div class="text-[10px] text-base-content/40">${esc(s.memberId)}</div></td>
+              <td class="text-base-content/60">${esc(s.currentTier)}</td>
+              <td class="font-medium">
+                <span class="badge ${s.suggestedTier === s.currentTier ? 'badge-ghost' : 'badge-primary'} badge-sm">${esc(s.suggestedTier)}</span>
+              </td>
+              <td class="text-base-content/60">${esc(s.reason)}</td>
+              <td class="whitespace-nowrap">
+                <button class="tier-approve-btn btn btn-success btn-xs" data-mid="${esc(s.memberId)}" data-tier="${esc(s.suggestedTier)}" ${tierApplying[s.memberId] ? 'disabled' : ''}>
                   ${tierApplying[s.memberId] ? '처리중...' : '승인'}
                 </button>
               </td>
@@ -232,24 +264,30 @@ function buildRosterStats() {
 function renderRosterSection() {
   if (roster.length === 0) return '';
   return `
-    <div class="mb-8 pb-6 border-b border-gray-200">
-      <div class="text-base font-bold text-gray-800 mb-1">부서별 교사 현황</div>
-      <div class="text-xs text-gray-400 mb-4">교사명단 등록 ${roster.length}명 기준 (부서/교사구분은 시트 값을 그대로 사용)</div>
+    <div class="mb-8 pb-6 border-b border-base-300">
+      <div class="text-base font-bold text-base-content mb-1">부서별 교사 현황</div>
+      <div class="text-xs text-base-content/40 mb-4">교사명단 등록 ${roster.length}명 기준 (부서/교사구분은 시트 값을 그대로 사용)</div>
 
-      <div class="grid md:grid-cols-2 gap-6 mb-6">
-        <div>
-          <div class="text-sm font-medium text-gray-700 mb-2">부서별 등록 교사 수</div>
-          <canvas id="deptCountChart" height="200"></canvas>
+      <div class="grid md:grid-cols-2 gap-4 mb-4">
+        <div class="card card-border bg-base-100 shadow-sm">
+          <div class="card-body p-4">
+            <div class="text-sm font-medium text-base-content/70 mb-2">부서별 등록 교사 수</div>
+            <canvas id="deptCountChart" height="200"></canvas>
+          </div>
         </div>
-        <div>
-          <div class="text-sm font-medium text-gray-700 mb-2">교사구분(등급)별 분포</div>
-          <canvas id="tierChart" height="200"></canvas>
+        <div class="card card-border bg-base-100 shadow-sm">
+          <div class="card-body p-4">
+            <div class="text-sm font-medium text-base-content/70 mb-2">교사구분(등급)별 분포</div>
+            <canvas id="tierChart" height="200"></canvas>
+          </div>
         </div>
       </div>
 
-      <div>
-        <div class="text-sm font-medium text-gray-700 mb-2">부서별 · 최근 30일 활동/피드백 기록 유무</div>
-        <canvas id="crossChart" height="220"></canvas>
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+          <div class="text-sm font-medium text-base-content/70 mb-2">부서별 · 최근 30일 활동/피드백 기록 유무</div>
+          <canvas id="crossChart" height="220"></canvas>
+        </div>
       </div>
     </div>
   `;
@@ -258,13 +296,13 @@ function renderRosterSection() {
 function renderRosterCharts() {
   if (roster.length === 0) return;
   const s = buildRosterStats();
-  const TIER_COLORS = ['#94a3b8', '#4338ca', '#0ea5e9', '#059669', '#d97706', '#dc2626'];
+  const TIER_COLORS = ['#94a3b8', '#4f46e5', '#0ea5e9', '#059669', '#d97706', '#dc2626'];
 
   new Chart(document.getElementById('deptCountChart'), {
     type: 'bar',
     data: {
       labels: s.deptLabels,
-      datasets: [{ data: s.deptLabels.map(d => s.deptCounts[d]), backgroundColor: '#4338ca' }]
+      datasets: [{ data: s.deptLabels.map(d => s.deptCounts[d]), backgroundColor: '#4f46e5' }]
     },
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   });
@@ -339,31 +377,31 @@ function buildStudyStats() {
 
 function renderNotStartedTable(notStarted) {
   if (roster.length === 0) {
-    return `<div class="text-xs text-gray-400 border rounded-lg p-4 text-center">교사명단(getRoster)을 불러오지 못해 목록을 계산할 수 없습니다.</div>`;
+    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">교사명단(getRoster)을 불러오지 못해 목록을 계산할 수 없습니다.</div>`;
   }
   if (notStarted.length === 0) {
-    return `<div class="text-xs text-gray-400 border rounded-lg p-4 text-center">전원 공부방을 시작했습니다.</div>`;
+    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">전원 공부방을 시작했습니다.</div>`;
   }
   const CAP = 100;
   const shown = notStarted.slice(0, CAP);
   return `
-    <div class="border rounded-lg overflow-hidden">
-      <div class="max-h-64 overflow-y-auto">
-        <table class="w-full text-sm">
-          <thead class="bg-gray-50 sticky top-0"><tr class="text-left">
-            <th class="p-2">이름</th><th class="p-2">고유번호</th><th class="p-2">부서</th>
+    <div class="border border-base-300 rounded-box overflow-hidden">
+      <div class="max-h-64 overflow-y-auto overflow-x-auto">
+        <table class="table table-zebra table-sm">
+          <thead class="sticky top-0 bg-base-100"><tr>
+            <th>이름</th><th>고유번호</th><th>부서</th>
           </tr></thead>
           <tbody>
             ${shown.map(r => `
-              <tr class="border-t">
-                <td class="p-2 font-medium text-gray-800">${esc(r.name)}</td>
-                <td class="p-2 text-gray-400">${esc(r.memberId)}</td>
-                <td class="p-2 text-gray-500">${esc(r.dept || '')}</td>
+              <tr>
+                <td class="font-medium">${esc(r.name)}</td>
+                <td class="text-base-content/40">${esc(r.memberId)}</td>
+                <td class="text-base-content/60">${esc(r.dept || '')}</td>
               </tr>`).join('')}
           </tbody>
         </table>
       </div>
-      ${notStarted.length > CAP ? `<div class="text-[11px] text-gray-400 text-center py-1.5 bg-gray-50 border-t">외 ${notStarted.length - CAP}명 더</div>` : ''}
+      ${notStarted.length > CAP ? `<div class="text-[11px] text-base-content/40 text-center py-1.5 bg-base-200 border-t border-base-300">외 ${notStarted.length - CAP}명 더</div>` : ''}
     </div>
   `;
 }
@@ -374,29 +412,35 @@ function renderStudySection() {
   const courseCount = new Set(courseRows.map(u => u.courseName)).size;
 
   return `
-    <div class="mb-8 pb-6 border-b border-gray-200">
-      <div class="text-base font-bold text-gray-800 mb-1">공부방 진도 현황</div>
-      <div class="text-xs text-gray-400 mb-4">
+    <div class="mb-8 pb-6 border-b border-base-300">
+      <div class="text-base font-bold text-base-content mb-1">공부방 진도 현황</div>
+      <div class="text-xs text-base-content/40 mb-4">
         교재 ${courseCount}종 · 총 ${courseRows.length}단원${roster.length > 0 ? ` · 교사명단 ${roster.length}명 기준` : ' · 교사명단 미로딩(전체 대비 진도 계산 불가)'}
       </div>
 
-      <div class="mb-6">
-        <div class="text-sm font-medium text-gray-700 mb-2">교재별 평균 진도 (전체 교사 대비)</div>
-        ${roster.length === 0
-          ? `<div class="text-xs text-gray-400 border rounded-lg p-4 text-center">교사명단(getRoster)을 불러오지 못해 전체 대비 진도를 계산할 수 없습니다.</div>`
-          : `<canvas id="studyCourseChart" height="180"></canvas>`}
+      <div class="card card-border bg-base-100 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <div class="text-sm font-medium text-base-content/70 mb-2">교재별 평균 진도 (전체 교사 대비)</div>
+          ${roster.length === 0
+            ? `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">교사명단(getRoster)을 불러오지 못해 전체 대비 진도를 계산할 수 없습니다.</div>`
+            : `<canvas id="studyCourseChart" height="180"></canvas>`}
+        </div>
       </div>
 
-      <div class="grid md:grid-cols-2 gap-6">
-        <div>
-          <div class="text-sm font-medium text-gray-700 mb-2">최근 ${STUDY_RECENT_DAYS}일 내 학습 기록 유무</div>
-          ${roster.length === 0
-            ? `<div class="text-xs text-gray-400 border rounded-lg p-4 text-center">교사명단 필요</div>`
-            : `<canvas id="studyRecentChart" height="180"></canvas>`}
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="card card-border bg-base-100 shadow-sm">
+          <div class="card-body p-4">
+            <div class="text-sm font-medium text-base-content/70 mb-2">최근 ${STUDY_RECENT_DAYS}일 내 학습 기록 유무</div>
+            ${roster.length === 0
+              ? `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">교사명단 필요</div>`
+              : `<canvas id="studyRecentChart" height="180"></canvas>`}
+          </div>
         </div>
-        <div>
-          <div class="text-sm font-medium text-gray-700 mb-2">이수내역 0건(공부방 미시작) <span class="text-gray-400 font-normal">${s.notStarted.length}명</span></div>
-          ${renderNotStartedTable(s.notStarted)}
+        <div class="card card-border bg-base-100 shadow-sm">
+          <div class="card-body p-4">
+            <div class="text-sm font-medium text-base-content/70 mb-2">이수내역 0건(공부방 미시작) <span class="text-base-content/40 font-normal">${s.notStarted.length}명</span></div>
+            ${renderNotStartedTable(s.notStarted)}
+          </div>
         </div>
       </div>
     </div>
@@ -413,7 +457,7 @@ function renderStudyCharts() {
       type: 'bar',
       data: {
         labels: s.courseNames,
-        datasets: [{ data: s.courseNames.map(c => s.courseAvg[c] || 0), backgroundColor: '#6366f1' }]
+        datasets: [{ data: s.courseNames.map(c => s.courseAvg[c] || 0), backgroundColor: '#4f46e5' }]
       },
       options: {
         indexAxis: 'y',
@@ -439,12 +483,14 @@ function renderStudyCharts() {
 function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
-    <div class="bg-indigo-800 text-white px-5 py-4 flex justify-between items-center">
-      <div>
+    <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
+      <div class="flex-1 flex flex-col items-start">
         <div class="text-lg font-bold">교육부 분석 대시보드</div>
-        <div class="text-indigo-200 text-sm">제사장의 길 · 피드백 데이터</div>
+        <div class="text-neutral-content/60 text-sm">제사장의 길 · 피드백 데이터</div>
       </div>
-      <button id="btn-refresh" class="text-xs bg-indigo-700 px-3 py-1.5 rounded-lg">새로고침</button>
+      <div class="flex-none">
+        <button id="btn-refresh" class="btn btn-sm btn-ghost">새로고침</button>
+      </div>
     </div>
     <div class="p-5" id="content"></div>
   `;
@@ -452,7 +498,9 @@ function render() {
 
   const content = document.getElementById('content');
   if (loading) {
-    content.innerHTML = `<div class="text-sm text-gray-400 text-center py-16">데이터 불러오는 중...</div>`;
+    content.innerHTML = `<div class="text-sm text-base-content/40 text-center py-16">
+      <span class="loading loading-spinner loading-md align-middle mr-2"></span>데이터 불러오는 중...
+    </div>`;
     return;
   }
 
@@ -463,8 +511,8 @@ function render() {
 
   if (rows.length === 0) {
     content.innerHTML = tierSectionHtml + rosterHtml + studyHtml + (roster.length === 0
-      ? `<div class="text-sm text-gray-400 text-center py-16">아직 데이터가 없습니다.</div>`
-      : `<div class="text-sm text-gray-400 text-center py-10">아직 피드백 데이터가 없습니다.</div>`);
+      ? `<div class="text-sm text-base-content/40 text-center py-16">아직 데이터가 없습니다.</div>`
+      : `<div class="text-sm text-base-content/40 text-center py-10">아직 피드백 데이터가 없습니다.</div>`);
     wireTierSection();
     renderRosterCharts();
     renderStudyCharts();
@@ -503,51 +551,61 @@ function render() {
   const weekValues = weekLabels.map(k => weekCounts[k]);
 
   content.innerHTML = tierSectionHtml + rosterHtml + studyHtml + `
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-      <div class="border rounded-lg p-3">
-        <div class="text-xs text-gray-400">전체 요청 수</div>
-        <div class="text-2xl font-bold text-indigo-800">${total}</div>
+    <div class="stats stats-vertical sm:stats-horizontal shadow-sm border border-base-300 w-full mb-6">
+      <div class="stat">
+        <div class="stat-title">전체 요청 수</div>
+        <div class="stat-value text-primary text-2xl">${total}</div>
       </div>
-      <div class="border rounded-lg p-3">
-        <div class="text-xs text-gray-400">AI 단독 해결률</div>
-        <div class="text-2xl font-bold text-emerald-700">${Math.round(aiDone / total * 100)}%</div>
+      <div class="stat">
+        <div class="stat-title">AI 단독 해결률</div>
+        <div class="stat-value text-success text-2xl">${Math.round(aiDone / total * 100)}%</div>
       </div>
-      <div class="border rounded-lg p-3">
-        <div class="text-xs text-gray-400">교관 에스컬레이션율</div>
-        <div class="text-2xl font-bold text-amber-600">${Math.round(escalated / total * 100)}%</div>
+      <div class="stat">
+        <div class="stat-title">교관 에스컬레이션율</div>
+        <div class="stat-value text-warning text-2xl">${Math.round(escalated / total * 100)}%</div>
       </div>
-      <div class="border rounded-lg p-3">
-        <div class="text-xs text-gray-400">평균 응답 시간</div>
-        <div class="text-2xl font-bold text-slate-700">${avgHours}${avgHours !== '-' ? 'h' : ''}</div>
+      <div class="stat">
+        <div class="stat-title">평균 응답 시간</div>
+        <div class="stat-value text-base-content text-2xl">${avgHours}${avgHours !== '-' ? 'h' : ''}</div>
       </div>
     </div>
 
     ${longPending.length > 0 ? `
-    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-      <div class="text-sm font-medium text-red-700 mb-2">48시간 이상 미처리 (${longPending.length}건)</div>
-      ${longPending.map(r => `<div class="text-xs text-red-600">${r.receiptNo} · ${r.name} (${r.memberId})</div>`).join('')}
+    <div role="alert" class="alert alert-error alert-outline mb-6 items-start">
+      <div>
+        <div class="text-sm font-medium mb-1">48시간 이상 미처리 (${longPending.length}건)</div>
+        <div class="flex flex-col gap-0.5">
+          ${longPending.map(r => `<div class="text-xs">${r.receiptNo} · ${r.name} (${r.memberId})</div>`).join('')}
+        </div>
+      </div>
     </div>` : ''}
 
-    <div class="grid md:grid-cols-2 gap-6 mb-6">
-      <div>
-        <div class="text-sm font-medium text-gray-700 mb-2">어려움 유형 분포</div>
-        <canvas id="catChart" height="200"></canvas>
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+          <div class="text-sm font-medium text-base-content/70 mb-2">어려움 유형 분포</div>
+          <canvas id="catChart" height="200"></canvas>
+        </div>
       </div>
-      <div>
-        <div class="text-sm font-medium text-gray-700 mb-2">주별 요청 추이</div>
-        <canvas id="trendChart" height="200"></canvas>
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+          <div class="text-sm font-medium text-base-content/70 mb-2">주별 요청 추이</div>
+          <canvas id="trendChart" height="200"></canvas>
+        </div>
       </div>
     </div>
 
-    <div class="text-sm font-medium text-gray-700 mb-2">반복 요청자 (3건 이상)</div>
+    <div class="text-sm font-medium text-base-content/70 mb-2">반복 요청자 (3건 이상)</div>
     ${repeaters.length === 0
-      ? `<div class="text-xs text-gray-400 mb-6">해당 없음</div>`
-      : `<table class="w-full text-sm border mb-6">
-          <thead><tr class="bg-gray-50 text-left"><th class="p-2">이름</th><th class="p-2">고유번호</th><th class="p-2">건수</th></tr></thead>
-          <tbody>
-            ${repeaters.map(r => `<tr class="border-t"><td class="p-2">${r.name}</td><td class="p-2 text-gray-400">${r.memberId}</td><td class="p-2 font-medium">${r.count}건</td></tr>`).join('')}
-          </tbody>
-        </table>`
+      ? `<div class="text-xs text-base-content/40 mb-6">해당 없음</div>`
+      : `<div class="overflow-x-auto border border-base-300 rounded-box mb-6">
+          <table class="table table-zebra table-sm">
+            <thead><tr><th>이름</th><th>고유번호</th><th>건수</th></tr></thead>
+            <tbody>
+              ${repeaters.map(r => `<tr><td>${r.name}</td><td class="text-base-content/40">${r.memberId}</td><td class="font-medium">${r.count}건</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`
     }
   `;
 
@@ -555,7 +613,7 @@ function render() {
     type: 'bar',
     data: {
       labels: Object.keys(catCounts),
-      datasets: [{ data: Object.values(catCounts), backgroundColor: '#4338ca' }]
+      datasets: [{ data: Object.values(catCounts), backgroundColor: '#4f46e5' }]
     },
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
   });
@@ -564,7 +622,7 @@ function render() {
     type: 'line',
     data: {
       labels: weekLabels,
-      datasets: [{ data: weekValues, borderColor: '#4338ca', tension: 0.3 }]
+      datasets: [{ data: weekValues, borderColor: '#4f46e5', tension: 0.3 }]
     },
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
   });
