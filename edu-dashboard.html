@@ -37,10 +37,13 @@
   }
   html, body { margin:0; padding:0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); }
+  .section-card { border-radius: var(--rounded-box); overflow: hidden; }
+  .section-stripe { height: 6px; }
 </style>
 </head>
 <body class="bg-base-200 min-h-screen">
-<div id="root" class="max-w-4xl mx-auto min-h-screen bg-base-100 shadow-sm"></div>
+<div id="root" class="max-w-5xl mx-auto min-h-screen bg-base-100 shadow-sm"></div>
 
 <script>
 const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
@@ -63,6 +66,25 @@ let tierApplying = {};       // memberId → true (승인 처리 중)
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// 섹션 카드 공통 골격: 색상 스트라이프 + 아이콘 헤더 + 본문. colorName은 daisyUI 시맨틱 컬러명(primary/secondary/accent/info 등).
+function sectionCard(colorName, icon, title, subtitle, bodyHtml) {
+  return `
+    <div class="section-card bg-base-100 border border-base-300 shadow-sm mb-6">
+      <div class="section-stripe bg-${colorName}"></div>
+      <div class="p-5">
+        <div class="flex items-start gap-3 mb-4">
+          <div class="w-9 h-9 rounded-lg bg-${colorName}/10 text-${colorName} flex items-center justify-center text-lg shrink-0">${icon}</div>
+          <div>
+            <div class="text-base font-bold text-base-content">${title}</div>
+            ${subtitle ? `<div class="text-xs text-base-content/40 mt-0.5">${subtitle}</div>` : ''}
+          </div>
+        </div>
+        ${bodyHtml}
+      </div>
+    </div>
+  `;
 }
 
 async function callApi(payload) {
@@ -156,31 +178,28 @@ async function approveTierChange(memberId, newTier) {
 }
 
 function renderTierSection() {
-  return `
-    <div class="mb-8 pb-6 border-b border-base-300">
-      <div class="flex items-center justify-between mb-1">
-        <div class="text-base font-bold text-base-content">등급 심사</div>
-        <button id="btn-tier-load" ${tierLoading ? 'disabled' : ''} class="btn btn-primary btn-sm">
-          ${tierLoading ? '불러오는 중...' : '변경 예정 목록 불러오기'}
-        </button>
-      </div>
-      <div class="text-xs text-base-content/40 mb-4">휴교사 · 교사 · 활동교사 · 우수교사 승급/강등 후보 — 확인 후 개별 승인해야 실제 반영됩니다</div>
-      ${renderTierTable()}
+  const body = `
+    <div class="flex justify-end mb-3 -mt-1">
+      <button id="btn-tier-load" ${tierLoading ? 'disabled' : ''} class="btn btn-primary btn-sm">
+        ${tierLoading ? '불러오는 중...' : '📥 변경 예정 목록 불러오기'}
+      </button>
     </div>
+    ${renderTierTable()}
   `;
+  return sectionCard('primary', '🎖️', '등급 심사', '휴교사 · 교사 · 활동교사 · 우수교사 승급/강등 후보 — 확인 후 개별 승인해야 실제 반영됩니다', body);
 }
 
 function renderTierTable() {
   if (tierLoading) {
-    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">
+    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center">
       <span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...
     </div>`;
   }
   if (tierSuggestions === null) {
-    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">"변경 예정 목록 불러오기"를 눌러 확인하세요.</div>`;
+    return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">"변경 예정 목록 불러오기"를 눌러 확인하세요.</div>`;
   }
   if (tierSuggestions.length === 0) {
-    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">변경 대상이 없습니다.</div>`;
+    return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">✅ 변경 대상이 없습니다.</div>`;
   }
   return `
     <div class="overflow-x-auto border border-base-300 rounded-box">
@@ -263,21 +282,17 @@ function buildRosterStats() {
 
 function renderRosterSection() {
   if (roster.length === 0) return '';
-  return `
-    <div class="mb-8 pb-6 border-b border-base-300">
-      <div class="text-base font-bold text-base-content mb-1">부서별 교사 현황</div>
-      <div class="text-xs text-base-content/40 mb-4">교사명단 등록 ${roster.length}명 기준 (부서/교사구분은 시트 값을 그대로 사용)</div>
-
+  const body = `
       <div class="grid md:grid-cols-2 gap-4 mb-4">
         <div class="card card-border bg-base-100 shadow-sm">
           <div class="card-body p-4">
-            <div class="text-sm font-medium text-base-content/70 mb-2">부서별 등록 교사 수</div>
+            <div class="text-sm font-medium text-base-content/70 mb-2">📊 부서별 등록 교사 수</div>
             <canvas id="deptCountChart" height="200"></canvas>
           </div>
         </div>
         <div class="card card-border bg-base-100 shadow-sm">
           <div class="card-body p-4">
-            <div class="text-sm font-medium text-base-content/70 mb-2">교사구분(등급)별 분포</div>
+            <div class="text-sm font-medium text-base-content/70 mb-2">🍩 교사구분(등급)별 분포</div>
             <canvas id="tierChart" height="200"></canvas>
           </div>
         </div>
@@ -285,12 +300,12 @@ function renderRosterSection() {
 
       <div class="card card-border bg-base-100 shadow-sm">
         <div class="card-body p-4">
-          <div class="text-sm font-medium text-base-content/70 mb-2">부서별 · 최근 30일 활동/피드백 기록 유무</div>
+          <div class="text-sm font-medium text-base-content/70 mb-2">📶 부서별 · 최근 30일 활동/피드백 기록 유무</div>
           <canvas id="crossChart" height="220"></canvas>
         </div>
       </div>
-    </div>
   `;
+  return sectionCard('secondary', '🏢', '부서별 교사 현황', `교사명단 등록 ${roster.length}명 기준 (부서/교사구분은 시트 값을 그대로 사용)`, body);
 }
 
 function renderRosterCharts() {
@@ -302,7 +317,7 @@ function renderRosterCharts() {
     type: 'bar',
     data: {
       labels: s.deptLabels,
-      datasets: [{ data: s.deptLabels.map(d => s.deptCounts[d]), backgroundColor: '#4f46e5' }]
+      datasets: [{ data: s.deptLabels.map(d => s.deptCounts[d]), backgroundColor: '#4f46e5', borderRadius: 4 }]
     },
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   });
@@ -377,10 +392,10 @@ function buildStudyStats() {
 
 function renderNotStartedTable(notStarted) {
   if (roster.length === 0) {
-    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">교사명단(getRoster)을 불러오지 못해 목록을 계산할 수 없습니다.</div>`;
+    return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">교사명단(getRoster)을 불러오지 못해 목록을 계산할 수 없습니다.</div>`;
   }
   if (notStarted.length === 0) {
-    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">전원 공부방을 시작했습니다.</div>`;
+    return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">✅ 전원 공부방을 시작했습니다.</div>`;
   }
   const CAP = 100;
   const shown = notStarted.slice(0, CAP);
@@ -411,18 +426,12 @@ function renderStudySection() {
   const s = buildStudyStats();
   const courseCount = new Set(courseRows.map(u => u.courseName)).size;
 
-  return `
-    <div class="mb-8 pb-6 border-b border-base-300">
-      <div class="text-base font-bold text-base-content mb-1">공부방 진도 현황</div>
-      <div class="text-xs text-base-content/40 mb-4">
-        교재 ${courseCount}종 · 총 ${courseRows.length}단원${roster.length > 0 ? ` · 교사명단 ${roster.length}명 기준` : ' · 교사명단 미로딩(전체 대비 진도 계산 불가)'}
-      </div>
-
+  const body = `
       <div class="card card-border bg-base-100 shadow-sm mb-4">
         <div class="card-body p-4">
-          <div class="text-sm font-medium text-base-content/70 mb-2">교재별 평균 진도 (전체 교사 대비)</div>
+          <div class="text-sm font-medium text-base-content/70 mb-2">📈 교재별 평균 진도 (전체 교사 대비)</div>
           ${roster.length === 0
-            ? `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">교사명단(getRoster)을 불러오지 못해 전체 대비 진도를 계산할 수 없습니다.</div>`
+            ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">교사명단(getRoster)을 불러오지 못해 전체 대비 진도를 계산할 수 없습니다.</div>`
             : `<canvas id="studyCourseChart" height="180"></canvas>`}
         </div>
       </div>
@@ -430,21 +439,21 @@ function renderStudySection() {
       <div class="grid md:grid-cols-2 gap-4">
         <div class="card card-border bg-base-100 shadow-sm">
           <div class="card-body p-4">
-            <div class="text-sm font-medium text-base-content/70 mb-2">최근 ${STUDY_RECENT_DAYS}일 내 학습 기록 유무</div>
+            <div class="text-sm font-medium text-base-content/70 mb-2">🍩 최근 ${STUDY_RECENT_DAYS}일 내 학습 기록 유무</div>
             ${roster.length === 0
-              ? `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-4 text-center">교사명단 필요</div>`
+              ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">교사명단 필요</div>`
               : `<canvas id="studyRecentChart" height="180"></canvas>`}
           </div>
         </div>
         <div class="card card-border bg-base-100 shadow-sm">
           <div class="card-body p-4">
-            <div class="text-sm font-medium text-base-content/70 mb-2">이수내역 0건(공부방 미시작) <span class="text-base-content/40 font-normal">${s.notStarted.length}명</span></div>
+            <div class="text-sm font-medium text-base-content/70 mb-2">📭 이수내역 0건(공부방 미시작) <span class="badge badge-ghost badge-sm align-middle">${s.notStarted.length}명</span></div>
             ${renderNotStartedTable(s.notStarted)}
           </div>
         </div>
       </div>
-    </div>
   `;
+  return sectionCard('accent', '📘', '공부방 진도 현황', `교재 ${courseCount}종 · 총 ${courseRows.length}단원${roster.length > 0 ? ` · 교사명단 ${roster.length}명 기준` : ' · 교사명단 미로딩(전체 대비 진도 계산 불가)'}`, body);
 }
 
 function renderStudyCharts() {
@@ -457,7 +466,7 @@ function renderStudyCharts() {
       type: 'bar',
       data: {
         labels: s.courseNames,
-        datasets: [{ data: s.courseNames.map(c => s.courseAvg[c] || 0), backgroundColor: '#4f46e5' }]
+        datasets: [{ data: s.courseNames.map(c => s.courseAvg[c] || 0), backgroundColor: '#4f46e5', borderRadius: 4 }]
       },
       options: {
         indexAxis: 'y',
@@ -484,21 +493,25 @@ function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
     <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
-      <div class="flex-1 flex flex-col items-start">
-        <div class="text-lg font-bold">교육부 분석 대시보드</div>
-        <div class="text-neutral-content/60 text-sm">제사장의 길 · 피드백 데이터</div>
+      <div class="flex-1 flex items-center gap-2">
+        <span class="text-xl leading-none">🎓</span>
+        <div class="flex flex-col items-start leading-tight">
+          <div class="text-lg font-bold">교육부 분석 대시보드</div>
+          <div class="text-neutral-content/50 text-xs">제사장의 길 · 피드백 데이터</div>
+        </div>
       </div>
       <div class="flex-none">
-        <button id="btn-refresh" class="btn btn-sm btn-ghost">새로고침</button>
+        <button id="btn-refresh" class="btn btn-sm btn-ghost">🔄 새로고침</button>
       </div>
     </div>
+    <div class="brand-accent-bar"></div>
     <div class="p-5" id="content"></div>
   `;
   document.getElementById('btn-refresh').onclick = load;
 
   const content = document.getElementById('content');
   if (loading) {
-    content.innerHTML = `<div class="text-sm text-base-content/40 text-center py-16">
+    content.innerHTML = `<div class="text-sm text-base-content/40 text-center py-20">
       <span class="loading loading-spinner loading-md align-middle mr-2"></span>데이터 불러오는 중...
     </div>`;
     return;
@@ -550,55 +563,61 @@ function render() {
   const weekLabels = Object.keys(weekCounts).sort();
   const weekValues = weekLabels.map(k => weekCounts[k]);
 
-  content.innerHTML = tierSectionHtml + rosterHtml + studyHtml + `
-    <div class="stats stats-vertical sm:stats-horizontal shadow-sm border border-base-300 w-full mb-6">
+  const statsBody = `
+    <div class="stats stats-vertical sm:stats-horizontal shadow-sm border border-base-300 w-full mb-4">
       <div class="stat">
+        <div class="stat-figure text-primary text-2xl">🗂️</div>
         <div class="stat-title">전체 요청 수</div>
         <div class="stat-value text-primary text-2xl">${total}</div>
       </div>
       <div class="stat">
+        <div class="stat-figure text-success text-2xl">🤖</div>
         <div class="stat-title">AI 단독 해결률</div>
         <div class="stat-value text-success text-2xl">${Math.round(aiDone / total * 100)}%</div>
       </div>
       <div class="stat">
+        <div class="stat-figure text-warning text-2xl">🚨</div>
         <div class="stat-title">교관 에스컬레이션율</div>
         <div class="stat-value text-warning text-2xl">${Math.round(escalated / total * 100)}%</div>
       </div>
       <div class="stat">
+        <div class="stat-figure text-base-content/60 text-2xl">⏱️</div>
         <div class="stat-title">평균 응답 시간</div>
         <div class="stat-value text-base-content text-2xl">${avgHours}${avgHours !== '-' ? 'h' : ''}</div>
       </div>
     </div>
 
     ${longPending.length > 0 ? `
-    <div role="alert" class="alert alert-error alert-outline mb-6 items-start">
+    <div role="alert" class="alert alert-error alert-outline items-start">
       <div>
-        <div class="text-sm font-medium mb-1">48시간 이상 미처리 (${longPending.length}건)</div>
+        <div class="text-sm font-medium mb-1">🚨 48시간 이상 미처리 (${longPending.length}건)</div>
         <div class="flex flex-col gap-0.5">
           ${longPending.map(r => `<div class="text-xs">${r.receiptNo} · ${r.name} (${r.memberId})</div>`).join('')}
         </div>
       </div>
     </div>` : ''}
+  `;
 
-    <div class="grid md:grid-cols-2 gap-4 mb-6">
+  const analysisBody = `
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
       <div class="card card-border bg-base-100 shadow-sm">
         <div class="card-body p-4">
-          <div class="text-sm font-medium text-base-content/70 mb-2">어려움 유형 분포</div>
+          <div class="text-sm font-medium text-base-content/70 mb-2">🧭 어려움 유형 분포</div>
           <canvas id="catChart" height="200"></canvas>
         </div>
       </div>
       <div class="card card-border bg-base-100 shadow-sm">
         <div class="card-body p-4">
-          <div class="text-sm font-medium text-base-content/70 mb-2">주별 요청 추이</div>
+          <div class="text-sm font-medium text-base-content/70 mb-2">📈 주별 요청 추이</div>
           <canvas id="trendChart" height="200"></canvas>
         </div>
       </div>
     </div>
 
-    <div class="text-sm font-medium text-base-content/70 mb-2">반복 요청자 (3건 이상)</div>
+    <div class="text-sm font-medium text-base-content/70 mb-2">🔁 반복 요청자 <span class="text-base-content/40 font-normal">(3건 이상)</span></div>
     ${repeaters.length === 0
-      ? `<div class="text-xs text-base-content/40 mb-6">해당 없음</div>`
-      : `<div class="overflow-x-auto border border-base-300 rounded-box mb-6">
+      ? `<div class="text-xs text-base-content/40">해당 없음</div>`
+      : `<div class="overflow-x-auto border border-base-300 rounded-box">
           <table class="table table-zebra table-sm">
             <thead><tr><th>이름</th><th>고유번호</th><th>건수</th></tr></thead>
             <tbody>
@@ -609,11 +628,15 @@ function render() {
     }
   `;
 
+  content.innerHTML = tierSectionHtml + rosterHtml + studyHtml
+    + sectionCard('info', '📊', '전체 현황', '피드백 요청/응답 핵심 지표', statsBody)
+    + sectionCard('info', '🧭', '피드백 분석', '유형별 분포 · 추이 · 반복 요청자', analysisBody);
+
   new Chart(document.getElementById('catChart'), {
     type: 'bar',
     data: {
       labels: Object.keys(catCounts),
-      datasets: [{ data: Object.values(catCounts), backgroundColor: '#4f46e5' }]
+      datasets: [{ data: Object.values(catCounts), backgroundColor: '#4f46e5', borderRadius: 4 }]
     },
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
   });
@@ -622,7 +645,7 @@ function render() {
     type: 'line',
     data: {
       labels: weekLabels,
-      datasets: [{ data: weekValues, borderColor: '#4f46e5', tension: 0.3 }]
+      datasets: [{ data: weekValues, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)', fill: true, tension: 0.3 }]
     },
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
   });

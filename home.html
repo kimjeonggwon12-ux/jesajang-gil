@@ -36,6 +36,9 @@
     }
     html, body { height: 100%; margin: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+    /* 브랜드 그라데이션 액센트 바 — navbar 바로 아래, 여러 파일에서 재사용 */
+    .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); flex-shrink: 0; }
+    .brand-avatar { background: linear-gradient(135deg, oklch(var(--p)), oklch(var(--a))); }
   </style>
 </head>
 <body class="bg-base-200">
@@ -49,7 +52,9 @@
     <div class="hero-content text-center">
       <div class="card w-full max-w-sm bg-base-100 shadow-xl">
         <div class="card-body items-center">
+          <div class="w-16 h-16 rounded-full brand-avatar flex items-center justify-center text-3xl shadow-md mb-1">🙏</div>
           <h2 class="card-title text-2xl">제사장의 길</h2>
+          <p class="text-xs text-base-content/50 -mt-1 mb-2">성도 고유번호와 이름으로 입장하세요</p>
           <div class="w-full flex flex-col gap-2 mt-2">
             <input type="text" id="memberId" placeholder="성도고유번호" class="input input-bordered w-full" />
             <input type="text" id="name" placeholder="이름" class="input input-bordered w-full" />
@@ -62,25 +67,30 @@
 
   <div id="appPanel" class="flex flex-col h-screen" style="display:none">
     <div class="navbar bg-neutral text-neutral-content px-4 min-h-0 py-3">
-      <div class="flex-1">
-        <span class="text-lg font-bold">제사장의 길</span>
+      <div class="flex-1 flex items-center gap-2">
+        <span class="text-xl leading-none">🙏</span>
+        <div class="flex flex-col leading-tight">
+          <span class="text-lg font-bold">제사장의 길</span>
+          <span class="text-[11px] text-neutral-content/50">교사 훈련 플랫폼</span>
+        </div>
       </div>
       <div class="flex-none flex items-center gap-3">
         <button class="btn btn-ghost btn-sm" onclick="goHome()">🏠 홈</button>
         <span class="text-xs text-neutral-content/70" id="userDisplay"></span>
       </div>
     </div>
+    <div class="brand-accent-bar"></div>
     <div role="tablist" class="tabs tabs-boxed bg-base-300 rounded-none p-1.5 gap-1">
-      <button role="tab" class="tab tab-active flex-1" data-room="study" onclick="switchTab('study', this)">공부방</button>
-      <button role="tab" class="tab flex-1" data-room="activity" onclick="switchTab('activity', this)">활동방</button>
-      <button role="tab" class="tab flex-1" data-room="feedback" onclick="switchTab('feedback', this)">피드백방</button>
+      <button role="tab" class="tab tab-active flex-1 gap-1.5" data-room="study" onclick="switchTab('study', this)"><span>📚</span> 공부방</button>
+      <button role="tab" class="tab flex-1 gap-1.5" data-room="activity" onclick="switchTab('activity', this)"><span>🙌</span> 활동방</button>
+      <button role="tab" class="tab flex-1 gap-1.5" data-room="feedback" onclick="switchTab('feedback', this)"><span>💬</span> 피드백방</button>
     </div>
     <iframe id="content" class="flex-1 w-full border-0"></iframe>
     <div class="text-center py-2 bg-base-100 border-t border-base-300 text-xs">
       <div class="dropdown dropdown-top dropdown-center">
-        <div tabindex="0" role="button" class="link link-primary">관리자 메뉴</div>
+        <div tabindex="0" role="button" class="link link-primary">⚙️ 관리자 메뉴</div>
         <ul tabindex="0" class="dropdown-content menu menu-sm bg-base-100 rounded-box z-10 w-40 p-2 shadow-md border border-base-300">
-          <li><a href="admin.html" target="_blank" rel="noopener">관리자 페이지</a></li>
+          <li><a href="admin.html" target="_blank" rel="noopener">🔐 관리자 페이지</a></li>
         </ul>
       </div>
     </div>

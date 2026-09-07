@@ -36,10 +36,16 @@
   }
   html, body { margin:0; padding:0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); }
+  .avatar-chip { background: linear-gradient(135deg, oklch(var(--p)), oklch(var(--a))); }
+  .card-hover { transition: box-shadow .15s ease, transform .15s ease; }
+  .card-hover:hover { box-shadow: 0 4px 16px -4px rgb(0 0 0 / 0.12); transform: translateY(-1px); }
 </style>
 </head>
 <body class="bg-base-200 min-h-screen">
-<div id="root" class="max-w-2xl mx-auto min-h-screen bg-base-100 shadow-sm"></div>
+<div class="max-w-2xl mx-auto min-h-screen bg-base-100 shadow-sm flex flex-col">
+  <div id="root" class="flex-1"></div>
+</div>
 
 <script>
 const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
@@ -68,16 +74,23 @@ function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
     <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
-      <div class="flex-1 flex flex-col items-start">
-        <div class="text-lg font-bold">교관 대시보드</div>
-        <div class="text-neutral-content/60 text-sm">대기중인 피드백 요청</div>
+      <div class="flex-1 flex items-center gap-2">
+        <span class="text-xl leading-none">🎧</span>
+        <div class="flex flex-col items-start leading-tight">
+          <div class="text-lg font-bold">교관 대시보드</div>
+          <div class="text-neutral-content/50 text-xs">대기중인 피드백 요청 ${state.rows.length > 0 ? `· ${state.rows.length}건` : ''}</div>
+        </div>
       </div>
       <div class="flex-none">
-        <button id="btn-refresh" class="btn btn-sm btn-ghost">새로고침</button>
+        <button id="btn-refresh" class="btn btn-sm btn-ghost">🔄 새로고침</button>
       </div>
     </div>
+    <div class="brand-accent-bar"></div>
     <div class="p-4">
-      <input id="handler-name" type="text" placeholder="담당자 이름 (답변시 기록됨)" value="${state.handler}" class="input input-bordered w-full mb-4 text-sm">
+      <label class="input input-bordered flex items-center gap-2 w-full mb-4 text-sm">
+        <span class="text-base-content/40">👤</span>
+        <input id="handler-name" type="text" placeholder="담당자 이름 (답변시 기록됨)" value="${state.handler}" class="grow" />
+      </label>
       <div id="list"></div>
     </div>
   `;
@@ -86,26 +99,33 @@ function render() {
 
   const list = document.getElementById('list');
   if (state.loading) {
-    list.innerHTML = `<div class="text-sm text-base-content/40 text-center py-10">
-      <span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...
+    list.innerHTML = `<div class="text-sm text-base-content/40 text-center py-16">
+      <span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...
     </div>`;
     return;
   }
   if (state.rows.length === 0) {
-    list.innerHTML = `<div class="text-sm text-base-content/40 text-center py-10">대기중인 요청이 없습니다.</div>`;
+    list.innerHTML = `<div class="text-center py-16">
+      <div class="text-5xl mb-3">📭</div>
+      <div class="text-sm text-base-content/40">대기중인 요청이 없습니다.</div>
+    </div>`;
     return;
   }
   list.innerHTML = state.rows.map((row, idx) => `
-    <div class="card card-border bg-base-100 shadow-sm mb-3">
+    <div class="card card-border bg-base-100 shadow-sm card-hover mb-3">
       <div class="card-body p-4">
-        <div class="flex justify-between text-xs text-base-content/40 mb-1">
-          <span>${row.receiptNo}</span>
-          <span>${row.name} (${row.memberId})</span>
+        <div class="flex items-center gap-2 mb-2">
+          <div class="avatar-chip w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">${esc((row.name||'?').slice(0,1))}</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium truncate">${row.name} <span class="text-base-content/40 font-normal">(${row.memberId})</span></div>
+            <div class="text-[11px] text-base-content/40">${row.receiptNo}</div>
+          </div>
+          <span class="badge badge-warning badge-outline badge-sm shrink-0">대기중</span>
         </div>
-        <div class="text-sm text-base-content/80 mb-2"><span class="font-medium">상황:</span> ${row.situation}</div>
-        <div class="text-xs text-base-content/60 bg-base-200 rounded-lg p-2 mb-3"><span class="font-medium">AI 코칭 결과:</span> ${row.aiCoachText}</div>
-        <textarea id="answer-${idx}" rows="3" placeholder="답변을 입력해주세요" class="textarea textarea-bordered w-full text-sm mb-2"></textarea>
-        <button data-idx="${idx}" class="btn-submit btn btn-neutral w-full">답변 등록</button>
+        <div class="text-sm text-base-content/80 mb-2"><span class="font-medium">💬 상황:</span> ${row.situation}</div>
+        <div class="text-xs text-base-content/60 bg-base-200 rounded-lg p-3 mb-3 border-l-4 border-info/40"><span class="font-medium">🤖 AI 코칭 결과:</span> ${row.aiCoachText}</div>
+        <textarea id="answer-${idx}" rows="3" placeholder="✍️ 답변을 입력해주세요" class="textarea textarea-bordered w-full text-sm mb-2"></textarea>
+        <button data-idx="${idx}" class="btn-submit btn btn-neutral w-full">✅ 답변 등록</button>
       </div>
     </div>
   `).join('');
@@ -122,6 +142,10 @@ function render() {
       await loadPending();
     };
   });
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 loadPending();
