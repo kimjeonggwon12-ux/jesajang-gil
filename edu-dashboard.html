@@ -64,6 +64,13 @@ let tierSuggestions = null;  // null = 아직 안 불러옴, [] = 불러왔지�
 let tierLoading = false;
 let tierApplying = {};       // memberId → true (승인 처리 중)
 
+// 월별 결산 현황 (getSettlementReport) — 메인 로드 후 지연 로드
+let settlement = null;       // null = 아직 안 불러옴
+let settlementLoading = false;
+
+const INACT_BADGE = { warning: 'badge-warning', danger: 'badge-error' };
+const INACT_LABEL = { warning: '주의 (2개월+)', danger: '경고 (3개월+)' };
+
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
@@ -142,6 +149,174 @@ async function load() {
 
   loading = false;
   render();
+
+  // 결산 현황은 무거운 계산(전 교사 스캔)이라 메인 렌더 후 별도로 로드
+  loadSettlement();
+}
+
+// ============ 월별 결산 현황 (getSettlementReport) ============
+
+async function loadSettlement() {
+  settlementLoading = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getSettlementReport' });
+    settlement = (res && !res.error) ? res : { error: (res && res.error) || '불러오기 실패' };
+  } catch (e) {
+    settlement = { error: String(e) };
+  }
+  settlementLoading = false;
+  render();
+}
+
+function tierChangeBadge(cur, sug) {
+  const up = rosterTiers.indexOf(sug) > rosterTiers.indexOf(cur);
+  return `<span class="text-base-content/60">${esc(cur)}</span> <span class="text-base-content/30">→</span>
+    <span class="badge ${up ? 'badge-success' : 'badge-error'} badge-sm">${esc(sug)}</span>`;
+}
+
+function renderSettlementSection() {
+  if (settlementLoading && !settlement) {
+    return sectionCard('primary', '📅', '이번 달 결산 현황', '전 교사 스캔 중...', `
+      <div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center">
+        <span class="loading loading-spinner loading-sm align-middle mr-1"></span>결산 계산 중 (교사 수가 많아 20초 정도 걸릴 수 있습니다)
+      </div>`);
+  }
+  if (!settlement) return '';
+  if (settlement.error) {
+    return sectionCard('primary', '📅', '이번 달 결산 현황', '', `
+      <div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(settlement.error)}</div></div>`);
+  }
+
+  const s = settlement;
+  const promoRows = (s.promotions || []);
+  const demoRows = (s.demotions || []);
+
+  const stats = `
+    <div class="stats stats-horizontal w-full shadow-sm border border-base-300 mb-4 text-center">
+      <div class="stat py-3 px-4">
+        <div class="stat-title text-xs">승급 대상</div>
+        <div class="stat-value text-2xl text-success">${s.promotionsTotal || 0}</div>
+      </div>
+      <div class="stat py-3 px-4">
+        <div class="stat-title text-xs">강등 대상</div>
+        <div class="stat-value text-2xl text-error">${s.demotionsTotal || 0}</div>
+        <div class="stat-desc text-[11px]">경고 ${s.inactiveDanger || 0} · 주의 ${s.inactiveWarn || 0}</div>
+      </div>
+      <div class="stat py-3 px-4">
+        <div class="stat-title text-xs">2인 승인 대기</div>
+        <div class="stat-value text-2xl ${s.pendingApprovalCount ? 'text-primary' : ''}">${s.pendingApprovalCount || 0}</div>
+        <div class="stat-desc text-[11px]">지역장·교관</div>
+      </div>
+    </div>`;
+
+  const promoTable = promoRows.length ? `
+    <div class="text-sm font-bold text-success mb-2 mt-1">⬆️ 승급 대상자 (${s.promotionsTotal}${s.promotionsTotal > promoRows.length ? `, ${promoRows.length}명 표시` : ''})</div>
+    <div class="overflow-x-auto border border-base-300 rounded-box mb-4">
+      <table class="table table-zebra table-sm">
+        <thead><tr><th>이름</th><th>등급 변경</th><th>사유</th></tr></thead>
+        <tbody>${promoRows.map(r => `
+          <tr>
+            <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.region || r.dept || '')}</div></td>
+            <td class="whitespace-nowrap">${tierChangeBadge(r.currentTier, r.suggestedTier)}</td>
+            <td class="text-base-content/60 text-xs">${esc(r.reason)}</td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>` : `<div class="text-xs text-base-content/40 mb-4">⬆️ 승급 대상자 없음</div>`;
+
+  const demoTable = demoRows.length ? `
+    <div class="text-sm font-bold text-error mb-2">⬇️ 강등 대상자 (${s.demotionsTotal}${s.demotionsTotal > demoRows.length ? `, ${demoRows.length}명 표시` : ''})</div>
+    <div class="overflow-x-auto border border-base-300 rounded-box">
+      <div class="max-h-72 overflow-y-auto">
+        <table class="table table-zebra table-sm">
+          <thead class="sticky top-0 bg-base-100"><tr><th>이름</th><th>등급 변경</th><th>비활동</th><th>마지막 활동</th><th>사유</th></tr></thead>
+          <tbody>${demoRows.map(r => `
+            <tr>
+              <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.region || r.dept || '')}</div></td>
+              <td class="whitespace-nowrap">${tierChangeBadge(r.currentTier, r.suggestedTier)}</td>
+              <td>${r.inactivity ? `<span class="badge ${INACT_BADGE[r.inactivity]} badge-sm">${r.inactivity === 'danger' ? '경고' : '주의'}</span>` : '-'}</td>
+              <td class="text-xs text-base-content/60 whitespace-nowrap">${r.lastActivityDate ? esc(r.lastActivityDate) : '기록 없음'}</td>
+              <td class="text-base-content/60 text-xs">${esc(r.reason)}</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>` : `<div class="text-xs text-base-content/40">⬇️ 강등 대상자 없음</div>`;
+
+  const pendTable = (s.pendingApprovals || []).length ? `
+    <div class="text-sm font-bold text-primary mb-2 mt-4">⏳ 지역장·교관 2인 승인 대기 (${s.pendingApprovalCount})</div>
+    <div class="overflow-x-auto border border-base-300 rounded-box">
+      <table class="table table-zebra table-sm">
+        <thead><tr><th>이름</th><th>제안 등급</th><th>유형</th><th>승인</th></tr></thead>
+        <tbody>${s.pendingApprovals.map(r => `
+          <tr>
+            <td class="font-medium">${esc(r.name || r.memberId)}</td>
+            <td>${tierChangeBadge(r.currentTier || '?', r.suggestedTier)}</td>
+            <td>${r.type === 'reason' ? `<span class="badge badge-warning badge-outline badge-sm">사유자${r.reason ? ' · ' + esc(r.reason) : ''}</span>` : '<span class="text-xs text-base-content/40">자동 감지</span>'}</td>
+            <td><progress class="progress progress-primary w-16 h-2 align-middle" value="${r.approvalCount}" max="2"></progress> <span class="text-xs">${r.approvalCount}/2</span></td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div class="text-[11px] text-base-content/40 mt-1">승인은 지역장 화면(district-dashboard.html)에서 진행합니다.</div>` : '';
+
+  return sectionCard('primary', '📅', '이번 달 결산 현황',
+    `${s.month} 결산 기준 (기준일 ${s.asOf}) · 매월 말일 기준으로 자동 계산`,
+    stats + promoTable + demoTable + pendTable);
+}
+
+function renderInactiveSection() {
+  if (!settlement || settlement.error) return '';
+  const s = settlement;
+  const list = s.inactive || [];
+  const body = list.length ? `
+    <div class="flex gap-2 mb-3 text-xs">
+      <span class="badge badge-error badge-sm">경고 ${s.inactiveDanger || 0}명</span>
+      <span class="badge badge-warning badge-sm">주의 ${s.inactiveWarn || 0}명</span>
+      <span class="text-base-content/40 self-center">· 마지막 활동일 기준 (활동 종류 무관)</span>
+    </div>
+    <div class="border border-base-300 rounded-box overflow-hidden">
+      <div class="max-h-72 overflow-y-auto overflow-x-auto">
+        <table class="table table-zebra table-sm">
+          <thead class="sticky top-0 bg-base-100"><tr><th>단계</th><th>이름</th><th>지역/부서</th><th>등급</th><th>마지막 활동</th><th>이번 달</th></tr></thead>
+          <tbody>${list.map(r => `
+            <tr>
+              <td><span class="badge ${INACT_BADGE[r.inactivity]} badge-sm">${r.inactivity === 'danger' ? '경고' : '주의'}</span></td>
+              <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.memberId)}</div></td>
+              <td class="text-base-content/60 text-xs">${esc(r.region || '')}${r.dept ? ' · ' + esc(r.dept) : ''}</td>
+              <td class="text-base-content/60">${esc(r.tier)}</td>
+              <td class="text-xs whitespace-nowrap ${r.lastActivityDate ? '' : 'text-base-content/40'}">${r.lastActivityDate ? esc(r.lastActivityDate) : '기록 없음'}</td>
+              <td class="text-center">${r.monthlyCount}건</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>
+      ${s.inactiveTotal > list.length ? `<div class="text-[11px] text-base-content/40 text-center py-1.5 bg-base-200 border-t border-base-300">외 ${s.inactiveTotal - list.length}명 더</div>` : ''}
+    </div>` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">✅ 2개월 이상 비활동 교사가 없습니다.</div>`;
+
+  return sectionCard('warning', '😴', '비활동자 목록',
+    `2개월+ 미활동 = 주의 · 3개월+ 미활동(또는 기록 없음) = 경고 (≒ 휴교사 전환 대상)`, body);
+}
+
+function renderLeadsSection() {
+  if (!settlement || settlement.error) return '';
+  const list = settlement.leaders || [];
+  const body = list.length ? `
+    <div class="overflow-x-auto border border-base-300 rounded-box">
+      <div class="max-h-72 overflow-y-auto">
+        <table class="table table-zebra table-sm">
+          <thead class="sticky top-0 bg-base-100"><tr><th>#</th><th>이름</th><th>지역</th><th>등급</th><th>최근 1년 센터 인도</th></tr></thead>
+          <tbody>${list.map((r, i) => `
+            <tr>
+              <td class="text-base-content/40">${i + 1}</td>
+              <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.memberId)}</div></td>
+              <td class="text-base-content/60 text-xs">${esc(r.region || '')}</td>
+              <td class="text-base-content/60">${esc(r.tier)}</td>
+              <td class="font-bold text-accent">${r.leadCount}명</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">최근 1년간 센터 인도 실적(활동방 "센터 인도 등록")이 있는 교사가 없습니다.</div>`;
+
+  return sectionCard('accent', '🎯', '센터 인도 실적 현황',
+    `활동방 "센터 인도 등록"으로 집계 · 최근 1년 기준 (승급 판정에 사용)`, body);
 }
 
 // ============ 등급 심사 (checkTierChanges / applyTierChange) ============
@@ -517,13 +692,17 @@ function render() {
     return;
   }
 
-  // 등급 심사 + 부서별 교사 현황(교사명단 기반) + 공부방 진도 현황은 피드백 데이터 유무와 무관하게 표시.
+  // 월별 결산 현황 + 등급 심사 + 부서별 교사 현황 + 공부방 진도 현황은 피드백 데이터 유무와 무관하게 표시.
+  const settlementHtml = renderSettlementSection();
+  const inactiveHtml = renderInactiveSection();
+  const leadsHtml = renderLeadsSection();
   const tierSectionHtml = renderTierSection();
   const rosterHtml = renderRosterSection();
   const studyHtml = renderStudySection();
+  const tierBundle = settlementHtml + tierSectionHtml + inactiveHtml + leadsHtml;
 
   if (rows.length === 0) {
-    content.innerHTML = tierSectionHtml + rosterHtml + studyHtml + (roster.length === 0
+    content.innerHTML = tierBundle + rosterHtml + studyHtml + (roster.length === 0
       ? `<div class="text-sm text-base-content/40 text-center py-16">아직 데이터가 없습니다.</div>`
       : `<div class="text-sm text-base-content/40 text-center py-10">아직 피드백 데이터가 없습니다.</div>`);
     wireTierSection();
@@ -628,7 +807,7 @@ function render() {
     }
   `;
 
-  content.innerHTML = tierSectionHtml + rosterHtml + studyHtml
+  content.innerHTML = tierBundle + rosterHtml + studyHtml
     + sectionCard('info', '📊', '전체 현황', '피드백 요청/응답 핵심 지표', statsBody)
     + sectionCard('info', '🧭', '피드백 분석', '유형별 분포 · 추이 · 반복 요청자', analysisBody);
 
