@@ -67,7 +67,9 @@
       profile: 'teacher-profile.html',
       coach: 'coach-dashboard.html',
       edu: 'edu-dashboard.html',
-      district: 'district-dashboard.html'
+      // 관리자용: 테스트 지역장(김정권 / 01지역)으로 자동 로그인해서 보여줌.
+      // 다른 지역장으로 보려면 이 파라미터를 바꾸거나 화면 안에서 다시 로그인하면 됨.
+      district: 'district-dashboard.html?memberId=0020113000010&name=%EA%B9%80%EC%A0%95%EA%B6%8C'
     };
 
     function tryLogin() {
