@@ -195,7 +195,7 @@ function render() {
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">🗺️</span>
         <div class="flex flex-col items-start leading-tight">
-          <div class="text-lg font-bold">${esc(v.leader.region || '지역 미지정')} 지역</div>
+          <div class="text-lg font-bold">${esc(v.leader.region || '지역 미지정')}</div>
           <div class="text-neutral-content/50 text-xs">
             지역장 ${esc(v.leader.name)} · ${v.month} 결산 기준
             ${v.leader.isDistrictLeader ? '' : ' · <span class="text-warning">직책 미등록</span>'}
