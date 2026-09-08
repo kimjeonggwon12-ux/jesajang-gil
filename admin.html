@@ -53,6 +53,7 @@
       <button class="tab active" data-view="profile" onclick="switchTab('profile', this)">통합 조회</button>
       <button class="tab" data-view="coach" onclick="switchTab('coach', this)">교관 대시보드</button>
       <button class="tab" data-view="edu" onclick="switchTab('edu', this)">교육부 대시보드</button>
+      <button class="tab" data-view="district" onclick="switchTab('district', this)">지역장 화면</button>
     </div>
     <iframe id="content" class="content"></iframe>
   </div>
@@ -65,7 +66,8 @@
     const VIEW_FILES = {
       profile: 'teacher-profile.html',
       coach: 'coach-dashboard.html',
-      edu: 'edu-dashboard.html'
+      edu: 'edu-dashboard.html',
+      district: 'district-dashboard.html'
     };
 
     function tryLogin() {
