@@ -42,7 +42,12 @@ const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp
 // TEST_MODE = false : 실제 성도고유번호 + 이름 본인확인 로그인 화면 표시
 // 운영 전환 시 아래 한 줄만 false 로 바꾸면 됩니다. (로그인 화면 코드는 그대로 보존)
 const TEST_MODE = true;
-const TEST_MEMBER = { memberId: "TEST-0001", name: "테스트사용자" };
+// URL에 ?memberId=&name= 이 주어지면(예: home.html 임베드, 관리자 테스트 링크) 그 계정을 사용하고,
+// 없으면 기본 임시 계정으로 대체합니다.
+const TEST_MEMBER = {
+  memberId: window.TEST_MEMBER_ID || "TEST-0001",
+  name: window.TEST_NAME || "테스트사용자"
+};
 
 // 필수 이수 교육 4항목 — 백엔드(RequiredEducationBackend.gs)의 REQUIRED_EDU_CATEGORIES
 // 와 동일 순서. getRequiredEducation 응답에 categories 가 실려오면 그걸 우선 쓰고,
