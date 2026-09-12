@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>제사장의 길 - 지역장 화면</title>
+<title>제사장의 길 - 부서별 교사 관리</title>
 <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — home.html과 동일 */
+  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 관리자 화면과 동일 */
   [data-theme="jesagil"] {
     --p: 51.06% 0.2301 276.97; --pc: 100% 0 0;
     --s: 66.58% 0.1574 58.32;  --sc: 100% 0 0;
@@ -24,52 +24,34 @@
   html, body { margin:0; padding:0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
   .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); }
-  .avatar-chip { background: linear-gradient(135deg, oklch(var(--p)), oklch(var(--a))); }
-  .card-hover { transition: box-shadow .15s ease, transform .15s ease; }
-  .card-hover:hover { box-shadow: 0 4px 16px -4px rgb(0 0 0 / 0.12); transform: translateY(-1px); }
-  .tier-stripe { height: 6px; border-top-left-radius: var(--rounded-box); border-top-right-radius: var(--rounded-box); }
 </style>
 </head>
 <body class="bg-base-200 min-h-screen">
-<div class="max-w-2xl mx-auto min-h-screen bg-base-100 shadow-sm flex flex-col">
+<div class="max-w-5xl mx-auto min-h-screen bg-base-100 shadow-sm flex flex-col">
   <div id="root" class="flex-1"></div>
 </div>
 
 <script>
 const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
 
-// 등급 → 배지 색상
-const TIER_BADGE = {
-  '우수교사': 'badge-secondary',
-  '활동교사': 'badge-accent',
-  '교사': 'badge-primary',
-  '휴교사': 'badge-ghost'
-};
-// 등급 스트라이프 색상 (tailwind bg-*)
-const TIER_STRIPE = {
-  '우수교사': 'bg-secondary',
-  '활동교사': 'bg-accent',
-  '교사': 'bg-primary',
-  '휴교사': 'bg-base-300'
-};
-const LEAVE_REASONS = ['질병', '출산', '병간호', '군대'];
+// 백엔드 ORG_DEPTS 와 순서 동일 — 교사명단 "부서" 컬럼에 없는 값은 전부 "기타"로 묶여서 옴.
+const DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회', '기타'];
+const DEPT_ICON = { '교역자': '⛪', '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓', '기타': '📁' };
+
+const TIER_BADGE = { '우수교사': 'badge-secondary', '활동교사': 'badge-accent', '교사': 'badge-primary', '휴교사': 'badge-ghost' };
 
 let state = {
-  identified: false,
-  memberId: '',
-  name: '',
+  dept: DEPTS[0],
+  region: '',       // '' = 전체
   loading: false,
   error: '',
-  view: null   // getDistrictView 응답
+  approving: {},    // memberId::suggestedTier → true
+  cache: {}         // "dept::region" → getDistrictReport 응답
 };
 
-// URL 파라미터로 자동 로그인 (?memberId=&name=)
-(function initFromQuery() {
-  const q = new URLSearchParams(location.search);
-  const mid = (q.get('memberId') || '').trim();
-  const nm = (q.get('name') || '').trim();
-  if (mid && nm) { state.memberId = mid; state.name = nm; }
-})();
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
 async function callApi(payload) {
   const res = await fetch(PROXY_URL, {
@@ -80,30 +62,17 @@ async function callApi(payload) {
   return await res.json();
 }
 
-function esc(s) {
-  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+function cacheKey(dept, region) { return dept + '::' + region; }
 
-async function login() {
-  const mid = document.getElementById('login-id').value.trim();
-  const nm = document.getElementById('login-name').value.trim();
-  if (!mid || !nm) { alert('지역장 고유번호와 이름을 입력해주세요.'); return; }
-  state.memberId = mid; state.name = nm;
-  await loadView();
-}
-
-async function loadView() {
+async function loadReport(force) {
+  const key = cacheKey(state.dept, state.region);
+  if (!force && state.cache[key]) { render(); return; }
   state.loading = true; state.error = '';
   render();
   try {
-    const res = await callApi({ action: 'getDistrictView', memberId: state.memberId, name: state.name });
-    if (res && res.error) {
-      state.error = res.error;
-      state.identified = false;
-    } else {
-      state.view = res;
-      state.identified = true;
-    }
+    const res = await callApi({ action: 'getDistrictReport', dept: state.dept, region: state.region });
+    if (res && res.error) { state.error = res.error; }
+    else { state.cache[key] = res; }
   } catch (e) {
     state.error = '서버 연결에 실패했습니다: ' + e;
   }
@@ -111,210 +80,185 @@ async function loadView() {
   render();
 }
 
-async function approve(t) {
-  if (!confirm(`${t.name} 교사를 "${t.suggestion.suggestedTier}"(으)로 변경 승인하시겠습니까?\n\n2인 승인이 모이면 즉시 반영됩니다.`)) return;
-  const res = await callApi({
-    action: 'approveTierChange',
-    memberId: t.memberId,
-    name: t.name,
-    currentTier: t.tier,
-    suggestedTier: t.suggestion.suggestedTier,
-    reason: t.suggestion.reason,
-    type: t.suggestion.pendingType || 'auto',
-    approver: `${state.view.leader.name}(${state.view.leader.memberId})`
-  });
-  if (res && res.error) { alert('승인 실패: ' + res.error); return; }
-  if (res && res.applied) {
-    alert(`2인 승인 완료 — ${t.name} 교사가 "${t.suggestion.suggestedTier}"(으)로 변경되었습니다.`);
-  } else if (res && res.note) {
-    alert(res.note);
-  } else {
-    alert(`승인 접수 완료 (현재 ${res.approvalCount || 1}/2). 1명 더 승인하면 반영됩니다.`);
-  }
-  await loadView();
+function switchDept(dept) {
+  state.dept = dept;
+  state.region = ''; // 부서를 바꾸면 지역 필터는 초기화(그 부서에 없는 지역일 수 있어서)
+  loadReport(false);
 }
 
-async function registerReason(t) {
-  const reason = prompt(`${t.name} 교사를 사유자로 등록합니다.\n사유를 입력하세요 (${LEAVE_REASONS.join(' / ')}):`, '');
-  if (reason == null) return;
-  const r = reason.trim();
-  if (LEAVE_REASONS.indexOf(r) === -1) { alert('사유는 다음 중 하나여야 합니다: ' + LEAVE_REASONS.join(', ')); return; }
-  const res = await callApi({
-    action: 'registerLeaveReason',
-    memberId: t.memberId, name: t.name, currentTier: t.tier, reason: r
-  });
-  if (res && res.error) { alert('등록 실패: ' + res.error); return; }
-  alert(`사유자 등록 완료 — 지역장·교관 2인 승인 후 휴교사로 분류됩니다.`);
-  await loadView();
+function switchRegion(region) {
+  state.region = region;
+  loadReport(false);
+}
+
+async function approve(t) {
+  const key = t.memberId + '::' + t.suggestion.suggestedTier;
+  if (!confirm(`${t.name} 교사를 "${t.suggestion.suggestedTier}"(으)로 변경 승인하시겠습니까?\n\n등급변경승인 시트에 기록되며, 지역장·교관 등 다른 승인자와 합쳐 2인이 되면 즉시 반영됩니다.`)) return;
+  state.approving[key] = true;
+  render();
+  try {
+    const res = await callApi({
+      action: 'approveTierChange',
+      memberId: t.memberId,
+      name: t.name,
+      currentTier: t.tier,
+      suggestedTier: t.suggestion.suggestedTier,
+      reason: t.suggestion.reason,
+      type: t.suggestion.pendingType || 'auto',
+      approver: '관리자(부서별 교사 관리)'
+    });
+    if (res && res.error) {
+      alert('승인 실패: ' + res.error);
+    } else if (res && res.applied) {
+      alert(`2인 승인 완료 — ${t.name} 교사가 "${t.suggestion.suggestedTier}"(으)로 변경되었습니다.`);
+    } else if (res && res.note) {
+      alert(res.note);
+    } else {
+      alert(`승인 접수 완료 (현재 ${(res && res.approvalCount) || 1}/2). 1명 더 승인하면 반영됩니다.`);
+    }
+    delete state.cache[cacheKey(state.dept, state.region)];
+    await loadReport(true);
+  } catch (e) {
+    alert('승인 중 오류가 발생했습니다: ' + e);
+  }
+  delete state.approving[key];
+  render();
+}
+
+function tabsHtml() {
+  return `
+    <div role="tablist" class="tabs tabs-boxed bg-base-300 rounded-none p-1.5 gap-1">
+      ${DEPTS.map(d => `
+        <button role="tab" class="tab flex-1 gap-1 ${state.dept === d ? 'tab-active' : ''}" data-dept="${esc(d)}">
+          <span>${DEPT_ICON[d] || '📁'}</span> ${esc(d)}
+        </button>`).join('')}
+    </div>
+  `;
+}
+
+function regionFilterHtml(report) {
+  const regions = (report && report.regions) || [];
+  return `
+    <div class="flex items-center gap-2 px-4 py-3 border-b border-base-300 bg-base-100">
+      <label class="text-xs text-base-content/50">🗺️ 지역 필터</label>
+      <select id="region-select" class="select select-bordered select-sm w-40">
+        <option value="" ${state.region === '' ? 'selected' : ''}>전체 (${regions.length}개 지역)</option>
+        ${regions.map(r => `<option value="${esc(r)}" ${state.region === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+      </select>
+      ${report ? `<span class="text-xs text-base-content/40 ml-auto">${report.month} 결산 기준 · 총 ${report.total}명</span>` : ''}
+    </div>
+  `;
+}
+
+function suggestionCell(t) {
+  const s = t.suggestion;
+  if (!s) return `<span class="text-base-content/30 text-xs">-</span>`;
+  const key = t.memberId + '::' + s.suggestedTier;
+  const up = TIER_BADGE[s.suggestedTier] === 'badge-secondary' || TIER_BADGE[s.suggestedTier] === 'badge-accent';
+  return `
+    <div class="flex flex-col gap-1">
+      <div class="flex items-center gap-1 flex-wrap text-xs">
+        <span class="badge ${TIER_BADGE[s.suggestedTier] || 'badge-ghost'} badge-sm">→ ${esc(s.suggestedTier)}</span>
+        ${s.pendingType === 'reason' ? '<span class="badge badge-warning badge-outline badge-xs">사유자</span>' : ''}
+      </div>
+      <div class="text-[10px] text-base-content/40">${esc(s.reason)}</div>
+      <div class="flex items-center gap-1">
+        <progress class="progress progress-primary w-14 h-1.5" value="${s.approvalCount}" max="2"></progress>
+        <span class="text-[10px] text-base-content/40">${s.approvalCount}/2</span>
+      </div>
+      <button class="btn-approve btn btn-primary btn-xs" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" ${state.approving[key] ? 'disabled' : ''}>
+        ${state.approving[key] ? '처리중...' : '✅ 승인'}
+      </button>
+    </div>
+  `;
+}
+
+function tableHtml(report) {
+  const rows = (report && report.rows) || [];
+  if (rows.length === 0) {
+    return `<div class="text-center py-16">
+      <div class="text-5xl mb-3">📭</div>
+      <div class="text-sm text-base-content/40">이 조건에 해당하는 교사가 없습니다.</div>
+    </div>`;
+  }
+  return `
+    <div class="overflow-x-auto">
+      <table class="table table-zebra table-sm">
+        <thead class="sticky top-0 bg-base-100"><tr>
+          <th>이름</th><th>지역</th><th>등급</th><th>이번 달 활동</th><th>마지막 활동일</th><th>승급·강등 제안</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(t => `
+            <tr>
+              <td class="font-medium">${esc(t.name)}<div class="text-[10px] text-base-content/40">${esc(t.memberId)}</div></td>
+              <td class="text-base-content/60 text-xs">${esc(t.region || '')}</td>
+              <td><span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'} badge-sm">${esc(t.tier)}</span></td>
+              <td class="text-center">${t.monthlyCount}건</td>
+              <td class="text-xs whitespace-nowrap ${t.lastActivityDate ? '' : 'text-base-content/40'}">${t.lastActivityDate ? esc(t.lastActivityDate) : '기록 없음'}</td>
+              <td class="min-w-[160px]">${suggestionCell(t)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function render() {
   const root = document.getElementById('root');
-
-  // ── 로그인 화면 ──
-  if (!state.identified) {
-    root.innerHTML = `
-      <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
-        <div class="flex-1 flex items-center gap-2">
-          <span class="text-xl leading-none">🗺️</span>
-          <div class="flex flex-col items-start leading-tight">
-            <div class="text-lg font-bold">지역장 화면</div>
-            <div class="text-neutral-content/50 text-xs">내 지역 교사 등급 관리</div>
-          </div>
-        </div>
-        <a href="home.html" class="btn btn-sm btn-ghost">🏠 홈</a>
-      </div>
-      <div class="brand-accent-bar"></div>
-      <div class="p-6 flex flex-col items-center">
-        <div class="card w-full max-w-sm bg-base-100 shadow-md border border-base-300 mt-6">
-          <div class="card-body items-center">
-            <div class="w-14 h-14 rounded-full avatar-chip flex items-center justify-center text-2xl shadow mb-1">🗺️</div>
-            <h2 class="card-title">지역장 로그인</h2>
-            <p class="text-xs text-base-content/50 -mt-1 mb-2">고유번호와 이름으로 입장하세요</p>
-            <input id="login-id" type="text" placeholder="지역장 고유번호" value="${esc(state.memberId)}" class="input input-bordered w-full" />
-            <input id="login-name" type="text" placeholder="이름" value="${esc(state.name)}" class="input input-bordered w-full mt-2" />
-            <button onclick="login()" class="btn btn-primary w-full mt-4" ${state.loading ? 'disabled' : ''}>
-              ${state.loading ? '<span class="loading loading-spinner loading-sm"></span> 확인 중...' : '입장'}
-            </button>
-            ${state.error ? `<div class="alert alert-error mt-3 py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div>` : ''}
-          </div>
-        </div>
-      </div>
-    `;
-    return;
-  }
-
-  // ── 지역장 대시보드 ──
-  const v = state.view;
-  const teachers = v.teachers || [];
-  const pending = teachers.filter(t => t.suggestion);
-  const counts = teachers.reduce((m, t) => { m[t.tier] = (m[t.tier] || 0) + 1; return m; }, {});
+  const key = cacheKey(state.dept, state.region);
+  const report = state.cache[key];
+  const pendingCount = report ? (report.rows || []).filter(t => t.suggestion).length : 0;
 
   root.innerHTML = `
     <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">🗺️</span>
         <div class="flex flex-col items-start leading-tight">
-          <div class="text-lg font-bold">${esc(v.leader.region || '지역 미지정')}</div>
-          <div class="text-neutral-content/50 text-xs">
-            지역장 ${esc(v.leader.name)} · ${v.month} 결산 기준
-            ${v.leader.isDistrictLeader ? '' : ' · <span class="text-warning">직책 미등록</span>'}
-          </div>
+          <div class="text-lg font-bold">부서별 교사 관리</div>
+          <div class="text-neutral-content/50 text-xs">교사명단 부서 컬럼 기준 · 6개 조직</div>
         </div>
       </div>
       <div class="flex-none flex items-center gap-2">
-        <button onclick="loadView()" class="btn btn-sm btn-ghost">🔄</button>
-        <a href="home.html" class="btn btn-sm btn-ghost">🏠</a>
+        <button id="btn-refresh" class="btn btn-sm btn-ghost">🔄</button>
+        <a href="admin-home.html" class="btn btn-sm btn-ghost">← 관리자 홈</a>
+        <a href="home.html" class="btn btn-sm btn-ghost">🏠 홈</a>
       </div>
     </div>
     <div class="brand-accent-bar"></div>
 
-    <div class="p-4">
-      <div class="stats stats-horizontal w-full shadow-sm border border-base-300 mb-4 text-center">
-        <div class="stat py-3 px-4">
-          <div class="stat-title text-xs">전체 교사</div>
-          <div class="stat-value text-2xl">${teachers.length}</div>
-        </div>
-        <div class="stat py-3 px-4">
-          <div class="stat-title text-xs">등급변경 제안</div>
-          <div class="stat-value text-2xl ${pending.length ? 'text-secondary' : ''}">${pending.length}</div>
-        </div>
-        <div class="stat py-3 px-4">
-          <div class="stat-title text-xs">휴교사</div>
-          <div class="stat-value text-2xl">${counts['휴교사'] || 0}</div>
-        </div>
-      </div>
+    ${tabsHtml()}
+    ${regionFilterHtml(report)}
 
-      ${pending.length ? `
-        <div class="text-sm font-bold text-base-content/70 mb-2 flex items-center gap-1">
-          <span>📌</span> 승인 대기 (${pending.length})
-        </div>
-        <div class="mb-5">${pending.map(cardHtml).join('')}</div>
-      ` : `
-        <div class="alert alert-success mb-5 py-2 text-sm"><div>✅ 현재 등급변경 제안이 없습니다.</div></div>
-      `}
+    ${pendingCount > 0 ? `
+      <div class="px-4 pt-3">
+        <div class="alert alert-warning py-2 text-sm"><div>📌 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 확인 후 승인하세요.</div></div>
+      </div>` : ''}
 
-      <div class="text-sm font-bold text-base-content/70 mb-2 flex items-center gap-1">
-        <span>👥</span> 전체 교사 목록
-      </div>
-      ${teachers.length ? teachers.map(cardHtml).join('') : `
-        <div class="text-center py-12">
-          <div class="text-5xl mb-3">📭</div>
-          <div class="text-sm text-base-content/40">이 지역에 등록된 교사가 없습니다.</div>
-        </div>`}
+    <div class="p-4" id="tableWrap">
+      ${state.loading
+        ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
+        : state.error
+          ? `<div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div>`
+          : tableHtml(report)}
     </div>
   `;
 
-  // 버튼 바인딩
-  teachers.forEach(t => {
-    const ap = document.getElementById('approve-' + t.memberId);
-    if (ap) ap.onclick = () => approve(t);
-    const rr = document.getElementById('reason-' + t.memberId);
-    if (rr) rr.onclick = () => registerReason(t);
+  document.getElementById('btn-refresh').onclick = () => loadReport(true);
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.onclick = () => switchDept(btn.dataset.dept);
+  });
+  const regionSelect = document.getElementById('region-select');
+  if (regionSelect) regionSelect.onchange = (e) => switchRegion(e.target.value);
+  document.querySelectorAll('.btn-approve').forEach(btn => {
+    btn.onclick = () => {
+      const rows = (report && report.rows) || [];
+      const t = rows.find(r => r.memberId === btn.dataset.mid && r.suggestion && r.suggestion.suggestedTier === btn.dataset.tier);
+      if (t) approve(t);
+    };
   });
 }
 
-function cardHtml(t) {
-  const badge = TIER_BADGE[t.tier] || 'badge-ghost';
-  const stripe = TIER_STRIPE[t.tier] || 'bg-base-300';
-  const s = t.suggestion;
-  const staleDays = t.lastActivityDate
-    ? Math.floor((Date.now() - new Date(t.lastActivityDate + 'T00:00:00').getTime()) / 86400000)
-    : null;
-
-  return `
-    <div class="card card-border bg-base-100 shadow-sm card-hover mb-3 overflow-hidden">
-      <div class="tier-stripe ${stripe}"></div>
-      <div class="card-body p-4">
-        <div class="flex items-center gap-2">
-          <div class="avatar-chip w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">${esc((t.name||'?').slice(0,1))}</div>
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-semibold truncate">
-              ${esc(t.name)}
-              <span class="text-base-content/40 font-normal text-xs">(${esc(t.memberId)})</span>
-            </div>
-            <div class="text-[11px] text-base-content/40 truncate">${esc(t.affiliation || '소속 미지정')}</div>
-          </div>
-          <span class="badge ${badge} badge-sm shrink-0">${esc(t.tier)}</span>
-        </div>
-
-        <div class="flex gap-4 mt-2 text-xs text-base-content/70">
-          <span>📅 이번 달 활동 <b class="text-base-content">${t.monthlyCount}건</b></span>
-          <span>🕒 최근 활동 ${t.lastActivityDate
-            ? `${esc(t.lastActivityDate)}${staleDays != null ? ` <span class="text-base-content/40">(${staleDays}일 전)</span>` : ''}`
-            : '<span class="text-base-content/40">없음</span>'}</span>
-        </div>
-
-        ${s ? `
-          <div class="mt-3 rounded-lg bg-base-200 border-l-4 border-primary/50 p-3">
-            <div class="text-sm font-medium flex items-center gap-1.5 flex-wrap">
-              <span class="badge badge-primary badge-sm">제안</span>
-              ${esc(t.tier)} <span class="text-base-content/40">→</span> <b>${esc(s.suggestedTier)}</b>
-              ${s.pendingType === 'reason' ? '<span class="badge badge-warning badge-outline badge-sm">사유자</span>' : ''}
-            </div>
-            <div class="text-xs text-base-content/60 mt-1">${esc(s.reason)}</div>
-            <div class="flex items-center gap-2 mt-2">
-              <progress class="progress progress-primary w-24 h-2" value="${s.approvalCount}" max="2"></progress>
-              <span class="text-xs text-base-content/60">${s.approvalCount}/2 승인${s.approvers && s.approvers.length ? ` · ${s.approvers.map(esc).join(', ')}` : ''}</span>
-            </div>
-            <button id="approve-${esc(t.memberId)}" class="btn btn-primary btn-sm w-full mt-2">✅ 이 변경 승인</button>
-          </div>
-        ` : `
-          <div class="mt-2">
-            <button id="reason-${esc(t.memberId)}" class="btn btn-ghost btn-xs text-base-content/50">🏷️ 사유자로 등록</button>
-          </div>
-        `}
-      </div>
-    </div>
-  `;
-}
-
-// 시작
-if (state.memberId && state.name) {
-  loadView();
-} else {
-  render();
-}
+loadReport(false);
 </script>
 </body>
 </html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="jesagil">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제사장의 길 - 관리자 홈</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 관리자 화면과 동일 */
+  [data-theme="jesagil"] {
+    --p: 51.06% 0.2301 276.97; --pc: 100% 0 0;
+    --s: 66.58% 0.1574 58.32;  --sc: 100% 0 0;
+    --a: 59.60% 0.1274 163.23; --ac: 100% 0 0;
+    --n: 27.95% 0.0368 260.03; --nc: 96.70% 0.0029 264.54;
+    --b1: 100% 0 0; --b2: 96.70% 0.0029 264.54; --b3: 92.76% 0.0058 264.53;
+    --bc: 27.81% 0.0296 256.85;
+    --in: 68.47% 0.1479 237.32; --inc: 100% 0 0;
+    --su: 69.59% 0.1491 162.48; --suc: 100% 0 0;
+    --wa: 76.86% 0.1647 70.08;  --wac: 0% 0 0;
+    --er: 57.71% 0.2152 27.33;  --erc: 100% 0 0;
+    --rounded-box: 0.75rem; --rounded-btn: 0.5rem; --rounded-badge: 1rem;
+  }
+  html, body { margin:0; padding:0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); }
+  .admin-card { transition: box-shadow .15s ease, transform .15s ease; }
+  .admin-card:hover { box-shadow: 0 8px 24px -6px rgb(0 0 0 / 0.15); transform: translateY(-2px); }
+</style>
+</head>
+<body class="bg-base-200 min-h-screen">
+<div class="max-w-3xl mx-auto min-h-screen bg-base-100 shadow-sm flex flex-col">
+
+  <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
+    <div class="flex-1 flex items-center gap-2">
+      <span class="text-xl leading-none">🔐</span>
+      <div class="flex flex-col items-start leading-tight">
+        <div class="text-lg font-bold">제사장의 길 — 관리자</div>
+        <div class="text-neutral-content/50 text-xs">모든 관리자 화면의 진입점</div>
+      </div>
+    </div>
+  </div>
+  <div class="brand-accent-bar"></div>
+
+  <div class="flex-1 p-6">
+    <div class="grid gap-4 sm:grid-cols-1">
+      <a href="district-dashboard.html" class="admin-card card card-border bg-base-100 shadow-sm">
+        <div class="card-body flex-row items-center gap-4 p-5">
+          <div class="w-14 h-14 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-3xl shrink-0">🗺️</div>
+          <div class="flex-1">
+            <div class="text-base font-bold text-base-content">부서별 교사 관리</div>
+            <div class="text-xs text-base-content/50 mt-0.5">교역자·자문회·장년회·부녀회·청년회·기타 — 부서·지역별 교사 현황, 승급/강등 제안 승인</div>
+          </div>
+          <div class="text-base-content/30 text-xl">›</div>
+        </div>
+      </a>
+
+      <a href="edu-dashboard.html" class="admin-card card card-border bg-base-100 shadow-sm">
+        <div class="card-body flex-row items-center gap-4 p-5">
+          <div class="w-14 h-14 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center text-3xl shrink-0">🎓</div>
+          <div class="flex-1">
+            <div class="text-base font-bold text-base-content">통합 관리</div>
+            <div class="text-xs text-base-content/50 mt-0.5">조직별 요약 · 이번 달 결산 · 비활동자 · 센터 인도 실적 · 피드백 분석</div>
+          </div>
+          <div class="text-base-content/30 text-xl">›</div>
+        </div>
+      </a>
+
+      <a href="coach-dashboard.html" class="admin-card card card-border bg-base-100 shadow-sm">
+        <div class="card-body flex-row items-center gap-4 p-5">
+          <div class="w-14 h-14 rounded-xl bg-accent/10 text-accent flex items-center justify-center text-3xl shrink-0">🎧</div>
+          <div class="flex-1">
+            <div class="text-base font-bold text-base-content">피드백 (교관)</div>
+            <div class="text-xs text-base-content/50 mt-0.5">대기중인 피드백 요청 확인 및 답변</div>
+          </div>
+          <div class="text-base-content/30 text-xl">›</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="text-center mt-6">
+      <a href="teacher-profile.html" class="link link-primary text-sm">🔍 교사 통합 조회 (이름/고유번호로 개별 조회)</a>
+    </div>
+  </div>
+
+  <div class="p-4 border-t border-base-300 text-center">
+    <a href="home.html" class="btn btn-ghost btn-sm">← 홈으로 (home.html)</a>
+  </div>
+</div>
+</body>
+</html>

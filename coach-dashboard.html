@@ -81,8 +81,10 @@ function render() {
           <div class="text-neutral-content/50 text-xs">대기중인 피드백 요청 ${state.rows.length > 0 ? `· ${state.rows.length}건` : ''}</div>
         </div>
       </div>
-      <div class="flex-none">
+      <div class="flex-none flex items-center gap-2">
         <button id="btn-refresh" class="btn btn-sm btn-ghost">🔄 새로고침</button>
+        <a href="admin-home.html" class="btn btn-sm btn-ghost">← 관리자 홈</a>
+        <a href="home.html" class="btn btn-sm btn-ghost">🏠 홈</a>
       </div>
     </div>
     <div class="brand-accent-bar"></div>

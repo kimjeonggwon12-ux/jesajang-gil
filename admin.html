@@ -69,7 +69,9 @@
       edu: 'edu-dashboard.html',
       // 관리자용: 테스트 지역장(김정권 / 01지역)으로 자동 로그인해서 보여줌.
       // 다른 지역장으로 보려면 이 파라미터를 바꾸거나 화면 안에서 다시 로그인하면 됨.
-      district: 'district-dashboard.html?memberId=0020113000010&name=%EA%B9%80%EC%A0%95%EA%B6%8C'
+      // (2026-09-12: 이 파일은 개인 지역장 화면 district-leader-view.html 로 이름이 바뀌었습니다.
+      //  부서별 교사 관리(관리자용, 6개 부서 탭)는 새 district-dashboard.html 이며 admin-home.html 에서 진입합니다.)
+      district: 'district-leader-view.html?memberId=0020113000010&name=%EA%B9%80%EC%A0%95%EA%B6%8C'
     };
 
     function tryLogin() {
