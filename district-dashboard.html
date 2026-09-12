@@ -38,20 +38,23 @@ const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp
 const DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회', '기타'];
 const DEPT_ICON = { '교역자': '⛪', '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓', '기타': '📁' };
 
+const TIER_ORDER = ['휴교사', '교사', '활동교사', '우수교사'];
 const TIER_BADGE = { '우수교사': 'badge-secondary', '활동교사': 'badge-accent', '교사': 'badge-primary', '휴교사': 'badge-ghost' };
+const TIER_TEXT_COLOR = { '휴교사': 'text-base-content/50', '교사': 'text-primary', '활동교사': 'text-accent', '우수교사': 'text-secondary' };
 
 let state = {
   dept: DEPTS[0],
-  region: '',       // '' = 전체
+  region: '',       // '' = 전체 — per-teacher 목록만 이 값으로 클라이언트에서 필터링(요약/지역별 표는 항상 부서 전체 기준)
   loading: false,
   error: '',
   approving: {},    // memberId::suggestedTier → true
-  cache: {}         // "dept::region" → getDistrictReport 응답
+  cache: {}         // dept → getDistrictReport(region:'') 응답 (부서 전체 데이터를 한 번만 받아 캐시)
 };
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
 
 async function callApi(payload) {
   const res = await fetch(PROXY_URL, {
@@ -62,15 +65,14 @@ async function callApi(payload) {
   return await res.json();
 }
 
-function cacheKey(dept, region) { return dept + '::' + region; }
-
 async function loadReport(force) {
-  const key = cacheKey(state.dept, state.region);
+  const key = state.dept;
   if (!force && state.cache[key]) { render(); return; }
   state.loading = true; state.error = '';
   render();
   try {
-    const res = await callApi({ action: 'getDistrictReport', dept: state.dept, region: state.region });
+    // region은 항상 '전체'로 받아서 캐시 — 지역 드롭다운은 클라이언트에서만 필터링(재요청 없이 즉시 전환)
+    const res = await callApi({ action: 'getDistrictReport', dept: state.dept, region: '' });
     if (res && res.error) { state.error = res.error; }
     else { state.cache[key] = res; }
   } catch (e) {
@@ -88,7 +90,7 @@ function switchDept(dept) {
 
 function switchRegion(region) {
   state.region = region;
-  loadReport(false);
+  render(); // 이미 캐시된 부서 전체 데이터에서 클라이언트 필터링만 하면 되므로 재요청 불필요
 }
 
 async function approve(t) {
@@ -116,7 +118,7 @@ async function approve(t) {
     } else {
       alert(`승인 접수 완료 (현재 ${(res && res.approvalCount) || 1}/2). 1명 더 승인하면 반영됩니다.`);
     }
-    delete state.cache[cacheKey(state.dept, state.region)];
+    delete state.cache[state.dept];
     await loadReport(true);
   } catch (e) {
     alert('승인 중 오류가 발생했습니다: ' + e);
@@ -136,16 +138,83 @@ function tabsHtml() {
   `;
 }
 
-function regionFilterHtml(report) {
-  const regions = (report && report.regions) || [];
+// 부서 전체 요약 카드 (지역 필터와 무관하게 항상 부서 전체 기준)
+function summaryCardHtml(summary) {
+  if (!summary) return '';
   return `
-    <div class="flex items-center gap-2 px-4 py-3 border-b border-base-300 bg-base-100">
-      <label class="text-xs text-base-content/50">🗺️ 지역 필터</label>
+    <div class="px-4 pt-4">
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+          <div class="text-xs font-bold text-base-content/50 mb-1">📊 부서 전체 요약</div>
+          <div class="flex flex-wrap items-end gap-x-7 gap-y-3">
+            <div>
+              <div class="text-xs text-base-content/50">총 교사 수</div>
+              <div class="text-2xl font-black text-primary">${summary.totalTeachers.toLocaleString()}명</div>
+            </div>
+            ${TIER_ORDER.map(t => `
+              <div>
+                <div class="text-xs ${TIER_TEXT_COLOR[t]} font-medium">${esc(t)}</div>
+                <div class="text-sm font-bold text-base-content">${(summary.tierCounts[t]||0).toLocaleString()}명 <span class="text-base-content/40 text-xs font-normal">(${pct(summary.tierCounts[t]||0, summary.totalTeachers)}%)</span></div>
+              </div>
+            `).join('')}
+            <div>
+              <div class="text-xs text-base-content/50">활동자 수</div>
+              <div class="text-sm font-bold">${summary.activeCount.toLocaleString()}명</div>
+            </div>
+            <div>
+              <div class="text-xs text-base-content/50">이번 달 활동</div>
+              <div class="text-sm font-bold">${summary.monthlyActivityCount.toLocaleString()}건</div>
+            </div>
+            <div>
+              <div class="text-xs text-base-content/50">승급 대상</div>
+              <div class="text-sm font-bold ${summary.promotionCount ? 'text-success' : ''}">${summary.promotionCount.toLocaleString()}명</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 지역별 상세 테이블 (지역 필터와 무관하게 부서 내 전 지역을 항상 나열)
+function byRegionTableHtml(byRegion) {
+  if (!byRegion || byRegion.length === 0) return '';
+  return `
+    <div class="px-4 pt-3">
+      <div class="text-xs font-bold text-base-content/50 mb-2">🗺️ 지역별 상세</div>
+      <div class="overflow-x-auto border border-base-300 rounded-box">
+        <table class="table table-zebra table-sm">
+          <thead class="sticky top-0 bg-base-100"><tr>
+            <th>지역</th><th>총 교사</th>
+            ${TIER_ORDER.map(t => `<th>${esc(t)}</th>`).join('')}
+            <th>활동자</th><th>이번 달 활동</th><th>승급 대상</th>
+          </tr></thead>
+          <tbody>
+            ${byRegion.map(r => `
+              <tr>
+                <td class="font-medium">${esc(r.region)}</td>
+                <td>${r.totalTeachers}명</td>
+                ${TIER_ORDER.map(t => `<td class="text-xs whitespace-nowrap">${(r.tierCounts[t]||0)}명 <span class="text-base-content/40">(${pct(r.tierCounts[t]||0, r.totalTeachers)}%)</span></td>`).join('')}
+                <td>${r.activeCount}명</td>
+                <td>${r.monthlyActivityCount}건</td>
+                <td class="${r.promotionCount ? 'text-success font-bold' : ''}">${r.promotionCount}명</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function regionFilterHtml(regions, shownCount) {
+  return `
+    <div class="flex items-center gap-2 px-4 py-3 mt-3 border-y border-base-300 bg-base-100">
+      <label class="text-xs text-base-content/50">🔍 교사별 상세 — 지역 필터</label>
       <select id="region-select" class="select select-bordered select-sm w-40">
         <option value="" ${state.region === '' ? 'selected' : ''}>전체 (${regions.length}개 지역)</option>
         ${regions.map(r => `<option value="${esc(r)}" ${state.region === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
       </select>
-      ${report ? `<span class="text-xs text-base-content/40 ml-auto">${report.month} 결산 기준 · 총 ${report.total}명</span>` : ''}
+      <span class="text-xs text-base-content/40 ml-auto">${shownCount}명 표시</span>
     </div>
   `;
 }
@@ -154,7 +223,6 @@ function suggestionCell(t) {
   const s = t.suggestion;
   if (!s) return `<span class="text-base-content/30 text-xs">-</span>`;
   const key = t.memberId + '::' + s.suggestedTier;
-  const up = TIER_BADGE[s.suggestedTier] === 'badge-secondary' || TIER_BADGE[s.suggestedTier] === 'badge-accent';
   return `
     <div class="flex flex-col gap-1">
       <div class="flex items-center gap-1 flex-wrap text-xs">
@@ -173,8 +241,7 @@ function suggestionCell(t) {
   `;
 }
 
-function tableHtml(report) {
-  const rows = (report && report.rows) || [];
+function tableHtml(rows) {
   if (rows.length === 0) {
     return `<div class="text-center py-16">
       <div class="text-5xl mb-3">📭</div>
@@ -205,9 +272,10 @@ function tableHtml(report) {
 
 function render() {
   const root = document.getElementById('root');
-  const key = cacheKey(state.dept, state.region);
-  const report = state.cache[key];
-  const pendingCount = report ? (report.rows || []).filter(t => t.suggestion).length : 0;
+  const report = state.cache[state.dept];
+  const allRows = report ? report.rows : [];
+  const filteredRows = state.region ? allRows.filter(r => r.region === state.region) : allRows;
+  const pendingCount = filteredRows.filter(t => t.suggestion).length;
 
   root.innerHTML = `
     <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
@@ -219,31 +287,30 @@ function render() {
         </div>
       </div>
       <div class="flex-none flex items-center gap-2">
-        <button id="btn-refresh" class="btn btn-sm btn-ghost">🔄</button>
         <a href="admin-home.html" class="btn btn-sm btn-ghost">← 관리자 홈</a>
-        <a href="home.html" class="btn btn-sm btn-ghost">🏠 홈</a>
+        <a href="home.html" class="btn btn-sm btn-ghost">교사 어플로 가기</a>
       </div>
     </div>
     <div class="brand-accent-bar"></div>
 
     ${tabsHtml()}
-    ${regionFilterHtml(report)}
 
-    ${pendingCount > 0 ? `
-      <div class="px-4 pt-3">
-        <div class="alert alert-warning py-2 text-sm"><div>📌 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 확인 후 승인하세요.</div></div>
-      </div>` : ''}
-
-    <div class="p-4" id="tableWrap">
-      ${state.loading
-        ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
-        : state.error
-          ? `<div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div>`
-          : tableHtml(report)}
-    </div>
+    ${state.loading
+      ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
+      : state.error
+        ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div></div>`
+        : `
+          ${summaryCardHtml(report && report.summary)}
+          ${byRegionTableHtml(report && report.byRegion)}
+          ${regionFilterHtml((report && report.regions) || [], filteredRows.length)}
+          ${pendingCount > 0 ? `
+            <div class="px-4 pt-3">
+              <div class="alert alert-warning py-2 text-sm"><div>📌 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 확인 후 승인하세요.</div></div>
+            </div>` : ''}
+          <div class="p-4">${tableHtml(filteredRows)}</div>
+        `}
   `;
 
-  document.getElementById('btn-refresh').onclick = () => loadReport(true);
   document.querySelectorAll('.tab').forEach(btn => {
     btn.onclick = () => switchDept(btn.dataset.dept);
   });
@@ -251,8 +318,7 @@ function render() {
   if (regionSelect) regionSelect.onchange = (e) => switchRegion(e.target.value);
   document.querySelectorAll('.btn-approve').forEach(btn => {
     btn.onclick = () => {
-      const rows = (report && report.rows) || [];
-      const t = rows.find(r => r.memberId === btn.dataset.mid && r.suggestion && r.suggestion.suggestedTier === btn.dataset.tier);
+      const t = filteredRows.find(r => r.memberId === btn.dataset.mid && r.suggestion && r.suggestion.suggestedTier === btn.dataset.tier);
       if (t) approve(t);
     };
   });

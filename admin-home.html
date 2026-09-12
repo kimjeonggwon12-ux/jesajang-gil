@@ -43,24 +43,30 @@
   <div class="brand-accent-bar"></div>
 
   <div class="flex-1 p-6">
-    <div class="grid gap-4 sm:grid-cols-1">
-      <a href="district-dashboard.html" class="admin-card card card-border bg-base-100 shadow-sm">
-        <div class="card-body flex-row items-center gap-4 p-5">
-          <div class="w-14 h-14 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-3xl shrink-0">🗺️</div>
-          <div class="flex-1">
-            <div class="text-base font-bold text-base-content">부서별 교사 관리</div>
-            <div class="text-xs text-base-content/50 mt-0.5">교역자·자문회·장년회·부녀회·청년회·기타 — 부서·지역별 교사 현황, 승급/강등 제안 승인</div>
-          </div>
-          <div class="text-base-content/30 text-xl">›</div>
-        </div>
-      </a>
+    <div id="teacherSummary" class="card card-border bg-base-100 shadow-sm mb-4">
+      <div class="card-body p-5">
+        <div class="text-xs text-base-content/50 text-center py-4">불러오는 중...</div>
+      </div>
+    </div>
 
+    <div class="grid gap-4 sm:grid-cols-1">
       <a href="edu-dashboard.html" class="admin-card card card-border bg-base-100 shadow-sm">
         <div class="card-body flex-row items-center gap-4 p-5">
           <div class="w-14 h-14 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center text-3xl shrink-0">🎓</div>
           <div class="flex-1">
             <div class="text-base font-bold text-base-content">통합 관리</div>
             <div class="text-xs text-base-content/50 mt-0.5">조직별 요약 · 이번 달 결산 · 비활동자 · 센터 인도 실적 · 피드백 분석</div>
+          </div>
+          <div class="text-base-content/30 text-xl">›</div>
+        </div>
+      </a>
+
+      <a href="district-dashboard.html" class="admin-card card card-border bg-base-100 shadow-sm">
+        <div class="card-body flex-row items-center gap-4 p-5">
+          <div class="w-14 h-14 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-3xl shrink-0">🗺️</div>
+          <div class="flex-1">
+            <div class="text-base font-bold text-base-content">부서별 교사 관리</div>
+            <div class="text-xs text-base-content/50 mt-0.5">교역자·자문회·장년회·부녀회·청년회·기타 — 부서·지역별 교사 현황, 승급/강등 제안 승인</div>
           </div>
           <div class="text-base-content/30 text-xl">›</div>
         </div>
@@ -84,8 +90,56 @@
   </div>
 
   <div class="p-4 border-t border-base-300 text-center">
-    <a href="home.html" class="btn btn-ghost btn-sm">← 홈으로 (home.html)</a>
+    <a href="home.html" class="btn btn-ghost btn-sm">교사 어플로 가기</a>
   </div>
 </div>
+
+<script>
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
+const TIER_ORDER = ['휴교사', '교사', '활동교사', '우수교사'];
+const TIER_COLOR = { '휴교사': 'text-base-content/50', '교사': 'text-info', '활동교사': 'text-secondary', '우수교사': 'text-success' };
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
+
+async function callApi(payload) {
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  return await res.json();
+}
+
+async function loadTeacherSummary() {
+  const el = document.getElementById('teacherSummary');
+  try {
+    const res = await callApi({ action: 'getOrgSummary' });
+    if (!res || res.error) throw new Error((res && res.error) || '불러오기 실패');
+    const total = res.totalTeachers || 0;
+    const tc = res.tierCounts || {};
+    el.innerHTML = `
+      <div class="card-body p-5">
+        <div class="text-xs text-base-content/50">총 교사 수</div>
+        <div class="text-3xl font-black text-primary">${total.toLocaleString()}명</div>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3 text-sm">
+          ${TIER_ORDER.map(t => `
+            <div class="flex items-center justify-between">
+              <span class="font-medium ${TIER_COLOR[t]}">${esc(t)}</span>
+              <span class="text-base-content/70">${(tc[t]||0).toLocaleString()}명 <span class="text-base-content/40 text-xs">(${pct(tc[t]||0, total)}%)</span></span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="card-body p-5"><div class="alert alert-error py-2 text-sm"><div>⚠️ 교사 수 정보를 불러오지 못했습니다: ${esc(e.message)}</div></div></div>`;
+  }
+}
+
+loadTeacherSummary();
+</script>
 </body>
 </html>
