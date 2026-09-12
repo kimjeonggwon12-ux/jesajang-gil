@@ -6,6 +6,7 @@
 <title>제사장의 길 - 부서별 교사 관리</title>
 <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 관리자 화면과 동일 */
   [data-theme="jesagil"] {
@@ -48,8 +49,12 @@ let state = {
   loading: false,
   error: '',
   approving: {},    // memberId::suggestedTier → true
-  cache: {}         // dept → getDistrictReport(region:'') 응답 (부서 전체 데이터를 한 번만 받아 캐시)
+  cache: {},        // dept → getDistrictReport(region:'') 응답 (부서 전체 데이터를 한 번만 받아 캐시)
+  regionView: 'table' // 'table' | 'chart' — 지역별 상세 섹션 표시 방식
 };
+
+const TIER_CHART_COLOR = { '휴교사': '#9ca3af', '교사': '#4f46e5', '활동교사': '#059669', '우수교사': '#d97706' };
+let regionCharts = []; // Chart.js 인스턴스 — 다시 그리기 전 항상 destroy 해서 캔버스 재사용 시 에러 방지
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -176,34 +181,116 @@ function summaryCardHtml(summary) {
   `;
 }
 
-// 지역별 상세 테이블 (지역 필터와 무관하게 부서 내 전 지역을 항상 나열)
-function byRegionTableHtml(byRegion) {
+// 지역별 상세 섹션 (표/그래프 토글) — 지역 필터와 무관하게 부서 내 전 지역을 항상 나열
+function byRegionSectionHtml(byRegion) {
   if (!byRegion || byRegion.length === 0) return '';
+  const toggleLabel = state.regionView === 'table' ? '📊 그래프로 보기' : '📋 표로 보기';
   return `
     <div class="px-4 pt-3">
-      <div class="text-xs font-bold text-base-content/50 mb-2">🗺️ 지역별 상세</div>
-      <div class="overflow-x-auto border border-base-300 rounded-box">
-        <table class="table table-zebra table-sm">
-          <thead class="sticky top-0 bg-base-100"><tr>
-            <th>지역</th><th>총 교사</th>
-            ${TIER_ORDER.map(t => `<th>${esc(t)}</th>`).join('')}
-            <th>활동자</th><th>이번 달 활동</th><th>승급 대상</th>
-          </tr></thead>
-          <tbody>
-            ${byRegion.map(r => `
-              <tr>
-                <td class="font-medium">${esc(r.region)}</td>
-                <td>${r.totalTeachers}명</td>
-                ${TIER_ORDER.map(t => `<td class="text-xs whitespace-nowrap">${(r.tierCounts[t]||0)}명 <span class="text-base-content/40">(${pct(r.tierCounts[t]||0, r.totalTeachers)}%)</span></td>`).join('')}
-                <td>${r.activeCount}명</td>
-                <td>${r.monthlyActivityCount}건</td>
-                <td class="${r.promotionCount ? 'text-success font-bold' : ''}">${r.promotionCount}명</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs font-bold text-base-content/50">🗺️ 지역별 상세</div>
+        <button id="btn-region-view-toggle" class="btn btn-xs btn-outline">${toggleLabel}</button>
+      </div>
+      ${state.regionView === 'table' ? byRegionTableHtml(byRegion) : byRegionChartsHtml(byRegion)}
+    </div>
+  `;
+}
+
+function byRegionTableHtml(byRegion) {
+  return `
+    <div class="overflow-x-auto border border-base-300 rounded-box">
+      <table class="table table-zebra table-sm">
+        <thead class="sticky top-0 bg-base-100"><tr>
+          <th>지역</th><th>총 교사</th>
+          ${TIER_ORDER.map(t => `<th>${esc(t)}</th>`).join('')}
+          <th>활동자</th><th>이번 달 활동</th><th>승급 대상</th>
+        </tr></thead>
+        <tbody>
+          ${byRegion.map(r => `
+            <tr>
+              <td class="font-medium">${esc(r.region)}</td>
+              <td>${r.totalTeachers}명</td>
+              ${TIER_ORDER.map(t => `<td class="text-xs whitespace-nowrap">${(r.tierCounts[t]||0)}명 <span class="text-base-content/40">(${pct(r.tierCounts[t]||0, r.totalTeachers)}%)</span></td>`).join('')}
+              <td>${r.activeCount}명</td>
+              <td>${r.monthlyActivityCount}건</td>
+              <td class="${r.promotionCount ? 'text-success font-bold' : ''}">${r.promotionCount}명</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// 지역별 상세 그래프 3종 (막대 높이는 지역 수에 비례 — 모바일에서도 지역명이 안 겹치도록)
+function chartHeight(n) { return Math.max(200, n * 30 + 40); }
+
+function byRegionChartsHtml(byRegion) {
+  const h = chartHeight(byRegion.length);
+  return `
+    <div class="space-y-4">
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-3">
+          <div class="text-xs font-medium text-base-content/60 mb-2">📈 지역별 활동교사 비율</div>
+          <div style="height:${h}px"><canvas id="chart-active-tier"></canvas></div>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-3">
+          <div class="text-xs font-medium text-base-content/60 mb-2">🏆 지역별 우수교사 비율</div>
+          <div style="height:${h}px"><canvas id="chart-excellent-tier"></canvas></div>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-3">
+          <div class="text-xs font-medium text-base-content/60 mb-2">📊 지역별 교사 구분 비율 비교</div>
+          <div style="height:${h}px"><canvas id="chart-tier-stack"></canvas></div>
+        </div>
       </div>
     </div>
   `;
+}
+
+function destroyRegionCharts() {
+  regionCharts.forEach(c => c.destroy());
+  regionCharts = [];
+}
+
+function renderRegionCharts(byRegion) {
+  destroyRegionCharts();
+  if (!byRegion || byRegion.length === 0) return;
+  const labels = byRegion.map(r => r.region);
+  const pctTickOpts = { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } };
+
+  const c1 = document.getElementById('chart-active-tier');
+  if (c1) regionCharts.push(new Chart(c1, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: byRegion.map(r => pct(r.tierCounts['활동교사']||0, r.totalTeachers)), backgroundColor: TIER_CHART_COLOR['활동교사'], borderRadius: 4 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } }, scales: { x: pctTickOpts } }
+  }));
+
+  const c2 = document.getElementById('chart-excellent-tier');
+  if (c2) regionCharts.push(new Chart(c2, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: byRegion.map(r => pct(r.tierCounts['우수교사']||0, r.totalTeachers)), backgroundColor: TIER_CHART_COLOR['우수교사'], borderRadius: 4 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } }, scales: { x: pctTickOpts } }
+  }));
+
+  const c3 = document.getElementById('chart-tier-stack');
+  if (c3) regionCharts.push(new Chart(c3, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: TIER_ORDER.map(t => ({
+        label: t, backgroundColor: TIER_CHART_COLOR[t],
+        data: byRegion.map(r => pct(r.tierCounts[t]||0, r.totalTeachers))
+      }))
+    },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+      scales: { x: { stacked: true, beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } }, y: { stacked: true } } }
+  }));
 }
 
 function regionFilterHtml(regions, shownCount) {
@@ -301,7 +388,7 @@ function render() {
         ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div></div>`
         : `
           ${summaryCardHtml(report && report.summary)}
-          ${byRegionTableHtml(report && report.byRegion)}
+          ${byRegionSectionHtml(report && report.byRegion)}
           ${regionFilterHtml((report && report.regions) || [], filteredRows.length)}
           ${pendingCount > 0 ? `
             <div class="px-4 pt-3">
@@ -322,6 +409,18 @@ function render() {
       if (t) approve(t);
     };
   });
+
+  const viewToggleBtn = document.getElementById('btn-region-view-toggle');
+  if (viewToggleBtn) viewToggleBtn.onclick = () => {
+    state.regionView = state.regionView === 'table' ? 'chart' : 'table';
+    render();
+  };
+
+  if (report && !state.loading && !state.error && state.regionView === 'chart') {
+    renderRegionCharts(report.byRegion);
+  } else {
+    destroyRegionCharts();
+  }
 }
 
 loadReport(false);

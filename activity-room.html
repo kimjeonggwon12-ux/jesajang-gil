@@ -57,7 +57,6 @@ const TIER_COLOR = {
   '활동교사': 'bg-amber-100 text-amber-800',
   '우수교사': 'bg-emerald-100 text-emerald-700'
 };
-function tierRank(t) { return TEACHER_TIERS.indexOf(t); }
 
 // ===== 활동 유형 (2026-09-04 확장) =====
 // 기존 6개 항목을 등급 판정 규칙(Code.gs)의 활동 유형 명칭에 맞춰 정리·통합했습니다.
@@ -119,7 +118,9 @@ let state = {
   centerLeadsLoading: false,
   centerLeadsExpanded: false, // 센터 인도 실적 접기/펼치기
 
-  form: { open: false, selected: [], date: todayStr(), note: '', loading: false, done: false }
+  form: { activityType: ACTIVITY_OPTIONS[0], date: todayStr(), note: '', loading: false, done: false },
+
+  tierExpanded: false // 교사 구분 접기/펼치기
 };
 
 // ===== 온보딩 완료 여부 (로컬스토리지, memberId 기준) =====
@@ -177,14 +178,27 @@ async function loadCenterLeads() {
   render();
 }
 
+// iframe(embedded in home.html) 안에서 열렸는지 여부 — home.html이 이미 자체 헤더/탭을 갖고 있으므로
+// 이 방에는 별도 헤더를 두지 않고, 뒤로가기만 맥락에 맞게 동작시킵니다.
+function goBack() {
+  if (window.top !== window.self) {
+    window.top.location = 'home.html';
+  } else if (history.length > 1) {
+    history.back();
+  } else {
+    location.href = 'home.html';
+  }
+}
+
 function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
-    <div class="flex items-center px-4 py-2 border-b border-gray-100">
-      <a href="home.html" class="text-xs text-gray-400 hover:text-gray-600">← 홈</a>
+    <div class="px-4 pt-3 pb-1">
+      <button id="btn-back" class="text-xs text-gray-400 hover:text-gray-600">← 뒤로</button>
     </div>
-    <div id="body" class="p-5"></div>
+    <div id="body" class="p-5 pt-2"></div>
   `;
+  document.getElementById('btn-back').onclick = goBack;
   const body = document.getElementById('body');
 
   // ===== 본인 확인 (TEST_MODE=false 일 때만 노출) =====
@@ -317,11 +331,9 @@ function renderMain(body) {
   body.innerHTML = `
     <div class="animate-fade-in space-y-4">
       ${renderRegisterSection()}
-      ${renderTierClassification(ts)}
-      ${renderStatusCard(ts)}
-      ${renderBanners(ts)}
       ${renderHistorySection()}
       ${renderCenterLeadsSection()}
+      ${renderTierClassification(ts)}
     </div>
   `;
 
@@ -329,164 +341,97 @@ function renderMain(body) {
   wireCollapsibles();
 }
 
-// ============ 교사 구분 (4줄 설명 + 내 현재 구분) ============
+// ============ 교사 구분 (접었다 펼치기 — 4줄 설명 + 내 현재 구분) ============
 
 function renderTierClassification(ts) {
-  const badgeRow = `
-    <div class="flex items-center justify-center gap-1.5 flex-wrap">
-      ${TEACHER_TIERS.map(t => `<span class="text-[11px] font-bold px-2.5 py-1.5 rounded-full ${TIER_COLOR[t]}">${esc(t)}</span>`).join('')}
-    </div>`;
-  const descRows = TEACHER_TIERS.map(t => `
-    <div class="flex items-start gap-2.5 bg-gray-50/80 border border-gray-200 rounded-[14px] px-3.5 py-2.5">
-      <span class="text-[11px] font-bold px-2 py-1 rounded-full shrink-0 ${TIER_COLOR[t]}">${esc(t)}</span>
-      <span class="text-[12.5px] text-gray-600 mt-0.5">${esc(TIER_DESC[t])}</span>
-    </div>`).join('');
-  const personalLine = ts
-    ? `<div class="text-[13px] text-gray-700 text-center pt-1">${esc(ts.name)} 교사님은 현재 <b class="text-gray-900">${esc(ts.tier)}</b>입니다</div>`
-    : '';
+  const expanded = state.tierExpanded;
+  let inner = '';
+  if (expanded) {
+    const descRows = TEACHER_TIERS.map(t => `
+      <div class="flex items-start gap-2.5 bg-gray-50/80 border border-gray-200 rounded-[14px] px-3.5 py-2.5">
+        <span class="text-[11px] font-bold px-2 py-1 rounded-full shrink-0 ${TIER_COLOR[t]}">${esc(t)}</span>
+        <span class="text-[12.5px] text-gray-600 mt-0.5">${esc(TIER_DESC[t])}</span>
+      </div>`).join('');
+    const personalLine = ts
+      ? `<div class="text-[13px] text-gray-700 text-center pt-1">${esc(ts.name)} 교사님은 현재 <b class="text-gray-900">${esc(ts.tier)}</b>입니다</div>`
+      : '';
+    inner = `<div class="mt-2 space-y-2">${descRows}</div>${personalLine ? `<div class="mt-2">${personalLine}</div>` : ''}`;
+  }
 
   return `
-    <div class="bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 space-y-3">
-      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5"><span class="text-amber-500">📋</span> 교사 구분</h3>
-      ${badgeRow}
-      <div class="space-y-2">${descRows}</div>
-      ${personalLine}
+    <div class="bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60">
+      ${collapsibleHeader({ emoji: '📋', colorClass: 'text-amber-500' }, '교사 구분', expanded, 'toggle-tier')}
+      ${inner}
     </div>
   `;
-}
-
-function renderStatusCard(ts) {
-  if (!ts) return '';
-  const monthlyBar = `
-    <div class="mt-2.5">
-      <div class="flex justify-between text-[11px] text-gray-500 mb-1"><span>이번 달 활동</span><span class="font-bold text-gray-700">${ts.monthlyCount} / ${ts.monthlyGoal}건 (${pct(ts.monthlyCount, ts.monthlyGoal)}%)</span></div>
-      <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-amber-500 rounded-full" style="width:${pct(ts.monthlyCount, ts.monthlyGoal)}%"></div></div>
-    </div>`;
-  const isPromotion = ts.suggestion && tierRank(ts.suggestion.suggestedTier) > tierRank(ts.tier);
-  const nextLine = isPromotion
-    ? `<div class="text-[11.5px] text-amber-700 mt-2">🏆 등급 심사 대상이에요 — 아래 안내를 확인하세요</div>`
-    : ts.nextTier
-      ? `<div class="text-[11.5px] text-gray-500 mt-2">👉 <b class="text-gray-700">${esc(ts.nextTier)}</b>까지 ${ts.leadGoal ? `센터 인도 ${Math.max(0, ts.leadGoal - ts.leadCount)}명` : '조금'} 더 필요해요</div>`
-      : `<div class="text-[11.5px] text-emerald-700 mt-2">🎉 최고 등급 우수교사입니다</div>`;
-
-  return `
-    <div class="bg-white border border-gray-200 rounded-[18px] p-4 shadow-sm">
-      ${monthlyBar}
-      ${nextLine}
-      <div class="text-[11px] text-gray-400 mt-2">🕒 최근 활동일: ${ts.lastActivityDate ? esc(ts.lastActivityDate) : '기록 없음'}</div>
-    </div>
-  `;
-}
-
-function renderBanners(ts) {
-  if (!ts) return '';
-  const banners = [];
-  const isPromotion = ts.suggestion && tierRank(ts.suggestion.suggestedTier) > tierRank(ts.tier);
-  if (isPromotion) {
-    banners.push(`<div class="animate-fade-in-up text-[13px] font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-[14px] p-3 flex items-center gap-2">🏆 <span>${esc(ts.suggestion.suggestedTier)} 승급 대상입니다!</span></div>`);
-  }
-  if (ts.monthlyGoal && ts.monthlyCount >= ts.monthlyGoal) {
-    banners.push(`<div class="animate-fade-in-up text-[13px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-[14px] p-3 flex items-center gap-2">🎉 <span>이번 달 목표 달성!</span></div>`);
-  }
-  if (ts.daysSinceLastActivity != null && ts.daysSinceLastActivity >= 7) {
-    banners.push(`<div class="animate-fade-in-up text-[13px] font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-[14px] p-3 flex items-center gap-2">👋 <span>오랜만이에요! 활동을 기록해보세요</span></div>`);
-  }
-  return banners.join('');
 }
 
 function renderRegisterSection() {
   const f = state.form;
-  const cardCls = 'bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 space-y-2.5';
-
-  if (!f.open) {
-    return `
-      <button id="btn-form-open" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[18px] py-4 text-[15px] font-black shadow-[0_8px_25px_rgba(245,158,11,0.35)] active:scale-[0.98] transition-all">✍️ 오늘 활동 기록하기</button>
-      ${f.done ? `
-      <div class="animate-fade-in-up text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-[16px] p-3.5 flex items-center gap-2 font-bold">
-        <span>🔔</span> 활동이 등록되었습니다
-      </div>` : ''}
-    `;
-  }
+  const cardCls = 'bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60';
 
   return `
-    <div class="${cardCls} animate-slide-in">
-      <div class="flex items-center justify-between">
-        <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5"><span class="text-amber-500">✅</span> 활동 종류 <span class="text-[11px] font-bold text-gray-400">(복수 선택 가능)</span></h3>
-        <button id="btn-form-close" class="text-gray-300 text-lg leading-none">✕</button>
+    <div class="${cardCls} space-y-3">
+      <h3 class="text-[14px] font-black text-gray-800 flex items-center gap-1.5"><span class="text-amber-500">✍️</span> 오늘 활동 기록하기</h3>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[11px] font-bold text-gray-500 mb-1 block">📅 날짜</label>
+          <input id="reg-date" type="date" value="${esc(f.date)}" max="${esc(todayStr())}" class="w-full bg-white border border-gray-200 text-gray-900 text-[13px] rounded-[12px] px-2.5 py-2.5 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 transition-all shadow-sm">
+        </div>
+        <div>
+          <label class="text-[11px] font-bold text-gray-500 mb-1 block">✅ 활동 종류</label>
+          <select id="reg-activity" class="w-full bg-white border border-gray-200 text-gray-900 text-[13px] rounded-[12px] px-2.5 py-2.5 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 transition-all shadow-sm">
+            ${ACTIVITY_OPTIONS.map(opt => `<option value="${esc(opt)}" ${f.activityType === opt ? 'selected' : ''}>${ACTIVITY_ICON[opt] || ''} ${esc(opt)}</option>`).join('')}
+          </select>
+        </div>
       </div>
-      <div class="space-y-2">
-        ${ACTIVITY_OPTIONS.map(opt => {
-          const on = f.selected.includes(opt);
-          return `<button type="button" data-act="${esc(opt)}" class="act-opt w-full flex items-center gap-3 border rounded-[14px] px-3.5 py-3 text-left transition-all ${on ? 'bg-amber-50 border-amber-300 shadow-[0_2px_10px_rgba(245,158,11,0.15)]' : 'bg-gray-50/80 border-gray-200 hover:border-amber-200'}">
-            <span class="w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 ${on ? 'bg-amber-500 border-amber-500' : 'border-gray-300 bg-white'}">
-              ${on ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3.5" d="M5 13l4 4L19 7"/></svg>' : ''}
-            </span>
-            <span class="text-[13.5px] font-bold ${on ? 'text-amber-900' : 'text-gray-600'}">${ACTIVITY_ICON[opt] || ''} ${esc(opt)}</span>
-          </button>`;
-        }).join('')}
+
+      <div>
+        <label class="text-[11px] font-bold text-gray-500 mb-1 block">📝 활동 내용</label>
+        <textarea id="reg-note" rows="3" placeholder="오늘 하신 활동 내용을 자유롭게 적어주세요." class="w-full bg-white border border-gray-200 text-gray-900 text-[13.5px] rounded-[16px] p-3.5 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 transition-all resize-none shadow-sm">${esc(f.note)}</textarea>
       </div>
-    </div>
 
-    <div class="${cardCls}">
-      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5"><span class="text-orange-400">📅</span> 날짜</h3>
-      <input id="reg-date" type="date" value="${esc(f.date)}" max="${esc(todayStr())}" class="w-full bg-white border border-gray-200 text-gray-900 text-[13.5px] rounded-[14px] px-3.5 py-2.5 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 transition-all shadow-sm">
-    </div>
+      <button id="btn-reg-submit" ${f.loading ? 'disabled' : ''} class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[16px] py-3.5 text-[14px] font-black shadow-[0_8px_25px_rgba(245,158,11,0.35)] active:scale-[0.98] transition-all disabled:opacity-50">
+        ${f.loading ? '등록 중...' : '등록'}
+      </button>
 
-    <div class="${cardCls}">
-      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5"><span class="text-orange-400">📝</span> 활동 내용</h3>
-      <textarea id="reg-note" rows="3" placeholder="오늘 하신 활동 내용을 자유롭게 적어주세요." class="w-full bg-white border border-gray-200 text-gray-900 text-[13.5px] rounded-[16px] p-3.5 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 transition-all resize-none shadow-sm">${esc(f.note)}</textarea>
+      ${f.done ? `
+      <div class="animate-fade-in-up text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-[16px] p-3 flex items-center gap-2 font-bold">
+        <span>🔔</span> 활동이 등록되었습니다
+      </div>` : ''}
     </div>
-
-    <button id="btn-reg-submit" ${f.loading ? 'disabled' : ''} class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[16px] py-3.5 text-[14px] font-black shadow-[0_8px_25px_rgba(245,158,11,0.35)] active:scale-[0.98] transition-all disabled:opacity-50">
-      ${f.loading ? '등록 중...' : '등록'}
-    </button>
   `;
 }
 
 function wireRegisterSection() {
   const f = state.form;
 
-  const openBtn = document.getElementById('btn-form-open');
-  if (openBtn) openBtn.onclick = () => { f.open = true; f.done = false; render(); };
-
-  const closeBtn = document.getElementById('btn-form-close');
-  if (closeBtn) closeBtn.onclick = () => { f.open = false; render(); };
-
-  document.querySelectorAll('.act-opt').forEach(btn => {
-    btn.onclick = () => {
-      const v = btn.dataset.act;
-      const i = f.selected.indexOf(v);
-      if (i >= 0) f.selected.splice(i, 1); else f.selected.push(v);
-      render();
-    };
-  });
-
   const dateEl = document.getElementById('reg-date');
   if (dateEl) dateEl.onchange = (e) => { f.date = e.target.value; };
+
+  const activityEl = document.getElementById('reg-activity');
+  if (activityEl) activityEl.onchange = (e) => { f.activityType = e.target.value; };
 
   const noteEl = document.getElementById('reg-note');
   if (noteEl) noteEl.oninput = (e) => { f.note = e.target.value; };
 
   const submitBtn = document.getElementById('btn-reg-submit');
   if (submitBtn) submitBtn.onclick = async () => {
-    if (f.selected.length === 0) { alert('활동을 하나 이상 선택해주세요.'); return; }
     f.loading = true;
     render();
     try {
-      const ordered = ACTIVITY_OPTIONS.filter(o => f.selected.includes(o));
       const res = await callApi({
         action: 'submitActivity',
         memberId: state.memberId,
         name: state.name,
-        activities: ordered,
+        activities: [f.activityType],
         date: f.date,
         note: f.note
       });
       if (res && res.error) throw new Error(res.error);
-      f.selected = [];
       f.note = '';
       f.date = todayStr();
-      f.open = false;
       f.done = true;
       state.historyExpanded = true; // 등록 직후엔 목록을 펼쳐서 바로 확인시켜줌
       await loadTierStatus();
@@ -519,6 +464,9 @@ function wireCollapsibles() {
 
   const leadsToggle = document.getElementById('toggle-leads');
   if (leadsToggle) leadsToggle.onclick = () => { state.centerLeadsExpanded = !state.centerLeadsExpanded; render(); };
+
+  const tierToggle = document.getElementById('toggle-tier');
+  if (tierToggle) tierToggle.onclick = () => { state.tierExpanded = !state.tierExpanded; render(); };
 
   const monthTab = document.getElementById('hist-tab-month');
   if (monthTab) monthTab.onclick = (e) => { e.stopPropagation(); state.historyScope = 'month'; render(); };
@@ -605,7 +553,6 @@ document.addEventListener('click', (e) => {
   if (e.target && e.target.id === 'btn-onb-finish') {
     markOnboardingDone();
     state.onboarding.active = false;
-    state.form.open = true;
     render();
   }
 });
