@@ -151,9 +151,8 @@ ${bodyHtml}
 function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
-    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-4">
-      <div class="text-lg font-bold">공부방</div>
-      <div class="text-indigo-50 text-sm">제사장의 길</div>
+    <div class="flex items-center px-4 py-2 border-b border-gray-100">
+      <a href="home.html" class="text-xs text-gray-400 hover:text-gray-600">← 홈</a>
     </div>
     <div class="flex border-b">
       <button id="tab-courses" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='courses' ? 'text-indigo-700 border-b-2 border-indigo-600' : 'text-gray-400'}">교재 목록</button>

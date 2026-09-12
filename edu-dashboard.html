@@ -359,7 +359,7 @@ function renderLeadsSection() {
     <div class="overflow-x-auto border border-base-300 rounded-box">
       <div class="max-h-72 overflow-y-auto">
         <table class="table table-zebra table-sm">
-          <thead class="sticky top-0 bg-base-100"><tr><th>#</th><th>이름</th><th>지역</th><th>등급</th><th>최근 1년 센터 인도</th></tr></thead>
+          <thead class="sticky top-0 bg-base-100"><tr><th>#</th><th>이름</th><th>지역</th><th>등급</th><th>최근 6개월 센터 인도</th></tr></thead>
           <tbody>${list.map((r, i) => `
             <tr>
               <td class="text-base-content/40">${i + 1}</td>
@@ -370,10 +370,10 @@ function renderLeadsSection() {
             </tr>`).join('')}</tbody>
         </table>
       </div>
-    </div>` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">최근 1년간 센터 인도 실적(활동방 "센터 인도 등록")이 있는 교사가 없습니다.</div>`;
+    </div>` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">최근 6개월간 센터 인도 실적(활동방 "센터 인도 등록")이 있는 교사가 없습니다.</div>`;
 
   return sectionCard('accent', '🎯', '센터 인도 실적 현황',
-    `활동방 "센터 인도 등록"으로 집계 · 최근 1년 기준 (승급 판정에 사용)`, body);
+    `활동방 "센터 인도 등록"으로 집계 · 최근 6개월 기준 (승급 판정에 사용)`, body);
 }
 
 // ============ 등급 심사 (checkTierChanges / applyTierChange) ============

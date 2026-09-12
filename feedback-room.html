@@ -522,9 +522,8 @@ async function callApi(payload) {
 function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
-    <div class="bg-emerald-700 text-white px-5 py-4">
-      <div class="text-lg font-bold">피드백방</div>
-      <div class="text-emerald-100 text-sm">제사장의 길</div>
+    <div class="flex items-center px-4 py-2 border-b border-gray-100">
+      <a href="home.html" class="text-xs text-gray-400 hover:text-gray-600">← 홈</a>
     </div>
     <div class="flex border-b overflow-x-auto">
       <button id="tab-coach" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='coach' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-400'}">AI 셀프 코칭</button>
