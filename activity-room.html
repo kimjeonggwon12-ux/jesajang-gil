@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>제사장의 길 - 활동방</title>
+<title>복음방 교사 - 활동</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   html, body { margin:0; padding:0; background:#f6f5f4; }
@@ -36,21 +36,32 @@ const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp
 // TEST_MODE = false : 실제 성도고유번호 + 이름 본인확인 로그인 화면 표시
 // 운영 전환 시 아래 한 줄만 false 로 바꾸면 됩니다. (로그인 화면 코드는 그대로 보존)
 const TEST_MODE = true;
-const TEST_MEMBER = { memberId: "TEST-0001", name: "테스트사용자" };
+// URL에 ?memberId=&name= 이 주어지면(예: home.html 임베드, 관리자 테스트 링크) 그 계정을 사용하고,
+// 없으면 기본 임시 계정으로 대체합니다.
+const TEST_MEMBER = {
+  memberId: window.TEST_MEMBER_ID || "TEST-0001",
+  name: window.TEST_NAME || "테스트사용자"
+};
+
+// ===== 교사 등급 제도 =====
+const TEACHER_TIERS = ['휴교사', '교사', '활동교사', '우수교사'];
+const TIER_DESC = {
+  '휴교사': '최근 3개월 활동이 5건 미만인 교사',
+  '교사': '정상적으로 활동 중인 교사',
+  '활동교사': '최근 1년간 센터 인도 1명 이상',
+  '우수교사': '최근 1년간 센터 인도 2명 이상'
+};
+const TIER_COLOR = {
+  '휴교사': 'bg-gray-200 text-gray-600',
+  '교사': 'bg-sky-100 text-sky-700',
+  '활동교사': 'bg-amber-100 text-amber-800',
+  '우수교사': 'bg-emerald-100 text-emerald-700'
+};
+function tierRank(t) { return TEACHER_TIERS.indexOf(t); }
 
 // ===== 활동 유형 (2026-09-04 확장) =====
-// 기존 6개 항목을 등급 판정 규칙(TierEngine.gs)의 활동 유형 명칭에 맞춰
-// 정리·통합했습니다. 옛 이름 → 새 이름 매핑(과거 데이터 호환용)은
-// TierEngine.gs 의 ACTIVITY_TYPE_ALIASES 참고 — 옛 활동실적 행은 그대로 두고
-// 백엔드에서 읽을 때만 새 이름으로 치환합니다.
-//   상담              → 상담 활동
-//   복음방 교육        → 복음방 교사 교육
-//   동행 복음방        → 동행 교사
-//   센터 수강 (인도자)  → 선교센터 인도자
-//   센터 수강 (섬김이)  → 선교센터 섬김이   (사용자 지정: 같은 활동으로 통합)
-//   센터 수강 (교사)    → 선교센터 교사로 출석
-// 신규 추가: 전도 섭외 / 전도 대상자 만남 / 복음방 이전 상담 활동 / 상담 교육 /
-//           피드백  (승급·강등 규칙에서 요구하는 유형)
+// 기존 6개 항목을 등급 판정 규칙(Code.gs)의 활동 유형 명칭에 맞춰 정리·통합했습니다.
+// 옛 이름 → 새 이름 매핑(과거 데이터 호환용)은 Code.gs 의 ACTIVITY_TYPE_ALIASES 참고.
 const ACTIVITY_OPTIONS = [
   '전도 섭외',
   '전도 대상자 만남',
@@ -64,10 +75,21 @@ const ACTIVITY_OPTIONS = [
   '선교센터 교사로 출석',
   '선교센터 인도자'
 ];
+const ACTIVITY_ICON = {
+  '전도 섭외': '📞', '전도 대상자 만남': '🤝', '복음방 이전 상담 활동': '📖', '상담 활동': '💬',
+  '상담 교육': '🎓', '복음방 교사 교육': '👩‍🏫', '동행 교사': '🚶', '피드백': '📝',
+  '선교센터 섬김이': '🙌', '선교센터 교사로 출석': '✅', '선교센터 인도자': '🎯'
+};
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+function todayStr() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function pct(a, b) { return b > 0 ? Math.min(100, Math.round(a / b * 100)) : 0; }
 
 async function callApi(payload) {
   const res = await fetch(PROXY_URL, {
@@ -79,36 +101,89 @@ async function callApi(payload) {
 }
 
 let state = {
-  tab: 'register',                                  // register | history
   memberId: TEST_MODE ? TEST_MEMBER.memberId : '',
   name:     TEST_MODE ? TEST_MEMBER.name : '',
   identified: TEST_MODE ? true : false,
-  reg: { selected: [], note: '', loading: false, done: false },
-  lead: { name: '', loading: false, done: false },  // 센터 인도 등록 (체크박스와 별개)
-  history: [],
-  historyLoading: false
+
+  onboarding: { active: false, step: 1, checked: false },
+
+  tierStatus: null,       // getMyTierStatus 응답
+  tierStatusLoading: false,
+
+  history: [],             // getMyActivities 응답 rows
+  historyLoading: false,
+  historyScope: 'month',   // 'month' | 'all'
+
+  centerLeads: [],          // getMyCenterLeads 응답 rows
+  centerLeadsLoading: false,
+
+  form: { open: false, selected: [], date: todayStr(), note: '', loading: false, done: false }
 };
+
+// ===== 온보딩 완료 여부 (로컬스토리지, memberId 기준) =====
+function onboardingKey() { return 'actroom_onboarding_' + (state.memberId || ''); }
+function hasSeenOnboarding() {
+  try { return localStorage.getItem(onboardingKey()) === '1'; } catch (e) { return false; }
+}
+function markOnboardingDone() {
+  try { localStorage.setItem(onboardingKey(), '1'); } catch (e) {}
+}
+
+async function afterIdentified() {
+  await loadTierStatus();
+  state.onboarding.active = !hasSeenOnboarding();
+  state.onboarding.checked = true;
+  render();
+  loadHistory();
+  loadCenterLeads();
+}
+
+async function loadTierStatus() {
+  state.tierStatusLoading = true;
+  try {
+    const res = await callApi({ action: 'getMyTierStatus', memberId: state.memberId });
+    state.tierStatus = (res && !res.error) ? res : null;
+  } catch (e) {
+    state.tierStatus = null;
+  }
+  state.tierStatusLoading = false;
+}
+
+async function loadHistory() {
+  state.historyLoading = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getMyActivities', memberId: state.memberId });
+    state.history = (res && res.rows) || [];
+  } catch (e) {
+    state.history = [];
+  }
+  state.historyLoading = false;
+  render();
+}
+
+async function loadCenterLeads() {
+  state.centerLeadsLoading = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getMyCenterLeads', memberId: state.memberId });
+    state.centerLeads = (res && res.rows) || [];
+  } catch (e) {
+    state.centerLeads = [];
+  }
+  state.centerLeadsLoading = false;
+  render();
+}
 
 function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
     <div class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-5 py-4">
-      <div class="text-lg font-bold">활동방</div>
-      <div class="text-amber-50 text-sm">제사장의 길</div>
-    </div>
-    <div class="flex border-b">
-      <button id="tab-register" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='register' ? 'text-amber-700 border-b-2 border-amber-600' : 'text-gray-400'}">활동 등록</button>
-      <button id="tab-history" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='history' ? 'text-amber-700 border-b-2 border-amber-600' : 'text-gray-400'}">내 활동 이력</button>
+      <div class="text-lg font-bold">활동</div>
+      <div class="text-amber-50 text-sm">복음방 교사</div>
     </div>
     <div id="body" class="p-5"></div>
   `;
-  document.getElementById('tab-register').onclick = () => { state.tab = 'register'; render(); };
-  document.getElementById('tab-history').onclick = () => {
-    state.tab = 'history';
-    render();
-    if (state.identified) loadMyActivities();
-  };
-
   const body = document.getElementById('body');
 
   // ===== 본인 확인 (TEST_MODE=false 일 때만 노출) =====
@@ -128,194 +203,399 @@ function render() {
       state.memberId = mid;
       state.name = nm;
       state.identified = true;
-      render();
-      if (state.tab === 'history') loadMyActivities();
+      afterIdentified();
     };
     return;
   }
 
-  if (state.tab === 'register') {
-    renderRegisterTab(body);
+  if (!state.onboarding.checked) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-16">불러오는 중...</div>`;
+    return;
+  }
+
+  if (state.onboarding.active) {
+    renderOnboarding(body);
   } else {
-    renderHistoryTab(body);
+    renderMain(body);
   }
 }
 
-function renderRegisterTab(body) {
-  const reg = state.reg;
-  const cardCls = 'bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 space-y-2.5';
+// ============ 온보딩 (3단계) ============
+
+function renderOnboarding(body) {
+  const step = state.onboarding.step;
+  const dots = [1, 2, 3].map(n => `<span class="w-2 h-2 rounded-full ${n === step ? 'bg-amber-500' : 'bg-gray-200'}"></span>`).join('');
+
+  let content = '';
+  if (step === 1) content = onboardingStep1();
+  else if (step === 2) content = onboardingStep2();
+  else content = onboardingStep3();
+
+  body.innerHTML = `
+    <div class="animate-slide-in space-y-5">
+      <div class="flex justify-center gap-1.5">${dots}</div>
+      ${content}
+      ${step > 1 ? `<button id="btn-onb-prev" class="w-full text-center text-xs text-gray-400 py-1">← 이전</button>` : ''}
+    </div>
+  `;
+
+  if (step > 1) {
+    document.getElementById('btn-onb-prev').onclick = () => { state.onboarding.step -= 1; render(); };
+  }
+}
+
+function onboardingStep1() {
+  return `
+    <div class="space-y-4">
+      <div class="text-center">
+        <div class="text-2xl mb-1">🙏</div>
+        <h2 class="text-lg font-black text-gray-800">복음방 교사란?</h2>
+        <p class="text-xs text-gray-400 mt-1">교사 등급 제도를 한눈에 확인하세요</p>
+      </div>
+      <div class="flex items-center justify-center gap-1 flex-wrap">
+        ${TEACHER_TIERS.map((t, i) => `
+          ${i > 0 ? '<span class="text-gray-300 text-xs">→</span>' : ''}
+          <span class="text-[11px] font-bold px-2.5 py-1.5 rounded-full ${TIER_COLOR[t]}">${esc(t)}</span>
+        `).join('')}
+      </div>
+      <div class="space-y-2">
+        ${TEACHER_TIERS.map(t => `
+          <div class="flex items-start gap-2.5 bg-gray-50/80 border border-gray-200 rounded-[14px] px-3.5 py-2.5">
+            <span class="text-[11px] font-bold px-2 py-1 rounded-full shrink-0 ${TIER_COLOR[t]}">${esc(t)}</span>
+            <span class="text-[12.5px] text-gray-600 mt-0.5">${esc(TIER_DESC[t])}</span>
+          </div>
+        `).join('')}
+      </div>
+      <button id="btn-onb-next1" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[16px] py-3.5 text-[14px] font-black shadow-[0_8px_25px_rgba(245,158,11,0.35)] active:scale-[0.98] transition-all">내 등급 확인하기</button>
+    </div>
+  `;
+}
+
+function onboardingStep2() {
+  const ts = state.tierStatus;
+  if (!ts) {
+    return `
+      <div class="text-center py-10">
+        <div class="text-sm text-gray-400 mb-4">내 등급 정보를 불러오지 못했습니다.</div>
+        <button id="btn-onb-next2" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[16px] py-3.5 text-[14px] font-black">활동 기록 시작하기</button>
+      </div>
+    `;
+  }
+  const monthlyBar = `
+    <div class="mt-1">
+      <div class="flex justify-between text-[11px] text-gray-500 mb-1"><span>이번 달 활동 건수</span><span class="font-bold text-gray-700">${ts.monthlyCount} / ${ts.monthlyGoal}건</span></div>
+      <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-amber-500 rounded-full" style="width:${pct(ts.monthlyCount, ts.monthlyGoal)}%"></div></div>
+    </div>`;
+  const leadBar = (ts.nextTier && ts.leadGoal) ? `
+    <div class="mt-3">
+      <div class="flex justify-between text-[11px] text-gray-500 mb-1"><span>센터 인도 실적 (최근 1년)</span><span class="font-bold text-gray-700">${ts.leadCount} / ${ts.leadGoal}명</span></div>
+      <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-emerald-500 rounded-full" style="width:${pct(ts.leadCount, ts.leadGoal)}%"></div></div>
+    </div>` : '';
+  const nextLine = ts.nextTier
+    ? `<div class="text-[12.5px] text-gray-600 mt-3">👉 <b>${esc(ts.nextTier)}</b>까지 조금만 더 힘내세요!</div>`
+    : `<div class="text-[12.5px] text-emerald-700 mt-3">🎉 이미 최고 등급 <b>우수교사</b>입니다. 계속 이어가주세요!</div>`;
+
+  return `
+    <div class="space-y-4">
+      <div class="text-center">
+        <div class="text-2xl mb-1">📍</div>
+        <h2 class="text-lg font-black text-gray-800">내 현재 위치</h2>
+        <p class="text-xs text-gray-400 mt-1">지금 이 순간의 나</p>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-[16px] p-4 shadow-sm">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-[15px] font-black text-gray-800">${esc(ts.name)}</span>
+          <span class="text-[11px] font-bold px-2 py-1 rounded-full ${TIER_COLOR[ts.tier]}">${esc(ts.tier)}</span>
+        </div>
+        <div class="text-[11.5px] text-gray-400">${esc(ts.dept || '소속 미지정')}</div>
+        ${monthlyBar}
+        ${leadBar}
+        ${nextLine}
+      </div>
+      <button id="btn-onb-next2" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[16px] py-3.5 text-[14px] font-black shadow-[0_8px_25px_rgba(245,158,11,0.35)] active:scale-[0.98] transition-all">활동 기록 시작하기</button>
+    </div>
+  `;
+}
+
+function onboardingStep3() {
+  return `
+    <div class="space-y-4">
+      <div class="text-center">
+        <div class="text-2xl mb-1">📋</div>
+        <h2 class="text-lg font-black text-gray-800">활동 기록이란?</h2>
+        <p class="text-xs text-gray-400 mt-1">아래 활동을 하셨다면 바로바로 기록해주세요</p>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        ${ACTIVITY_OPTIONS.map(opt => `
+          <div class="flex items-center gap-1.5 bg-gray-50/80 border border-gray-200 rounded-[12px] px-2.5 py-2">
+            <span class="text-[15px]">${ACTIVITY_ICON[opt] || '📌'}</span>
+            <span class="text-[11.5px] font-bold text-gray-600 leading-tight">${esc(opt)}</span>
+          </div>
+        `).join('')}
+      </div>
+      <button id="btn-onb-finish" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[16px] py-3.5 text-[14px] font-black shadow-[0_8px_25px_rgba(245,158,11,0.35)] active:scale-[0.98] transition-all">지금 기록하기</button>
+    </div>
+  `;
+}
+
+// ============ 메인 화면 ============
+
+function renderMain(body) {
+  const ts = state.tierStatus;
 
   body.innerHTML = `
     <div class="animate-fade-in space-y-4">
-      <div class="text-[11px] text-gray-400">${esc(state.name)}님 (${esc(state.memberId)}) · 활동 등록</div>
-
-      <div class="${cardCls}">
-        <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5">
-          <span class="text-amber-500">✅</span> 활동 선택
-          <span class="text-[11px] font-bold text-gray-400">(복수 선택 가능)</span>
-        </h3>
-        <div class="space-y-2">
-          ${ACTIVITY_OPTIONS.map(opt => {
-            const on = reg.selected.includes(opt);
-            return `<button type="button" data-act="${esc(opt)}" class="act-opt w-full flex items-center gap-3 border rounded-[14px] px-3.5 py-3 text-left transition-all ${on ? 'bg-amber-50 border-amber-300 shadow-[0_2px_10px_rgba(245,158,11,0.15)]' : 'bg-gray-50/80 border-gray-200 hover:border-amber-200'}">
-              <span class="w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 ${on ? 'bg-amber-500 border-amber-500' : 'border-gray-300 bg-white'}">
-                ${on ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3.5" d="M5 13l4 4L19 7"/></svg>' : ''}
-              </span>
-              <span class="text-[13.5px] font-bold ${on ? 'text-amber-900' : 'text-gray-600'}">${esc(opt)}</span>
-            </button>`;
-          }).join('')}
-        </div>
-      </div>
-
-      <div class="${cardCls}">
-        <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5">
-          <span class="text-orange-400">📝</span> 비고
-          <span class="text-[11px] font-bold text-gray-400">(선택)</span>
-        </h3>
-        <textarea id="reg-note" rows="3" placeholder="특이사항이 있으면 자유롭게 적어주세요." class="w-full bg-white border border-gray-200 text-gray-900 text-[13.5px] rounded-[16px] p-3.5 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 transition-all resize-none shadow-sm">${esc(reg.note)}</textarea>
-      </div>
-
-      <button id="btn-reg-submit" ${reg.loading ? 'disabled' : ''} class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[16px] py-3.5 text-[14px] font-black shadow-[0_8px_25px_rgba(245,158,11,0.35)] active:scale-[0.98] transition-all disabled:opacity-50">
-        ${reg.loading ? '등록 중...' : '등록'}
-      </button>
-
-      ${reg.done ? `
-      <div class="animate-fade-in-up text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-[16px] p-3.5 flex items-center gap-2 font-bold">
-        <span>🔔</span> 최근 활동이 갱신되었습니다
-      </div>` : ''}
-
-      <div class="${cardCls} border-emerald-200/70">
-        <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5">
-          <span class="text-emerald-500">🎓</span> 센터 인도 등록
-          <span class="text-[11px] font-bold text-gray-400">(위 활동 선택과 별개)</span>
-        </h3>
-        <div class="text-[11.5px] text-gray-500 -mt-1">학생을 센터 수강까지 성공적으로 이끈 경우 1건 등록해주세요.</div>
-        <input id="lead-name" type="text" placeholder="인도받은 사람 이름 (선택)" value="${esc(state.lead.name)}"
-          class="w-full bg-white border border-gray-200 text-gray-900 text-[13.5px] rounded-[14px] px-3.5 py-2.5 outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 transition-all shadow-sm">
-        <button id="btn-lead-submit" ${state.lead.loading ? 'disabled' : ''} class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-[14px] py-3 text-[13.5px] font-black transition-all disabled:opacity-50">
-          ${state.lead.loading ? '등록 중...' : '센터 인도 1건 등록'}
-        </button>
-        ${state.lead.done ? `
-        <div class="animate-fade-in-up text-[12px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-[12px] p-2.5 flex items-center gap-1.5 font-bold">
-          <span>✅</span> 센터 인도 실적이 등록되었습니다
-        </div>` : ''}
+      ${renderStatusCard(ts)}
+      ${renderBanners(ts)}
+      ${renderRegisterSection()}
+      ${renderHistorySection()}
+      ${renderCenterLeadsSection()}
+      <div class="text-center pt-1">
+        <button id="btn-onb-replay" class="text-[11px] text-gray-400 underline">📖 온보딩 다시 보기</button>
       </div>
     </div>
   `;
 
-  body.querySelectorAll('.act-opt').forEach(btn => {
+  document.getElementById('btn-onb-replay').onclick = () => {
+    state.onboarding.active = true;
+    state.onboarding.step = 1;
+    render();
+  };
+
+  wireRegisterSection();
+}
+
+function renderStatusCard(ts) {
+  if (!ts) {
+    return `<div class="bg-white border border-gray-200 rounded-[18px] p-4 shadow-sm text-sm text-gray-400 text-center">${esc(state.name)}님 (${esc(state.memberId)})</div>`;
+  }
+  const monthlyBar = `
+    <div class="mt-2.5">
+      <div class="flex justify-between text-[11px] text-gray-500 mb-1"><span>이번 달 활동</span><span class="font-bold text-gray-700">${ts.monthlyCount} / ${ts.monthlyGoal}건 (${pct(ts.monthlyCount, ts.monthlyGoal)}%)</span></div>
+      <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-amber-500 rounded-full" style="width:${pct(ts.monthlyCount, ts.monthlyGoal)}%"></div></div>
+    </div>`;
+  const isPromotion = ts.suggestion && tierRank(ts.suggestion.suggestedTier) > tierRank(ts.tier);
+  const nextLine = isPromotion
+    ? `<div class="text-[11.5px] text-amber-700 mt-2">🏆 등급 심사 대상이에요 — 아래 안내를 확인하세요</div>`
+    : ts.nextTier
+      ? `<div class="text-[11.5px] text-gray-500 mt-2">👉 <b class="text-gray-700">${esc(ts.nextTier)}</b>까지 ${ts.leadGoal ? `센터 인도 ${Math.max(0, ts.leadGoal - ts.leadCount)}명` : '조금'} 더 필요해요</div>`
+      : `<div class="text-[11.5px] text-emerald-700 mt-2">🎉 최고 등급 우수교사입니다</div>`;
+
+  return `
+    <div class="bg-white border border-gray-200 rounded-[18px] p-4 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-[15px] font-black shrink-0">${esc((ts.name||'?').slice(0,1))}</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span class="text-[15px] font-black text-gray-800 truncate">${esc(ts.name)}</span>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${TIER_COLOR[ts.tier]}">${esc(ts.tier)}</span>
+          </div>
+          <div class="text-[11.5px] text-gray-400 truncate">${esc(ts.dept || '소속 미지정')}</div>
+        </div>
+      </div>
+      ${monthlyBar}
+      ${nextLine}
+      <div class="text-[11px] text-gray-400 mt-2">🕒 최근 활동일: ${ts.lastActivityDate ? esc(ts.lastActivityDate) : '기록 없음'}</div>
+    </div>
+  `;
+}
+
+function renderBanners(ts) {
+  if (!ts) return '';
+  const banners = [];
+  const isPromotion = ts.suggestion && tierRank(ts.suggestion.suggestedTier) > tierRank(ts.tier);
+  if (isPromotion) {
+    banners.push(`<div class="animate-fade-in-up text-[13px] font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-[14px] p-3 flex items-center gap-2">🏆 <span>${esc(ts.suggestion.suggestedTier)} 승급 대상입니다!</span></div>`);
+  }
+  if (ts.monthlyGoal && ts.monthlyCount >= ts.monthlyGoal) {
+    banners.push(`<div class="animate-fade-in-up text-[13px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-[14px] p-3 flex items-center gap-2">🎉 <span>이번 달 목표 달성!</span></div>`);
+  }
+  if (ts.daysSinceLastActivity != null && ts.daysSinceLastActivity >= 7) {
+    banners.push(`<div class="animate-fade-in-up text-[13px] font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-[14px] p-3 flex items-center gap-2">👋 <span>오랜만이에요! 활동을 기록해보세요</span></div>`);
+  }
+  return banners.join('');
+}
+
+function renderRegisterSection() {
+  const f = state.form;
+  const cardCls = 'bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 space-y-2.5';
+
+  if (!f.open) {
+    return `
+      <button id="btn-form-open" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[18px] py-4 text-[15px] font-black shadow-[0_8px_25px_rgba(245,158,11,0.35)] active:scale-[0.98] transition-all">✍️ 오늘 활동 기록하기</button>
+      ${f.done ? `
+      <div class="animate-fade-in-up text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-[16px] p-3.5 flex items-center gap-2 font-bold">
+        <span>🔔</span> 활동이 등록되었습니다
+      </div>` : ''}
+    `;
+  }
+
+  return `
+    <div class="${cardCls} animate-slide-in">
+      <div class="flex items-center justify-between">
+        <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5"><span class="text-amber-500">✅</span> 활동 종류 <span class="text-[11px] font-bold text-gray-400">(복수 선택 가능)</span></h3>
+        <button id="btn-form-close" class="text-gray-300 text-lg leading-none">✕</button>
+      </div>
+      <div class="space-y-2">
+        ${ACTIVITY_OPTIONS.map(opt => {
+          const on = f.selected.includes(opt);
+          return `<button type="button" data-act="${esc(opt)}" class="act-opt w-full flex items-center gap-3 border rounded-[14px] px-3.5 py-3 text-left transition-all ${on ? 'bg-amber-50 border-amber-300 shadow-[0_2px_10px_rgba(245,158,11,0.15)]' : 'bg-gray-50/80 border-gray-200 hover:border-amber-200'}">
+            <span class="w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 ${on ? 'bg-amber-500 border-amber-500' : 'border-gray-300 bg-white'}">
+              ${on ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3.5" d="M5 13l4 4L19 7"/></svg>' : ''}
+            </span>
+            <span class="text-[13.5px] font-bold ${on ? 'text-amber-900' : 'text-gray-600'}">${ACTIVITY_ICON[opt] || ''} ${esc(opt)}</span>
+          </button>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="${cardCls}">
+      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5"><span class="text-orange-400">📅</span> 날짜</h3>
+      <input id="reg-date" type="date" value="${esc(f.date)}" max="${esc(todayStr())}" class="w-full bg-white border border-gray-200 text-gray-900 text-[13.5px] rounded-[14px] px-3.5 py-2.5 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 transition-all shadow-sm">
+    </div>
+
+    <div class="${cardCls}">
+      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5"><span class="text-orange-400">📝</span> 문의사항 <span class="text-[11px] font-bold text-gray-400">(선택)</span></h3>
+      <textarea id="reg-note" rows="3" placeholder="궁금한 점이나 특이사항이 있으면 자유롭게 적어주세요." class="w-full bg-white border border-gray-200 text-gray-900 text-[13.5px] rounded-[16px] p-3.5 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 transition-all resize-none shadow-sm">${esc(f.note)}</textarea>
+    </div>
+
+    <button id="btn-reg-submit" ${f.loading ? 'disabled' : ''} class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-[16px] py-3.5 text-[14px] font-black shadow-[0_8px_25px_rgba(245,158,11,0.35)] active:scale-[0.98] transition-all disabled:opacity-50">
+      ${f.loading ? '등록 중...' : '등록'}
+    </button>
+  `;
+}
+
+function wireRegisterSection() {
+  const f = state.form;
+
+  const openBtn = document.getElementById('btn-form-open');
+  if (openBtn) openBtn.onclick = () => { f.open = true; f.done = false; render(); };
+
+  const closeBtn = document.getElementById('btn-form-close');
+  if (closeBtn) closeBtn.onclick = () => { f.open = false; render(); };
+
+  document.querySelectorAll('.act-opt').forEach(btn => {
     btn.onclick = () => {
       const v = btn.dataset.act;
-      const i = reg.selected.indexOf(v);
-      if (i >= 0) reg.selected.splice(i, 1); else reg.selected.push(v);
-      reg.done = false;
+      const i = f.selected.indexOf(v);
+      if (i >= 0) f.selected.splice(i, 1); else f.selected.push(v);
       render();
     };
   });
 
-  const noteEl = document.getElementById('reg-note');
-  if (noteEl) noteEl.oninput = (e) => { reg.note = e.target.value; };
+  const dateEl = document.getElementById('reg-date');
+  if (dateEl) dateEl.onchange = (e) => { f.date = e.target.value; };
 
-  document.getElementById('btn-reg-submit').onclick = async () => {
-    if (reg.selected.length === 0) { alert('활동을 하나 이상 선택해주세요.'); return; }
-    reg.loading = true;
-    reg.done = false;
+  const noteEl = document.getElementById('reg-note');
+  if (noteEl) noteEl.oninput = (e) => { f.note = e.target.value; };
+
+  const submitBtn = document.getElementById('btn-reg-submit');
+  if (submitBtn) submitBtn.onclick = async () => {
+    if (f.selected.length === 0) { alert('활동을 하나 이상 선택해주세요.'); return; }
+    f.loading = true;
     render();
     try {
-      // 선택활동 순서를 표시 순서대로 정렬
-      const ordered = ACTIVITY_OPTIONS.filter(o => reg.selected.includes(o));
+      const ordered = ACTIVITY_OPTIONS.filter(o => f.selected.includes(o));
       const res = await callApi({
         action: 'submitActivity',
         memberId: state.memberId,
         name: state.name,
         activities: ordered,
-        note: reg.note
+        date: f.date,
+        note: f.note
       });
       if (res && res.error) throw new Error(res.error);
-      reg.selected = [];
-      reg.note = '';
-      reg.done = true;
-      loadMyActivities();           // 이력 탭에 바로 반영되도록 미리 갱신
+      f.selected = [];
+      f.note = '';
+      f.date = todayStr();
+      f.open = false;
+      f.done = true;
+      await loadTierStatus();
+      loadHistory();  // 목록/현황 카드에 바로 반영
     } catch (err) {
       alert('등록 중 오류가 발생했습니다: ' + err.message);
     }
-    reg.loading = false;
-    render();
-  };
-
-  const leadNameEl = document.getElementById('lead-name');
-  if (leadNameEl) leadNameEl.oninput = (e) => { state.lead.name = e.target.value; };
-
-  document.getElementById('btn-lead-submit').onclick = async () => {
-    state.lead.loading = true;
-    state.lead.done = false;
-    render();
-    try {
-      const res = await callApi({
-        action: 'submitCenterLead',
-        memberId: state.memberId,
-        name: state.name,
-        leadName: state.lead.name
-      });
-      if (res && res.error) throw new Error(res.error);
-      state.lead.name = '';
-      state.lead.done = true;
-    } catch (err) {
-      alert('센터 인도 등록 중 오류가 발생했습니다: ' + err.message);
-    }
-    state.lead.loading = false;
+    f.loading = false;
     render();
   };
 }
 
-async function loadMyActivities() {
-  state.historyLoading = true;
-  if (state.tab === 'history') render();
-  try {
-    const res = await callApi({ action: 'getMyActivities', memberId: state.memberId });
-    state.history = (res && res.rows) || [];
-  } catch (err) {
-    state.history = [];
-  }
-  state.historyLoading = false;
-  render();
-}
+function renderHistorySection() {
+  const now = new Date();
+  const curMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const rows = state.historyScope === 'month'
+    ? state.history.filter(r => String(r.submittedAt || '').slice(0, 7) === curMonth)
+    : state.history;
 
-function renderHistoryTab(body) {
-  if (state.historyLoading) {
-    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">불러오는 중...</div>`;
-    return;
-  }
-  if (state.history.length === 0) {
-    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">아직 등록된 활동이 없습니다.</div>`;
-    return;
-  }
+  const listHtml = state.historyLoading
+    ? `<div class="text-xs text-gray-400 text-center py-8">불러오는 중...</div>`
+    : rows.length === 0
+      ? `<div class="text-xs text-gray-400 text-center py-8">등록된 활동이 없습니다.</div>`
+      : rows.map(row => {
+          const acts = Array.isArray(row.activities) ? row.activities : (row.activities ? String(row.activities).split(/,\s*/) : []);
+          const datePart = String(row.submittedAt || '').split(' ')[0];
+          return `
+            <div class="border border-gray-200 rounded-[14px] p-3 mb-2 bg-white">
+              <div class="text-[11px] text-gray-400 mb-1.5">${esc(datePart)}</div>
+              <div class="flex flex-wrap gap-1.5 mb-1">
+                ${acts.length ? acts.map(a => `<span class="text-[11px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">${esc(a)}</span>`).join('') : '<span class="text-[11px] text-gray-400">활동 없음</span>'}
+              </div>
+              ${row.note ? `<div class="text-[12px] text-gray-600 bg-gray-50 rounded-lg p-2 mt-1.5">${esc(row.note)}</div>` : ''}
+            </div>`;
+        }).join('');
 
-  body.innerHTML = `
-    <div class="animate-fade-in">
-      <div class="text-[11px] text-gray-400 mb-3">${esc(state.name)}님 (${esc(state.memberId)}) · 최신순 · 맨 위가 현재 활동 상태입니다</div>
-      ${state.history.map((row, idx) => {
-        const isCurrent = idx === 0;
-        const acts = Array.isArray(row.activities) ? row.activities : (row.activities ? String(row.activities).split(/,\s*/) : []);
-        return `
-          <div class="rounded-[16px] p-4 mb-3 border ${isCurrent ? 'border-amber-300 bg-amber-50/40 ring-2 ring-amber-400/30 shadow-[0_4px_15px_rgba(245,158,11,0.12)]' : 'border-gray-200 bg-white'}">
-            <div class="flex justify-between items-center mb-2">
-              <span class="text-[11px] text-gray-400">${esc(row.submittedAt || '')}</span>
-              ${isCurrent ? '<span class="text-[10px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-full tracking-wide">현재</span>' : ''}
-            </div>
-            <div class="flex flex-wrap gap-1.5">
-              ${acts.length
-                ? acts.map(a => `<span class="text-[11px] font-bold bg-amber-100 text-amber-800 px-2 py-1 rounded-md">${esc(a)}</span>`).join('')
-                : '<span class="text-[11px] text-gray-400">활동 없음</span>'}
-            </div>
-            ${row.note ? `<div class="text-[12px] text-gray-600 bg-gray-50 rounded-lg p-2 mt-2">${esc(row.note)}</div>` : ''}
-          </div>`;
-      }).join('')}
+  return `
+    <div class="bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5"><span class="text-amber-500">🗂️</span> 활동 기록</h3>
+        <div class="flex bg-gray-100 rounded-full p-0.5">
+          <button id="hist-tab-month" class="text-[11px] font-bold px-2.5 py-1 rounded-full transition-all ${state.historyScope === 'month' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-400'}">이번 달</button>
+          <button id="hist-tab-all" class="text-[11px] font-bold px-2.5 py-1 rounded-full transition-all ${state.historyScope === 'all' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-400'}">전체</button>
+        </div>
+      </div>
+      <div id="hist-list">${listHtml}</div>
     </div>
   `;
 }
 
+function renderCenterLeadsSection() {
+  const list = state.centerLeadsLoading
+    ? `<div class="text-xs text-gray-400 text-center py-6">불러오는 중...</div>`
+    : state.centerLeads.length === 0
+      ? `<div class="text-xs text-gray-400 text-center py-6">등록된 센터 인도 실적이 없습니다.</div>`
+      : state.centerLeads.map(r => `
+          <div class="flex items-center justify-between border-b border-gray-100 py-2 last:border-0">
+            <div>
+              <div class="text-[12.5px] font-bold text-gray-700">${esc(r.leadName || '(이름 미상)')}</div>
+              <div class="text-[10.5px] text-gray-400">${esc(r.date)}</div>
+            </div>
+            <span class="text-[10px] text-gray-400">등록: ${esc(r.registeredBy || '-')}</span>
+          </div>`).join('');
+
+  return `
+    <div class="bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-emerald-200/70">
+      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5"><span class="text-emerald-500">🎓</span> 센터 인도 실적</h3>
+      <div class="text-[11px] text-gray-400 mt-1 mb-2">전도부 등록 기준으로 집계됩니다 · 교사는 직접 입력할 수 없습니다</div>
+      <div>${list}</div>
+    </div>
+  `;
+}
+
+// 이력 탭 전환 (이벤트 위임 — render() 가 body를 통째로 새로 그리므로 매번 다시 바인딩)
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'hist-tab-month') { state.historyScope = 'month'; render(); }
+  if (e.target && e.target.id === 'hist-tab-all') { state.historyScope = 'all'; render(); }
+  if (e.target && (e.target.id === 'btn-onb-next1' || e.target.id === 'btn-onb-next2')) { state.onboarding.step += 1; render(); }
+  if (e.target && e.target.id === 'btn-onb-finish') {
+    markOnboardingDone();
+    state.onboarding.active = false;
+    state.form.open = true;
+    render();
+  }
+});
+
 render();
+if (state.identified) afterIdentified();
 </script>
 </body>
 </html>

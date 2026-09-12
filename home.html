@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>제사장의 길</title>
+  <title>복음방 교사</title>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -53,7 +53,7 @@
       <div class="card w-full max-w-sm bg-base-100 shadow-xl">
         <div class="card-body items-center">
           <div class="w-16 h-16 rounded-full brand-avatar flex items-center justify-center text-3xl shadow-md mb-1">🙏</div>
-          <h2 class="card-title text-2xl">제사장의 길</h2>
+          <h2 class="card-title text-2xl">복음방 교사</h2>
           <p class="text-xs text-base-content/50 -mt-1 mb-2">성도 고유번호와 이름으로 입장하세요</p>
           <div class="w-full flex flex-col gap-2 mt-2">
             <input type="text" id="memberId" placeholder="성도고유번호" class="input input-bordered w-full" />
@@ -70,7 +70,7 @@
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">🙏</span>
         <div class="flex flex-col leading-tight">
-          <span class="text-lg font-bold">제사장의 길</span>
+          <span class="text-lg font-bold">복음방 교사</span>
           <span class="text-[11px] text-neutral-content/50">교사 훈련 플랫폼</span>
         </div>
       </div>
@@ -81,9 +81,9 @@
     </div>
     <div class="brand-accent-bar"></div>
     <div role="tablist" class="tabs tabs-boxed bg-base-300 rounded-none p-1.5 gap-1">
-      <button role="tab" class="tab tab-active flex-1 gap-1.5" data-room="study" onclick="switchTab('study', this)"><span>📚</span> 공부방</button>
-      <button role="tab" class="tab flex-1 gap-1.5" data-room="activity" onclick="switchTab('activity', this)"><span>🙌</span> 활동방</button>
+      <button role="tab" class="tab tab-active flex-1 gap-1.5" data-room="activity" onclick="switchTab('activity', this)"><span>🙌</span> 활동방</button>
       <button role="tab" class="tab flex-1 gap-1.5" data-room="feedback" onclick="switchTab('feedback', this)"><span>💬</span> 피드백방</button>
+      <button role="tab" class="tab flex-1 gap-1.5" data-room="study" onclick="switchTab('study', this)"><span>📚</span> 공부방</button>
     </div>
     <iframe id="content" class="flex-1 w-full border-0"></iframe>
     <div class="text-center py-2 bg-base-100 border-t border-base-300 text-xs">
@@ -112,11 +112,11 @@
     function enterWithoutLogin() {
       document.getElementById('loginPanel').style.display = 'none';
       document.getElementById('appPanel').style.display = 'flex';
-      switchTab('study', document.querySelector('.tab[data-room="study"]'));
+      switchTab('activity', document.querySelector('.tab[data-room="activity"]'));
     }
-    // 홈 버튼: 첫 화면(공부방)으로 되돌아갑니다.
+    // 홈 버튼: 기본 화면(활동방)으로 되돌아갑니다.
     function goHome() {
-      switchTab('study', document.querySelector('.tab[data-room="study"]'));
+      switchTab('activity', document.querySelector('.tab[data-room="activity"]'));
     }
     window.addEventListener('DOMContentLoaded', enterWithoutLogin);
 
@@ -133,9 +133,9 @@
       document.getElementById('appPanel').style.display = 'flex';
       document.getElementById('userDisplay').textContent = `${name} (${memberId})`;
 
-      // 최초 진입 시 공부방 탭 활성화
-      const studyTabBtn = document.querySelector('.tab[data-room="study"]');
-      switchTab('study', studyTabBtn);
+      // 최초 진입 시 활동방 탭 활성화
+      const activityTabBtn = document.querySelector('.tab[data-room="activity"]');
+      switchTab('activity', activityTabBtn);
     }
 
     function switchTab(room, btnEl) {
