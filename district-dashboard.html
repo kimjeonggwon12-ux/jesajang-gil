@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>제사장의 길 - 부서별 교사 관리</title>
+<title>제사장의 길 - 부서별</title>
 <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -44,7 +44,7 @@ const TIER_BADGE = { '우수교사': 'badge-secondary', '활동교사': 'badge-a
 const TIER_TEXT_COLOR = { '휴교사': 'text-base-content/50', '교사': 'text-primary', '활동교사': 'text-accent', '우수교사': 'text-secondary' };
 
 let state = {
-  dept: DEPTS[0],
+  dept: null,        // null = "전체 요약" 화면(조직별 요약), DEPTS 중 하나면 그 부서 상세 화면
   region: '',       // '' = 전체 — per-teacher 목록만 이 값으로 클라이언트에서 필터링(요약/지역별 표는 항상 부서 전체 기준)
   loading: false,
   error: '',
@@ -52,6 +52,10 @@ let state = {
   cache: {},        // dept → getDistrictReport(region:'') 응답 (부서 전체 데이터를 한 번만 받아 캐시)
   regionView: 'table' // 'table' | 'chart' — 지역별 상세 섹션 표시 방식
 };
+
+// 전체 조직별 요약 (getOrgSummary) — "전체 요약" 화면 전용, 부서 상세와 별도로 캐시.
+let orgSummary = null;
+let orgSummaryLoading = false;
 
 const TIER_CHART_COLOR = { '휴교사': '#9ca3af', '교사': '#4f46e5', '활동교사': '#059669', '우수교사': '#d97706' };
 let regionCharts = []; // Chart.js 인스턴스 — 다시 그리기 전 항상 destroy 해서 캔버스 재사용 시 에러 방지
@@ -87,10 +91,26 @@ async function loadReport(force) {
   render();
 }
 
+async function loadOrgSummary(force) {
+  if (!force && orgSummary) { render(); return; }
+  orgSummaryLoading = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getOrgSummary' });
+    orgSummary = (res && !res.error) ? res : { error: (res && res.error) || '불러오기 실패' };
+  } catch (e) {
+    orgSummary = { error: String(e) };
+  }
+  orgSummaryLoading = false;
+  render();
+}
+
+// dept가 null이면 "전체 요약" 화면으로 전환 — 이미 요약을 받아왔으면 재요청 없이 그대로 보여줌.
 function switchDept(dept) {
   state.dept = dept;
   state.region = ''; // 부서를 바꾸면 지역 필터는 초기화(그 부서에 없는 지역일 수 있어서)
-  loadReport(false);
+  if (dept === null) loadOrgSummary(false);
+  else loadReport(false);
 }
 
 function switchRegion(region) {
@@ -135,10 +155,51 @@ async function approve(t) {
 function tabsHtml() {
   return `
     <div role="tablist" class="tabs tabs-boxed bg-base-300 rounded-none p-1.5 gap-1">
+      <button role="tab" class="tab flex-1 gap-1 ${state.dept === null ? 'tab-active' : ''}" data-dept="">
+        <span>🏢</span> 전체 요약
+      </button>
       ${DEPTS.map(d => `
         <button role="tab" class="tab flex-1 gap-1 ${state.dept === d ? 'tab-active' : ''}" data-dept="${esc(d)}">
           <span>${DEPT_ICON[d] || '📁'}</span> ${esc(d)}
         </button>`).join('')}
+    </div>
+  `;
+}
+
+// "전체 요약" 화면 — 6개 조직 카드, 클릭 시 페이지 이동 없이 바로 그 부서 상세 탭으로 전환.
+function orgSummarySectionHtml() {
+  if (orgSummaryLoading && !orgSummary) {
+    return `<div class="p-4">
+      <div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center">
+        <span class="loading loading-spinner loading-sm align-middle mr-1"></span>조직별 집계 중 (교사 수가 많아 20초 정도 걸릴 수 있습니다)
+      </div>
+    </div>`;
+  }
+  if (!orgSummary) return '';
+  if (orgSummary.error) {
+    return `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(orgSummary.error)}</div></div></div>`;
+  }
+  const orgs = orgSummary.orgs || [];
+  return `
+    <div class="p-4">
+      <div class="text-xs text-base-content/50 mb-3">${esc(orgSummary.month || '')} 기준 · 교역자/자문회/장년회/부녀회/청년회/기타 6개 조직 · 카드 클릭 시 그 부서 상세로 이동</div>
+      <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+        ${orgs.map(o => `
+          <button class="btn-org-card card card-border bg-base-100 shadow-sm text-left hover:shadow-md hover:-translate-y-0.5 transition-all" data-dept="${esc(o.dept)}">
+            <div class="card-body p-4">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xl">${DEPT_ICON[o.dept] || '📁'}</span>
+                <span class="font-bold text-base-content">${esc(o.dept)}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+                <div class="text-base-content/50">총 교사 수</div><div class="text-right font-medium">${o.totalTeachers}명</div>
+                <div class="text-base-content/50">활동자 수</div><div class="text-right font-medium">${o.activeCount}명</div>
+                <div class="text-base-content/50">이번 달 활동</div><div class="text-right font-medium">${o.monthlyActivityCount}건</div>
+                <div class="text-base-content/50">승급 대상</div><div class="text-right font-medium ${o.promotionCount ? 'text-success' : ''}">${o.promotionCount}명</div>
+              </div>
+            </div>
+          </button>`).join('')}
+      </div>
     </div>
   `;
 }
@@ -359,7 +420,8 @@ function tableHtml(rows) {
 
 function render() {
   const root = document.getElementById('root');
-  const report = state.cache[state.dept];
+  const isOverview = state.dept === null;
+  const report = isOverview ? null : state.cache[state.dept];
   const allRows = report ? report.rows : [];
   const filteredRows = state.region ? allRows.filter(r => r.region === state.region) : allRows;
   const pendingCount = filteredRows.filter(t => t.suggestion).length;
@@ -369,7 +431,7 @@ function render() {
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">🗺️</span>
         <div class="flex flex-col items-start leading-tight">
-          <div class="text-lg font-bold">부서별 교사 관리</div>
+          <div class="text-lg font-bold">부서별</div>
           <div class="text-neutral-content/50 text-xs">교사명단 부서 컬럼 기준 · 6개 조직</div>
         </div>
       </div>
@@ -382,23 +444,28 @@ function render() {
 
     ${tabsHtml()}
 
-    ${state.loading
-      ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
-      : state.error
-        ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div></div>`
-        : `
-          ${summaryCardHtml(report && report.summary)}
-          ${byRegionSectionHtml(report && report.byRegion)}
-          ${regionFilterHtml((report && report.regions) || [], filteredRows.length)}
-          ${pendingCount > 0 ? `
-            <div class="px-4 pt-3">
-              <div class="alert alert-warning py-2 text-sm"><div>📌 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 확인 후 승인하세요.</div></div>
-            </div>` : ''}
-          <div class="p-4">${tableHtml(filteredRows)}</div>
-        `}
+    ${isOverview
+      ? orgSummarySectionHtml()
+      : state.loading
+        ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
+        : state.error
+          ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div></div>`
+          : `
+            ${summaryCardHtml(report && report.summary)}
+            ${byRegionSectionHtml(report && report.byRegion)}
+            ${regionFilterHtml((report && report.regions) || [], filteredRows.length)}
+            ${pendingCount > 0 ? `
+              <div class="px-4 pt-3">
+                <div class="alert alert-warning py-2 text-sm"><div>📌 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 확인 후 승인하세요.</div></div>
+              </div>` : ''}
+            <div class="p-4">${tableHtml(filteredRows)}</div>
+          `}
   `;
 
   document.querySelectorAll('.tab').forEach(btn => {
+    btn.onclick = () => switchDept(btn.dataset.dept || null);
+  });
+  document.querySelectorAll('.btn-org-card').forEach(btn => {
     btn.onclick = () => switchDept(btn.dataset.dept);
   });
   const regionSelect = document.getElementById('region-select');
@@ -416,14 +483,14 @@ function render() {
     render();
   };
 
-  if (report && !state.loading && !state.error && state.regionView === 'chart') {
+  if (!isOverview && report && !state.loading && !state.error && state.regionView === 'chart') {
     renderRegionCharts(report.byRegion);
   } else {
     destroyRegionCharts();
   }
 }
 
-loadReport(false);
+loadOrgSummary(false); // 기본 진입 화면 = "전체 요약"(state.dept === null)
 </script>
 </body>
 </html>
