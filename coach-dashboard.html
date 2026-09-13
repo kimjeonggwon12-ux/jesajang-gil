@@ -52,6 +52,24 @@ const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp
 
 let state = { handler: '', rows: [], loading: false };
 
+// 관리자 화면 공통 메인 내비게이션 — 관리자 홈 / 통합 / 부서별 / 피드백 / 교사 어플로 가기 5개.
+// 세 관리방(통합·부서별·피드백) 어디서든 서로 바로 이동 가능하도록 각 파일에 동일하게 둠.
+function mainNavHtml(current) {
+  const item = (key, href, icon, label) => {
+    const active = key === current;
+    return `<a href="${href}" class="btn btn-xs ${active ? 'btn-primary pointer-events-none' : 'btn-ghost'}">${icon} ${label}</a>`;
+  };
+  return `
+    <div class="flex flex-wrap items-center gap-1.5 px-5 py-2 bg-base-200 border-b border-base-300">
+      <a href="admin-home.html" class="btn btn-xs btn-ghost">🔐 관리자 홈</a>
+      ${item('edu', 'edu-dashboard.html', '🎓', '통합')}
+      ${item('district', 'district-dashboard.html', '🗺️', '부서별')}
+      ${item('coach', 'coach-dashboard.html', '🎧', '피드백')}
+      <a href="home.html" class="btn btn-xs btn-ghost ml-auto">🏃 교사 어플로 가기</a>
+    </div>
+  `;
+}
+
 async function callApi(payload) {
   const res = await fetch(PROXY_URL, {
     method: 'POST',
@@ -83,11 +101,10 @@ function render() {
       </div>
       <div class="flex-none flex items-center gap-2">
         <button id="btn-refresh" class="btn btn-sm btn-ghost">🔄 새로고침</button>
-        <a href="admin-home.html" class="btn btn-sm btn-ghost">← 관리자 홈</a>
-        <a href="home.html" class="btn btn-sm btn-ghost">교사 어플로 가기</a>
       </div>
     </div>
     <div class="brand-accent-bar"></div>
+    ${mainNavHtml('coach')}
     <div class="p-4">
       <label class="input input-bordered flex items-center gap-2 w-full mb-4 text-sm">
         <span class="text-base-content/40">👤</span>

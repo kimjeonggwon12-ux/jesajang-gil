@@ -65,6 +65,24 @@ function esc(s) {
 }
 function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
 
+// 관리자 화면 공통 메인 내비게이션 — 관리자 홈 / 통합 / 부서별 / 피드백 / 교사 어플로 가기 5개.
+// 세 관리방(통합·부서별·피드백) 어디서든 서로 바로 이동 가능하도록 각 파일에 동일하게 둠.
+function mainNavHtml(current) {
+  const item = (key, href, icon, label) => {
+    const active = key === current;
+    return `<a href="${href}" class="btn btn-xs ${active ? 'btn-primary pointer-events-none' : 'btn-ghost'}">${icon} ${label}</a>`;
+  };
+  return `
+    <div class="flex flex-wrap items-center gap-1.5 px-5 py-2 bg-base-200 border-b border-base-300">
+      <a href="admin-home.html" class="btn btn-xs btn-ghost">🔐 관리자 홈</a>
+      ${item('edu', 'edu-dashboard.html', '🎓', '통합')}
+      ${item('district', 'district-dashboard.html', '🗺️', '부서별')}
+      ${item('coach', 'coach-dashboard.html', '🎧', '피드백')}
+      <a href="home.html" class="btn btn-xs btn-ghost ml-auto">🏃 교사 어플로 가기</a>
+    </div>
+  `;
+}
+
 async function callApi(payload) {
   const res = await fetch(PROXY_URL, {
     method: 'POST',
@@ -150,6 +168,66 @@ async function approve(t) {
   }
   delete state.approving[key];
   render();
+}
+
+// ============ 등급 심사 (관리자 즉시 반영 — 지역장·교관 2인 승인과 별개) ============
+// 통합(edu-dashboard.html)에 있던 "등급 심사"(checkTierChanges/applyTierChange, 관리자 단독 즉시
+// 반영)를 부서별 화면으로 이동 — 현재 선택된 부서+지역 필터(filteredRows)로 범위를 좁혀서 보여줌.
+// 위 표의 "승급·강등 제안" 열(2인 승인)과 데이터 출처는 같고, 반영 방식만 다름(1인 즉시 반영).
+async function applyTierChangeInstant(memberId, newTier) {
+  const key = 'instant::' + memberId;
+  state.approving[key] = true;
+  render();
+  try {
+    const res = await callApi({ action: 'applyTierChange', memberId, newTier });
+    if (res && res.error) throw new Error(res.error);
+    // 캐시된 report에서도 해당 교사의 등급/제안을 갱신해서 재요청 없이 즉시 반영
+    Object.values(state.cache).forEach(rpt => {
+      if (!rpt) return;
+      const row = (rpt.rows || []).find(r => r.memberId === memberId);
+      if (row) { row.tier = newTier; row.suggestion = null; }
+    });
+  } catch (e) {
+    alert('반영 중 오류가 발생했습니다: ' + e.message);
+  }
+  delete state.approving[key];
+  render();
+}
+
+function tierReviewSectionHtml(filteredRows) {
+  const list = filteredRows.filter(t => t.suggestion);
+  return `
+    <div class="px-4 pt-3">
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+          <div class="text-xs font-bold text-base-content/50 mb-1">🎖️ 등급 심사 (관리자 즉시 반영)</div>
+          <div class="text-[11px] text-base-content/40 mb-3">현재 부서·지역 필터 기준 · 위 표의 "승급·강등 제안"과 같은 목록이며, 여기서는 2인 승인 없이 관리자가 바로 반영합니다.</div>
+          ${list.length === 0
+            ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">✅ 이 조건에 변경 대상이 없습니다.</div>`
+            : `<div class="overflow-x-auto border border-base-300 rounded-box">
+                <table class="table table-zebra table-sm">
+                  <thead><tr><th>이름</th><th>지역</th><th>현재등급</th><th>제안등급</th><th>사유</th><th></th></tr></thead>
+                  <tbody>
+                    ${list.map(t => `
+                      <tr>
+                        <td class="font-medium">${esc(t.name)}<div class="text-[10px] text-base-content/40">${esc(t.memberId)}</div></td>
+                        <td class="text-base-content/60 text-xs">${esc(t.region || '')}</td>
+                        <td class="text-base-content/60">${esc(t.tier)}</td>
+                        <td><span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'} badge-sm">${esc(t.suggestion.suggestedTier)}</span></td>
+                        <td class="text-base-content/60 text-xs">${esc(t.suggestion.reason)}</td>
+                        <td class="whitespace-nowrap">
+                          <button class="btn-tier-apply btn btn-success btn-xs" data-mid="${esc(t.memberId)}" data-tier="${esc(t.suggestion.suggestedTier)}" ${state.approving['instant::' + t.memberId] ? 'disabled' : ''}>
+                            ${state.approving['instant::' + t.memberId] ? '처리중...' : '즉시 반영'}
+                          </button>
+                        </td>
+                      </tr>`).join('')}
+                  </tbody>
+                </table>
+              </div>`}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function tabsHtml() {
@@ -430,17 +508,11 @@ function render() {
     <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">🗺️</span>
-        <div class="flex flex-col items-start leading-tight">
-          <div class="text-lg font-bold">부서별</div>
-          <div class="text-neutral-content/50 text-xs">교사명단 부서 컬럼 기준 · 6개 조직</div>
-        </div>
-      </div>
-      <div class="flex-none flex items-center gap-2">
-        <a href="admin-home.html" class="btn btn-sm btn-ghost">← 관리자 홈</a>
-        <a href="home.html" class="btn btn-sm btn-ghost">교사 어플로 가기</a>
+        <div class="text-lg font-bold">부서별</div>
       </div>
     </div>
     <div class="brand-accent-bar"></div>
+    ${mainNavHtml('district')}
 
     ${tabsHtml()}
 
@@ -459,6 +531,7 @@ function render() {
                 <div class="alert alert-warning py-2 text-sm"><div>📌 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 확인 후 승인하세요.</div></div>
               </div>` : ''}
             <div class="p-4">${tableHtml(filteredRows)}</div>
+            ${tierReviewSectionHtml(filteredRows)}
           `}
   `;
 
@@ -475,6 +548,9 @@ function render() {
       const t = filteredRows.find(r => r.memberId === btn.dataset.mid && r.suggestion && r.suggestion.suggestedTier === btn.dataset.tier);
       if (t) approve(t);
     };
+  });
+  document.querySelectorAll('.btn-tier-apply').forEach(btn => {
+    btn.onclick = () => applyTierChangeInstant(btn.dataset.mid, btn.dataset.tier);
   });
 
   const viewToggleBtn = document.getElementById('btn-region-view-toggle');

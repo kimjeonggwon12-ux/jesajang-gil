@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>제사장의 길 - 교육부 대시보드</title>
+<title>제사장의 길 - 통합</title>
 <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
   /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — home.html / coach-dashboard.html과 동일 */
   [data-theme="jesagil"] {
@@ -52,17 +53,7 @@ let rows = [];
 let roster = [];       // getRoster 캐시 (교사명단)
 let rosterTiers = [];  // 교사구분 참고 목록 (백엔드 TEACHER_TIERS)
 let actRows = [];      // getAllActivities 캐시 (미배포/실패 시 빈 배열로 degrade)
-let courseRows = [];   // getCourseList 캐시 ("공부방" 교재 목록, 미배포/실패 시 빈 배열로 degrade)
-let progressRows = []; // getAllProgress 캐시 (전 교사 "이수내역", 미배포/실패 시 빈 배열로 degrade)
 let loading = true;
-
-// "최근 N일 내 학습 기록 유무" 판정 기준일. 활동/피드백 쪽 30일 기준과 달리
-// 공부방은 단원 단위라 더 촘촘히 보려고 14일로 잡음 — 필요하면 이 값만 조정.
-const STUDY_RECENT_DAYS = 14;
-
-let tierSuggestions = null;  // null = 아직 안 불러옴, [] = 불러왔지만 변경 대상 없음
-let tierLoading = false;
-let tierApplying = {};       // memberId → true (승인 처리 중)
 
 // 월별 결산 현황 (getSettlementReport) — 메인 로드 후 지연 로드
 let settlement = null;       // null = 아직 안 불러옴
@@ -71,8 +62,36 @@ let settlementLoading = false;
 const INACT_BADGE = { warning: 'badge-warning', danger: 'badge-error' };
 const INACT_LABEL = { warning: '주의 (2개월+)', danger: '경고 (3개월+)' };
 
+// 부서(조직) 버킷 — district-dashboard.html/백엔드 _orgBucket_ 과 동일 규칙:
+// 이 5개 외 값은 전부 "기타"로 묶는다.
+const ORG_MAIN_DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
+function orgBucket(dept) { return ORG_MAIN_DEPTS.includes(dept) ? dept : '기타'; }
+
+const TIER_ORDER = ['휴교사', '교사', '활동교사', '우수교사'];
+const TIER_TEXT_COLOR = { '휴교사': 'text-base-content/50', '교사': 'text-primary', '활동교사': 'text-accent', '우수교사': 'text-secondary' };
+const TIER_CHART_COLOR = { '휴교사': '#9ca3af', '교사': '#4f46e5', '활동교사': '#059669', '우수교사': '#d97706' };
+
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
+
+// 관리자 화면 공통 메인 내비게이션 — 관리자 홈 / 통합 / 부서별 / 피드백 / 교사 어플로 가기 5개.
+// 세 관리방(통합·부서별·피드백) 어디서든 서로 바로 이동 가능하도록 각 파일에 동일하게 둠.
+function mainNavHtml(current) {
+  const item = (key, href, icon, label) => {
+    const active = key === current;
+    return `<a href="${href}" class="btn btn-xs ${active ? 'btn-primary pointer-events-none' : 'btn-ghost'}">${icon} ${label}</a>`;
+  };
+  return `
+    <div class="flex flex-wrap items-center gap-1.5 px-5 py-2 bg-base-200 border-b border-base-300">
+      <a href="admin-home.html" class="btn btn-xs btn-ghost">🔐 관리자 홈</a>
+      ${item('edu', 'edu-dashboard.html', '🎓', '통합')}
+      ${item('district', 'district-dashboard.html', '🗺️', '부서별')}
+      ${item('coach', 'coach-dashboard.html', '🎧', '피드백')}
+      <a href="home.html" class="btn btn-xs btn-ghost ml-auto">🏃 교사 어플로 가기</a>
+    </div>
+  `;
 }
 
 // 섹션 카드 공통 골격: 색상 스트라이프 + 아이콘 헤더 + 본문. colorName은 daisyUI 시맨틱 컬러명(primary/secondary/accent/info 등).
@@ -136,16 +155,6 @@ async function load() {
     const actRes = await callApi({ action: 'getAllActivities' });
     actRows = (actRes && Array.isArray(actRes.rows)) ? actRes.rows : [];
   } catch (e) { actRows = []; }
-
-  try {
-    const courseRes = await callApi({ action: 'getCourseList' });
-    courseRows = (courseRes && Array.isArray(courseRes.rows)) ? courseRes.rows : [];
-  } catch (e) { courseRows = []; }
-
-  try {
-    const progRes = await callApi({ action: 'getAllProgress' });
-    progressRows = (progRes && Array.isArray(progRes.rows)) ? progRes.rows : [];
-  } catch (e) { progressRows = []; }
 
   loading = false;
   render();
@@ -319,96 +328,28 @@ function renderLeadsSection() {
     `활동방 "센터 인도 등록"으로 집계 · 최근 6개월 기준 (승급 판정에 사용)`, body);
 }
 
-// ============ 등급 심사 (checkTierChanges / applyTierChange) ============
+// ============ 총 교사 수 (getRoster 집계, 최상단 요약) ============
 
-async function loadTierSuggestions() {
-  tierLoading = true;
-  render();
-  try {
-    const res = await callApi({ action: 'checkTierChanges' });
-    tierSuggestions = Array.isArray(res) ? res : (res && Array.isArray(res.rows) ? res.rows : []);
-  } catch (e) {
-    tierSuggestions = [];
-    alert('변경 예정 목록을 불러오지 못했습니다: ' + e.message);
-  }
-  tierLoading = false;
-  render();
-}
-
-async function approveTierChange(memberId, newTier) {
-  tierApplying[memberId] = true;
-  render();
-  try {
-    const res = await callApi({ action: 'applyTierChange', memberId, newTier });
-    if (res && res.error) throw new Error(res.error);
-    tierSuggestions = (tierSuggestions || []).filter(s => s.memberId !== memberId);
-    // 로컬 roster 캐시도 갱신 (다음 새로고침 전까지 부서별 교사 현황 차트에 즉시 반영)
-    const idx = roster.findIndex(r => r.memberId === memberId);
-    if (idx >= 0) roster[idx].tier = newTier;
-  } catch (e) {
-    alert('반영 중 오류가 발생했습니다: ' + e.message);
-  }
-  delete tierApplying[memberId];
-  render();
-}
-
-function renderTierSection() {
+function renderTeacherSummarySection() {
+  if (roster.length === 0) return '';
+  const total = roster.length;
+  const tierCounts = {};
+  roster.forEach(r => { const t = r.tier || '(미분류)'; tierCounts[t] = (tierCounts[t] || 0) + 1; });
   const body = `
-    <div class="flex justify-end mb-3 -mt-1">
-      <button id="btn-tier-load" ${tierLoading ? 'disabled' : ''} class="btn btn-primary btn-sm">
-        ${tierLoading ? '불러오는 중...' : '📥 변경 예정 목록 불러오기'}
-      </button>
-    </div>
-    ${renderTierTable()}
-  `;
-  return sectionCard('primary', '🎖️', '등급 심사', '휴교사 · 교사 · 활동교사 · 우수교사 승급/강등 후보 — 확인 후 개별 승인해야 실제 반영됩니다', body);
-}
-
-function renderTierTable() {
-  if (tierLoading) {
-    return `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center">
-      <span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...
-    </div>`;
-  }
-  if (tierSuggestions === null) {
-    return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">"변경 예정 목록 불러오기"를 눌러 확인하세요.</div>`;
-  }
-  if (tierSuggestions.length === 0) {
-    return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">✅ 변경 대상이 없습니다.</div>`;
-  }
-  return `
-    <div class="overflow-x-auto border border-base-300 rounded-box">
-      <table class="table table-zebra table-sm">
-        <thead><tr>
-          <th>이름</th><th>현재등급</th><th>제안등급</th><th>사유</th><th></th>
-        </tr></thead>
-        <tbody>
-          ${tierSuggestions.map(s => `
-            <tr>
-              <td class="font-medium">${esc(s.name)}<div class="text-[10px] text-base-content/40">${esc(s.memberId)}</div></td>
-              <td class="text-base-content/60">${esc(s.currentTier)}</td>
-              <td class="font-medium">
-                <span class="badge ${s.suggestedTier === s.currentTier ? 'badge-ghost' : 'badge-primary'} badge-sm">${esc(s.suggestedTier)}</span>
-              </td>
-              <td class="text-base-content/60">${esc(s.reason)}</td>
-              <td class="whitespace-nowrap">
-                <button class="tier-approve-btn btn btn-success btn-xs" data-mid="${esc(s.memberId)}" data-tier="${esc(s.suggestedTier)}" ${tierApplying[s.memberId] ? 'disabled' : ''}>
-                  ${tierApplying[s.memberId] ? '처리중...' : '승인'}
-                </button>
-              </td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
+      <div>
+        <div class="text-xs text-base-content/50">총 교사 수</div>
+        <div class="text-2xl font-black text-primary">${total.toLocaleString()}명</div>
+      </div>
+      ${TIER_ORDER.map(t => `
+        <div>
+          <div class="text-xs ${TIER_TEXT_COLOR[t] || ''} font-medium">${esc(t)}</div>
+          <div class="text-lg font-bold text-base-content">${(tierCounts[t] || 0).toLocaleString()}명 <span class="text-xs text-base-content/40 font-normal">(${pct(tierCounts[t] || 0, total)}%)</span></div>
+        </div>
+      `).join('')}
     </div>
   `;
-}
-
-function wireTierSection() {
-  const loadBtn = document.getElementById('btn-tier-load');
-  if (loadBtn) loadBtn.onclick = loadTierSuggestions;
-  document.querySelectorAll('.tier-approve-btn').forEach(btn => {
-    btn.onclick = () => approveTierChange(btn.dataset.mid, btn.dataset.tier);
-  });
+  return sectionCard('primary', '👥', '총 교사 수', `교사명단 등록 ${total.toLocaleString()}명 기준`, body);
 }
 
 // ============ 부서별 교사 현황 (getRoster 기반) ============
@@ -420,9 +361,11 @@ function daysAgo(dateStr, days) {
 }
 
 function buildRosterStats() {
+  // 부서는 교역자/자문회/장년회/부녀회/청년회/기타 6개 조직 버킷으로 묶어서 집계
+  // (district-dashboard.html/백엔드 _orgBucket_ 과 동일 규칙 — 원본 '부서' 값이 그대로 노출되지 않게).
   const deptCounts = {};
   roster.forEach(r => {
-    const d = r.dept || '(부서 미상)';
+    const d = orgBucket(r.dept);
     deptCounts[d] = (deptCounts[d] || 0) + 1;
   });
   const deptLabels = Object.keys(deptCounts).sort((a, b) => deptCounts[b] - deptCounts[a]);
@@ -437,6 +380,15 @@ function buildRosterStats() {
   const tierLabels = rosterTiers.slice();
   Object.keys(tierCounts).forEach(t => { if (!tierLabels.includes(t)) tierLabels.push(t); });
 
+  // 부서(버킷) × 교사구분 교차 집계 — "부서별 등록 교사 수" 누적 막대그래프용.
+  const deptTierCounts = {};
+  deptLabels.forEach(d => { deptTierCounts[d] = {}; });
+  roster.forEach(r => {
+    const d = orgBucket(r.dept);
+    const t = r.tier || '(미분류)';
+    deptTierCounts[d][t] = (deptTierCounts[d][t] || 0) + 1;
+  });
+
   // 최근 30일 내 활동 또는 피드백 기록이 있는 memberId 집합
   const recent30 = new Set();
   rows.forEach(r => { if (r.memberId && daysAgo(r.submittedAt, 30)) recent30.add(String(r.memberId).trim()); });
@@ -447,12 +399,12 @@ function buildRosterStats() {
   const crossInactive = {};
   deptLabels.forEach(d => { crossActive[d] = 0; crossInactive[d] = 0; });
   roster.forEach(r => {
-    const d = r.dept || '(부서 미상)';
+    const d = orgBucket(r.dept);
     if (recent30.has(String(r.memberId).trim())) crossActive[d] = (crossActive[d] || 0) + 1;
     else crossInactive[d] = (crossInactive[d] || 0) + 1;
   });
 
-  return { deptLabels, deptCounts, tierLabels, tierCounts, crossActive, crossInactive };
+  return { deptLabels, deptCounts, deptTierCounts, tierLabels, tierCounts, crossActive, crossInactive };
 }
 
 function renderRosterSection() {
@@ -488,13 +440,34 @@ function renderRosterCharts() {
   const s = buildRosterStats();
   const TIER_COLORS = ['#94a3b8', '#4f46e5', '#0ea5e9', '#059669', '#d97706', '#dc2626'];
 
+  // "부서별 등록 교사 수" — 부서(교역자/자문회/장년회/부녀회/청년회/기타)별 한 막대에
+  // 휴교사·교사·활동교사·우수교사 4개 구간을 색으로 누적 표시, 구간마다 인원+비율 라벨 표기.
   new Chart(document.getElementById('deptCountChart'), {
     type: 'bar',
     data: {
       labels: s.deptLabels,
-      datasets: [{ data: s.deptLabels.map(d => s.deptCounts[d]), backgroundColor: '#4f46e5', borderRadius: 4 }]
+      datasets: TIER_ORDER.map(t => ({
+        label: t,
+        backgroundColor: TIER_CHART_COLOR[t],
+        data: s.deptLabels.map(d => (s.deptTierCounts[d] && s.deptTierCounts[d][t]) || 0)
+      }))
     },
-    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    plugins: [ChartDataLabels],
+    options: {
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        datalabels: {
+          color: '#fff', font: { size: 10, weight: 'bold' },
+          formatter: (value, ctx) => {
+            if (!value) return '';
+            const deptLabel = ctx.chart.data.labels[ctx.dataIndex];
+            const deptTotal = s.deptCounts[deptLabel] || 0;
+            return `${value}명\n(${pct(value, deptTotal)}%)`;
+          }
+        }
+      },
+      scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
+    }
   });
 
   new Chart(document.getElementById('tierChart'), {
@@ -522,169 +495,19 @@ function renderRosterCharts() {
   });
 }
 
-// ============ 공부방 진도 현황 (getCourseList + getAllProgress 기반) ============
-
-function buildStudyStats() {
-  // 교재별 단원 수 — getCourseList 등장 순서를 그대로 교재 순서로 사용(G1→G2→G3).
-  const courseNames = [];
-  const unitCountByCourse = {};
-  courseRows.forEach(u => {
-    if (!(u.courseName in unitCountByCourse)) { unitCountByCourse[u.courseName] = 0; courseNames.push(u.courseName); }
-    unitCountByCourse[u.courseName]++;
-  });
-
-  // 교재별 진도 합계(이수내역 전체 행 기준)
-  const progressSumByCourse = {};
-  courseNames.forEach(c => { progressSumByCourse[c] = 0; });
-  progressRows.forEach(r => {
-    if (!(r.courseName in progressSumByCourse)) progressSumByCourse[r.courseName] = 0;
-    progressSumByCourse[r.courseName] += Number(r.progress || 0);
-  });
-
-  // 교재별 평균 진도(전체 교사 대비) = 합계 / (교사 수 × 단원 수). 교사명단이 없으면 계산 불가.
-  const courseAvg = {};
-  courseNames.forEach(c => {
-    const denom = roster.length > 0 ? roster.length * (unitCountByCourse[c] || 1) : 0;
-    courseAvg[c] = denom > 0 ? Math.round((progressSumByCourse[c] || 0) / denom) : 0;
-  });
-
-  // 교사별 진도 시작 여부 / 최근 N일 내 학습 여부
-  const startedIds = new Set();
-  const recentIds = new Set();
-  progressRows.forEach(r => {
-    const id = String(r.memberId || '').trim();
-    if (!id) return;
-    startedIds.add(id);
-    if (daysAgo(r.lastStudiedAt, STUDY_RECENT_DAYS)) recentIds.add(id);
-  });
-
-  const notStarted = roster.filter(r => !startedIds.has(String(r.memberId).trim()));
-  const recentCount = roster.filter(r => recentIds.has(String(r.memberId).trim())).length;
-  const notRecentCount = Math.max(0, roster.length - recentCount);
-
-  return { courseNames, courseAvg, notStarted, recentCount, notRecentCount };
-}
-
-function renderNotStartedTable(notStarted) {
-  if (roster.length === 0) {
-    return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">교사명단(getRoster)을 불러오지 못해 목록을 계산할 수 없습니다.</div>`;
-  }
-  if (notStarted.length === 0) {
-    return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">✅ 전원 공부방을 시작했습니다.</div>`;
-  }
-  const CAP = 100;
-  const shown = notStarted.slice(0, CAP);
-  return `
-    <div class="border border-base-300 rounded-box overflow-hidden">
-      <div class="max-h-64 overflow-y-auto overflow-x-auto">
-        <table class="table table-zebra table-sm">
-          <thead class="sticky top-0 bg-base-100"><tr>
-            <th>이름</th><th>고유번호</th><th>부서</th>
-          </tr></thead>
-          <tbody>
-            ${shown.map(r => `
-              <tr>
-                <td class="font-medium">${esc(r.name)}</td>
-                <td class="text-base-content/40">${esc(r.memberId)}</td>
-                <td class="text-base-content/60">${esc(r.dept || '')}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-      ${notStarted.length > CAP ? `<div class="text-[11px] text-base-content/40 text-center py-1.5 bg-base-200 border-t border-base-300">외 ${notStarted.length - CAP}명 더</div>` : ''}
-    </div>
-  `;
-}
-
-function renderStudySection() {
-  if (courseRows.length === 0) return ''; // 아직 seedStudyCourses_ 실행 전이거나 미배포
-  const s = buildStudyStats();
-  const courseCount = new Set(courseRows.map(u => u.courseName)).size;
-
-  const body = `
-      <div class="card card-border bg-base-100 shadow-sm mb-4">
-        <div class="card-body p-4">
-          <div class="text-sm font-medium text-base-content/70 mb-2">📈 교재별 평균 진도 (전체 교사 대비)</div>
-          ${roster.length === 0
-            ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">교사명단(getRoster)을 불러오지 못해 전체 대비 진도를 계산할 수 없습니다.</div>`
-            : `<canvas id="studyCourseChart" height="180"></canvas>`}
-        </div>
-      </div>
-
-      <div class="grid md:grid-cols-2 gap-4">
-        <div class="card card-border bg-base-100 shadow-sm">
-          <div class="card-body p-4">
-            <div class="text-sm font-medium text-base-content/70 mb-2">🍩 최근 ${STUDY_RECENT_DAYS}일 내 학습 기록 유무</div>
-            ${roster.length === 0
-              ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">교사명단 필요</div>`
-              : `<canvas id="studyRecentChart" height="180"></canvas>`}
-          </div>
-        </div>
-        <div class="card card-border bg-base-100 shadow-sm">
-          <div class="card-body p-4">
-            <div class="text-sm font-medium text-base-content/70 mb-2">📭 이수내역 0건(공부방 미시작) <span class="badge badge-ghost badge-sm align-middle">${s.notStarted.length}명</span></div>
-            ${renderNotStartedTable(s.notStarted)}
-          </div>
-        </div>
-      </div>
-  `;
-  return sectionCard('accent', '📘', '공부방 진도 현황', `교재 ${courseCount}종 · 총 ${courseRows.length}단원${roster.length > 0 ? ` · 교사명단 ${roster.length}명 기준` : ' · 교사명단 미로딩(전체 대비 진도 계산 불가)'}`, body);
-}
-
-function renderStudyCharts() {
-  if (courseRows.length === 0 || roster.length === 0) return;
-  const s = buildStudyStats();
-
-  const courseChartEl = document.getElementById('studyCourseChart');
-  if (courseChartEl) {
-    new Chart(courseChartEl, {
-      type: 'bar',
-      data: {
-        labels: s.courseNames,
-        datasets: [{ data: s.courseNames.map(c => s.courseAvg[c] || 0), backgroundColor: '#4f46e5', borderRadius: 4 }]
-      },
-      options: {
-        indexAxis: 'y',
-        plugins: { legend: { display: false } },
-        scales: { x: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } }
-      }
-    });
-  }
-
-  const recentChartEl = document.getElementById('studyRecentChart');
-  if (recentChartEl) {
-    new Chart(recentChartEl, {
-      type: 'doughnut',
-      data: {
-        labels: [`최근 ${STUDY_RECENT_DAYS}일 내 기록 있음`, '기록 없음'],
-        datasets: [{ data: [s.recentCount, s.notRecentCount], backgroundColor: ['#059669', '#d1d5db'] }]
-      },
-      options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
-    });
-  }
-}
-
 function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
     <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">🎓</span>
-        <div class="flex flex-col items-start leading-tight">
-          <div class="text-lg font-bold">교육부 분석 대시보드</div>
-          <div class="text-neutral-content/50 text-xs">제사장의 길 · 피드백 데이터</div>
-        </div>
-      </div>
-      <div class="flex-none flex items-center gap-2">
-        <button id="btn-refresh" class="btn btn-sm btn-ghost">🔄 새로고침</button>
-        <a href="admin-home.html" class="btn btn-sm btn-ghost">← 관리자 홈</a>
-        <a href="home.html" class="btn btn-sm btn-ghost">교사 어플로 가기</a>
+        <div class="text-lg font-bold">통합</div>
       </div>
     </div>
     <div class="brand-accent-bar"></div>
+    ${mainNavHtml('edu')}
     <div class="p-5" id="content"></div>
   `;
-  document.getElementById('btn-refresh').onclick = load;
 
   const content = document.getElementById('content');
   if (loading) {
@@ -694,22 +517,19 @@ function render() {
     return;
   }
 
-  // 월별 결산 현황 + 등급 심사 + 부서별 교사 현황 + 공부방 진도 현황은 피드백 데이터 유무와 무관하게 표시.
+  // 총 교사 수 + 월별 결산 현황 + 부서별 교사 현황은 피드백 데이터 유무와 무관하게 표시.
+  const teacherSummaryHtml = renderTeacherSummarySection();
   const settlementHtml = renderSettlementSection();
   const inactiveHtml = renderInactiveSection();
   const leadsHtml = renderLeadsSection();
-  const tierSectionHtml = renderTierSection();
   const rosterHtml = renderRosterSection();
-  const studyHtml = renderStudySection();
-  const tierBundle = settlementHtml + tierSectionHtml + inactiveHtml + leadsHtml;
+  const tierBundle = teacherSummaryHtml + settlementHtml + inactiveHtml + leadsHtml;
 
   if (rows.length === 0) {
-    content.innerHTML = tierBundle + rosterHtml + studyHtml + (roster.length === 0
+    content.innerHTML = tierBundle + rosterHtml + (roster.length === 0
       ? `<div class="text-sm text-base-content/40 text-center py-16">아직 데이터가 없습니다.</div>`
       : `<div class="text-sm text-base-content/40 text-center py-10">아직 피드백 데이터가 없습니다.</div>`);
-    wireTierSection();
     renderRosterCharts();
-    renderStudyCharts();
     return;
   }
 
@@ -724,25 +544,8 @@ function render() {
   const now = new Date();
   const longPending = rows.filter(r => r.status === '접수' && daysDiff(r.submittedAt, now) >= 48);
 
-  const memberCounts = {};
-  rows.forEach(r => { memberCounts[r.memberId] = (memberCounts[r.memberId] || 0) + 1; });
-  const repeaters = Object.entries(memberCounts)
-    .filter(([id, c]) => c >= 3)
-    .map(([id, c]) => ({ memberId: id, count: c, name: (rows.find(r => r.memberId === id) || {}).name || '' }))
-    .sort((a, b) => b.count - a.count);
-
   const catCounts = {};
   rows.forEach(r => { const c = categorize(r.situation); catCounts[c] = (catCounts[c] || 0) + 1; });
-
-  const weekCounts = {};
-  rows.forEach(r => {
-    const d = new Date(r.submittedAt);
-    if (isNaN(d)) return;
-    const weekKey = d.getFullYear() + '-W' + Math.ceil((((d - new Date(d.getFullYear(),0,1)) / 86400000) + new Date(d.getFullYear(),0,1).getDay()+1) / 7);
-    weekCounts[weekKey] = (weekCounts[weekKey] || 0) + 1;
-  });
-  const weekLabels = Object.keys(weekCounts).sort();
-  const weekValues = weekLabels.map(k => weekCounts[k]);
 
   const statsBody = `
     <div class="stats stats-vertical sm:stats-horizontal shadow-sm border border-base-300 w-full mb-4">
@@ -780,38 +583,17 @@ function render() {
   `;
 
   const analysisBody = `
-    <div class="grid md:grid-cols-2 gap-4 mb-4">
-      <div class="card card-border bg-base-100 shadow-sm">
-        <div class="card-body p-4">
-          <div class="text-sm font-medium text-base-content/70 mb-2">🧭 어려움 유형 분포</div>
-          <canvas id="catChart" height="200"></canvas>
-        </div>
-      </div>
-      <div class="card card-border bg-base-100 shadow-sm">
-        <div class="card-body p-4">
-          <div class="text-sm font-medium text-base-content/70 mb-2">📈 주별 요청 추이</div>
-          <canvas id="trendChart" height="200"></canvas>
-        </div>
+    <div class="card card-border bg-base-100 shadow-sm">
+      <div class="card-body p-4">
+        <div class="text-sm font-medium text-base-content/70 mb-2">🧭 어려움 유형 분포</div>
+        <canvas id="catChart" height="200"></canvas>
       </div>
     </div>
-
-    <div class="text-sm font-medium text-base-content/70 mb-2">🔁 반복 요청자 <span class="text-base-content/40 font-normal">(3건 이상)</span></div>
-    ${repeaters.length === 0
-      ? `<div class="text-xs text-base-content/40">해당 없음</div>`
-      : `<div class="overflow-x-auto border border-base-300 rounded-box">
-          <table class="table table-zebra table-sm">
-            <thead><tr><th>이름</th><th>고유번호</th><th>건수</th></tr></thead>
-            <tbody>
-              ${repeaters.map(r => `<tr><td>${r.name}</td><td class="text-base-content/40">${r.memberId}</td><td class="font-medium">${r.count}건</td></tr>`).join('')}
-            </tbody>
-          </table>
-        </div>`
-    }
   `;
 
-  content.innerHTML = tierBundle + rosterHtml + studyHtml
+  content.innerHTML = tierBundle + rosterHtml
     + sectionCard('info', '📊', '전체 현황', '피드백 요청/응답 핵심 지표', statsBody)
-    + sectionCard('info', '🧭', '피드백 분석', '유형별 분포 · 추이 · 반복 요청자', analysisBody);
+    + sectionCard('info', '🧭', '피드백 분석', '유형별 분포 (데이터가 더 쌓이면 추이·반복 요청자 등 추가 예정)', analysisBody);
 
   new Chart(document.getElementById('catChart'), {
     type: 'bar',
@@ -822,18 +604,7 @@ function render() {
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
   });
 
-  new Chart(document.getElementById('trendChart'), {
-    type: 'line',
-    data: {
-      labels: weekLabels,
-      datasets: [{ data: weekValues, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)', fill: true, tension: 0.3 }]
-    },
-    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
-  });
-
-  wireTierSection();
   renderRosterCharts();
-  renderStudyCharts();
 }
 
 load();
