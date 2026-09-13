@@ -469,7 +469,7 @@ function printResult(text) {
 
 
 let state = {
-  tab: 'coach',           // coach | studentCoach | history
+  tab: 'coach',           // coach | studentCoach | history | askCoach | coachMode
   memberId: TEST_MODE ? TEST_MEMBER.memberId : '',
   name:     TEST_MODE ? TEST_MEMBER.name : '',
   identified: TEST_MODE ? true : false,
@@ -479,6 +479,26 @@ let state = {
   lastCoachText: '',
   escalated: false,
   history: [],
+  // 교관 시스템: 로그인 시 getMyCoach 로 채움 — { region, coach:{coachId,coachName,dept}|null, isCoach, myCoachInfo }
+  coachInfo: null,
+  // "교관에게 요청" 탭 상태
+  askCoach: {
+    content: '',
+    submitting: false,
+    submittedNote: '',
+    myRequests: [],
+    myRequestsLoaded: false
+  },
+  // "교관 모드 🔑" 탭 상태 (본인이 활성 교관으로 등록된 경우만 노출)
+  coachMode: {
+    loaded: false,
+    loading: false,
+    view: 'pending',   // pending | answered
+    pending: [],
+    answered: [],
+    replyDrafts: {},   // receiptNo → 입력 중인 답변 텍스트
+    submittingId: ''
+  },
   // 내 수강생 코칭 탭 상태
   sc: {
     subMode: 'script',      // analyze(리딩/마음읽기) | script(퍼스널 코칭 대본)
@@ -529,6 +549,8 @@ function render() {
       <button id="tab-coach" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='coach' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-400'}">AI 셀프 코칭</button>
       <button id="tab-studentCoach" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='studentCoach' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-400'}">내 수강생 코칭</button>
       <button id="tab-history" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='history' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-400'}">내 피드백 이력</button>
+      <button id="tab-askCoach" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='askCoach' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-400'}">교관에게 요청</button>
+      ${state.coachInfo && state.coachInfo.isCoach ? `<button id="tab-coachMode" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='coachMode' ? 'text-rose-700 border-b-2 border-rose-700' : 'text-rose-400'}">교관 모드 🔑</button>` : ''}
     </div>
     <div id="body" class="p-5"></div>
   `;
@@ -539,6 +561,19 @@ function render() {
     render();
     if (state.identified) loadHistory();
   };
+  document.getElementById('tab-askCoach').onclick = () => {
+    state.tab = 'askCoach';
+    render();
+    if (state.identified) loadMyCoachRequests();
+  };
+  const tabCoachModeBtn = document.getElementById('tab-coachMode');
+  if (tabCoachModeBtn) {
+    tabCoachModeBtn.onclick = () => {
+      state.tab = 'coachMode';
+      render();
+      loadCoachFeedbacks();
+    };
+  }
 
   const body = document.getElementById('body');
 
@@ -560,6 +595,7 @@ function render() {
       state.identified = true;
       render();
       if (state.tab === 'history') loadHistory();
+      loadMyCoach();
     };
     return;
   }
@@ -568,9 +604,25 @@ function render() {
     renderCoachTab(body);
   } else if (state.tab === 'studentCoach') {
     renderStudentCoachTab(body);
-  } else {
+  } else if (state.tab === 'history') {
     renderHistoryTab(body);
+  } else if (state.tab === 'askCoach') {
+    renderAskCoachTab(body);
+  } else if (state.tab === 'coachMode') {
+    renderCoachModeTab(body);
   }
+}
+
+// ===== 교관 시스템: 로그인 시 1회 조회 =====
+async function loadMyCoach() {
+  if (!state.identified) return;
+  try {
+    const res = await callApi({ action: 'getMyCoach', memberId: state.memberId });
+    if (!res.error) {
+      state.coachInfo = res;
+      render();
+    }
+  } catch (e) { /* 조용히 무시 — 탭 노출/안내문구만 영향, 나머지 기능엔 지장 없음 */ }
 }
 
 // index.html 스타일 셀렉트 (Fa 이식)
@@ -934,7 +986,181 @@ function renderHistoryTab(body) {
   }).join('');
 }
 
+// ===== "교관에게 요청" 탭 (일반 교사) =====
+async function loadMyCoachRequests() {
+  const ac = state.askCoach;
+  const res = await callApi({ action: 'getMyCoachRequests', memberId: state.memberId });
+  ac.myRequests = res.rows || [];
+  ac.myRequestsLoaded = true;
+  render();
+}
+
+function renderAskCoachTab(body) {
+  const ac = state.askCoach;
+  const regionNote = state.coachInfo && state.coachInfo.region
+    ? `<div class="text-xs text-gray-400 mb-3">등록 시 <b class="text-emerald-700">${esc(state.coachInfo.region)} 담당 교관</b>에게 전달됩니다.</div>`
+    : `<div class="text-xs text-gray-400 mb-3">등록 시 내 지역 교관에게 전달됩니다.</div>`;
+
+  body.innerHTML = `
+    <div class="text-xs text-gray-400 mb-2">${state.name}님 (${state.memberId})</div>
+    ${regionNote}
+    <textarea id="ac-content" rows="5" placeholder="교관님께 전달할 피드백/문의 내용을 적어주세요." class="w-full border rounded-lg px-3 py-2 text-sm mb-3">${esc(ac.content)}</textarea>
+    <button id="btn-ac-submit" class="w-full bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-50" ${ac.submitting ? 'disabled' : ''}>
+      ${ac.submitting ? '등록 중...' : '교관에게 요청하기'}
+    </button>
+    ${ac.submittedNote ? `<div class="mt-3 text-sm text-emerald-700 bg-emerald-50 rounded-lg p-3">${ac.submittedNote}</div>` : ''}
+
+    <div class="mt-6 pt-4 border-t border-gray-100">
+      <h4 class="text-sm font-bold text-gray-700 mb-3">내 요청 목록</h4>
+      <div id="ac-my-requests">${ac.myRequestsLoaded ? '' : '<div class="text-xs text-gray-400 text-center py-6">불러오는 중...</div>'}</div>
+    </div>
+  `;
+
+  document.getElementById('btn-ac-submit').onclick = async () => {
+    const val = document.getElementById('ac-content').value.trim();
+    if (!val) { alert('내용을 입력해주세요.'); return; }
+    ac.content = val;
+    ac.submitting = true;
+    render();
+    try {
+      const res = await callApi({ action: 'requestCoach', memberId: state.memberId, name: state.name, content: val });
+      if (res.error) throw new Error(res.error);
+      ac.content = '';
+      ac.submittedNote = '교관님께 전달되었습니다. 처리 상태는 아래 "내 요청 목록"에서 확인하실 수 있습니다.';
+      await loadMyCoachRequests();
+    } catch (err) {
+      ac.submittedNote = '오류가 발생했습니다: ' + err.message;
+    }
+    ac.submitting = false;
+    render();
+  };
+
+  if (ac.myRequestsLoaded) {
+    const listEl = document.getElementById('ac-my-requests');
+    if (ac.myRequests.length === 0) {
+      listEl.innerHTML = `<div class="text-sm text-gray-400 text-center py-8">아직 등록한 요청이 없습니다.</div>`;
+    } else {
+      listEl.innerHTML = ac.myRequests.slice().reverse().map(row => {
+        const badge = row.status === '완료'
+          ? '<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">답변완료</span>'
+          : '<span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">처리중</span>';
+        return `
+          <div class="border rounded-lg p-3 mb-3">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs text-gray-400">${row.receiptNo}</span>
+              ${badge}
+            </div>
+            <div class="text-sm text-gray-700 mb-2">${esc(row.situation)}</div>
+            ${row.handlerAnswer ? `<div class="text-xs text-blue-700 bg-blue-50 rounded p-2">교관: ${esc(row.handlerAnswer)}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+  }
+}
+
+// ===== "교관 모드 🔑" 탭 (활성 교관만 노출) =====
+async function loadCoachFeedbacks() {
+  const cm = state.coachMode;
+  cm.loading = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getCoachFeedbacks', coachId: state.memberId });
+    if (res.error) throw new Error(res.error);
+    cm.pending = res.pending || [];
+    cm.answered = res.answered || [];
+    cm.loaded = true;
+  } catch (err) {
+    cm.pending = [];
+    cm.answered = [];
+    cm.loaded = true;
+    cm.loadError = err.message;
+  }
+  cm.loading = false;
+  render();
+}
+
+function coachFeedbackCard(row, cm, editable) {
+  const draft = cm.replyDrafts[row.receiptNo] !== undefined ? cm.replyDrafts[row.receiptNo] : '';
+  return `
+    <div class="border rounded-lg p-3 mb-3 ${editable ? 'border-rose-200 bg-rose-50/30' : ''}">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-sm font-bold text-gray-800">${esc(row.name)} <span class="text-xs font-normal text-gray-400">(${esc(row.region)} · ${esc(row.tier || '-')})</span></span>
+        <span class="text-xs text-gray-400">${esc(String(row.submittedAt || '').slice(0, 16))}</span>
+      </div>
+      <div class="text-sm text-gray-700 bg-white rounded p-2 mb-2 border border-gray-100">${esc(row.situation)}</div>
+      ${editable ? `
+        <textarea data-reply-for="${row.receiptNo}" rows="3" placeholder="답변을 입력해주세요." class="w-full border rounded-lg px-3 py-2 text-sm mb-2">${esc(draft)}</textarea>
+        <button data-submit-for="${row.receiptNo}" class="w-full bg-rose-700 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50" ${cm.submittingId === row.receiptNo ? 'disabled' : ''}>
+          ${cm.submittingId === row.receiptNo ? '등록 중...' : '답변 등록'}
+        </button>
+      ` : `<div class="text-xs text-blue-700 bg-blue-50 rounded p-2">교관 답변: ${esc(row.handlerAnswer)}</div>`}
+    </div>
+  `;
+}
+
+function renderCoachModeTab(body) {
+  const cm = state.coachMode;
+  if (cm.loading && !cm.loaded) {
+    body.innerHTML = `<div class="text-sm text-gray-400 text-center py-10">불러오는 중...</div>`;
+    return;
+  }
+  if (cm.loadError) {
+    body.innerHTML = `<div class="text-sm text-rose-500 text-center py-10">${esc(cm.loadError)}</div>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <div class="text-xs text-gray-400 mb-3">${state.name}님 (${state.memberId}) · 교관 모드</div>
+    <div class="flex gap-2 mb-4">
+      <button id="cm-view-pending" class="flex-1 py-2 rounded-lg text-xs font-bold ${cm.view === 'pending' ? 'bg-rose-700 text-white' : 'bg-gray-100 text-gray-500'}">
+        미답변 ${cm.pending.length ? `<span class="ml-1 bg-white text-rose-700 rounded-full px-1.5">${cm.pending.length}</span>` : ''}
+      </button>
+      <button id="cm-view-answered" class="flex-1 py-2 rounded-lg text-xs font-bold ${cm.view === 'answered' ? 'bg-rose-700 text-white' : 'bg-gray-100 text-gray-500'}">답변완료 (${cm.answered.length})</button>
+    </div>
+    <div id="cm-list"></div>
+  `;
+
+  document.getElementById('cm-view-pending').onclick = () => { cm.view = 'pending'; render(); };
+  document.getElementById('cm-view-answered').onclick = () => { cm.view = 'answered'; render(); };
+
+  const list = document.getElementById('cm-list');
+  const rows = cm.view === 'pending' ? cm.pending : cm.answered;
+  if (rows.length === 0) {
+    list.innerHTML = `<div class="text-sm text-gray-400 text-center py-8">${cm.view === 'pending' ? '미답변 요청이 없습니다.' : '답변완료 항목이 없습니다.'}</div>`;
+    return;
+  }
+  list.innerHTML = rows.map(row => coachFeedbackCard(row, cm, cm.view === 'pending')).join('');
+
+  if (cm.view === 'pending') {
+    list.querySelectorAll('[data-reply-for]').forEach(ta => {
+      ta.oninput = (e) => { cm.replyDrafts[ta.dataset.replyFor] = e.target.value; };
+    });
+    list.querySelectorAll('[data-submit-for]').forEach(btn => {
+      btn.onclick = async () => {
+        const receiptNo = btn.dataset.submitFor;
+        const reply = (cm.replyDrafts[receiptNo] || '').trim();
+        if (!reply) { alert('답변을 입력해주세요.'); return; }
+        cm.submittingId = receiptNo;
+        render();
+        try {
+          const res = await callApi({ action: 'submitCoachReply', feedbackId: receiptNo, reply: reply, coachId: state.memberId });
+          if (res.error) throw new Error(res.error);
+          delete cm.replyDrafts[receiptNo];
+          cm.submittingId = '';
+          await loadCoachFeedbacks();
+        } catch (err) {
+          alert('오류가 발생했습니다: ' + err.message);
+          cm.submittingId = '';
+          render();
+        }
+      };
+    });
+  }
+}
+
 render();
+if (state.identified) loadMyCoach(); // TEST_MODE 등으로 이미 로그인된 상태로 시작한 경우 최초 1회 조회
 </script>
 </body>
 </html>
