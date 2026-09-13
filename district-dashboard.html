@@ -52,7 +52,8 @@ let state = {
   cache: {},        // dept → getDistrictReport(region:'') 응답 (부서 전체 데이터를 한 번만 받아 캐시)
   regionView: 'table',   // 'table' | 'chart' — 지역별 상세 섹션 표시 방식
   activityView: 'table', // 'table' | 'chart' — 지역별 활동 분석 섹션 표시 방식
-  teacherDetailOpen: false // 교사별 상세(지역 필터+표) 접기/펼치기 — 기본 접힘
+  teacherDetailOpen: false, // 교사별 상세(지역 필터+표) 접기/펼치기 — 기본 접힘
+  pendingOnly: false // true면 교사별 상세 표를 "승급·강등 제안 있는 교사만"으로 좁혀서 보여줌
 };
 
 // 전체 조직별 요약 (getOrgSummary) — "전체 요약" 화면 전용, 부서 상세와 별도로 캐시.
@@ -204,10 +205,11 @@ async function approve(t) {
   render();
 }
 
-// ============ 등급 심사 (관리자 즉시 반영 — 지역장·교관 2인 승인과 별개) ============
+// ============ 관리자 즉시 반영 (지역장·교관 2인 승인과 별개) ============
 // 통합(edu-dashboard.html)에 있던 "등급 심사"(checkTierChanges/applyTierChange, 관리자 단독 즉시
-// 반영)를 부서별 화면으로 이동 — 현재 선택된 부서+지역 필터(filteredRows)로 범위를 좁혀서 보여줌.
-// 위 표의 "승급·강등 제안" 열(2인 승인)과 데이터 출처는 같고, 반영 방식만 다름(1인 즉시 반영).
+// 반영)를 부서별로 옮겨왔다가, "교사별 상세 표와 뭐가 다르냐"는 피드백으로 별도 섹션은 없애고
+// 아래 표의 "승급·강등 제안" 셀(suggestionCell) 안에 "⚡ 즉시 반영" 버튼으로 통합함 — 2인 승인
+// (✅ 승인)과 관리자 단독 즉시 반영(⚡ 즉시 반영)을 같은 자리에서 고를 수 있음.
 async function applyTierChangeInstant(memberId, newTier) {
   const key = 'instant::' + memberId;
   state.approving[key] = true;
@@ -226,42 +228,6 @@ async function applyTierChangeInstant(memberId, newTier) {
   }
   delete state.approving[key];
   render();
-}
-
-function tierReviewSectionHtml(filteredRows) {
-  const list = filteredRows.filter(t => t.suggestion);
-  return `
-    <div class="px-4 pt-3">
-      <div class="card card-border bg-base-100 shadow-sm">
-        <div class="card-body p-4">
-          <div class="text-xs font-bold text-base-content/50 mb-1">🎖️ 등급 심사 (관리자 즉시 반영)</div>
-          <div class="text-[11px] text-base-content/40 mb-3">현재 부서·지역 필터 기준 · 위 표의 "승급·강등 제안"과 같은 목록이며, 여기서는 2인 승인 없이 관리자가 바로 반영합니다.</div>
-          ${list.length === 0
-            ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">✅ 이 조건에 변경 대상이 없습니다.</div>`
-            : `<div class="overflow-x-auto border border-base-300 rounded-box">
-                <table class="table table-zebra table-sm">
-                  <thead><tr><th>이름</th><th>지역</th><th>현재등급</th><th>제안등급</th><th>사유</th><th></th></tr></thead>
-                  <tbody>
-                    ${list.map(t => `
-                      <tr>
-                        <td class="font-medium">${esc(t.name)}<div class="text-[10px] text-base-content/40">${esc(t.memberId)}</div></td>
-                        <td class="text-base-content/60 text-xs">${esc(t.region || '')}</td>
-                        <td class="text-base-content/60">${esc(t.tier)}</td>
-                        <td><span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'} badge-sm">${esc(t.suggestion.suggestedTier)}</span></td>
-                        <td class="text-base-content/60 text-xs">${esc(t.suggestion.reason)}</td>
-                        <td class="whitespace-nowrap">
-                          <button class="btn-tier-apply btn btn-success btn-xs" data-mid="${esc(t.memberId)}" data-tier="${esc(t.suggestion.suggestedTier)}" ${state.approving['instant::' + t.memberId] ? 'disabled' : ''}>
-                            ${state.approving['instant::' + t.memberId] ? '처리중...' : '즉시 반영'}
-                          </button>
-                        </td>
-                      </tr>`).join('')}
-                  </tbody>
-                </table>
-              </div>`}
-        </div>
-      </div>
-    </div>
-  `;
 }
 
 // "전체 요약" 화면 — 6개 조직 카드, 클릭 시 페이지 이동 없이 바로 그 부서 상세 탭으로 전환.
@@ -353,6 +319,12 @@ function byRegionSectionHtml(byRegion) {
         <div class="text-xs font-bold text-base-content/50">🗺️ 지역별 상세</div>
         <button id="btn-region-view-toggle" class="btn btn-xs btn-outline">${toggleLabel}</button>
       </div>
+      <div class="bg-info/10 border border-info/30 rounded-lg p-3 text-[11px] text-base-content/70 leading-relaxed mb-2">
+        ℹ️ 지금 보고 있는 부서 안에서 <b>지역별로</b> 교사 현황을 나눠 보여드립니다. 지역마다 총 교사 수,
+        등급별 인원(휴교사·교사·활동교사·우수교사, 각 인원과 비율), 이번 달 활동한 교사 수(활동자),
+        이번 달 총 활동 건수, 승급 대상자 수가 나옵니다. 우리 지역이 다른 지역과 비교해 활동이 활발한
+        편인지, 등급이 잘 유지되고 있는지 확인하실 때 이 표를 보시면 됩니다.
+      </div>
       ${state.regionView === 'table' ? byRegionTableHtml(byRegion) : byRegionChartsHtml(byRegion)}
     </div>
   `;
@@ -392,6 +364,14 @@ function byRegionChartsHtml(byRegion) {
     <div class="card card-border bg-base-100 shadow-sm">
       <div class="card-body p-3">
         <div class="text-xs font-medium text-base-content/60 mb-2">📊 지역별 교사 구분 비율 — 지역 한 세트당 휴교사·교사·활동교사·우수교사 4개 막대(색상 구분)</div>
+        <div class="bg-info/10 border border-info/30 rounded-lg p-3 text-[11px] text-base-content/70 leading-relaxed mb-3">
+          ℹ️ 지역마다 교사 등급 분포를 막대 4개(휴교사·교사·활동교사·우수교사, 색깔로 구분)로 나란히
+          비교할 수 있는 그래프입니다. 각 막대의 길이는 <b>그 지역 전체 교사 중 그 등급이 차지하는 비율(%)</b>을
+          뜻합니다 — 인원 수가 아니라 비율이라, 교사 수가 다른 지역끼리도 바로 비교할 수 있습니다.
+          활동교사·우수교사 막대가 길수록 활동이 활발한 지역이고, 휴교사 막대가 길면 관리가 더 필요한
+          지역입니다. 지역별 막대를 나란히 비교해 보시면 어느 지역에 더 신경 써야 할지 한눈에 파악하실 수
+          있습니다.
+        </div>
         <div style="height:${h}px"><canvas id="chart-tier-stack"></canvas></div>
       </div>
     </div>
@@ -591,6 +571,7 @@ function suggestionCell(t) {
   const s = t.suggestion;
   if (!s) return `<span class="text-base-content/30 text-xs">-</span>`;
   const key = t.memberId + '::' + s.suggestedTier;
+  const instantKey = 'instant::' + t.memberId;
   return `
     <div class="flex flex-col gap-1">
       <div class="flex items-center gap-1 flex-wrap text-xs">
@@ -602,9 +583,14 @@ function suggestionCell(t) {
         <progress class="progress progress-primary w-14 h-1.5" value="${s.approvalCount}" max="2"></progress>
         <span class="text-[10px] text-base-content/40">${s.approvalCount}/2</span>
       </div>
-      <button class="btn-approve btn btn-primary btn-xs" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" ${state.approving[key] ? 'disabled' : ''}>
-        ${state.approving[key] ? '처리중...' : '✅ 승인'}
-      </button>
+      <div class="flex items-center gap-1">
+        <button class="btn-approve btn btn-primary btn-xs" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" ${state.approving[key] ? 'disabled' : ''}>
+          ${state.approving[key] ? '처리중...' : '✅ 승인(2인)'}
+        </button>
+        <button class="btn-tier-apply btn btn-outline btn-success btn-xs" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" ${state.approving[instantKey] ? 'disabled' : ''} title="관리자 단독 즉시 반영 — 2인 승인 없이 바로 등급이 바뀝니다">
+          ${state.approving[instantKey] ? '처리중...' : '⚡ 즉시 반영'}
+        </button>
+      </div>
     </div>
   `;
 }
@@ -645,6 +631,7 @@ function render() {
   const allRows = report ? report.rows : [];
   const filteredRows = state.region ? allRows.filter(r => r.region === state.region) : allRows;
   const pendingCount = filteredRows.filter(t => t.suggestion).length;
+  const tableRows = state.pendingOnly ? filteredRows.filter(t => t.suggestion) : filteredRows;
   const analysis = (!isOverview && report) ? buildActivityAnalysis(report) : null;
 
   root.innerHTML = `
@@ -675,19 +662,24 @@ function render() {
             ${activityAnalysisSectionHtml(analysis)}
             <details id="teacher-detail-details" class="mt-3 mx-4 border border-base-300 rounded-box bg-base-100 overflow-hidden" ${state.teacherDetailOpen ? 'open' : ''}>
               <summary class="cursor-pointer select-none px-4 py-3 text-xs font-bold text-base-content/50 flex items-center justify-between">
-                <span>🔍 교사별 상세 (${filteredRows.length}명)</span>
+                <span>🔍 교사별 상세 (${tableRows.length}${state.pendingOnly ? `/${filteredRows.length}` : ''}명)</span>
                 <span class="text-base-content/30 text-[11px] font-normal">펼치기/접기</span>
               </summary>
               <div class="border-t border-base-300">
                 ${regionFilterHtml((report && report.regions) || [], filteredRows.length)}
                 ${pendingCount > 0 ? `
                   <div class="p-4 pb-0">
-                    <div class="alert alert-warning py-2 text-sm"><div>📌 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 확인 후 승인하세요.</div></div>
+                    <div class="alert alert-warning py-2 text-sm flex items-center justify-between gap-3">
+                      <div>📌 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 ✅ 승인(2인 합의) 또는 ⚡ 즉시 반영(관리자 단독)으로 처리하세요.</div>
+                      <label class="flex items-center gap-1.5 text-xs whitespace-nowrap cursor-pointer">
+                        <input type="checkbox" id="pending-only-checkbox" class="checkbox checkbox-xs" ${state.pendingOnly ? 'checked' : ''}>
+                        제안 있는 교사만 보기
+                      </label>
+                    </div>
                   </div>` : ''}
-                <div class="p-4">${tableHtml(filteredRows)}</div>
+                <div class="p-4">${tableHtml(tableRows)}</div>
               </div>
             </details>
-            ${tierReviewSectionHtml(filteredRows)}
           `}
   `;
 
@@ -709,6 +701,8 @@ function render() {
   });
   const detailsEl = document.getElementById('teacher-detail-details');
   if (detailsEl) detailsEl.ontoggle = () => { state.teacherDetailOpen = detailsEl.open; };
+  const pendingOnlyCb = document.getElementById('pending-only-checkbox');
+  if (pendingOnlyCb) pendingOnlyCb.onchange = (e) => { state.pendingOnly = e.target.checked; render(); };
 
   const viewToggleBtn = document.getElementById('btn-region-view-toggle');
   if (viewToggleBtn) viewToggleBtn.onclick = () => {
