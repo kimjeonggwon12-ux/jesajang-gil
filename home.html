@@ -41,6 +41,8 @@
     .brand-avatar { background: linear-gradient(135deg, oklch(var(--p)), oklch(var(--a))); }
     /* 홈 대시보드 상단 헤더 — 목업 디자인의 어두운 네이비 카드 */
     .home-hero { background: #1a1a2e; }
+    /* 홈 화면 전체 배경(목업 지정색) — 다른 탭(활동방/피드백방/공부방)에는 영향 없음 */
+    .home-bg { background: #f8f9fa; }
     .step-circle { width: 2.25rem; height: 2.25rem; border-radius: 9999px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; flex-shrink:0; }
   </style>
 </head>
@@ -89,7 +91,7 @@
       <button role="tab" class="tab flex-1 gap-1.5" data-room="feedback" onclick="switchTab('feedback', this)"><span>💬</span> 피드백방</button>
       <button role="tab" class="tab flex-1 gap-1.5" data-room="study" onclick="switchTab('study', this)"><span>📚</span> 공부방</button>
     </div>
-    <div id="homeContent" class="flex-1 w-full overflow-y-auto bg-base-200" style="display:none"></div>
+    <div id="homeContent" class="flex-1 w-full overflow-y-auto home-bg" style="display:none"></div>
     <iframe id="content" class="flex-1 w-full border-0" style="display:none"></iframe>
     <div class="text-center py-2 bg-base-100 border-t border-base-300 text-xs">
       <div class="dropdown dropdown-top dropdown-center">
@@ -102,10 +104,10 @@
     </div>
   </div>
 
-  <!-- 전도 대상자 추가/수정 모달 (daisyUI <dialog>, confirm()/alert() 같은 네이티브 다이얼로그 아님) -->
+  <!-- 새 전도 대상자 추가 모달 (daisyUI <dialog>, confirm()/alert() 같은 네이티브 다이얼로그 아님) -->
   <dialog id="targetModal" class="modal">
     <div class="modal-box">
-      <h3 class="font-bold text-lg mb-3" id="targetModalTitle">새 대상자 추가</h3>
+      <h3 class="font-bold text-lg mb-3">새 대상자 추가</h3>
       <div class="flex flex-col gap-2">
         <input type="text" id="tm-name" placeholder="대상자 이름" class="input input-bordered w-full" />
         <select id="tm-stage" class="select select-bordered w-full"></select>
@@ -114,7 +116,19 @@
       </div>
       <div class="modal-action">
         <button class="btn btn-ghost" onclick="closeTargetModal()">취소</button>
-        <button class="btn btn-primary" id="tm-submit" onclick="submitTargetModal()">저장</button>
+        <button class="btn btn-primary" id="tm-submit" onclick="submitAddTarget()">저장</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>닫기</button></form>
+  </dialog>
+
+  <!-- 내 성장 궤도 박스 클릭 시 뜨는 승급 조건 상세 모달 -->
+  <dialog id="growthModal" class="modal">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-3">다음 등급 승급 조건</h3>
+      <div id="growthModalBody"></div>
+      <div class="modal-action">
+        <button class="btn btn-ghost" onclick="closeGrowthModal()">닫기</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>닫기</button></form>
@@ -212,7 +226,14 @@
       iframeEl.src = `${file}?${params.toString()}`;
     }
 
-    // ============ 홈 대시보드 (목업 화면 1·2) ============
+    // ============ 홈 대시보드 ============
+    //
+    // 핵심 구조: "전도 대상자 단계"(대상자가 걸어가는 여정: 친분→만남→상담→동행교사→복음방→
+    // 센터인도→센터섬김→센터교사)와 "교사 성장 궤도"(교사 본인의 등급: 교사→활동교사→우수교사→
+    // 센터교사)는 서로 다른 개념. 대상자가 "복음방"/"센터인도" 단계에 도달한 이력(전도대상자이력
+    // 시트)을 이번 달 열매로 자체 집계해서 보여주되, 교사 등급 승급을 실제로 좌우하는 leadCount/
+    // leadGoal(getMyTierStatus_)은 전도부가 별도로 등록하는 공식 "센터인도실적" 시트 기준 그대로
+    // 유지한다 — 두 지표는 화면에서는 연결되어 보이지만 데이터상 자동 연동은 하지 않음(정확성 우선).
 
     async function callApi(payload) {
       const res = await fetch(PROXY_URL, {
@@ -226,28 +247,41 @@
       return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
-    const TIER_ORDER = ['휴교사', '교사', '활동교사', '우수교사'];
-    // 목업 성장 궤도의 4단계 — 마지막 "센터교사"는 현재 백엔드 등급 체계(휴교사/교사/활동교사/우수교사)에
-    // 아직 없는 미래 단계라, 항상 잠김(회색)으로만 표시하는 시각적 플레이스홀더임(실제 판정 로직 없음).
+    // 목업 성장 궤도의 4단계 — 마지막 "센터교사"는 현재 백엔드 등급 체계(휴교사/교사/활동교사/
+    // 우수교사)에 아직 없는 미래 단계라, 항상 잠김(회색)으로만 표시하는 시각적 플레이스홀더임
+    // (실제 판정 로직 없음).
     const GROWTH_STEPS = ['교사', '활동교사', '우수교사', '센터교사'];
-    const TIER_BADGE = {
-      '휴교사': 'badge-ghost', '교사': 'badge-info', '활동교사': 'badge-warning',
-      '우수교사': 'badge-secondary', '센터교사': 'badge-accent'
+    // 등급 뱃지 pill 색상(목업 지정색 그대로)
+    const TIER_COLORS = {
+      '휴교사': '#9ca3af', '교사': '#3b82f6', '활동교사': '#f59e0b', '우수교사': '#f97316', '센터교사': '#ef4444'
     };
-    const TIER_DOT = { '휴교사': '⚪', '교사': '🔵', '활동교사': '🟠', '우수교사': '🟣', '센터교사': '🟡' };
     // "복음방" 관련 활동 유형(집계용) — activity-room.html ACTIVITY_OPTIONS 중 이름에 "복음방"이
     // 들어간 것들을 모아서 "이번 달 활동" 카드의 "복음방" 숫자로 씀(정확한 단일 유형이 따로 없어서).
     const GOSPEL_ROOM_TYPES = ['복음방 이전 상담 활동', '복음방 교사 교육'];
+    // 백엔드 응답이 stages를 안 내려줄 때의 폴백(전도대상자 8단계, Code.gs TARGET_STAGES와 동일).
+    const TARGET_STAGES_FALLBACK = ['친분', '만남', '상담', '동행교사', '복음방', '센터인도', '센터섬김', '센터교사'];
+    // 전도 대상자 상세 화면 — 단계별 가이드 문구(정확히 지정된 문구)
+    const STAGE_GUIDE = {
+      '친분': '자연스러운 관계를 쌓는 시기예요. 공통 관심사를 찾아보세요',
+      '만남': '정기적인 만남으로 신뢰를 쌓아가세요. 다음 만남 날짜를 잡아두세요',
+      '상담': '마음을 열고 이야기 나눌 수 있는 단계예요. 경청이 중요해요',
+      '동행교사': '함께 활동하며 자연스럽게 신앙을 나눠보세요',
+      '복음방': '복음방 등록을 권유해보세요. 이 단계가 되면 이번 달 열매에 반영됩니다',
+      '센터인도': '센터로 함께 나올 수 있도록 안내해주세요',
+      '센터섬김': '센터 안에서 섬기는 자리를 찾도록 도와주세요',
+      '센터교사': '교사로 세워지는 단계예요. 축하드려요!'
+    };
 
     let home = {
       loading: true,
       error: '',
       tierStatus: null,   // getMyTierStatus 응답
       monthlyStats: { meet: 0, gospel: 0, feedback: 0 },
-      targets: [],        // getTargets rows
-      stages: [],          // TARGET_STAGES(백엔드에서 내려줌)
-      view: 'dashboard',  // 'dashboard' | 'targets'
-      targetsFilter: 'active' // 'active' | 'done' | 'all'
+      targets: [],         // getTargets rows (history 배열 포함)
+      stages: [],           // TARGET_STAGES(백엔드에서 내려줌)
+      view: 'dashboard',   // 'dashboard' | 'targets' | 'targetDetail'
+      targetsFilter: 'active', // 'active' | 'done' | 'all'
+      detailTargetId: null
     };
 
     async function loadHomeDashboard() {
@@ -263,13 +297,20 @@
         home.monthlyStats = computeMonthlyStats((actRes && actRes.rows) || []);
         if (targetRes && !targetRes.error) {
           home.targets = targetRes.rows || [];
-          home.stages = targetRes.stages || ['섭외','만남','상담','복음방'];
+          home.stages = targetRes.stages || TARGET_STAGES_FALLBACK;
+        } else {
+          home.stages = TARGET_STAGES_FALLBACK;
         }
       } catch (e) {
         home.error = String(e);
       }
       home.loading = false;
       renderHome();
+    }
+
+    async function refreshTargets() {
+      const res = await callApi({ action: 'getTargets', memberId });
+      if (res && !res.error) { home.targets = res.rows || []; home.stages = res.stages || home.stages; }
     }
 
     function isThisMonth(dateStr) {
@@ -292,21 +333,62 @@
       return { meet, gospel, feedback };
     }
 
-    // D-day 라벨 — D-n(n일 후 예정), D+n(n일 지남/지연), 오늘/내일/어제는 별도 표기.
+    // 이번 달 "열매"(복음방/센터인도 단계 도달) — 전도대상자이력 기준 이번 달 vs 전월 비교.
+    // 공식 센터인도실적(전도부 등록)과는 완전히 별개인 자체 집계 지표.
+    function computeFruitStats() {
+      const now = new Date();
+      const thisY = now.getFullYear(), thisM = now.getMonth();
+      let lastM = thisM - 1, lastY = thisY;
+      if (lastM < 0) { lastM = 11; lastY -= 1; }
+      let gospelThis = 0, centerThis = 0, gospelLast = 0, centerLast = 0;
+      home.targets.forEach(t => {
+        (t.history || []).forEach(h => {
+          const d = new Date(h.changedAt);
+          if (isNaN(d)) return;
+          const y = d.getFullYear(), m = d.getMonth();
+          const isThis = (y === thisY && m === thisM);
+          const isLast = (y === lastY && m === lastM);
+          if (!isThis && !isLast) return;
+          if (h.toStage === '복음방') { if (isThis) gospelThis++; else gospelLast++; }
+          if (h.toStage === '센터인도') { if (isThis) centerThis++; else centerLast++; }
+        });
+      });
+      return { gospelThis, centerThis, gospelLast, centerLast };
+    }
+
+    // D-day 라벨/색상 — D-3 이내(오늘·내일 포함)=주황, 지남=초록, 없음=회색.
     function ddayInfo(dateStr) {
       if (!dateStr) return { label: '', cls: 'badge-ghost' };
       const target = new Date(dateStr + 'T00:00:00');
       if (isNaN(target.getTime())) return { label: '', cls: 'badge-ghost' };
       const today = new Date(); today.setHours(0,0,0,0);
       const diff = Math.round((target - today) / 86400000);
-      if (diff === 0) return { label: '오늘', cls: 'badge-primary' };
-      if (diff === 1) return { label: '내일', cls: 'badge-success' };
-      if (diff === -1) return { label: '어제', cls: 'badge-warning' };
-      if (diff > 0) return { label: `D-${diff}`, cls: diff <= 3 ? 'badge-warning' : 'badge-ghost' };
-      return { label: `D+${Math.abs(diff)}`, cls: 'badge-error' };
+      if (diff === 0) return { label: '오늘', cls: 'badge-warning' };
+      if (diff === 1) return { label: '내일', cls: 'badge-warning' };
+      if (diff > 1 && diff <= 3) return { label: `D-${diff}`, cls: 'badge-warning' };
+      if (diff > 3) return { label: `D-${diff}`, cls: 'badge-ghost' };
+      if (diff === -1) return { label: '어제', cls: 'badge-success' };
+      return { label: `D+${Math.abs(diff)}`, cls: 'badge-success' };
     }
 
     function stageIndex(stage) { return home.stages.indexOf(stage); }
+
+    // ============ 오늘 만남 알림 배너 ============
+
+    function meetingBannerHtml() {
+      const upcoming = home.targets.filter(t => {
+        const dd = ddayInfo(t.nextMeetingDate);
+        return dd.label === '오늘' || dd.label === '내일';
+      });
+      if (!upcoming.length) return '';
+      const first = upcoming[0];
+      const when = ddayInfo(first.nextMeetingDate).label;
+      const extra = upcoming.length > 1 ? ` 외 ${upcoming.length - 1}명` : '';
+      return `
+        <div class="px-4 py-2.5 text-sm font-bold flex items-center gap-2" style="background:#fef9c3;color:#854d0e;border-bottom:1px solid #fde68a;">
+          🔔 ${esc(when)} ${esc(first.targetName)}님 만남이 있어요${extra}
+        </div>`;
+    }
 
     // ============ 성장 궤도 ============
 
@@ -335,12 +417,16 @@
 
       let calloutHtml = '';
       if (ts && ts.nextTier && ts.leadGoal != null) {
-        const remaining = Math.max(0, ts.leadGoal - (ts.leadCount || 0));
+        const leadCount = ts.leadCount || 0;
+        const remaining = Math.max(0, ts.leadGoal - leadCount);
+        const headline = remaining > 0
+          ? `${esc(ts.nextTier)}까지 복음방 인도 ${remaining}회 남았어요${remaining <= 1 ? ' · 거의 다 왔어요!' : ''}`
+          : `${esc(ts.nextTier)} 승급 조건을 채웠어요! 🎉`;
         calloutHtml = `
-          <div class="alert bg-info/10 border border-info/30 mt-4 items-start">
+          <div class="alert bg-info/10 border border-info/30 mt-4 items-start cursor-pointer" onclick="openGrowthModal()">
             <div class="flex-1">
-              <div class="font-bold text-info text-sm">${remaining > 0 ? `${esc(ts.nextTier)}까지 복음방 인도 ${remaining}회 남았어요` : `${esc(ts.nextTier)} 승급 조건을 채웠어요! 🎉`}</div>
-              <div class="text-xs text-base-content/50 mt-0.5">최근 6개월 센터 인도 ${ts.leadCount || 0} / ${ts.leadGoal}회</div>
+              <div class="font-bold text-info text-sm">${headline}</div>
+              <div class="text-xs text-base-content/50 mt-0.5">최근 6개월 센터 인도 ${leadCount}회 달성했어요! (목표 ${ts.leadGoal}회)</div>
             </div>
             <span class="text-info">›</span>
           </div>`;
@@ -353,6 +439,70 @@
           <div class="text-sm font-bold text-base-content mb-3">내 성장 궤도</div>
           <div class="flex items-start">${stepsHtml}</div>
           ${calloutHtml}
+        </div>
+      `;
+    }
+
+    function conditionRowHtml(label, count, goal, desc) {
+      const done = goal > 0 && count >= goal;
+      return `
+        <div class="flex items-center gap-3 p-3 rounded-box ${done ? 'bg-success/10' : 'bg-base-200'}">
+          <div class="text-xl">${done ? '✅' : '⬜'}</div>
+          <div class="flex-1">
+            <div class="text-sm font-bold">${esc(label)}</div>
+            <div class="text-xs text-base-content/50">${esc(desc)}</div>
+          </div>
+          <div class="text-sm font-black ${done ? 'text-success' : 'text-base-content/60'}">${count}/${goal}${done ? ' 달성!' : ''}</div>
+        </div>`;
+    }
+
+    function openGrowthModal() {
+      const ts = home.tierStatus;
+      const body = document.getElementById('growthModalBody');
+      if (!ts || !ts.nextTier) {
+        body.innerHTML = `<div class="text-sm text-base-content/60">축하드려요! 이미 최고 등급이에요 🎉</div>`;
+        document.getElementById('growthModal').showModal();
+        return;
+      }
+      const rows = [];
+      if (ts.leadGoal != null) {
+        rows.push(conditionRowHtml('복음방 · 센터 인도', ts.leadCount || 0, ts.leadGoal, `최근 6개월 ${ts.leadGoal}회 이상`));
+      }
+      if (ts.monthlyGoal != null) {
+        rows.push(conditionRowHtml('이번 달 활동', ts.monthlyCount || 0, ts.monthlyGoal, `이번 달 ${ts.monthlyGoal}회 이상`));
+      }
+      body.innerHTML = `
+        <div class="text-sm text-base-content/60 mb-3">${esc(ts.nextTier)} 승급까지 필요한 조건이에요. 하나씩 달성해봐요!</div>
+        <div class="flex flex-col gap-2">${rows.join('') || '<div class="text-xs text-base-content/40">조건 정보가 없습니다.</div>'}</div>
+      `;
+      document.getElementById('growthModal').showModal();
+    }
+    function closeGrowthModal() {
+      document.getElementById('growthModal').close();
+    }
+
+    // ============ 이번 달 열매 (가장 눈에 띄는 초록 카드) ============
+
+    function fruitCardHtml() {
+      const f = computeFruitStats();
+      const totalThis = f.gospelThis + f.centerThis;
+      const totalLast = f.gospelLast + f.centerLast;
+      const isBest = totalThis > 0 && totalThis > totalLast;
+      return `
+        <div class="mx-4 rounded-box p-5 shadow-sm" style="background:linear-gradient(135deg,#059669,#10b981); color:#fff;">
+          <div class="text-sm font-bold text-white/85 mb-3">🌟 이번 달 열매</div>
+          <div class="flex gap-4 mb-1">
+            <div class="flex-1">
+              <div class="text-3xl font-black">${f.gospelThis}<span class="text-sm font-normal">명</span></div>
+              <div class="text-xs text-white/70 mt-0.5">복음방 인도</div>
+            </div>
+            <div class="flex-1">
+              <div class="text-3xl font-black">${f.centerThis}<span class="text-sm font-normal">명</span></div>
+              <div class="text-xs text-white/70 mt-0.5">센터 인도</div>
+            </div>
+          </div>
+          ${isBest ? `<div class="text-xs font-bold rounded-full px-3 py-1 inline-block mt-2" style="background:rgba(255,255,255,0.22)">🎉 이번 달 최고 기록이에요!</div>` : ''}
+          <div class="text-[11px] text-white/65 mt-3 leading-relaxed">전도 대상자가 이 단계에 도달하면 교사 성장 궤도의 승급 조건에도 연결돼요<br>(공식 센터 인도 실적은 전도부에서 별도로 확인 후 반영돼요)</div>
         </div>
       `;
     }
@@ -380,32 +530,12 @@
       `;
     }
 
-    // ============ 전도 대상자 (대시보드용 미리보기 2건 + 전체 화면) ============
+    // ============ 전도 대상자 카드(미리보기/목록 공용) ============
 
-    function targetCardHtml(t, opts) {
-      opts = opts || {};
-      const dd = ddayInfo(t.nextMeetingDate);
-      const initial = (t.targetName || '?').slice(0, 1);
-      const avatarColors = ['bg-warning/20 text-warning', 'bg-info/20 text-info', 'bg-accent/20 text-accent', 'bg-secondary/20 text-secondary'];
-      const colorCls = avatarColors[Math.abs(hashCode(t.targetId)) % avatarColors.length];
-      const stageLabel = t.stage === '복음방' ? '복음방 인도 완료' : `${esc(t.stage)} 단계`;
-
-      return `
-        <div class="card card-border bg-base-100 shadow-sm mb-2">
-          <div class="card-body p-3">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full ${colorCls} flex items-center justify-center font-bold shrink-0">${esc(initial)}</div>
-              <div class="flex-1 min-w-0">
-                <div class="font-bold text-sm truncate">${esc(t.targetName)}</div>
-                <div class="text-xs text-base-content/50 truncate">${stageLabel}</div>
-              </div>
-              ${dd.label ? `<span class="badge ${dd.cls} badge-sm shrink-0">${dd.label}</span>` : ''}
-              ${opts.showRecordLink ? `<button class="btn-target-record link link-primary text-xs shrink-0" data-id="${esc(t.targetId)}">기록 ›</button>` : ''}
-            </div>
-            ${opts.showStageBar ? targetStageBarHtml(t) : ''}
-          </div>
-        </div>
-      `;
+    function hashCode(s) {
+      let h = 0;
+      for (let i = 0; i < (s || '').length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
+      return h;
     }
 
     function targetStageBarHtml(t) {
@@ -416,30 +546,49 @@
           <div class="flex items-center gap-1 mb-1">
             ${home.stages.map((s, i) => `<div class="h-1.5 flex-1 rounded-full ${i <= idx ? 'bg-success' : 'bg-base-300'}"></div>`).join('')}
           </div>
-          <div class="flex items-center justify-between text-[10px] text-base-content/40">
+          <div class="flex items-center justify-between text-[9px] text-base-content/40">
             ${home.stages.map((s, i) => `<span class="${i === idx ? 'font-bold text-success' : ''}">${esc(s)}</span>`).join('')}
           </div>
         </div>
       `;
     }
 
-    function hashCode(s) {
-      let h = 0;
-      for (let i = 0; i < (s || '').length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
-      return h;
+    function targetCardHtml(t) {
+      const dd = ddayInfo(t.nextMeetingDate);
+      const initial = (t.targetName || '?').slice(0, 1);
+      const avatarColors = ['bg-warning/20 text-warning', 'bg-info/20 text-info', 'bg-accent/20 text-accent', 'bg-secondary/20 text-secondary'];
+      const colorCls = avatarColors[Math.abs(hashCode(t.targetId)) % avatarColors.length];
+
+      return `
+        <div class="card card-border bg-base-100 shadow-sm mb-2 cursor-pointer active:scale-[0.99] transition" onclick="openTargetDetail('${esc(t.targetId)}')">
+          <div class="card-body p-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full ${colorCls} flex items-center justify-center font-bold shrink-0">${esc(initial)}</div>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm truncate">${esc(t.targetName)}</div>
+                <div class="text-xs text-base-content/50 truncate">${esc(t.stage)} 단계</div>
+              </div>
+              ${dd.label ? `<span class="badge ${dd.cls} badge-sm shrink-0">${dd.label}</span>` : ''}
+              <span class="text-base-content/30 text-xs shrink-0">기록 ›</span>
+            </div>
+            ${targetStageBarHtml(t)}
+          </div>
+        </div>
+      `;
     }
 
     function targetsPreviewSectionHtml() {
-      const preview = home.targets.slice(0, 2);
+      const active = home.targets.filter(t => !t.completed);
+      const preview = active.slice(0, 2);
       return `
         <div class="px-4">
           <div class="flex items-center justify-between mb-3">
             <div class="text-sm font-bold text-base-content">전도 대상자</div>
-            <button class="link link-primary text-xs font-bold" onclick="openTargetsView()">+ 추가</button>
+            <button class="link link-primary text-xs font-bold" onclick="openAddTargetModal()">+ 추가</button>
           </div>
           ${preview.length === 0
             ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">아직 등록된 전도 대상자가 없습니다.</div>`
-            : preview.map(t => targetCardHtml(t, { showRecordLink: false, showStageBar: false })).join('')}
+            : preview.map(t => targetCardHtml(t)).join('')}
           ${home.targets.length > 0 ? `<button class="btn btn-ghost btn-xs w-full mt-1" onclick="openTargetsView()">전체 ${home.targets.length}명 보기 ›</button>` : ''}
         </div>
       `;
@@ -450,11 +599,12 @@
     function homeHeaderHtml() {
       const ts = home.tierStatus;
       const tier = ts ? ts.tier : '';
+      const pillColor = TIER_COLORS[tier] || '#9ca3af';
       return `
         <div class="home-hero text-white p-5 pb-6">
           <div class="text-sm text-white/60 mb-1">안녕하세요</div>
           <div class="text-2xl font-bold mb-3">${esc(name)}${name.endsWith('님') ? '' : '님'}</div>
-          ${tier ? `<span class="badge ${TIER_BADGE[tier] || 'badge-ghost'} badge-lg gap-1">${TIER_DOT[tier] || ''} ${esc(tier)}</span>` : ''}
+          ${tier ? `<span class="badge badge-lg border-none text-white" style="background:${pillColor}">${esc(tier)}</span>` : ''}
         </div>
       `;
     }
@@ -468,13 +618,15 @@
       }
       return `
         ${homeHeaderHtml()}
+        ${meetingBannerHtml()}
         <div class="py-4 flex flex-col gap-5">
           <div class="card card-border bg-base-100 shadow-sm mx-4">${growthTrackHtml()}</div>
+          ${fruitCardHtml()}
           ${monthlyStatsHtml()}
           ${targetsPreviewSectionHtml()}
         </div>
         <div class="sticky bottom-0 p-3 bg-base-100 border-t border-base-300 mt-2">
-          <button class="btn btn-outline btn-block" onclick="switchTab('activity', document.querySelector('.tab[data-room=activity]'))">+ 오늘 활동 기록하기</button>
+          <button class="btn btn-outline btn-block" onclick="openTargetsView()">+ 오늘 활동 기록하기</button>
         </div>
       `;
     }
@@ -482,18 +634,15 @@
     function targetsViewHtml() {
       const filter = home.targetsFilter;
       const filtered = home.targets.filter(t => {
-        if (filter === 'active') return t.stage !== '복음방';
-        if (filter === 'done') return t.stage === '복음방';
+        if (filter === 'active') return !t.completed;
+        if (filter === 'done') return t.completed;
         return true;
       });
-      const activeCount = home.targets.filter(t => t.stage !== '복음방').length;
-      const doneCount = home.targets.filter(t => t.stage === '복음방').length;
+      const activeCount = home.targets.filter(t => !t.completed).length;
+      const doneCount = home.targets.filter(t => t.completed).length;
 
       const filterBtn = (key, label) => `
         <button class="btn btn-sm ${filter === key ? 'btn-primary' : 'btn-outline'}" onclick="setTargetsFilter('${key}')">${label}</button>`;
-
-      // 이번 달 "복음방" 단계로 갱신된 대상자 수(공식 센터인도실적과는 별개 지표임을 명시).
-      const fruitThisMonth = home.targets.filter(t => t.stage === '복음방' && isThisMonth(t.updatedAt)).length;
 
       return `
         <div class="home-hero text-white p-5">
@@ -508,26 +657,100 @@
         <div class="px-4 pb-24">
           ${filtered.length === 0
             ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-8 text-center">해당하는 대상자가 없습니다.</div>`
-            : filtered.map(t => targetCardHtml(t, { showRecordLink: true, showStageBar: true })).join('')}
+            : filtered.map(t => targetCardHtml(t)).join('')}
           <button class="btn btn-outline btn-block mt-3" onclick="openAddTargetModal()">👤➕ 새 대상자 추가</button>
-          ${fruitThisMonth > 0 ? `
-            <div class="alert bg-success/10 border border-success/30 mt-4">
-              <div>
-                <div class="font-bold text-success text-sm">이번 달 열매</div>
-                <div class="text-xs text-base-content/60 mt-0.5">전도 대상자 중 복음방 단계 도달 ${fruitThisMonth}명 (공식 센터 인도 실적과는 별개 기록입니다)</div>
-              </div>
-            </div>` : ''}
+        </div>
+      `;
+    }
+
+    // ============ 전도 대상자 상세(관리 일지) 화면 ============
+
+    function historyRowHtml(h) {
+      return `
+        <div class="flex gap-3 pb-3 mb-3 border-b border-base-200 last:border-0 last:pb-0 last:mb-0">
+          <div class="text-[11px] text-base-content/40 w-24 shrink-0 leading-tight">${esc(h.changedAt)}</div>
+          <div class="flex-1 text-sm">
+            ${h.fromStage ? `<span class="text-base-content/40">${esc(h.fromStage)}</span> → ` : ''}<span class="font-bold">${esc(h.toStage)}</span>
+            ${h.memo ? `<div class="text-xs text-base-content/50 mt-0.5">${esc(h.memo)}</div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    function targetDetailViewHtml() {
+      const t = home.targets.find(x => x.targetId === home.detailTargetId);
+      if (!t) {
+        return `
+          <div class="home-hero text-white p-5">
+            <button class="text-white/70 text-sm" onclick="closeTargetDetail()">‹ 전도 대상자</button>
+          </div>
+          <div class="p-6 text-center text-sm text-base-content/40">대상자를 찾을 수 없습니다.</div>`;
+      }
+      const idx = stageIndex(t.stage);
+      const isLast = idx >= 0 && idx === home.stages.length - 1;
+      const nextStage = (!isLast && idx >= 0) ? home.stages[idx + 1] : null;
+      const guide = STAGE_GUIDE[t.stage] || '';
+      const historyHtml = (t.history && t.history.length)
+        ? t.history.map(historyRowHtml).join('')
+        : `<div class="text-xs text-base-content/40 text-center py-4">이력이 없습니다.</div>`;
+
+      let actionHtml;
+      if (t.completed) {
+        actionHtml = `<div class="text-center text-sm text-base-content/40 py-2">✅ 완료된 대상자입니다</div>`;
+      } else if (isLast) {
+        actionHtml = `<button class="btn btn-success btn-block" onclick="completeTarget()">완료 처리</button>`;
+      } else if (nextStage) {
+        actionHtml = `<button class="btn btn-primary btn-block" onclick="advanceTargetStage()">다음 단계로 이동 → ${esc(nextStage)}</button>`;
+      } else {
+        actionHtml = '';
+      }
+
+      return `
+        <div class="home-hero text-white p-5">
+          <button class="text-white/70 text-sm mb-2" onclick="closeTargetDetail()">‹ 전도 대상자</button>
+          <div class="text-xl font-bold">${esc(t.targetName)}</div>
+          ${t.completed ? `<span class="badge badge-success badge-sm mt-2">완료</span>` : ''}
+        </div>
+        <div class="p-4 flex flex-col gap-4 pb-8">
+          <div class="card bg-base-100 card-border shadow-sm">
+            <div class="card-body p-4 items-center text-center">
+              <div class="text-xs text-base-content/40 mb-1">현재 단계</div>
+              <div class="text-3xl font-black text-primary mb-2">${esc(t.stage)}</div>
+              ${targetStageBarHtml(t)}
+            </div>
+          </div>
+
+          <div class="alert bg-info/10 border border-info/30">
+            <div class="text-sm">${esc(guide)}</div>
+          </div>
+          ${t.stage === '복음방' ? `<div class="alert bg-success/10 border border-success/30"><div class="text-sm font-bold text-success">🌱 이번 달 열매에 반영되었어요</div></div>` : ''}
+
+          <div class="card bg-base-100 card-border shadow-sm">
+            <div class="card-body p-4">
+              <div class="text-sm font-bold mb-2">다음 만남 날짜</div>
+              <input type="date" id="detail-date" class="input input-bordered input-sm w-full mb-3" value="${esc(t.nextMeetingDate || '')}" />
+              <div class="text-sm font-bold mb-2">메모 <span class="text-xs text-base-content/40 font-normal">(특성 간단히)</span></div>
+              <textarea id="detail-memo" rows="3" class="textarea textarea-bordered textarea-sm w-full">${esc(t.memo || '')}</textarea>
+              <button class="btn btn-outline btn-sm mt-3" onclick="saveTargetDetailFields()">저장</button>
+            </div>
+          </div>
+
+          <div class="card bg-base-100 card-border shadow-sm">
+            <div class="card-body p-4">
+              <div class="text-sm font-bold mb-3">단계 변경 이력</div>
+              ${historyHtml}
+            </div>
+          </div>
+
+          ${actionHtml}
         </div>
       `;
     }
 
     function renderHome() {
       const root = document.getElementById('homeContent');
-      root.innerHTML = home.view === 'targets' ? targetsViewHtml() : dashboardViewHtml();
-
-      document.querySelectorAll('.btn-target-record').forEach(btn => {
-        btn.onclick = () => openEditTargetModal(btn.dataset.id);
-      });
+      if (home.view === 'targets') root.innerHTML = targetsViewHtml();
+      else if (home.view === 'targetDetail') root.innerHTML = targetDetailViewHtml();
+      else root.innerHTML = dashboardViewHtml();
     }
 
     function openTargetsView() {
@@ -543,42 +766,76 @@
       home.targetsFilter = key;
       renderHome();
     }
+    function openTargetDetail(targetId) {
+      home.view = 'targetDetail';
+      home.detailTargetId = targetId;
+      renderHome();
+    }
+    function closeTargetDetail() {
+      home.view = 'targets';
+      renderHome();
+    }
 
-    // ============ 대상자 추가/수정 모달 ============
+    async function advanceTargetStage() {
+      const t = home.targets.find(x => x.targetId === home.detailTargetId);
+      if (!t) return;
+      const idx = stageIndex(t.stage);
+      const next = home.stages[idx + 1];
+      if (!next) return;
+      try {
+        const res = await callApi({ action: 'updateTarget', memberId, targetId: t.targetId, stage: next });
+        if (res && res.error) throw new Error(res.error);
+        await refreshTargets();
+        renderHome();
+      } catch (e) {
+        alert('단계 변경 중 오류가 발생했습니다: ' + e.message);
+      }
+    }
 
-    let targetModalMode = 'add'; // 'add' | 'edit'
-    let targetModalEditId = null;
+    async function completeTarget() {
+      const t = home.targets.find(x => x.targetId === home.detailTargetId);
+      if (!t) return;
+      try {
+        const res = await callApi({ action: 'updateTarget', memberId, targetId: t.targetId, completed: true });
+        if (res && res.error) throw new Error(res.error);
+        await refreshTargets();
+        home.view = 'targets';
+        home.targetsFilter = 'done';
+        renderHome();
+      } catch (e) {
+        alert('완료 처리 중 오류가 발생했습니다: ' + e.message);
+      }
+    }
+
+    async function saveTargetDetailFields() {
+      const t = home.targets.find(x => x.targetId === home.detailTargetId);
+      if (!t) return;
+      const nextMeetingDate = document.getElementById('detail-date').value;
+      const memo = document.getElementById('detail-memo').value.trim();
+      try {
+        const res = await callApi({ action: 'updateTarget', memberId, targetId: t.targetId, nextMeetingDate, memo });
+        if (res && res.error) throw new Error(res.error);
+        await refreshTargets();
+        renderHome();
+      } catch (e) {
+        alert('저장 중 오류가 발생했습니다: ' + e.message);
+      }
+    }
+
+    // ============ 새 대상자 추가 모달 ============
 
     function fillStageSelect() {
       const sel = document.getElementById('tm-stage');
-      sel.innerHTML = (home.stages.length ? home.stages : ['섭외','만남','상담','복음방'])
+      sel.innerHTML = (home.stages.length ? home.stages : TARGET_STAGES_FALLBACK)
         .map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
     }
 
     function openAddTargetModal() {
-      targetModalMode = 'add';
-      targetModalEditId = null;
-      document.getElementById('targetModalTitle').textContent = '새 대상자 추가';
       fillStageSelect();
       document.getElementById('tm-name').value = '';
+      document.getElementById('tm-stage').value = (home.stages[0] || TARGET_STAGES_FALLBACK[0]);
       document.getElementById('tm-date').value = '';
       document.getElementById('tm-memo').value = '';
-      document.getElementById('tm-name').disabled = false;
-      document.getElementById('targetModal').showModal();
-    }
-
-    function openEditTargetModal(targetId) {
-      const t = home.targets.find(x => x.targetId === targetId);
-      if (!t) return;
-      targetModalMode = 'edit';
-      targetModalEditId = targetId;
-      document.getElementById('targetModalTitle').textContent = `${t.targetName} — 기록`;
-      fillStageSelect();
-      document.getElementById('tm-name').value = t.targetName;
-      document.getElementById('tm-name').disabled = true; // 이름은 등록 후 수정 불가(간단화)
-      document.getElementById('tm-stage').value = t.stage;
-      document.getElementById('tm-date').value = t.nextMeetingDate || '';
-      document.getElementById('tm-memo').value = t.memo || '';
       document.getElementById('targetModal').showModal();
     }
 
@@ -586,26 +843,20 @@
       document.getElementById('targetModal').close();
     }
 
-    async function submitTargetModal() {
+    async function submitAddTarget() {
       const btn = document.getElementById('tm-submit');
+      const targetName = document.getElementById('tm-name').value.trim();
       const stage = document.getElementById('tm-stage').value;
       const nextMeetingDate = document.getElementById('tm-date').value;
       const memo = document.getElementById('tm-memo').value.trim();
+      if (!targetName) { alert('대상자 이름을 입력해주세요.'); return; }
 
       btn.disabled = true; btn.textContent = '저장 중...';
       try {
-        if (targetModalMode === 'add') {
-          const targetName = document.getElementById('tm-name').value.trim();
-          if (!targetName) { alert('대상자 이름을 입력해주세요.'); btn.disabled = false; btn.textContent = '저장'; return; }
-          const res = await callApi({ action: 'addTarget', memberId, name, targetName, stage, nextMeetingDate, memo });
-          if (res && res.error) throw new Error(res.error);
-        } else {
-          const res = await callApi({ action: 'updateTarget', memberId, targetId: targetModalEditId, stage, nextMeetingDate, memo });
-          if (res && res.error) throw new Error(res.error);
-        }
+        const res = await callApi({ action: 'addTarget', memberId, name, targetName, stage, nextMeetingDate, memo });
+        if (res && res.error) throw new Error(res.error);
         closeTargetModal();
-        const res2 = await callApi({ action: 'getTargets', memberId });
-        if (res2 && !res2.error) { home.targets = res2.rows || []; home.stages = res2.stages || home.stages; }
+        await refreshTargets();
         renderHome();
       } catch (e) {
         alert('저장 중 오류가 발생했습니다: ' + e.message);
