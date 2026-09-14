@@ -207,6 +207,15 @@
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
       });
+      // 2026-09-16: Apps Script가 간헐적으로 JSON 대신 HTML(구글 로그인/오류 페이지 등)을
+      // 반환하는 경우가 있어(GitHub Pages에서 열 때 신고됨) — 그대로 res.json()을 부르면
+      // "Unexpected token '<'..." 같은 알아보기 힘든 파싱 에러가 던져지므로, Content-Type을
+      // 먼저 확인해서 사람이 읽는 메시지로 통일한다. 호출부는 기존 try/catch(e.message 표시)를
+      // 그대로 쓰면 되므로 이 함수만 고치면 됨.
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        throw new Error('서버 연결 오류. 잠시 후 다시 시도해주세요.');
+      }
       return await res.json();
     }
     function esc(s) {
