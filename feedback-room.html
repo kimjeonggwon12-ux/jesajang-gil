@@ -29,6 +29,10 @@
 const urlParams = new URLSearchParams(window.location.search);
 const paramMemberId = urlParams.get('memberId');
 const paramName = urlParams.get('name');
+// home.html 활동방 "AI코칭 바로가기 →" 에서 넘어온 경우(2026-09-14) — 대상자 단계/상황을
+// "내 수강생 코칭" 탭에 자동으로 채워준다. STAGE_OPTIONS(아래 정의) 중 하나여야 반영됨.
+const paramHeartsStage = urlParams.get('heartsStage');
+const paramSituation = urlParams.get('situation');
 if (paramMemberId && paramName) {
   window.TEST_MEMBER_ID = paramMemberId;
   window.TEST_NAME = paramName;
@@ -1157,6 +1161,14 @@ function renderCoachModeTab(body) {
       };
     });
   }
+}
+
+// home.html 활동방 "AI코칭 바로가기 →" 로 넘어온 경우 — "내 수강생 코칭" 탭으로 바로 이동하고
+// 대상자 단계(하츠 진행 단계)/상황(이름 마스킹+특이사항+오늘 한 일)을 자동으로 채워준다.
+if (paramHeartsStage || paramSituation) {
+  state.tab = 'studentCoach';
+  if (paramHeartsStage && STAGE_OPTIONS.includes(paramHeartsStage)) state.sc.stage = paramHeartsStage;
+  if (paramSituation) state.sc.situationText = paramSituation;
 }
 
 render();
