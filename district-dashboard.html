@@ -52,6 +52,7 @@ let state = {
   cache: {},        // dept → getDistrictReport(region:'') 응답 (부서 전체 데이터를 한 번만 받아 캐시)
   regionView: 'table',   // 'table' | 'chart' — 지역별 상세 섹션 표시 방식
   activityView: 'table', // 'table' | 'chart' — 지역별 활동 분석 섹션 표시 방식
+  roleActivityView: 'table', // 'table' | 'chart' — 지역별 인섬교(인도자·섬김이·교사) 활동 섹션 표시 방식
   teacherDetailOpen: false, // 교사별 상세(지역 필터+표) 접기/펼치기 — 기본 접힘
   pendingOnly: false // true면 교사별 상세 표를 "승급·강등 제안 있는 교사만"으로 좁혀서 보여줌
 };
@@ -171,9 +172,16 @@ function switchRegion(region) {
   render(); // 이미 캐시된 부서 전체 데이터에서 클라이언트 필터링만 하면 되므로 재요청 불필요
 }
 
-async function approve(t) {
-  const key = t.memberId + '::' + t.suggestion.suggestedTier;
-  if (!confirm(`${t.name} 교사를 "${t.suggestion.suggestedTier}"(으)로 변경 승인하시겠습니까?\n\n등급변경승인 시트에 기록되며, 지역장·교관 등 다른 승인자와 합쳐 2인이 되면 즉시 반영됩니다.`)) return;
+// 2026-09-15: "2인 승인"(먼저 누른 사람이 1번) → 교관/지역장 전용 칸으로 분리(사용자 요청 —
+// "승인자는 여전히 지역장과 교관이 하게끔 하고, 교관허가·지역장허가 칸을 별도로 해서 각각의
+// 사람이 누르게 해줘"). role='coach'|'leader' 고정 칸이라 같은 칸은 다시 눌러도 덮어쓸 뿐 중복
+// 카운트되지 않는다. 실제 승인자 이름은 그 자리에서 입력받는다(로그인 분리가 없는 관리자 화면이라).
+async function approveAs(t, role) {
+  const roleLabel = role === 'coach' ? '교관' : '지역장';
+  const approverName = prompt(`${roleLabel} 성함을 입력해주세요.`, '');
+  if (!approverName || !approverName.trim()) return;
+  const key = t.memberId + '::' + t.suggestion.suggestedTier + '::' + role;
+  if (!confirm(`${t.name} 교사를 "${t.suggestion.suggestedTier}"(으)로 변경하는 데 ${roleLabel}(${approverName.trim()})으로 허가하시겠습니까?`)) return;
   state.approving[key] = true;
   render();
   try {
@@ -185,21 +193,21 @@ async function approve(t) {
       suggestedTier: t.suggestion.suggestedTier,
       reason: t.suggestion.reason,
       type: t.suggestion.pendingType || 'auto',
-      approver: '관리자(부서별 교사 관리)'
+      approver: approverName.trim(),
+      role: role
     });
     if (res && res.error) {
-      alert('승인 실패: ' + res.error);
+      alert('허가 실패: ' + res.error);
     } else if (res && res.applied) {
-      alert(`2인 승인 완료 — ${t.name} 교사가 "${t.suggestion.suggestedTier}"(으)로 변경되었습니다.`);
-    } else if (res && res.note) {
-      alert(res.note);
+      alert(`교관·지역장 허가 완료 — ${t.name} 교사가 "${t.suggestion.suggestedTier}"(으)로 변경되었습니다.`);
     } else {
-      alert(`승인 접수 완료 (현재 ${(res && res.approvalCount) || 1}/2). 1명 더 승인하면 반영됩니다.`);
+      const otherLabel = role === 'coach' ? '지역장' : '교관';
+      alert(`${roleLabel} 허가 접수 완료. ${otherLabel} 허가가 더 필요합니다.`);
     }
     delete state.cache[state.dept];
     await loadReport(true);
   } catch (e) {
-    alert('승인 중 오류가 발생했습니다: ' + e);
+    alert('허가 중 오류가 발생했습니다: ' + e);
   }
   delete state.approving[key];
   render();
@@ -407,7 +415,7 @@ function renderRegionCharts(byRegion) {
 
 // ============ 2026-09-14: 홈+활동방 통합 개편 — 역할별 활동 건수 + 전도 대상자 단계별 현황 ============
 // 둘 다 getDistrictReport_ 응답에 이미 계산되어 내려옴(roleActivityCounts, targetStageCounts) — 별도 API 호출 없음.
-const TARGET_STAGES_DASH = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개'];
+const TARGET_STAGES_DASH = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
 
 function roleActivitySectionHtml(byRegion, roleActivityCounts) {
   if (!byRegion || byRegion.length === 0) return '';
@@ -603,6 +611,204 @@ function activityAnalysisSectionHtml(analysis) {
   `;
 }
 
+// ============ 2026-09-15 후속: 지역별 인섬교(인도자·섬김이·교사) 활동 표+그래프 ============
+// 위 roleActivitySectionHtml(역할별 총 건수 3박스+지역별 표)은 역할별 "총 건수"만 보여줌 —
+// 사용자가 "역할 3파트 × 11개 활동 항목별 건수/비율까지 지역별로 펼쳐서" 요청해서 신설.
+// 활동방(home.html) 신규 역할기반 기록(roles+activityItem)만 대상 — roles가 비어있는 옛 방식
+// 기록(activity-room.html 시절)은 이 표에서 제외(그건 아래 "지역별 활동 분석"이 계속 담당).
+const ROLE_PARTS_DASH = ['인도자', '섬김이', '교사'];
+const ROLE_ACTIVITY_ITEMS_DASH = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '동행교사', '센터소개', '센터수강'];
+
+// report: 현재 부서의 getDistrictReport 캐시(allActivities는 buildActivityAnalysis와 동일 전역 캐시 재사용).
+function buildRoleActivityBreakdown(report) {
+  if (!report || !allActivities) return null;
+  const regionOf = {};
+  report.rows.forEach(r => { regionOf[String(r.memberId).trim()] = r.region || ''; });
+
+  const counts = {}; // counts[region][role][item] = count
+  const itemGrandTotal = {};
+  let grandTotal = 0;
+
+  allActivities.forEach(a => {
+    const region = regionOf[String(a.memberId).trim()];
+    if (region === undefined) return; // 이 부서 소속 교사가 아님
+    if (!isThisMonth(a.submittedAt)) return;
+    const roles = (a.roles || []).filter(r => ROLE_PARTS_DASH.includes(r));
+    if (!roles.length) return; // 옛 방식 기록(역할 없음)은 이 표 대상 아님
+    roles.forEach(role => {
+      (a.activities || []).forEach(item => {
+        if (!item) return;
+        if (!counts[region]) counts[region] = {};
+        if (!counts[region][role]) counts[region][role] = {};
+        counts[region][role][item] = (counts[region][role][item] || 0) + 1;
+        itemGrandTotal[item] = (itemGrandTotal[item] || 0) + 1;
+        grandTotal++;
+      });
+    });
+  });
+
+  const allRegions = report.byRegion.map(r => r.region);
+
+  const regionRoleTotal = {}; // regionRoleTotal[region][role] = 그 지역·역할의 활동 총 건수(그래프1용)
+  const regionItemTotal = {}; // regionItemTotal[region][item] = 역할 무관 그 지역·항목 총 건수(그래프2용)
+  allRegions.forEach(region => {
+    regionRoleTotal[region] = {};
+    regionItemTotal[region] = {};
+    ROLE_PARTS_DASH.forEach(role => {
+      const m = (counts[region] && counts[region][role]) || {};
+      regionRoleTotal[region][role] = Object.values(m).reduce((s, v) => s + v, 0);
+    });
+    ROLE_ACTIVITY_ITEMS_DASH.forEach(item => {
+      let sum = 0;
+      ROLE_PARTS_DASH.forEach(role => { sum += ((counts[region] && counts[region][role] && counts[region][role][item]) || 0); });
+      regionItemTotal[region][item] = sum;
+    });
+  });
+
+  return { counts, allRegions, regionRoleTotal, regionItemTotal, itemGrandTotal, grandTotal };
+}
+
+function roleActivityBreakdownTableHtml(b) {
+  if (!b || b.grandTotal === 0) {
+    return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">이번 달 역할기반 활동 기록(활동방 신규 등록)이 없습니다.</div>`;
+  }
+  const regions = b.allRegions;
+  const totalRow = {};
+  ROLE_PARTS_DASH.forEach(role => { totalRow[role] = {}; ROLE_ACTIVITY_ITEMS_DASH.forEach(item => { totalRow[role][item] = 0; }); });
+  regions.forEach(region => {
+    ROLE_PARTS_DASH.forEach(role => {
+      ROLE_ACTIVITY_ITEMS_DASH.forEach(item => {
+        totalRow[role][item] += (b.counts[region] && b.counts[region][role] && b.counts[region][role][item]) || 0;
+      });
+    });
+  });
+  const totalRoleSum = {};
+  ROLE_PARTS_DASH.forEach(role => { totalRoleSum[role] = Object.values(totalRow[role]).reduce((s, v) => s + v, 0); });
+
+  // 각 역할 그룹 첫 칸은 "합계"(그 지역·역할의 전체 건수, %는 의미 없어 생략) + 이어서 11개 항목(건수/비율).
+  const dataCell = (count, denom, first) => `<td class="text-[10px] whitespace-nowrap ${first ? 'border-l border-base-300' : ''}">${count}건 <span class="text-base-content/40">(${pct(count, denom)}%)</span></td>`;
+  const sumCell = (count) => `<td class="text-[10px] whitespace-nowrap font-bold border-l border-base-300">${count}건</td>`;
+  const roleColspan = ROLE_ACTIVITY_ITEMS_DASH.length + 1; // 합계 1칸 + 항목 11칸
+
+  return `
+    <div class="overflow-x-auto border border-base-300 rounded-box">
+      <table class="table table-zebra table-xs">
+        <thead class="sticky top-0 bg-base-100">
+          <tr>
+            <th rowspan="2" class="align-bottom">지역</th>
+            ${ROLE_PARTS_DASH.map(role => `<th colspan="${roleColspan}" class="text-center border-l border-base-300">${esc(role)}</th>`).join('')}
+          </tr>
+          <tr>
+            ${ROLE_PARTS_DASH.map(() => `<th class="whitespace-nowrap font-bold text-[9px] border-l border-base-300">합계</th>` + ROLE_ACTIVITY_ITEMS_DASH.map(item => `<th class="whitespace-nowrap font-normal text-[9px]">${esc(item)}</th>`).join('')).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${regions.map(region => `
+            <tr>
+              <td class="font-medium">${esc(region)}</td>
+              ${ROLE_PARTS_DASH.map(role => sumCell(b.regionRoleTotal[region][role]) + ROLE_ACTIVITY_ITEMS_DASH.map(item => {
+                const c = (b.counts[region] && b.counts[region][role] && b.counts[region][role][item]) || 0;
+                return dataCell(c, b.regionRoleTotal[region][role], false);
+              }).join('')).join('')}
+            </tr>`).join('')}
+          <tr class="font-bold bg-base-200">
+            <td>합계</td>
+            ${ROLE_PARTS_DASH.map(role => sumCell(totalRoleSum[role]) + ROLE_ACTIVITY_ITEMS_DASH.map(item => dataCell(totalRow[role][item], totalRoleSum[role], false)).join('')).join('')}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function roleActivityBreakdownChartsHtml(b) {
+  const h = chartHeight(b.allRegions.length);
+  return `
+    <div class="flex flex-col gap-3">
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-3">
+          <div class="text-xs font-medium text-base-content/60 mb-2">📊 지역별 3파트 활동 비교 (인도자·섬김이·교사, 묶음 막대)</div>
+          <div style="height:${h}px"><canvas id="chart-role-parts"></canvas></div>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-3">
+          <div class="text-xs font-medium text-base-content/60 mb-2">📊 지역별 11개 항목 강세 비교 (역할 무관 합산, 누적 막대)</div>
+          <div style="height:${h}px"><canvas id="chart-role-items"></canvas></div>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100 shadow-sm">
+        <div class="card-body p-3">
+          <div class="text-xs font-medium text-base-content/60 mb-2">📊 항목별 전체 비율 (전 지역·전 역할 합산)</div>
+          <div style="height:${chartHeight(ROLE_ACTIVITY_ITEMS_DASH.length)}px"><canvas id="chart-role-item-overall"></canvas></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderRoleActivityBreakdownCharts(b) {
+  if (!b || b.grandTotal === 0) return;
+  const regions = b.allRegions;
+  const roleColors = ['#4f46e5', '#0ea5e9', '#059669'];
+
+  const c1 = document.getElementById('chart-role-parts');
+  if (c1) regionCharts.push(new Chart(c1, {
+    type: 'bar',
+    data: { labels: regions, datasets: ROLE_PARTS_DASH.map((role, i) => ({
+      label: role, backgroundColor: roleColors[i], data: regions.map(r => b.regionRoleTotal[r][role])
+    })) },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+      scales: { x: { beginAtZero: true } } }
+  }));
+
+  const c2 = document.getElementById('chart-role-items');
+  if (c2) regionCharts.push(new Chart(c2, {
+    type: 'bar',
+    data: { labels: regions, datasets: ROLE_ACTIVITY_ITEMS_DASH.map((item, i) => ({
+      label: item, backgroundColor: ACTIVITY_PALETTE[i % ACTIVITY_PALETTE.length], data: regions.map(r => b.regionItemTotal[r][item])
+    })) },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } },
+      scales: { x: { stacked: true, beginAtZero: true }, y: { stacked: true } } }
+  }));
+
+  const c3 = document.getElementById('chart-role-item-overall');
+  if (c3) regionCharts.push(new Chart(c3, {
+    type: 'bar',
+    data: { labels: ROLE_ACTIVITY_ITEMS_DASH, datasets: [{
+      data: ROLE_ACTIVITY_ITEMS_DASH.map(item => pct(b.itemGrandTotal[item] || 0, b.grandTotal)), backgroundColor: ACTIVITY_PALETTE
+    }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } } }
+  }));
+}
+
+function roleActivityBreakdownSectionHtml(b) {
+  if (allActivitiesLoading && !allActivities) {
+    return `
+      <div class="px-4 pt-3">
+        <div class="text-xs font-bold text-base-content/50 mb-2">🙌 지역별 인도자·섬김이·교사 활동 (이번 달)</div>
+        <div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center">
+          <span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...
+        </div>
+      </div>`;
+  }
+  if (!b) return '';
+  const toggleLabel = state.roleActivityView === 'table' ? '📊 그래프로 보기' : '📋 표로 보기';
+  return `
+    <div class="px-4 pt-3">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs font-bold text-base-content/50">🙌 지역별 인도자·섬김이·교사 활동 (이번 달, 신규 역할기반 기록)</div>
+        <button id="btn-role-activity-view-toggle" class="btn btn-xs btn-outline">${toggleLabel}</button>
+      </div>
+      ${state.roleActivityView === 'table' ? roleActivityBreakdownTableHtml(b) : roleActivityBreakdownChartsHtml(b)}
+    </div>
+  `;
+}
+
 function regionFilterHtml(regions, shownCount) {
   return `
     <div class="flex items-center gap-2 px-4 py-3 border-y border-base-300 bg-base-100">
@@ -619,7 +825,8 @@ function regionFilterHtml(regions, shownCount) {
 function suggestionCell(t) {
   const s = t.suggestion;
   if (!s) return `<span class="text-base-content/30 text-xs">-</span>`;
-  const key = t.memberId + '::' + s.suggestedTier;
+  const coachKey = t.memberId + '::' + s.suggestedTier + '::coach';
+  const leaderKey = t.memberId + '::' + s.suggestedTier + '::leader';
   const instantKey = 'instant::' + t.memberId;
   return `
     <div class="flex flex-col gap-1">
@@ -632,11 +839,14 @@ function suggestionCell(t) {
         <progress class="progress progress-primary w-14 h-1.5" value="${s.approvalCount}" max="2"></progress>
         <span class="text-[10px] text-base-content/40">${s.approvalCount}/2</span>
       </div>
-      <div class="flex items-center gap-1">
-        <button class="btn-approve btn btn-primary btn-xs" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" ${state.approving[key] ? 'disabled' : ''}>
-          ${state.approving[key] ? '처리중...' : '✅ 승인(2인)'}
+      <div class="flex flex-col gap-1">
+        <button class="btn-approve-role btn btn-xs ${s.coachApprover ? 'btn-success btn-outline' : 'btn-primary'}" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" data-role="coach" ${state.approving[coachKey] ? 'disabled' : ''}>
+          ${state.approving[coachKey] ? '처리중...' : (s.coachApprover ? `🎧 교관 허가✓ (${esc(s.coachApprover)})` : '🎧 교관 허가')}
         </button>
-        <button class="btn-tier-apply btn btn-outline btn-success btn-xs" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" ${state.approving[instantKey] ? 'disabled' : ''} title="관리자 단독 즉시 반영 — 2인 승인 없이 바로 등급이 바뀝니다">
+        <button class="btn-approve-role btn btn-xs ${s.leaderApprover ? 'btn-success btn-outline' : 'btn-primary'}" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" data-role="leader" ${state.approving[leaderKey] ? 'disabled' : ''}>
+          ${state.approving[leaderKey] ? '처리중...' : (s.leaderApprover ? `🗺️ 지역장 허가✓ (${esc(s.leaderApprover)})` : '🗺️ 지역장 허가')}
+        </button>
+        <button class="btn-tier-apply btn btn-outline btn-success btn-xs" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" ${state.approving[instantKey] ? 'disabled' : ''} title="관리자 단독 즉시 반영 — 교관·지역장 허가 없이 바로 등급이 바뀝니다">
           ${state.approving[instantKey] ? '처리중...' : '⚡ 즉시 반영'}
         </button>
       </div>
@@ -655,7 +865,7 @@ function tableHtml(rows) {
     <div class="overflow-x-auto">
       <table class="table table-zebra table-sm">
         <thead class="sticky top-0 bg-base-100"><tr>
-          <th>이름</th><th>지역</th><th>등급</th><th>이번 달 활동</th><th>마지막 활동일</th><th>승급·강등 제안</th>
+          <th>이름</th><th>지역</th><th>등급</th><th>이번 달 활동</th><th>승급·강등 조건 내역</th><th>승급·강등 제안</th>
         </tr></thead>
         <tbody>
           ${rows.map(t => `
@@ -664,7 +874,7 @@ function tableHtml(rows) {
               <td class="text-base-content/60 text-xs">${esc(t.region || '')}</td>
               <td><span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'} badge-sm">${esc(t.tier)}</span></td>
               <td class="text-center">${t.monthlyCount}건</td>
-              <td class="text-xs whitespace-nowrap ${t.lastActivityDate ? '' : 'text-base-content/40'}">${t.lastActivityDate ? esc(t.lastActivityDate) : '기록 없음'}</td>
+              <td class="text-xs whitespace-nowrap text-base-content/60">${esc(t.conditionText || '-')}</td>
               <td class="min-w-[160px]">${suggestionCell(t)}</td>
             </tr>`).join('')}
         </tbody>
@@ -682,6 +892,7 @@ function render() {
   const pendingCount = filteredRows.filter(t => t.suggestion).length;
   const tableRows = state.pendingOnly ? filteredRows.filter(t => t.suggestion) : filteredRows;
   const analysis = (!isOverview && report) ? buildActivityAnalysis(report) : null;
+  const roleBreakdown = (!isOverview && report) ? buildRoleActivityBreakdown(report) : null;
 
   root.innerHTML = `
     <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
@@ -709,6 +920,7 @@ function render() {
             ${summaryCardHtml(report && report.summary)}
             ${byRegionSectionHtml(report && report.byRegion)}
             ${roleActivitySectionHtml(report && report.byRegion, report && report.roleActivityCounts)}
+            ${roleActivityBreakdownSectionHtml(roleBreakdown)}
             ${targetStageSectionHtml(report && report.targetStageCounts)}
             ${activityAnalysisSectionHtml(analysis)}
             <details id="teacher-detail-details" class="mt-3 mx-4 border border-base-300 rounded-box bg-base-100 overflow-hidden" ${state.teacherDetailOpen ? 'open' : ''}>
@@ -741,10 +953,10 @@ function render() {
   if (backBtn) backBtn.onclick = () => switchDept(null);
   const regionSelect = document.getElementById('region-select');
   if (regionSelect) regionSelect.onchange = (e) => switchRegion(e.target.value);
-  document.querySelectorAll('.btn-approve').forEach(btn => {
+  document.querySelectorAll('.btn-approve-role').forEach(btn => {
     btn.onclick = () => {
       const t = filteredRows.find(r => r.memberId === btn.dataset.mid && r.suggestion && r.suggestion.suggestedTier === btn.dataset.tier);
-      if (t) approve(t);
+      if (t) approveAs(t, btn.dataset.role);
     };
   });
   document.querySelectorAll('.btn-tier-apply').forEach(btn => {
@@ -765,11 +977,17 @@ function render() {
     state.activityView = state.activityView === 'table' ? 'chart' : 'table';
     render();
   };
+  const roleActivityToggleBtn = document.getElementById('btn-role-activity-view-toggle');
+  if (roleActivityToggleBtn) roleActivityToggleBtn.onclick = () => {
+    state.roleActivityView = state.roleActivityView === 'table' ? 'chart' : 'table';
+    render();
+  };
 
   destroyRegionCharts();
   if (!isOverview && report && !state.loading && !state.error) {
     if (state.regionView === 'chart') renderRegionCharts(report.byRegion);
     if (state.activityView === 'chart') renderActivityAnalysisChart(analysis);
+    if (state.roleActivityView === 'chart') renderRoleActivityBreakdownCharts(roleBreakdown);
   }
 }
 

@@ -644,6 +644,72 @@ function scSelect(id, label, value, options, icon) {
   </div>`;
 }
 
+// "AI코칭 바로가기"(home.html 활동방)로 넘어와 필요값이 이미 채워졌을 때 버튼 클릭 없이 자동
+// 생성을 1회 트리거하는 플래그 — URL 파라미터 처리 블록(파일 하단)에서 true로 세팅됨.
+let autoRunPending = false;
+
+// 버튼 클릭(수동)과 "AI코칭 바로가기" 자동 실행(silent=true) 둘 다 이 함수를 공유한다.
+// silent면 필수값 누락 시 alert 없이 조용히 건너뛴다(자동 실행이 알림창으로 방해하지 않도록).
+async function runScGenerate(silent) {
+  const sc = state.sc;
+  if (!sc.situationText.trim()) { if (!silent) alert('멘티의 상황을 입력해주세요.'); return; }
+  if (!sc.targetGroup) { if (!silent) alert('대상을 선택해주세요.'); return; }
+  if (sc.subMode === 'script' && !sc.stage) { if (!silent) alert('진행 단계를 선택해주세요.'); return; }
+
+  sc.loading = true;
+  sc.resultText = '';
+  sc.followUpHistory = [];
+  sc.escalated = false;
+  sc.copied = false;
+  render();
+
+  try {
+    let systemInstruction, prompt, tag;
+    if (sc.subMode === 'analyze') {
+      systemInstruction = buildAnalyzeSystemInstruction(sc.targetGroup);
+      prompt = buildAnalyzePrompt(sc.targetGroup, sc.stage, sc.selMbti, sc.selEnneagram, sc.selDisc, sc.selSagunja, sc.situationText);
+      tag = `[리딩/${sc.targetGroup}]`;
+    } else {
+      const built = buildCoachingPrompt(sc.targetGroup, sc.stage, sc.courseType, sc.studentStatus, sc.selMbti, sc.selEnneagram, sc.selDisc, sc.selSagunja, sc.situationText, sc.linkedTypes);
+      systemInstruction = built.systemInstruction;
+      prompt = built.prompt;
+      tag = `[수강생코칭/${sc.targetGroup}/${sc.stage}]`;
+    }
+
+    const payload = {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+      ]
+    };
+    const res = await callApi({
+      action: 'aiCoach',
+      memberId: state.memberId,
+      name: state.name,
+      situation: `${tag} ${sc.situationText}`,
+      payload: payload
+    });
+    if (res.error) throw new Error(res.error);
+    sc.resultText = res.coachText;
+    sc.receiptNo = res.receiptNo;
+    sc.resultMode = sc.subMode;
+    // 리딩 결과 → 퍼스널 코칭 성향 자동 연동
+    if (sc.subMode === 'analyze') {
+      const types = extractHeartsTypes(sc.resultText);
+      if (types.length) sc.linkedTypes = types;
+    }
+  } catch (err) {
+    sc.resultText = '오류가 발생했습니다: ' + err.message;
+    sc.resultMode = sc.subMode;
+  }
+  sc.loading = false;
+  render();
+}
+
 function renderStudentCoachTab(body) {
   const sc = state.sc;
   const mbtiOpts = getMbtiOptions(sc.targetGroup);
@@ -708,6 +774,7 @@ function renderStudentCoachTab(body) {
         <div class="mt-2 text-[11px] font-black tracking-widest ${sc.loading ? 'text-teal-600 animate-pulse' : 'text-teal-800 opacity-80'}">
           ${sc.loading ? (analyze ? '심층 분석 진행 중...' : '맞춤 대본 작성 중...') : (analyze ? 'ANALYZE' : 'GENERATE')}
         </div>
+        ${sc.loading ? `<div class="mt-1 text-[10px] text-teal-500/70">AI가 몰리면 최대 몇 초 정도 자동으로 다시 시도해요. 잠시만 기다려주세요...</div>` : ''}
       </div>
     </div>
 
@@ -736,64 +803,15 @@ function renderStudentCoachTab(body) {
     };
   });
 
-  document.getElementById('btn-sc-generate').onclick = async () => {
-    if (!sc.situationText.trim()) { alert('멘티의 상황을 입력해주세요.'); return; }
-    if (!sc.targetGroup) { alert('대상을 선택해주세요.'); return; }
-    if (sc.subMode === 'script' && !sc.stage) { alert('진행 단계를 선택해주세요.'); return; }
+  document.getElementById('btn-sc-generate').onclick = () => runScGenerate(false);
 
-    sc.loading = true;
-    sc.resultText = '';
-    sc.followUpHistory = [];
-    sc.escalated = false;
-    sc.copied = false;
-    render();
-
-    try {
-      let systemInstruction, prompt, tag;
-      if (sc.subMode === 'analyze') {
-        systemInstruction = buildAnalyzeSystemInstruction(sc.targetGroup);
-        prompt = buildAnalyzePrompt(sc.targetGroup, sc.stage, sc.selMbti, sc.selEnneagram, sc.selDisc, sc.selSagunja, sc.situationText);
-        tag = `[리딩/${sc.targetGroup}]`;
-      } else {
-        const built = buildCoachingPrompt(sc.targetGroup, sc.stage, sc.courseType, sc.studentStatus, sc.selMbti, sc.selEnneagram, sc.selDisc, sc.selSagunja, sc.situationText, sc.linkedTypes);
-        systemInstruction = built.systemInstruction;
-        prompt = built.prompt;
-        tag = `[수강생코칭/${sc.targetGroup}/${sc.stage}]`;
-      }
-
-      const payload = {
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
-      };
-      const res = await callApi({
-        action: 'aiCoach',
-        memberId: state.memberId,
-        name: state.name,
-        situation: `${tag} ${sc.situationText}`,
-        payload: payload
-      });
-      if (res.error) throw new Error(res.error);
-      sc.resultText = res.coachText;
-      sc.receiptNo = res.receiptNo;
-      sc.resultMode = sc.subMode;
-      // 리딩 결과 → 퍼스널 코칭 성향 자동 연동
-      if (sc.subMode === 'analyze') {
-        const types = extractHeartsTypes(sc.resultText);
-        if (types.length) sc.linkedTypes = types;
-      }
-    } catch (err) {
-      sc.resultText = '오류가 발생했습니다: ' + err.message;
-      sc.resultMode = sc.subMode;
-    }
-    sc.loading = false;
-    render();
-  };
+  // "AI코칭 바로가기"로 넘어와 필요한 값(대상/단계/상황)이 이미 다 채워져 있으면 버튼 클릭 없이
+  // 곧바로 생성 시작(2026-09-15 사용자 요청 "AI 즉시 실행"). 값이 아직 부족하면(대상 선택 등을
+  // 안 넘겨받은 경우) 조용히 건너뛰고 사용자가 채운 뒤 수동으로 누르면 된다 — alert로 방해 안 함.
+  if (autoRunPending) {
+    autoRunPending = false;
+    runScGenerate(true);
+  }
 
   if (sc.resultText) {
     const area = document.getElementById('sc-result-area');
@@ -1169,9 +1187,12 @@ function renderCoachModeTab(body) {
 // 자동으로 채워준다. 멘티 유형(MBTI 등)은 일부러 안 건드림 — 사용자가 직접 입력하는 항목.
 if (paramHeartsStage || paramSituation || paramTargetGroup) {
   state.tab = 'studentCoach';
+  state.sc.subMode = 'script'; // AI코칭 바로가기는 "📝 단계별 맞춤 대본"(퍼스널 코칭) 전용
   if (paramHeartsStage && STAGE_OPTIONS.includes(paramHeartsStage)) state.sc.stage = paramHeartsStage;
   if (paramTargetGroup && TARGET_OPTIONS.includes(paramTargetGroup)) state.sc.targetGroup = paramTargetGroup;
   if (paramSituation) state.sc.situationText = paramSituation;
+  // 2026-09-15: "AI 즉시 실행" 요청 — 대상/단계/상황이 다 채워졌으면 버튼 클릭 없이 자동 생성.
+  autoRunPending = true;
 }
 
 render();

@@ -70,6 +70,12 @@ let promoFilter = '';
 let demoFilter = '';
 let inactiveFilter = '';
 
+// 2026-09-15: "5가지가 한꺼번에 다 보이니 정신없다" 피드백 — 이번 달 결산 현황을 5개 박스를
+// 1행으로 보여주고, 박스를 눌러야 그 상세가 펼쳐지는 방식으로 변경.
+// null | 'promo' | 'demo' | 'pending' | 'inactive' | 'leads'
+let settlementView = null;
+function setSettlementView(v) { settlementView = (settlementView === v) ? null : v; render(); }
+
 const INACT_BADGE = { warning: 'badge-warning', danger: 'badge-error' };
 const INACT_LABEL = { warning: '주의 (2개월+)', danger: '경고 (3개월+)' };
 
@@ -154,14 +160,15 @@ function daysDiff(a, b) {
 // "전체 현황"의 핵심 지표 4개를 임의의 rows 부분집합에 대해 계산 — 전체 합계와 부서별 분해에 공용.
 function computeFeedbackStats(subRows) {
   const total = subRows.length;
-  if (total === 0) return { total: 0, aiPct: 0, escPct: 0, avgHours: '-' };
+  if (total === 0) return { total: 0, answeredCount: 0, aiPct: 0, escPct: 0, avgHours: '-' };
   const aiDone = subRows.filter(r => r.source === 'AI셀프코칭' && r.status === '완료').length;
   const escalated = subRows.filter(r => r.source === '사람에스컬레이션').length;
   const answered = subRows.filter(r => r.source === '사람에스컬레이션' && r.status === '완료' && r.answeredAt);
+  const answeredCount = subRows.filter(r => r.status === '완료').length; // 2026-09-15: "답변 완료" 컬럼용(부서별 현황)
   const avgHours = answered.length
     ? (answered.reduce((sum, r) => sum + daysDiff(r.submittedAt, r.answeredAt), 0) / answered.length).toFixed(1)
     : '-';
-  return { total, aiPct: Math.round(aiDone / total * 100), escPct: Math.round(escalated / total * 100), avgHours };
+  return { total, answeredCount, aiPct: Math.round(aiDone / total * 100), escPct: Math.round(escalated / total * 100), avgHours };
 }
 
 async function load() {
@@ -220,48 +227,38 @@ function tierChangeBadge(cur, sug) {
     <span class="badge ${up ? 'badge-success' : 'badge-error'} badge-sm">${esc(sug)}</span>`;
 }
 
-function renderSettlementSection() {
-  if (settlementLoading && !settlement) {
-    return sectionCard('primary', '📅', '이번 달 결산 현황', '전 교사 스캔 중...', `
-      <div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center">
-        <span class="loading loading-spinner loading-sm align-middle mr-1"></span>결산 계산 중 (교사 수가 많아 20초 정도 걸릴 수 있습니다)
-      </div>`);
-  }
-  if (!settlement) return '';
-  if (settlement.error) {
-    return sectionCard('primary', '📅', '이번 달 결산 현황', '', `
-      <div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(settlement.error)}</div></div>`);
-  }
+// 2026-09-15: "5가지가 다 한 번에 보여서 정신없다"는 피드백으로 승급/강등/승인대기/비활동자/
+// 센터인도 5개를 박스 1행으로 압축 — 박스를 눌러야 그 상세가 아래에 펼쳐진다(setSettlementView).
+function settlementBoxesHtml(s) {
+  const centerLeadTotal = (s.leaders || []).reduce((sum, r) => sum + (r.leadCount || 0), 0);
+  const box = (key, icon, label, value, colorCls) => {
+    const active = settlementView === key;
+    return `
+      <button class="settlement-box flex-1 min-w-[100px] rounded-box border p-3 text-center transition ${active ? 'border-primary bg-primary/10' : 'border-base-300 bg-base-100 hover:bg-base-200'}" data-view="${key}">
+        <div class="text-lg">${icon}</div>
+        <div class="text-xl font-black ${colorCls}">${value}</div>
+        <div class="text-[11px] text-base-content/50">${label}</div>
+      </button>`;
+  };
+  return `
+    <div class="flex flex-wrap gap-2 mb-1">
+      ${box('promo', '⬆️', '승급 대상', s.promotionsTotal || 0, 'text-success')}
+      ${box('demo', '⬇️', '강등 대상', s.demotionsTotal || 0, 'text-error')}
+      ${box('pending', '⏳', '허가 대기', s.pendingApprovalCount || 0, 'text-primary')}
+      ${box('inactive', '😴', '비활동자', s.inactiveTotal || 0, 'text-warning')}
+      ${box('leads', '🎯', '센터 인도', centerLeadTotal, 'text-accent')}
+    </div>
+  `;
+}
 
-  const s = settlement;
-  const promoRows = (s.promotions || []);
-  const demoRows = (s.demotions || []);
+function promoDetailHtml(s) {
+  const promoRows = s.promotions || [];
+  if (!promoRows.length) return `<div class="text-xs text-base-content/40">⬆️ 승급 대상자 없음</div>`;
   const transitionKey = r => `${r.currentTier} → ${r.suggestedTier}`;
   const promoTypes = [...new Set(promoRows.map(transitionKey))];
-  const demoTypes = [...new Set(demoRows.map(transitionKey))];
   const promoRowsFiltered = promoFilter ? promoRows.filter(r => transitionKey(r) === promoFilter) : promoRows;
-  const demoRowsFiltered = demoFilter ? demoRows.filter(r => transitionKey(r) === demoFilter) : demoRows;
-
-  const stats = `
-    <div class="stats stats-horizontal w-full shadow-sm border border-base-300 mb-4 text-center">
-      <div class="stat py-3 px-4">
-        <div class="stat-title text-xs">승급 대상</div>
-        <div class="stat-value text-2xl text-success">${s.promotionsTotal || 0}</div>
-      </div>
-      <div class="stat py-3 px-4">
-        <div class="stat-title text-xs">강등 대상</div>
-        <div class="stat-value text-2xl text-error">${s.demotionsTotal || 0}</div>
-        <div class="stat-desc text-[11px]">경고 ${s.inactiveDanger || 0} · 주의 ${s.inactiveWarn || 0}</div>
-      </div>
-      <div class="stat py-3 px-4">
-        <div class="stat-title text-xs">2인 승인 대기</div>
-        <div class="stat-value text-2xl ${s.pendingApprovalCount ? 'text-primary' : ''}">${s.pendingApprovalCount || 0}</div>
-        <div class="stat-desc text-[11px]">지역장·교관</div>
-      </div>
-    </div>`;
-
-  const promoTable = promoRows.length ? `
-    <div class="flex items-center justify-between mb-2 mt-1">
+  return `
+    <div class="flex items-center justify-between mb-2">
       <div class="text-sm font-bold text-success">⬆️ 승급 대상자 (${s.promotionsTotal}${s.promotionsTotal > promoRows.length ? `, ${promoRows.length}명 표시` : ''})</div>
       <select id="promo-filter-select" class="select select-bordered select-xs w-56">
         <option value="" ${promoFilter === '' ? 'selected' : ''}>전체 유형 (${promoTypes.length}종)</option>
@@ -269,7 +266,7 @@ function renderSettlementSection() {
       </select>
     </div>
     ${promoRowsFiltered.length ? `
-    <div class="overflow-x-auto border border-base-300 rounded-box mb-4">
+    <div class="overflow-x-auto border border-base-300 rounded-box">
       <table class="table table-zebra table-sm">
         <thead><tr><th>이름</th><th>등급 변경</th><th>사유</th></tr></thead>
         <tbody>${promoRowsFiltered.map(r => `
@@ -279,9 +276,17 @@ function renderSettlementSection() {
             <td class="text-base-content/60 text-xs">${esc(r.reason)}</td>
           </tr>`).join('')}</tbody>
       </table>
-    </div>` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center mb-4">이 유형에 해당하는 승급 대상자가 없습니다.</div>`}` : `<div class="text-xs text-base-content/40 mb-4">⬆️ 승급 대상자 없음</div>`;
+    </div>` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">이 유형에 해당하는 승급 대상자가 없습니다.</div>`}
+  `;
+}
 
-  const demoTable = demoRows.length ? `
+function demoDetailHtml(s) {
+  const demoRows = s.demotions || [];
+  if (!demoRows.length) return `<div class="text-xs text-base-content/40">⬇️ 강등 대상자 없음</div>`;
+  const transitionKey = r => `${r.currentTier} → ${r.suggestedTier}`;
+  const demoTypes = [...new Set(demoRows.map(transitionKey))];
+  const demoRowsFiltered = demoFilter ? demoRows.filter(r => transitionKey(r) === demoFilter) : demoRows;
+  return `
     <div class="flex items-center justify-between mb-2">
       <div class="text-sm font-bold text-error">⬇️ 강등 대상자 (${s.demotionsTotal}${s.demotionsTotal > demoRows.length ? `, ${demoRows.length}명 표시` : ''})</div>
       <select id="demo-filter-select" class="select select-bordered select-xs w-56">
@@ -293,79 +298,41 @@ function renderSettlementSection() {
     <div class="overflow-x-auto border border-base-300 rounded-box">
       <div class="max-h-72 overflow-y-auto">
         <table class="table table-zebra table-sm">
-          <thead class="sticky top-0 bg-base-100"><tr><th>이름</th><th>등급 변경</th><th>비활동</th><th>마지막 활동</th><th>사유</th></tr></thead>
+          <thead class="sticky top-0 bg-base-100"><tr><th>이름</th><th>등급 변경</th><th>비활동</th><th>승급·강등 조건 내역</th></tr></thead>
           <tbody>${demoRowsFiltered.map(r => `
             <tr>
               <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.region || r.dept || '')}</div></td>
               <td class="whitespace-nowrap">${tierChangeBadge(r.currentTier, r.suggestedTier)}</td>
               <td>${r.inactivity ? `<span class="badge ${INACT_BADGE[r.inactivity]} badge-sm">${r.inactivity === 'danger' ? '경고' : '주의'}</span>` : '-'}</td>
-              <td class="text-xs text-base-content/60 whitespace-nowrap">${r.lastActivityDate ? esc(r.lastActivityDate) : '기록 없음'}</td>
               <td class="text-base-content/60 text-xs">${esc(r.reason)}</td>
             </tr>`).join('')}</tbody>
         </table>
       </div>
-    </div>` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">이 유형에 해당하는 강등 대상자가 없습니다.</div>`}` : `<div class="text-xs text-base-content/40">⬇️ 강등 대상자 없음</div>`;
+    </div>` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">이 유형에 해당하는 강등 대상자가 없습니다.</div>`}
+  `;
+}
 
-  const pendTable = (s.pendingApprovals || []).length ? `
-    <div class="text-sm font-bold text-primary mb-2 mt-4">⏳ 지역장·교관 2인 승인 대기 (${s.pendingApprovalCount})</div>
+// 2026-09-15: "2인 승인"(먼저 누른 사람이 1번) → 교관/지역장 전용 칸으로 분리(district-dashboard.html
+// 참고) — 여기서는 조회 전용이라 각 칸의 허가 여부만 배지로 보여준다. 실제 허가는 부서별 화면에서.
+function pendingDetailHtml(s) {
+  const list = s.pendingApprovals || [];
+  if (!list.length) return `<div class="text-xs text-base-content/40">⏳ 허가 대기 없음</div>`;
+  return `
     <div class="overflow-x-auto border border-base-300 rounded-box">
       <table class="table table-zebra table-sm">
-        <thead><tr><th>이름</th><th>제안 등급</th><th>유형</th><th>승인</th></tr></thead>
-        <tbody>${s.pendingApprovals.map(r => `
+        <thead><tr><th>이름</th><th>제안 등급</th><th>유형</th><th>🎧 교관</th><th>🗺️ 지역장</th></tr></thead>
+        <tbody>${list.map(r => `
           <tr>
             <td class="font-medium">${esc(r.name || r.memberId)}</td>
             <td>${tierChangeBadge(r.currentTier || '?', r.suggestedTier)}</td>
             <td>${r.type === 'reason' ? `<span class="badge badge-warning badge-outline badge-sm">사유자${r.reason ? ' · ' + esc(r.reason) : ''}</span>` : '<span class="text-xs text-base-content/40">자동 감지</span>'}</td>
-            <td><progress class="progress progress-primary w-16 h-2 align-middle" value="${r.approvalCount}" max="2"></progress> <span class="text-xs">${r.approvalCount}/2</span></td>
+            <td>${r.coachApprover ? `<span class="badge badge-success badge-sm">✓ ${esc(r.coachApprover)}</span>` : '<span class="text-xs text-base-content/30">대기</span>'}</td>
+            <td>${r.leaderApprover ? `<span class="badge badge-success badge-sm">✓ ${esc(r.leaderApprover)}</span>` : '<span class="text-xs text-base-content/30">대기</span>'}</td>
           </tr>`).join('')}</tbody>
       </table>
     </div>
-    <div class="text-[11px] text-base-content/40 mt-1">승인은 지역장 화면(district-dashboard.html)에서 진행합니다.</div>` : '';
-
-  return sectionCard('primary', '📅', '이번 달 결산 현황',
-    `${s.month} 결산 기준 (기준일 ${s.asOf}) · 매월 말일 기준으로 자동 계산`,
-    stats + promoTable + demoTable + pendTable);
-}
-
-function renderInactiveSection() {
-  if (!settlement || settlement.error) return '';
-  const s = settlement;
-  const list = s.inactive || [];
-  const listFiltered = inactiveFilter ? list.filter(r => r.inactivity === inactiveFilter) : list;
-  const body = list.length ? `
-    <div class="flex items-center justify-between mb-3 gap-2">
-      <div class="flex gap-2 text-xs flex-wrap">
-        <span class="badge badge-error badge-sm">경고 ${s.inactiveDanger || 0}명</span>
-        <span class="badge badge-warning badge-sm">주의 ${s.inactiveWarn || 0}명</span>
-        <span class="text-base-content/40 self-center">· 마지막 활동일 기준 (활동 종류 무관)</span>
-      </div>
-      <select id="inactive-filter-select" class="select select-bordered select-xs w-32 shrink-0">
-        <option value="" ${inactiveFilter === '' ? 'selected' : ''}>전체 단계</option>
-        <option value="danger" ${inactiveFilter === 'danger' ? 'selected' : ''}>경고만</option>
-        <option value="warning" ${inactiveFilter === 'warning' ? 'selected' : ''}>주의만</option>
-      </select>
-    </div>
-    ${listFiltered.length ? `
-    <div class="border border-base-300 rounded-box overflow-hidden">
-      <div class="max-h-72 overflow-y-auto overflow-x-auto">
-        <table class="table table-zebra table-sm">
-          <thead class="sticky top-0 bg-base-100"><tr><th>단계</th><th>이름</th><th>지역/부서</th><th>등급</th><th>마지막 활동</th><th>이번 달</th></tr></thead>
-          <tbody>${listFiltered.map(r => `
-            <tr>
-              <td><span class="badge ${INACT_BADGE[r.inactivity]} badge-sm">${r.inactivity === 'danger' ? '경고' : '주의'}</span></td>
-              <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.memberId)}</div></td>
-              <td class="text-base-content/60 text-xs">${esc(r.region || '')}${r.dept ? ' · ' + esc(r.dept) : ''}</td>
-              <td class="text-base-content/60">${esc(r.tier)}</td>
-              <td class="text-xs whitespace-nowrap ${r.lastActivityDate ? '' : 'text-base-content/40'}">${r.lastActivityDate ? esc(r.lastActivityDate) : '기록 없음'}</td>
-              <td class="text-center">${r.monthlyCount}건</td>
-            </tr>`).join('')}</tbody>
-        </table>
-      </div>
-      ${s.inactiveTotal > list.length ? `<div class="text-[11px] text-base-content/40 text-center py-1.5 bg-base-200 border-t border-base-300">외 ${s.inactiveTotal - list.length}명 더(전체 기준, 필터 적용 전)</div>` : ''}
-    </div>` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">이 단계에 해당하는 비활동자가 없습니다.</div>`}` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">✅ 2개월 이상 비활동 교사가 없습니다.</div>`;
-
-  return sectionCard('warning', '😴', '비활동자 목록',
-    `2개월+ 미활동 = 주의 · 3개월+ 미활동(또는 기록 없음) = 경고 (≒ 휴교사 전환 대상)`, body);
+    <div class="text-[11px] text-base-content/40 mt-1">허가 처리는 부서별 화면(district-dashboard.html)에서 진행합니다.</div>
+  `;
 }
 
 // allLeads(getAllCenterLeads 원본 레코드)에 등장하는 'yyyy-MM' 월 목록, 최신순.
@@ -376,9 +343,7 @@ function leadsAvailableMonths() {
   return [...months].sort().reverse();
 }
 
-function renderLeadsSection() {
-  if (!settlement || settlement.error) return '';
-
+function leadsDetailHtml() {
   const monthOptions = leadsAvailableMonths();
   const filterHtml = `
     <div class="flex items-center gap-2 mb-3">
@@ -438,9 +403,74 @@ function renderLeadsSection() {
     `;
   }
 
-  return sectionCard('accent', '🎯', '센터 인도 실적 현황',
-    `활동방 "센터 인도 등록"으로 집계 · ※ OO월 개강 기준(정확한 개강월 확정되면 문구 반영 예정) · 랭킹은 최근 6개월 기준(승급 판정에 사용)`,
-    filterHtml + body);
+  return `<div class="text-sm font-bold text-accent mb-2">🎯 센터 인도 실적 현황</div>
+    <div class="text-[11px] text-base-content/40 mb-2">활동방 "센터 인도 등록"으로 집계 · ※ OO월 개강 기준(정확한 개강월 확정되면 문구 반영 예정) · 랭킹은 최근 6개월 기준(승급 판정에 사용)</div>
+    ${filterHtml}${body}`;
+}
+
+function renderSettlementSection() {
+  if (settlementLoading && !settlement) {
+    return sectionCard('primary', '📅', '이번 달 결산 현황', '전 교사 스캔 중...', `
+      <div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center">
+        <span class="loading loading-spinner loading-sm align-middle mr-1"></span>결산 계산 중 (교사 수가 많아 20초 정도 걸릴 수 있습니다)
+      </div>`);
+  }
+  if (!settlement) return '';
+  if (settlement.error) {
+    return sectionCard('primary', '📅', '이번 달 결산 현황', '', `
+      <div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(settlement.error)}</div></div>`);
+  }
+
+  const s = settlement;
+  const detailBuilders = {
+    promo: () => promoDetailHtml(s), demo: () => demoDetailHtml(s), pending: () => pendingDetailHtml(s),
+    inactive: () => inactiveDetailHtml(s), leads: () => leadsDetailHtml()
+  };
+  const detailHtml = settlementView
+    ? `<div class="mt-3 pt-3 border-t border-base-300">${detailBuilders[settlementView]()}</div>`
+    : `<div class="text-xs text-base-content/30 text-center py-2">▲ 박스를 눌러 상세 내용을 확인하세요</div>`;
+
+  return sectionCard('primary', '📅', '이번 달 결산 현황',
+    `${s.month} 결산 기준 (기준일 ${s.asOf}) · 매월 말일 기준으로 자동 계산`,
+    settlementBoxesHtml(s) + detailHtml);
+}
+
+function inactiveDetailHtml(s) {
+  const list = s.inactive || [];
+  if (!list.length) return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">✅ 2개월 이상 비활동 교사가 없습니다.</div>`;
+  const listFiltered = inactiveFilter ? list.filter(r => r.inactivity === inactiveFilter) : list;
+  return `
+    <div class="flex items-center justify-between mb-3 gap-2">
+      <div class="flex gap-2 text-xs flex-wrap">
+        <span class="badge badge-error badge-sm">경고 ${s.inactiveDanger || 0}명</span>
+        <span class="badge badge-warning badge-sm">주의 ${s.inactiveWarn || 0}명</span>
+        <span class="text-base-content/40 self-center">· 마지막 활동일 기준 (활동 종류 무관)</span>
+      </div>
+      <select id="inactive-filter-select" class="select select-bordered select-xs w-32 shrink-0">
+        <option value="" ${inactiveFilter === '' ? 'selected' : ''}>전체 단계</option>
+        <option value="danger" ${inactiveFilter === 'danger' ? 'selected' : ''}>경고만</option>
+        <option value="warning" ${inactiveFilter === 'warning' ? 'selected' : ''}>주의만</option>
+      </select>
+    </div>
+    ${listFiltered.length ? `
+    <div class="border border-base-300 rounded-box overflow-hidden">
+      <div class="max-h-72 overflow-y-auto overflow-x-auto">
+        <table class="table table-zebra table-sm">
+          <thead class="sticky top-0 bg-base-100"><tr><th>단계</th><th>이름</th><th>지역/부서</th><th>등급</th><th>마지막 활동</th><th>이번 달</th></tr></thead>
+          <tbody>${listFiltered.map(r => `
+            <tr>
+              <td><span class="badge ${INACT_BADGE[r.inactivity]} badge-sm">${r.inactivity === 'danger' ? '경고' : '주의'}</span></td>
+              <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.memberId)}</div></td>
+              <td class="text-base-content/60 text-xs">${esc(r.region || '')}${r.dept ? ' · ' + esc(r.dept) : ''}</td>
+              <td class="text-base-content/60">${esc(r.tier)}</td>
+              <td class="text-xs whitespace-nowrap ${r.lastActivityDate ? '' : 'text-base-content/40'}">${r.lastActivityDate ? esc(r.lastActivityDate) : '기록 없음'}</td>
+              <td class="text-center">${r.monthlyCount}건</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>
+      ${s.inactiveTotal > list.length ? `<div class="text-[11px] text-base-content/40 text-center py-1.5 bg-base-200 border-t border-base-300">외 ${s.inactiveTotal - list.length}명 더(전체 기준, 필터 적용 전)</div>` : ''}
+    </div>` : `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">이 단계에 해당하는 비활동자가 없습니다.</div>`}
+  `;
 }
 
 // ============ 총 교사 수 (getRoster 집계, 최상단 요약) ============
@@ -589,13 +619,12 @@ function render() {
     return;
   }
 
-  // 총 교사 수 + 월별 결산 현황 + 부서별 교사 현황은 피드백 데이터 유무와 무관하게 표시.
+  // 총 교사 수 + 월별 결산 현황(승급/강등/허가대기/비활동자/센터인도 5박스 통합) + 부서별 교사
+  // 현황은 피드백 데이터 유무와 무관하게 표시.
   const teacherSummaryHtml = renderTeacherSummarySection();
   const settlementHtml = renderSettlementSection();
-  const inactiveHtml = renderInactiveSection();
-  const leadsHtml = renderLeadsSection();
   const rosterHtml = renderRosterSection();
-  const tierBundle = teacherSummaryHtml + settlementHtml + inactiveHtml + leadsHtml;
+  const tierBundle = teacherSummaryHtml + settlementHtml;
 
   if (rows.length === 0) {
     content.innerHTML = tierBundle + rosterHtml + (roster.length === 0
@@ -607,9 +636,6 @@ function render() {
   }
 
   const overall = computeFeedbackStats(rows);
-
-  const now = new Date();
-  const longPending = rows.filter(r => r.status === '접수' && daysDiff(r.submittedAt, now) >= 48);
 
   const catCounts = {};
   rows.forEach(r => { const c = categorize(r.situation); catCounts[c] = (catCounts[c] || 0) + 1; });
@@ -647,25 +673,16 @@ function render() {
       </div>
     </div>
 
-    ${longPending.length > 0 ? `
-    <div role="alert" class="alert alert-error alert-outline items-start mb-4">
-      <div>
-        <div class="text-sm font-medium mb-1">🚨 48시간 이상 미처리 (${longPending.length}건)</div>
-        <div class="flex flex-col gap-0.5">
-          ${longPending.map(r => `<div class="text-xs">${r.receiptNo} · ${r.name} (${r.memberId})</div>`).join('')}
-        </div>
-      </div>
-    </div>` : ''}
-
     <div class="text-xs font-bold text-base-content/50 mb-2">🏢 부서별 현황</div>
     <div class="overflow-x-auto border border-base-300 rounded-box">
       <table class="table table-zebra table-sm">
-        <thead><tr><th>부서</th><th>요청 수</th><th>AI 단독 해결률</th><th>교관 에스컬레이션율</th><th>평균 응답 시간</th></tr></thead>
+        <thead><tr><th>부서</th><th>총 요청 수</th><th>답변 완료</th><th>AI 단독 해결률</th><th>교관 에스컬레이션율</th><th>평균 응답 시간</th></tr></thead>
         <tbody>
           ${deptFeedbackStats.map(d => `
             <tr>
               <td class="font-medium">${DEPT_ICON[d.dept] || '📁'} ${esc(d.dept)}</td>
               <td>${d.total}건</td>
+              <td>${d.answeredCount}건</td>
               <td>${d.total ? d.aiPct + '%' : '-'}</td>
               <td>${d.total ? d.escPct + '%' : '-'}</td>
               <td>${d.avgHours}${d.avgHours !== '-' ? 'h' : ''}</td>
@@ -686,7 +703,7 @@ function render() {
   `;
 
   content.innerHTML = tierBundle + rosterHtml
-    + sectionCard('info', '📊', '전체 현황', '피드백 요청/응답 핵심 지표', statsBody)
+    + sectionCard('info', '📊', '피드백 현황', '피드백 요청/응답 핵심 지표', statsBody)
     + sectionCard('info', '🧭', '피드백 분석', '유형별 분포 (데이터가 더 쌓이면 추이·반복 요청자 등 추가 예정)', analysisBody);
 
   new Chart(document.getElementById('catChart'), {
@@ -704,6 +721,9 @@ function render() {
 
 // 승급/강등/비활동자 종류 필터 select 3개 공용 wiring — 두 렌더 경로(피드백 데이터 有/無) 모두에서 호출.
 function wireSettlementFilters() {
+  document.querySelectorAll('.settlement-box').forEach(btn => {
+    btn.onclick = () => setSettlementView(btn.dataset.view);
+  });
   const promoSel = document.getElementById('promo-filter-select');
   if (promoSel) promoSel.onchange = (e) => { promoFilter = e.target.value; render(); };
   const demoSel = document.getElementById('demo-filter-select');
