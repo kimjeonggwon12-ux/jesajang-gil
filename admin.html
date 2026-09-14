@@ -1,125 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="0; url=admin-home.html">
   <title>제사장의 길 - 관리자</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    .header { background: #312e81; color: white; padding: 16px 20px; display:flex; align-items:center; justify-content:space-between; }
-    .header h1 { font-size: 18px; }
-    .header .who { font-size: 12px; color: #c7d2fe; cursor:pointer; text-decoration:underline; }
-    .header .home-btn { font-size: 12px; color: #fff; text-decoration:none; border:1px solid #6366f1; padding:5px 12px; border-radius:6px; font-weight:600; }
-    .header .home-btn:hover { background:#6366f1; }
-    .tabs { display: flex; background: #4338ca; }
-    .tab { flex:1; padding: 14px; text-align: center; cursor: pointer; color: #c7d2fe; border: none; background:none; font-size: 15px; font-weight:600; }
-    .tab.active { background: #6366f1; color: white; }
-    .login { padding: 60px 20px; text-align: center; }
-    .login h2 { margin-bottom: 8px; color:#312e81; }
-    .login p { margin-bottom: 20px; color:#666; font-size: 13px; }
-    .login input { padding: 10px; margin: 6px; width: 220px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
-    .login button { padding: 10px 24px; background: #6366f1; color: white; border: none; border-radius:6px; cursor: pointer; font-size:14px; font-weight:600; }
-    .login .err { color: #dc2626; font-size: 13px; margin-top: 10px; min-height: 18px; }
-    #appPanel { display:none; flex-direction:column; height:100vh; }
-    .content { flex:1; border: none; width: 100%; }
-  </style>
+  <!--
+    이 파일(admin.html)은 2026-09-13 "관리자 홈 3코너 정리" 개편으로 admin-home.html에게
+    자리를 넘겨준 예전 관리자 진입점입니다(4개 탭 + 임시 비밀번호 로그인 방식, 지금은
+    앱 어디에서도 이 파일을 링크하지 않음). 예전에 공유되었거나 북마크된 admin.html 링크가
+    계속 살아있을 수 있어서, 파일은 남겨두고 admin-home.html로 즉시 리다이렉트만 함.
+  -->
+  <script>location.replace('admin-home.html');</script>
 </head>
 <body>
-  <!--
-    ⚠️ 임시 방편 로그인 (현재 비활성화 — 당분간만)
-    편의를 위해 관리자 비밀번호 입장 화면을 잠시 꺼두었습니다.
-    운영 복귀 시 → 아래 loginPanel 의 style="display:none" 를 지우고,
-    <script> 하단의 DOMContentLoaded 리스너 한 줄을 지우면 됩니다.
-    (ADMIN_PASSWORD / tryLogin / logout 코드는 복구용으로 그대로 보존.
-     나중에 진짜 보안 작업 시 Apps Script 스크립트 속성 + 서버 검증으로 교체.)
-  -->
-  <div class="login" id="loginPanel" style="display:none">
-    <h2>제사장의 길 - 관리자</h2>
-    <p>관리자 비밀번호를 입력하세요.</p>
-    <div>
-      <input type="password" id="pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')tryLogin()" />
-    </div>
-    <button onclick="tryLogin()">입장</button>
-    <div class="err" id="loginErr"></div>
-  </div>
-
-  <div id="appPanel">
-    <div class="header">
-      <h1>제사장의 길 - 관리자</h1>
-      <a class="home-btn" href="home.html">교사 어플로 가기</a>
-    </div>
-    <div class="tabs">
-      <button class="tab active" data-view="profile" onclick="switchTab('profile', this)">통합 조회</button>
-      <button class="tab" data-view="coach" onclick="switchTab('coach', this)">교관 대시보드</button>
-      <button class="tab" data-view="edu" onclick="switchTab('edu', this)">교육부 대시보드</button>
-      <button class="tab" data-view="district" onclick="switchTab('district', this)">지역장 화면</button>
-    </div>
-    <iframe id="content" class="content"></iframe>
-  </div>
-
-  <script>
-    // ⚠️ 임시 비밀번호 — 나중에 실제 보안 작업 시 교체할 것.
-    const ADMIN_PASSWORD = 'admin1234';
-
-    // 각 관리자 화면 파일명 — 실제 파일이 이 이름과 같은 폴더에 있어야 합니다.
-    const VIEW_FILES = {
-      profile: 'teacher-profile.html',
-      coach: 'coach-dashboard.html',
-      edu: 'edu-dashboard.html',
-      // 관리자용: 테스트 지역장(김정권 / 01지역)으로 자동 로그인해서 보여줌.
-      // 다른 지역장으로 보려면 이 파라미터를 바꾸거나 화면 안에서 다시 로그인하면 됨.
-      // (2026-09-12: 이 파일은 개인 지역장 화면 district-leader-view.html 로 이름이 바뀌었습니다.
-      //  부서별 교사 관리(관리자용, 6개 부서 탭)는 새 district-dashboard.html 이며 admin-home.html 에서 진입합니다.)
-      district: 'district-leader-view.html?memberId=0020113000010&name=%EA%B9%80%EC%A0%95%EA%B6%8C'
-    };
-
-    function tryLogin() {
-      const pw = document.getElementById('pw').value;
-      if (pw !== ADMIN_PASSWORD) {
-        document.getElementById('loginErr').textContent = '비밀번호가 올바르지 않습니다.';
-        return;
-      }
-      document.getElementById('loginErr').textContent = '';
-      document.getElementById('loginPanel').style.display = 'none';
-      document.getElementById('appPanel').style.display = 'flex';
-
-      // 최초 진입 시 통합 조회 탭 활성화
-      const firstBtn = document.querySelector('.tab[data-view="profile"]');
-      switchTab('profile', firstBtn);
-    }
-
-    function logout() {
-      document.getElementById('pw').value = '';
-      document.getElementById('content').src = 'about:blank';
-      document.getElementById('appPanel').style.display = 'none';
-      document.getElementById('loginPanel').style.display = 'block';
-    }
-
-    // ⚠️ 임시(당분간만): 비밀번호 없이 바로 입장. 운영 복귀 시 이 리스너 한 줄만 제거.
-    function enterDirect() {
-      document.getElementById('loginPanel').style.display = 'none';
-      document.getElementById('appPanel').style.display = 'flex';
-      switchTab('profile', document.querySelector('.tab[data-view="profile"]'));
-    }
-    window.addEventListener('DOMContentLoaded', enterDirect);
-
-    function switchTab(view, btnEl) {
-      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-      if (btnEl) {
-        btnEl.classList.add('active');
-      } else {
-        const fallback = document.querySelector(`.tab[data-view="${view}"]`);
-        if (fallback) fallback.classList.add('active');
-      }
-
-      const file = VIEW_FILES[view];
-      if (!file) {
-        console.error('알 수 없는 화면:', view);
-        return;
-      }
-      document.getElementById('content').src = file;
-    }
-  </script>
+  <p>관리자 홈으로 이동 중입니다… 이동하지 않으면 <a href="admin-home.html">여기</a>를 눌러주세요.</p>
 </body>
 </html>
