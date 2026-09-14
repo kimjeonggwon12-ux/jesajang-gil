@@ -54,7 +54,9 @@ let state = {
   activityView: 'table', // 'table' | 'chart' — 지역별 활동 분석 섹션 표시 방식
   roleActivityView: 'table', // 'table' | 'chart' — 지역별 인섬교(인도자·섬김이·교사) 활동 섹션 표시 방식
   teacherDetailOpen: false, // 교사별 상세(지역 필터+표) 접기/펼치기 — 기본 접힘
-  pendingOnly: false // true면 교사별 상세 표를 "승급·강등 제안 있는 교사만"으로 좁혀서 보여줌
+  pendingOnly: false, // true면 교사별 상세 표를 "승급·강등 제안 있는 교사만"으로 좁혀서 보여줌
+  showSampleData: false, // 2026-09-16: 브리핑용 샘플 데이터 토글 — ON이면 "지역별 인섬교 활동" 표/그래프/AI분석이 실제 데이터 대신 고정 샘플을 사용
+  aiAnalysis: null // { loading, error, text } — 부서 탭 하단 "🤖 AI 분석 보기" 결과(부서 바뀌면 초기화)
 };
 
 // 전체 조직별 요약 (getOrgSummary) — "전체 요약" 화면 전용, 부서 상세와 별도로 캐시.
@@ -163,6 +165,7 @@ async function loadAllActivities(force) {
 function switchDept(dept) {
   state.dept = dept;
   state.region = ''; // 부서를 바꾸면 지역 필터는 초기화(그 부서에 없는 지역일 수 있어서)
+  state.aiAnalysis = null; // 다른 부서의 AI 분석 결과가 남아있지 않도록 초기화
   if (dept === null) loadOrgSummary(false);
   else { loadReport(false); loadAllActivities(false); }
 }
@@ -668,6 +671,74 @@ function buildRoleActivityBreakdown(report) {
   return { counts, allRegions, regionRoleTotal, regionItemTotal, itemGrandTotal, grandTotal };
 }
 
+// 그 지역에서 역할 무관 합산 건수가 가장 높은 항목("강세 항목") 이름 — 표/AI 프롬프트 공용.
+function regionTopItem(b, region) {
+  let top = '', topV = -1;
+  ROLE_ACTIVITY_ITEMS_DASH.forEach(item => {
+    const v = (b.regionItemTotal[region] && b.regionItemTotal[region][item]) || 0;
+    if (v > topV) { top = item; topV = v; }
+  });
+  return topV > 0 ? top : '-';
+}
+
+// ============ 2026-09-16: 샘플 데이터(브리핑 시연용) ============
+// 실제 데이터가 아직 안 쌓였어도 표/그래프/AI 분석을 시연할 수 있도록, 화면 우측 상단 토글로
+// 이 고정 샘플로 전환할 수 있다(state.showSampleData). 12개 지역(부녀회 기준 지역 수를 참고해
+// 고정) × 역할 3파트 × 항목 11개, 지역마다 눈에 띄는 "강세 항목"을 다르게 배정해 현실적인
+// 편차를 만든다. Math.sin 기반 결정론적 시드를 써서 매 렌더마다 같은 값이 나오게 한다
+// (Math.random을 쓰면 토글을 껐다 켤 때마다 숫자가 바뀌어 시연 중 혼란스러움).
+const SAMPLE_REGIONS = Array.from({ length: 12 }, (_, i) => `${i + 1}지역`);
+const SAMPLE_STRONG_ITEM_BY_REGION = {
+  '1지역': '섭외', '2지역': '친분', '3지역': '만남1', '4지역': '만남2', '5지역': '상담1',
+  '6지역': '상담2', '7지역': '피드백', '8지역': '복음방', '9지역': '동행교사',
+  '10지역': '센터소개', '11지역': '센터수강', '12지역': '친분'
+};
+function _sampleSeed_(a, b, c, range) {
+  const x = Math.sin(a * 12.9898 + b * 78.233 + c * 37.719) * 43758.5453;
+  return Math.floor((x - Math.floor(x)) * range);
+}
+function buildSampleRoleActivityBreakdown() {
+  const counts = {};
+  const itemGrandTotal = {};
+  let grandTotal = 0;
+  SAMPLE_REGIONS.forEach((region, ri) => {
+    counts[region] = {};
+    const strongItem = SAMPLE_STRONG_ITEM_BY_REGION[region];
+    ROLE_PARTS_DASH.forEach((role, roi) => {
+      counts[region][role] = {};
+      const roleFactor = role === '교사' ? 1.3 : (role === '인도자' ? 1.1 : 1); // 교사 활동이 조금 더 많게
+      ROLE_ACTIVITY_ITEMS_DASH.forEach((item, ii) => {
+        const base = 2 + _sampleSeed_(ri, roi, ii, 6); // 기본 2~7건
+        const boost = item === strongItem ? 10 + _sampleSeed_(ri, roi, ii, 6) : 0; // 강세 항목만 확 높임
+        counts[region][role][item] = Math.round((base + boost) * roleFactor);
+      });
+    });
+  });
+  SAMPLE_REGIONS.forEach(region => {
+    ROLE_PARTS_DASH.forEach(role => {
+      ROLE_ACTIVITY_ITEMS_DASH.forEach(item => {
+        const c = counts[region][role][item];
+        itemGrandTotal[item] = (itemGrandTotal[item] || 0) + c;
+        grandTotal += c;
+      });
+    });
+  });
+
+  const regionRoleTotal = {}, regionItemTotal = {};
+  SAMPLE_REGIONS.forEach(region => {
+    regionRoleTotal[region] = {};
+    regionItemTotal[region] = {};
+    ROLE_PARTS_DASH.forEach(role => { regionRoleTotal[region][role] = Object.values(counts[region][role]).reduce((s, v) => s + v, 0); });
+    ROLE_ACTIVITY_ITEMS_DASH.forEach(item => {
+      let sum = 0;
+      ROLE_PARTS_DASH.forEach(role => { sum += counts[region][role][item]; });
+      regionItemTotal[region][item] = sum;
+    });
+  });
+
+  return { counts, allRegions: SAMPLE_REGIONS, regionRoleTotal, regionItemTotal, itemGrandTotal, grandTotal, isSample: true };
+}
+
 function roleActivityBreakdownTableHtml(b) {
   if (!b || b.grandTotal === 0) {
     return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">이번 달 역할기반 활동 기록(활동방 신규 등록)이 없습니다.</div>`;
@@ -684,40 +755,90 @@ function roleActivityBreakdownTableHtml(b) {
   });
   const totalRoleSum = {};
   ROLE_PARTS_DASH.forEach(role => { totalRoleSum[role] = Object.values(totalRow[role]).reduce((s, v) => s + v, 0); });
+  const regionTotal = region => ROLE_PARTS_DASH.reduce((s, role) => s + b.regionRoleTotal[region][role], 0);
+  const grandRoleSum = Object.values(totalRoleSum).reduce((s, v) => s + v, 0);
 
-  // 각 역할 그룹 첫 칸은 "합계"(그 지역·역할의 전체 건수, %는 의미 없어 생략) + 이어서 11개 항목(건수/비율).
-  const dataCell = (count, denom, first) => `<td class="text-[10px] whitespace-nowrap ${first ? 'border-l border-base-300' : ''}">${count}건 <span class="text-base-content/40">(${pct(count, denom)}%)</span></td>`;
-  const sumCell = (count) => `<td class="text-[10px] whitespace-nowrap font-bold border-l border-base-300">${count}건</td>`;
+  // 각 역할 그룹 첫 칸은 "합계"(그 지역 전체 활동 대비 그 역할 비율) + 이어서 11개 항목(그 역할 내 비율).
+  const dataCell = (count, denom) => `<td class="text-[10px] whitespace-nowrap">${count}건 <span class="text-base-content/40">(${pct(count, denom)}%)</span></td>`;
+  const sumCell = (count, denom) => `<td class="text-[10px] whitespace-nowrap font-bold border-l border-base-300">${count}건 <span class="text-base-content/40 font-normal">(${pct(count, denom)}%)</span></td>`;
   const roleColspan = ROLE_ACTIVITY_ITEMS_DASH.length + 1; // 합계 1칸 + 항목 11칸
 
   return `
+    ${b.isSample ? `<div class="alert bg-warning/10 border border-warning/30 py-2 px-3 mb-2 text-[11px] text-warning-content">📊 지금 보고 계신 표/그래프는 <b>샘플(시연용) 데이터</b>입니다 — 실제 등록된 활동이 아닙니다.</div>` : ''}
     <div class="overflow-x-auto border border-base-300 rounded-box">
       <table class="table table-zebra table-xs">
         <thead class="sticky top-0 bg-base-100">
           <tr>
             <th rowspan="2" class="align-bottom">지역</th>
+            <th rowspan="2" class="align-bottom border-l border-base-300">총 활동<br>건수</th>
             ${ROLE_PARTS_DASH.map(role => `<th colspan="${roleColspan}" class="text-center border-l border-base-300">${esc(role)}</th>`).join('')}
+            <th rowspan="2" class="align-bottom border-l border-base-300">강세 항목</th>
           </tr>
           <tr>
             ${ROLE_PARTS_DASH.map(() => `<th class="whitespace-nowrap font-bold text-[9px] border-l border-base-300">합계</th>` + ROLE_ACTIVITY_ITEMS_DASH.map(item => `<th class="whitespace-nowrap font-normal text-[9px]">${esc(item)}</th>`).join('')).join('')}
           </tr>
         </thead>
         <tbody>
-          ${regions.map(region => `
+          ${regions.map(region => {
+            const rTotal = regionTotal(region);
+            return `
             <tr>
               <td class="font-medium">${esc(region)}</td>
-              ${ROLE_PARTS_DASH.map(role => sumCell(b.regionRoleTotal[region][role]) + ROLE_ACTIVITY_ITEMS_DASH.map(item => {
+              <td class="border-l border-base-300 font-bold text-primary">${rTotal}건</td>
+              ${ROLE_PARTS_DASH.map(role => sumCell(b.regionRoleTotal[region][role], rTotal) + ROLE_ACTIVITY_ITEMS_DASH.map(item => {
                 const c = (b.counts[region] && b.counts[region][role] && b.counts[region][role][item]) || 0;
-                return dataCell(c, b.regionRoleTotal[region][role], false);
+                return dataCell(c, b.regionRoleTotal[region][role]);
               }).join('')).join('')}
-            </tr>`).join('')}
+              <td class="border-l border-base-300"><span class="badge badge-primary badge-outline badge-sm">${esc(regionTopItem(b, region))}</span></td>
+            </tr>`;
+          }).join('')}
           <tr class="font-bold bg-base-200">
             <td>합계</td>
-            ${ROLE_PARTS_DASH.map(role => sumCell(totalRoleSum[role]) + ROLE_ACTIVITY_ITEMS_DASH.map(item => dataCell(totalRow[role][item], totalRoleSum[role], false)).join('')).join('')}
+            <td class="border-l border-base-300">${grandRoleSum}건</td>
+            ${ROLE_PARTS_DASH.map(role => sumCell(totalRoleSum[role], grandRoleSum) + ROLE_ACTIVITY_ITEMS_DASH.map(item => dataCell(totalRow[role][item], totalRoleSum[role])).join('')).join('')}
+            <td class="border-l border-base-300">-</td>
           </tr>
         </tbody>
       </table>
     </div>
+  `;
+}
+
+// 2026-09-16: 그래프2를 누적 막대 → 히트맵 스타일로 교체(사용자 요청 "강세 항목 색상 강조") —
+// Chart.js에 별도 히트맵 타입/플러그인이 없어 순수 HTML 표 + 셀 배경색 진하기로 구현. 각 지역
+// "행" 안에서 상대값(그 지역 최댓값 대비 비율)으로 색 진하기를 매겨서, 절대 건수 규모가 달라도
+// 지역마다 자기 강세 항목이 가장 진하게 보이도록 함.
+function roleActivityHeatmapHtml(b) {
+  const regions = b.allRegions;
+  const maxByRegion = {};
+  regions.forEach(r => { maxByRegion[r] = Math.max(1, ...ROLE_ACTIVITY_ITEMS_DASH.map(item => b.regionItemTotal[r][item] || 0)); });
+  const heatStyle = (v, max) => {
+    const t = max > 0 ? v / max : 0;
+    return `background-color: rgba(79,70,229,${(0.06 + t * 0.74).toFixed(2)});`;
+  };
+  return `
+    <div class="overflow-x-auto border border-base-300 rounded-box">
+      <table class="table table-xs">
+        <thead class="sticky top-0 bg-base-100"><tr>
+          <th>지역</th>
+          ${ROLE_ACTIVITY_ITEMS_DASH.map(item => `<th class="text-center whitespace-nowrap text-[9px]">${esc(item)}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${regions.map(region => {
+            const max = maxByRegion[region];
+            return `<tr>
+              <td class="font-medium">${esc(region)}</td>
+              ${ROLE_ACTIVITY_ITEMS_DASH.map(item => {
+                const v = b.regionItemTotal[region][item] || 0;
+                const isMax = v === max && v > 0;
+                return `<td class="text-center text-[10px] ${isMax ? 'font-black ring-2 ring-inset ring-primary' : ''}" style="${heatStyle(v, max)}">${v}</td>`;
+              }).join('')}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="text-[10px] text-base-content/40 mt-1">색이 진할수록 그 지역 안에서 활동이 몰린 항목 · 테두리 강조 = 그 지역의 강세 항목</div>
   `;
 }
 
@@ -733,8 +854,8 @@ function roleActivityBreakdownChartsHtml(b) {
       </div>
       <div class="card card-border bg-base-100 shadow-sm">
         <div class="card-body p-3">
-          <div class="text-xs font-medium text-base-content/60 mb-2">📊 지역별 11개 항목 강세 비교 (역할 무관 합산, 누적 막대)</div>
-          <div style="height:${h}px"><canvas id="chart-role-items"></canvas></div>
+          <div class="text-xs font-medium text-base-content/60 mb-2">🔥 지역별 11개 항목 히트맵 (역할 무관 합산, 강세 항목 색상 강조)</div>
+          ${roleActivityHeatmapHtml(b)}
         </div>
       </div>
       <div class="card card-border bg-base-100 shadow-sm">
@@ -763,16 +884,7 @@ function renderRoleActivityBreakdownCharts(b) {
       scales: { x: { beginAtZero: true } } }
   }));
 
-  const c2 = document.getElementById('chart-role-items');
-  if (c2) regionCharts.push(new Chart(c2, {
-    type: 'bar',
-    data: { labels: regions, datasets: ROLE_ACTIVITY_ITEMS_DASH.map((item, i) => ({
-      label: item, backgroundColor: ACTIVITY_PALETTE[i % ACTIVITY_PALETTE.length], data: regions.map(r => b.regionItemTotal[r][item])
-    })) },
-    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } },
-      scales: { x: { stacked: true, beginAtZero: true }, y: { stacked: true } } }
-  }));
+  // 히트맵(그래프2)은 순수 HTML 표라 Chart.js 인스턴스 없음 — chart-role-items 캔버스 자체가 없어짐.
 
   const c3 = document.getElementById('chart-role-item-overall');
   if (c3) regionCharts.push(new Chart(c3, {
@@ -787,7 +899,7 @@ function renderRoleActivityBreakdownCharts(b) {
 }
 
 function roleActivityBreakdownSectionHtml(b) {
-  if (allActivitiesLoading && !allActivities) {
+  if (!state.showSampleData && allActivitiesLoading && !allActivities) {
     return `
       <div class="px-4 pt-3">
         <div class="text-xs font-bold text-base-content/50 mb-2">🙌 지역별 인도자·섬김이·교사 활동 (이번 달)</div>
@@ -801,10 +913,97 @@ function roleActivityBreakdownSectionHtml(b) {
   return `
     <div class="px-4 pt-3">
       <div class="flex items-center justify-between mb-2">
-        <div class="text-xs font-bold text-base-content/50">🙌 지역별 인도자·섬김이·교사 활동 (이번 달, 신규 역할기반 기록)</div>
+        <div class="text-xs font-bold text-base-content/50">🙌 지역별 인도자·섬김이·교사 활동 (${b.isSample ? '샘플 데이터' : '이번 달, 신규 역할기반 기록'})</div>
         <button id="btn-role-activity-view-toggle" class="btn btn-xs btn-outline">${toggleLabel}</button>
       </div>
       ${state.roleActivityView === 'table' ? roleActivityBreakdownTableHtml(b) : roleActivityBreakdownChartsHtml(b)}
+    </div>
+  `;
+}
+
+// ============ 2026-09-16: AI 분석 (지역별 인섬교 활동 데이터를 Gemini/Claude에 넘겨 요약) ============
+// 백엔드 action 'generateContent'(feedback-room.html과 동일 경로, Code.gs _callAi_가 Claude
+// 우선/Gemini 폴백+503 자동 재시도까지 이미 처리) 재사용 — 이 파일에서 새 백엔드 액션 안 만듦.
+const AI_ANALYSIS_SECTIONS = ['📊 전체 활동 패턴', '🏆 강세 지역/항목', '⚠️ 보완 필요 지역/항목', '💡 다음 달 제안'];
+
+function buildAiAnalysisPrompt(deptLabel, regionLabel, b) {
+  const data = {
+    부서: deptLabel, 지역필터: regionLabel,
+    지역별: b.allRegions.map(region => ({
+      지역: region,
+      총건수: ROLE_PARTS_DASH.reduce((s, role) => s + b.regionRoleTotal[region][role], 0),
+      역할별: Object.fromEntries(ROLE_PARTS_DASH.map(role => [role, b.regionRoleTotal[region][role]])),
+      항목별: Object.fromEntries(ROLE_ACTIVITY_ITEMS_DASH.map(item => [item, b.regionItemTotal[region][item] || 0])),
+      강세항목: regionTopItem(b, region)
+    })),
+    항목별전체합계: b.itemGrandTotal, 전체합계: b.grandTotal
+  };
+  return `다음은 "${deptLabel}" 부서 ${regionLabel} 교사 활동 데이터입니다(이번 달, 역할기반 활동 기록 기준 — 역할은 인도자/섬김이/교사, 활동 항목은 피드백/섭외/친분/만남1/만남2/상담1/상담2/복음방/동행교사/센터소개/센터수강 11종).\n\n${JSON.stringify(data)}\n\n다음 항목을 분석해주세요:\n1. 전체적으로 어떤 활동에 집중되어 있는지\n2. 특별히 강세를 보이는 지역과 그 이유 추정\n3. 취약한 지역과 보완이 필요한 활동 항목\n4. 센터 인도(센터소개/센터수강 단계) 결과와 연관된 활동 패턴\n5. 다음 달 집중해야 할 활동 제안\n\n한국어로 간결하고 실용적으로 답변하되, 반드시 아래 4개 마크다운 제목을 정확히 그대로 사용하고 다른 제목은 추가하지 마세요:\n## 📊 전체 활동 패턴\n## 🏆 강세 지역/항목\n## ⚠️ 보완 필요 지역/항목\n## 💡 다음 달 제안`;
+}
+
+function parseAiSections(text) {
+  const sections = {};
+  const re = /##\s*(.+?)\s*\n([\s\S]*?)(?=\n##\s|$)/g;
+  let m;
+  while ((m = re.exec(text))) sections[m[1].trim()] = m[2].trim();
+  return sections;
+}
+
+async function runAiAnalysis(deptLabel, regionLabel, b) {
+  state.aiAnalysis = { loading: true, error: '', text: '' };
+  render();
+  const prompt = buildAiAnalysisPrompt(deptLabel, regionLabel, b);
+  const payload = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
+  let lastErrMsg = '';
+  // 백엔드(_callAi_)가 이미 503 등 일시 오류를 최대 3회 자동 재시도하지만, 이 클라이언트 fetch
+  // 자체가 실패(네트워크 오류 등)하는 경우까지 대비해 여기서도 최대 3회, 1초 간격 재시도.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await callApi({ action: 'generateContent', payload });
+      const text = res && res.candidates && res.candidates[0] && res.candidates[0].content && res.candidates[0].content.parts[0] && res.candidates[0].content.parts[0].text;
+      if (text) { state.aiAnalysis = { loading: false, error: '', text }; render(); return; }
+      lastErrMsg = 'AI 응답이 비어 있습니다.';
+    } catch (e) {
+      lastErrMsg = e.message || String(e);
+    }
+    if (attempt < 3) await new Promise(r => setTimeout(r, 1000));
+  }
+  state.aiAnalysis = { loading: false, error: '잠시 후 다시 시도해주세요.', text: '' };
+  render();
+}
+
+function aiAnalysisResultHtml(text) {
+  const sections = parseAiSections(text);
+  const known = AI_ANALYSIS_SECTIONS.filter(k => sections[k]);
+  if (!known.length) {
+    // 모델이 지정한 마크다운 제목 형식을 안 지킨 경우 — 원문 그대로 한 카드에 표시(파싱 실패해도 결과 자체는 보여줌)
+    return `<div class="card card-border bg-base-100 shadow-sm"><div class="card-body p-4 text-xs whitespace-pre-wrap leading-relaxed">${esc(text)}</div></div>`;
+  }
+  return `
+    <div class="grid gap-2">
+      ${known.map(k => `
+        <div class="card card-border bg-base-100 shadow-sm">
+          <div class="card-body p-3">
+            <div class="text-xs font-bold text-base-content mb-1">${esc(k)}</div>
+            <div class="text-[11px] text-base-content/70 whitespace-pre-wrap leading-relaxed">${esc(sections[k])}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+  `;
+}
+
+function aiAnalysisSectionHtml(b) {
+  if (!b) return '';
+  const a = state.aiAnalysis || {};
+  return `
+    <div class="px-4 pt-3 pb-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-xs font-bold text-base-content/50">🤖 AI 분석</div>
+        <button id="btn-ai-analysis" class="btn btn-xs btn-outline btn-primary" ${a.loading ? 'disabled' : ''}>${a.loading ? '분석 중...' : '🤖 AI 분석 보기'}</button>
+      </div>
+      ${a.loading ? `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>🤖 데이터 분석 중...</div>` : ''}
+      ${a.error ? `<div class="alert alert-warning py-2 text-sm"><div>⚠️ ${esc(a.error)}</div></div>` : ''}
+      ${a.text ? aiAnalysisResultHtml(a.text) : (!a.loading && !a.error ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">위 데이터를 AI가 요약·제안해드려요. 버튼을 눌러보세요.</div>` : '')}
     </div>
   `;
 }
@@ -892,7 +1091,9 @@ function render() {
   const pendingCount = filteredRows.filter(t => t.suggestion).length;
   const tableRows = state.pendingOnly ? filteredRows.filter(t => t.suggestion) : filteredRows;
   const analysis = (!isOverview && report) ? buildActivityAnalysis(report) : null;
-  const roleBreakdown = (!isOverview && report) ? buildRoleActivityBreakdown(report) : null;
+  const roleBreakdown = state.showSampleData
+    ? buildSampleRoleActivityBreakdown()
+    : ((!isOverview && report) ? buildRoleActivityBreakdown(report) : null);
 
   root.innerHTML = `
     <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
@@ -900,6 +1101,7 @@ function render() {
         <span class="text-xl leading-none">🗺️</span>
         <div class="text-lg font-bold">부서별</div>
       </div>
+      ${!isOverview ? `<button id="btn-sample-toggle" class="btn btn-xs ${state.showSampleData ? 'btn-warning' : 'btn-ghost btn-outline'}">📊 샘플 데이터 ${state.showSampleData ? 'ON' : '보기'}</button>` : ''}
     </div>
     <div class="brand-accent-bar"></div>
     ${mainNavHtml('district')}
@@ -921,6 +1123,7 @@ function render() {
             ${byRegionSectionHtml(report && report.byRegion)}
             ${roleActivitySectionHtml(report && report.byRegion, report && report.roleActivityCounts)}
             ${roleActivityBreakdownSectionHtml(roleBreakdown)}
+            ${aiAnalysisSectionHtml(roleBreakdown)}
             ${targetStageSectionHtml(report && report.targetStageCounts)}
             ${activityAnalysisSectionHtml(analysis)}
             <details id="teacher-detail-details" class="mt-3 mx-4 border border-base-300 rounded-box bg-base-100 overflow-hidden" ${state.teacherDetailOpen ? 'open' : ''}>
@@ -982,6 +1185,14 @@ function render() {
     state.roleActivityView = state.roleActivityView === 'table' ? 'chart' : 'table';
     render();
   };
+  const sampleToggleBtn = document.getElementById('btn-sample-toggle');
+  if (sampleToggleBtn) sampleToggleBtn.onclick = () => {
+    state.showSampleData = !state.showSampleData;
+    state.aiAnalysis = null; // 데이터 소스가 바뀌면 이전 AI 분석 결과는 더 이상 안 맞으므로 초기화
+    render();
+  };
+  const aiBtn = document.getElementById('btn-ai-analysis');
+  if (aiBtn) aiBtn.onclick = () => runAiAnalysis(state.dept, state.region || '전체', roleBreakdown);
 
   destroyRegionCharts();
   if (!isOverview && report && !state.loading && !state.error) {
