@@ -33,6 +33,7 @@ const paramName = urlParams.get('name');
 // "내 수강생 코칭" 탭에 자동으로 채워준다. STAGE_OPTIONS(아래 정의) 중 하나여야 반영됨.
 const paramHeartsStage = urlParams.get('heartsStage');
 const paramSituation = urlParams.get('situation');
+const paramTargetGroup = urlParams.get('targetGroup');
 if (paramMemberId && paramName) {
   window.TEST_MEMBER_ID = paramMemberId;
   window.TEST_NAME = paramName;
@@ -473,7 +474,7 @@ function printResult(text) {
 
 
 let state = {
-  tab: 'coach',           // coach | studentCoach | history | askCoach | coachMode
+  tab: 'studentCoach',    // coach | studentCoach | history | askCoach | coachMode — 2026-09-15: 기본탭을 "내 수강생 코칭"으로 변경(사용자 요청)
   memberId: TEST_MODE ? TEST_MEMBER.memberId : '',
   name:     TEST_MODE ? TEST_MEMBER.name : '',
   identified: TEST_MODE ? true : false,
@@ -1163,11 +1164,13 @@ function renderCoachModeTab(body) {
   }
 }
 
-// home.html 활동방 "AI코칭 바로가기 →" 로 넘어온 경우 — "내 수강생 코칭" 탭으로 바로 이동하고
-// 대상자 단계(하츠 진행 단계)/상황(이름 마스킹+특이사항+오늘 한 일)을 자동으로 채워준다.
-if (paramHeartsStage || paramSituation) {
+// home.html 활동방 "AI코칭 바로가기 →" 로 넘어온 경우 — "내 수강생 코칭" 탭(이제 기본탭)에서
+// 대상자 단계(하츠 진행 단계)/대상 선택(자문·장년·부녀·청년)/상황(이름 마스킹+특이사항+오늘 한 일)을
+// 자동으로 채워준다. 멘티 유형(MBTI 등)은 일부러 안 건드림 — 사용자가 직접 입력하는 항목.
+if (paramHeartsStage || paramSituation || paramTargetGroup) {
   state.tab = 'studentCoach';
   if (paramHeartsStage && STAGE_OPTIONS.includes(paramHeartsStage)) state.sc.stage = paramHeartsStage;
+  if (paramTargetGroup && TARGET_OPTIONS.includes(paramTargetGroup)) state.sc.targetGroup = paramTargetGroup;
   if (paramSituation) state.sc.situationText = paramSituation;
 }
 

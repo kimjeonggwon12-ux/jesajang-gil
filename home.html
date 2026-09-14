@@ -78,7 +78,6 @@
         <div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/40">⚙️</div>
         <ul tabindex="0" class="dropdown-content menu menu-sm bg-base-100 rounded-box z-10 w-44 p-2 shadow-md border border-base-300">
           <li><a href="admin-home.html" target="_blank" rel="noopener">🔐 관리자 홈</a></li>
-          <li><a href="district-leader-view.html?memberId=0020113000010&name=%EA%B9%80%EC%A0%95%EA%B6%8C" target="_blank" rel="noopener">🗺️ 지역장 개인 화면</a></li>
         </ul>
       </div>
     </div>
@@ -95,7 +94,6 @@
         <div tabindex="0" role="button" class="link link-primary">⚙️ 관리자 메뉴</div>
         <ul tabindex="0" class="dropdown-content menu menu-sm bg-base-100 rounded-box z-10 w-44 p-2 shadow-md border border-base-300">
           <li><a href="admin-home.html" target="_blank" rel="noopener">🔐 관리자 홈</a></li>
-          <li><a href="district-leader-view.html?memberId=0020113000010&name=%EA%B9%80%EC%A0%95%EA%B6%8C" target="_blank" rel="noopener">🗺️ 지역장 개인 화면</a></li>
         </ul>
       </div>
     </div>
@@ -225,35 +223,46 @@
       if (s.length === 2) return s[0] + '*';
       return s[0] + '*'.repeat(s.length - 2) + s[s.length - 1];
     }
-    function isThisMonth(dateStr) {
+    // 2026-09-15: "이번 달"→"올해"로 집계 기간 변경(사용자 요청 — 나중에 승급심사 주기(6개월/1년)
+    // 확정되면 그 기준으로 바꿀 것, 지금은 달력 연도 기준).
+    function isThisYear(dateStr) {
       const d = new Date(dateStr);
       if (isNaN(d)) return false;
-      const now = new Date();
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      return d.getFullYear() === new Date().getFullYear();
     }
 
-    // 교사 구분 5단계 표시(항상 전부 노출, 화살표 없음 — Code.gs TEACHER_TIERS + 미래 단계 "센터교사")
-    const GROWTH_STAGES = ['휴교사', '교사', '활동교사', '우수교사', '센터교사'];
-    const TIER_COLORS = { '휴교사': '#9ca3af', '교사': '#3b82f6', '활동교사': '#f59e0b', '우수교사': '#f97316', '센터교사': '#ef4444' };
+    // 교사 구분 4단계 표시(2026-09-15: "센터교사"는 실존하지 않는 단계라 삭제, 전부 실제 TEACHER_TIERS).
+    const GROWTH_STAGES = ['휴교사', '교사', '활동교사', '우수교사'];
+    const TIER_COLORS = { '휴교사': '#9ca3af', '교사': '#3b82f6', '활동교사': '#f59e0b', '우수교사': '#f97316' };
 
     // 활동 기록 Step2/3 — Code.gs ROLE_OPTIONS/ROLE_ACTIVITY_OPTIONS 와 동일(둘 다 바뀌면 같이 고칠 것).
     const ROLE_OPTIONS = ['인도자', '섬김이', '교사'];
     const ROLE_ACTIVITY_OPTIONS = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
     const TEACHER_EXTRA_ACTIVITY = '동행교사';
     const GENDER_OPTIONS = ['남', '여'];
-    const AGE_GROUP_OPTIONS = ['10대', '20대', '30대', '40대', '50대', '60대이상'];
-    // 백엔드 응답이 stages를 안 내려줄 때의 폴백(전도대상자 8단계, Code.gs TARGET_STAGES와 동일).
-    const TARGET_STAGES_FALLBACK = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개'];
-    // Step3 활동 항목 → Step4 "현재 단계" 자동 매핑(스테이지형 항목만; 피드백/센터수강/동행교사는 매핑 없음).
+    // 2026-09-15: "60대이상" 뭉뚱그림 → 60대/70대이상 분리(장년회/자문회 자동 배정에 필요, ageGenderToOrg 참고).
+    const AGE_GROUP_OPTIONS = ['10대', '20대', '30대', '40대', '50대', '60대', '70대이상'];
+    // 백엔드 응답이 stages를 안 내려줄 때의 폴백(전도대상자 9단계, Code.gs TARGET_STAGES와 동일).
+    const TARGET_STAGES_FALLBACK = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
+    // Step3 활동 항목 → Step4 "현재 단계" 자동 매핑(스테이지형 항목만; 피드백/동행교사는 매핑 없음).
     const ACTIVITY_TO_STAGE = {
       '섭외': '섭외', '친분': '친분', '만남1': '만남1', '만남2': '만남2',
-      '상담1': '상담1', '상담2': '상담2', '복음방': '복음방', '센터소개': '센터소개'
+      '상담1': '상담1', '상담2': '상담2', '복음방': '복음방', '센터소개': '센터소개', '센터수강': '센터수강'
     };
     // "AI코칭 바로가기" — 대상자 단계를 feedback-room.html "내 수강생 코칭"의 하츠 진행 단계(STAGE_OPTIONS)로 변환.
     const HEARTS_STAGE_MAP = {
       '섭외': '친분', '친분': '친분', '만남1': '만남', '만남2': '만남',
-      '상담1': '상담', '상담2': '상담', '복음방': '스터디', '센터소개': '아카데미 소개'
+      '상담1': '상담', '상담2': '상담', '복음방': '스터디', '센터소개': '아카데미 소개', '센터수강': '수강생'
     };
+    // 2026-09-15: 대상자 연령대×성별 → 부서(자문회/장년회/부녀회/청년회) 자동 배정.
+    // 사용자 확정 규칙: 70대이상=자문회(공통) / 40~60대=남 장년회·여 부녀회 / 10~30대=청년회(공통).
+    // feedback-room.html TARGET_OPTIONS(자문/장년/부녀/청년)에 그대로 대응.
+    function ageGenderToOrg(ageGroup, gender) {
+      if (ageGroup === '70대이상') return '자문';
+      if (['40대', '50대', '60대'].includes(ageGroup)) return gender === '여' ? '부녀' : '장년';
+      if (['10대', '20대', '30대'].includes(ageGroup)) return '청년';
+      return '';
+    }
 
     let home = {
       loading: true,
@@ -365,8 +374,7 @@
       const current = ts ? ts.tier : '';
       const pills = GROWTH_STAGES.map(s => {
         const active = s === current;
-        const locked = s === '센터교사'; // 실제 등급 체계에 없는 미래 단계, 항상 잠김 표시
-        const cls = active ? '' : (locked ? 'bg-base-200 text-base-content/30 border-base-200' : 'bg-base-100 text-base-content/50 border-base-300');
+        const cls = active ? '' : 'bg-base-100 text-base-content/50 border-base-300';
         const style = active ? `background:${TIER_COLORS[s]};color:#fff;border-color:transparent` : '';
         return `<div class="flex-1 text-center py-2.5 px-1 rounded-box text-[11px] font-bold border ${cls}" style="${style}">${esc(s)}</div>`;
       }).join('');
@@ -386,7 +394,7 @@
       return `
         <div class="card card-border bg-base-100 shadow-sm mx-4">
           <div class="card-body p-4 cursor-pointer" onclick="openGrowthModal()">
-            <div class="text-sm font-bold text-base-content mb-3">내 성장</div>
+            <div class="text-sm font-bold text-base-content mb-3">내 성장 나무</div>
             <div class="flex items-stretch gap-1.5">${pills}</div>
             ${calloutHtml}
           </div>
@@ -394,7 +402,8 @@
       `;
     }
 
-    // ============ C. 이번 달 활동 (좌: 전도부 입력 읽기전용 / 우: 역할별 내 활동 집계) ============
+    // ============ C. 올해 활동 (좌: 전도부 입력 읽기전용 / 우: 역할별 내 활동 집계) ============
+    // 2026-09-15: "이번 달 활동"→"올해 활동"으로 명칭·집계기간 변경(사용자 요청).
 
     function toggleRolePart(role) {
       home.expandedRolePart = (home.expandedRolePart === role) ? null : role;
@@ -402,8 +411,8 @@
     }
 
     function monthlyBoxesHtml() {
-      const gospelCount = home.gospelLeads.filter(r => isThisMonth(r.date)).length;
-      const centerCount = home.centerLeads.filter(r => isThisMonth(r.date)).length;
+      const gospelCount = home.gospelLeads.filter(r => isThisYear(r.date)).length;
+      const centerCount = home.centerLeads.filter(r => isThisYear(r.date)).length;
       const rc = (home.monthlyActRes && home.monthlyActRes.roleCounts) || {};
       const ric = (home.monthlyActRes && home.monthlyActRes.roleItemCounts) || {};
 
@@ -418,14 +427,14 @@
               <span class="text-lg font-black ${colorCls}">${rc[role] || 0}<span class="text-xs font-normal text-base-content/40">건</span></span>
             </div>
             ${expanded ? (itemKeys.length
-              ? `<div class="mt-2 pt-2 border-t border-base-200 flex flex-wrap gap-1">${itemKeys.map(k => `<span class="badge badge-ghost badge-sm">${esc(k)} ${items[k]}</span>`).join('')}</div>`
-              : `<div class="mt-2 pt-2 border-t border-base-200 text-[11px] text-base-content/30">이번 달 기록 없음</div>`) : ''}
+              ? `<div class="mt-2 pt-2 border-t border-base-200 flex flex-wrap gap-1">${itemKeys.map(k => `<span class="badge badge-ghost badge-sm">${esc(k)} ${items[k]}건</span>`).join('')}</div>`
+              : `<div class="mt-2 pt-2 border-t border-base-200 text-[11px] text-base-content/30">올해 기록 없음</div>`) : ''}
           </div>`;
       };
 
       return `
         <div class="px-4">
-          <div class="text-sm font-bold text-base-content mb-3">이번 달 활동</div>
+          <div class="text-sm font-bold text-base-content mb-3">올해 활동</div>
           <div class="grid grid-cols-2 gap-3">
             <div class="rounded-box p-3" style="background:#ecfdf5;border:1px solid #a7f3d0">
               <div class="text-[11px] font-bold text-emerald-700 mb-2">전도부 등록 (읽기 전용)</div>
@@ -604,6 +613,9 @@
       const heartsStage = HEARTS_STAGE_MAP[f.targetStage];
       if (heartsStage) params.set('heartsStage', heartsStage);
       if (parts.length) params.set('situation', parts.join(' / '));
+      // 2026-09-15: 대상자 연령대×성별로 "대상 선택"(자문/장년/부녀/청년)도 자동 전달.
+      const targetGroup = ageGenderToOrg(f.targetAgeGroup, f.targetGender);
+      if (targetGroup) params.set('targetGroup', targetGroup);
 
       switchTab('feedback', document.querySelector('.tab[data-room="feedback"]'), params);
     }
@@ -623,22 +635,19 @@
       `;
     }
 
-    function targetCardHtml(t) {
-      const initial = (t.targetName || '?').slice(0, 1);
+    // 2026-09-15: 사용자 요청으로 카드형(1명당 미니 계단그래프) → 집계 막대그래프(1명당 막대 1개,
+    // 높이=현재 단계)로 교체. "10명을 등록하면 막대 10개가 보여야 한다"는 요청 그대로 구현.
+    function targetBarHtml(t) {
+      const idx = stageIndex(t.stage);
+      const n = home.stages.length || 1;
+      const heightPct = idx >= 0 ? Math.round((idx + 1) / n * 100) : 6;
       return `
-        <div class="card card-border bg-base-100 shadow-sm shrink-0 cursor-pointer active:scale-[0.99] transition" style="width:150px" onclick="openTargetDetail('${esc(t.targetId)}')">
-          <div class="card-body p-3">
-            <div class="flex items-center gap-2 mb-1">
-              <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">${esc(initial)}</div>
-              <div class="min-w-0">
-                <div class="font-bold text-xs truncate">${esc(maskName(t.targetName))}</div>
-                <div class="text-[10px] text-base-content/40 truncate">${esc(t.gender || '')} ${esc(t.ageGroup || '')}</div>
-              </div>
-            </div>
-            ${targetStageBarsHtml(t)}
+        <div class="flex flex-col items-center shrink-0 cursor-pointer" style="width:42px" onclick="openTargetDetail('${esc(t.targetId)}')" title="${esc(t.stage || '단계 미상')}">
+          <div class="w-full flex items-end justify-center" style="height:140px">
+            <div class="w-6 rounded-t-md ${idx >= 0 ? 'bg-primary' : 'bg-base-300'}" style="height:${heightPct}%"></div>
           </div>
-        </div>
-      `;
+          <div class="text-[9px] text-base-content/50 mt-1 truncate w-full text-center">${esc(maskName(t.targetName))}</div>
+        </div>`;
     }
 
     function targetsSectionHtml() {
@@ -653,9 +662,14 @@
       }
       return `
         <div class="px-4">
-          <div class="text-sm font-bold text-base-content mb-3">내 전도 대상자 현황</div>
-          <div class="flex gap-3 overflow-x-auto pb-2">
-            ${home.targets.map(t => targetCardHtml(t)).join('')}
+          <div class="text-sm font-bold text-base-content mb-1">내 전도 대상자 현황</div>
+          <div class="text-[10px] text-base-content/40 mb-2">막대 하나 = 대상자 한 명 · 높이 = 현재 단계(아래 섭외 → 위 센터수강) · 눌러서 상세보기</div>
+          <div class="card card-border bg-base-100 shadow-sm">
+            <div class="card-body p-3">
+              <div class="flex items-end gap-2 overflow-x-auto pb-1">
+                ${home.targets.map(t => targetBarHtml(t)).join('')}
+              </div>
+            </div>
           </div>
         </div>
       `;
