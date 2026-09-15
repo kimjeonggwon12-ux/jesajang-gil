@@ -56,7 +56,8 @@ let state = {
   teacherDetailOpen: false, // 교사별 상세(지역 필터+표) 접기/펼치기 — 기본 접힘
   pendingOnly: false, // true면 교사별 상세 표를 "승급·강등 제안 있는 교사만"으로 좁혀서 보여줌
   showSampleData: false, // 2026-09-16: 브리핑용 샘플 데이터 토글 — ON이면 "지역별 인섬교 활동" 표/그래프/AI분석이 실제 데이터 대신 고정 샘플을 사용
-  aiAnalysis: null // { loading, error, text } — 부서 탭 하단 "🤖 AI 분석 보기" 결과(부서 바뀌면 초기화)
+  aiAnalysis: null, // { loading, error, text } — 부서 탭 하단 "🤖 AI 분석 보기" 결과(부서 바뀌면 초기화)
+  expandedRoleCol: { '인도자': false, '섬김이': false, '교사': false } // 2026-09-17: "지역별 인섬교 활동" 표에서 역할 열 헤더 클릭 시 11개 항목 펼치기/접기
 };
 
 // 전체 조직별 요약 (getOrgSummary) — "전체 요약" 화면 전용, 부서 상세와 별도로 캐시.
@@ -87,6 +88,19 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
+
+// 2026-09-17: 소제목 스타일 전면 강화(사용자 요청 — "폰트 크기 20px+/900굵기/네이비/배경 띠 +
+// 바로 아래 1~2줄 설명"). 모든 섹션 소제목을 이 함수 하나로 통일해서 재사용 — 소제목 스타일을
+// 나중에 또 바꾸면 여기 한 곳만 고치면 됨.
+function sectionTitleBand(icon, title, desc, bandColor) {
+  bandColor = bandColor || '#E0E7FF';
+  return `
+    <div class="rounded-lg px-3 py-2" style="background:${bandColor}">
+      <div style="font-size:20px;font-weight:900;color:#1F3864;line-height:1.3">${icon} ${esc(title)}</div>
+    </div>
+    ${desc ? `<div class="text-xs text-base-content/50 mt-1 mb-2 leading-relaxed">${esc(desc)}</div>` : ''}
+  `;
+}
 
 // 관리자 화면 공통 메인 내비게이션 — 관리자 홈 / 통합 / 부서별 / 피드백 / 교사 어플로 가기 5개.
 // 세 관리방(통합·부서별·피드백) 어디서든 서로 바로 이동 가능하도록 각 파일에 동일하게 둠.
@@ -453,7 +467,7 @@ function targetStageSectionHtml(targetStageCounts) {
   const total = TARGET_STAGES_DASH.reduce((sum, k) => sum + (targetStageCounts[k] || 0), 0);
   return `
     <div class="px-4 pt-3">
-      <div class="text-xs font-bold text-base-content/50 mb-2">🌱 전도 대상자 단계별 현황 (진행 중, 총 ${total}명)</div>
+      ${sectionTitleBand('🌱', `전도 대상자 단계별 현황 (진행 중, 총 ${total}명)`, '교사들이 관리 중인 전도 대상자가 섭외→센터수강 9단계 중 어디에 있는지 보여줍니다.', '#ECFDF5')}
       <div class="flex flex-wrap gap-2">
         ${TARGET_STAGES_DASH.map(s => `
           <div class="border border-base-300 rounded-box px-3 py-2 text-center">
@@ -566,7 +580,7 @@ function activityAnalysisChartsHtml(analysis) {
   return `
     <div class="card card-border bg-base-100 shadow-sm">
       <div class="card-body p-3">
-        <div class="text-xs font-medium text-base-content/60 mb-2">📊 지역별 활동 유형 비중 (이번 달, 지역 막대 100% 기준)</div>
+        <div style="font-size:20px;font-weight:900;color:#1F3864" class="mb-2">📊 지역별 활동 유형 비중 (이번 달, 지역 막대 100% 기준)</div>
         <div style="height:${h}px"><canvas id="chart-activity-analysis"></canvas></div>
       </div>
     </div>
@@ -586,16 +600,20 @@ function renderActivityAnalysisChart(analysis) {
     type: 'bar',
     data: { labels, datasets },
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } },
-      scales: { x: { stacked: true, beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } }, y: { stacked: true } } }
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 14, weight: 'bold' } } } },
+      scales: {
+        x: { stacked: true, beginAtZero: true, max: 100, ticks: { callback: v => v + '%', font: { size: 14, weight: 'bold' } } },
+        y: { stacked: true, ticks: { font: { size: 14, weight: 'bold' } } }
+      } }
   }));
 }
 
 function activityAnalysisSectionHtml(analysis) {
+  const titleHtml = sectionTitleBand('📊', '지역별 활동 분석 (이번 달)', '각 지역 교사들이 이번 달 어떤 활동을 얼마나 했는지 한눈에 확인합니다.', '#EFF6FF');
   if (allActivitiesLoading && !allActivities) {
     return `
       <div class="px-4 pt-3">
-        <div class="text-xs font-bold text-base-content/50 mb-2">📊 지역별 활동 분석 (이번 달)</div>
+        ${titleHtml}
         <div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center">
           <span class="loading loading-spinner loading-sm align-middle mr-1"></span>이번 달 활동 내역 불러오는 중...
         </div>
@@ -605,9 +623,9 @@ function activityAnalysisSectionHtml(analysis) {
   const toggleLabel = state.activityView === 'table' ? '📊 그래프로 보기' : '📋 표로 보기';
   return `
     <div class="px-4 pt-3">
-      <div class="flex items-center justify-between mb-2">
-        <div class="text-xs font-bold text-base-content/50">📊 지역별 활동 분석 (이번 달)</div>
-        <button id="btn-activity-view-toggle" class="btn btn-xs btn-outline">${toggleLabel}</button>
+      <div class="flex items-start justify-between gap-2 mb-1">
+        <div class="flex-1">${titleHtml}</div>
+        <button id="btn-activity-view-toggle" class="btn btn-xs btn-outline shrink-0 mt-1">${toggleLabel}</button>
       </div>
       ${state.activityView === 'table' ? activityAnalysisTableHtml(analysis) : activityAnalysisChartsHtml(analysis)}
     </div>
@@ -680,6 +698,21 @@ function regionTopItem(b, region) {
   });
   return topV > 0 ? top : '-';
 }
+function regionTopItemValue(b, region) {
+  return Math.max(0, ...ROLE_ACTIVITY_ITEMS_DASH.map(item => (b.regionItemTotal[region] && b.regionItemTotal[region][item]) || 0));
+}
+
+// 2026-09-17: 강세(빨강)~중간(노랑)~약세(파랑) 대비 색상 스케일 — "강세 항목"열/히트맵 공용.
+// t: 0(가장 약함, 파랑) ~ 1(가장 강함, 빨강).
+function divergingColor(t) {
+  t = Math.max(0, Math.min(1, isFinite(t) ? t : 0));
+  const lerp = (a, b, u) => Math.round(a + (b - a) * u);
+  let r, g, bch;
+  if (t < 0.5) { const u = t / 0.5; r = lerp(0x1d, 0xea, u); g = lerp(0x4e, 0xb3, u); bch = lerp(0xd8, 0x08, u); }
+  else { const u = (t - 0.5) / 0.5; r = lerp(0xea, 0xb9, u); g = lerp(0xb3, 0x1c, u); bch = lerp(0x08, 0x1c, u); }
+  const textColor = (t < 0.35 || t > 0.65) ? '#fff' : '#111';
+  return { bg: `rgb(${r},${g},${bch})`, text: textColor };
+}
 
 // ============ 2026-09-16: 샘플 데이터(브리핑 시연용) ============
 // 실제 데이터가 아직 안 쌓였어도 표/그래프/AI 분석을 시연할 수 있도록, 화면 우측 상단 토글로
@@ -739,6 +772,10 @@ function buildSampleRoleActivityBreakdown() {
   return { counts, allRegions: SAMPLE_REGIONS, regionRoleTotal, regionItemTotal, itemGrandTotal, grandTotal, isSample: true };
 }
 
+// 열 고정 폭(px) — 지역/총건수/강세항목 3열이 sticky. offset은 앞 열 폭의 누적.
+const STICKY_COL_W = { region: 64, total: 84, strong: 84 };
+const STICKY_LEFT = { region: 0, total: STICKY_COL_W.region, strong: STICKY_COL_W.region + STICKY_COL_W.total };
+
 function roleActivityBreakdownTableHtml(b) {
   if (!b || b.grandTotal === 0) {
     return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">이번 달 역할기반 활동 기록(활동방 신규 등록)이 없습니다.</div>`;
@@ -757,47 +794,86 @@ function roleActivityBreakdownTableHtml(b) {
   ROLE_PARTS_DASH.forEach(role => { totalRoleSum[role] = Object.values(totalRow[role]).reduce((s, v) => s + v, 0); });
   const regionTotal = region => ROLE_PARTS_DASH.reduce((s, role) => s + b.regionRoleTotal[region][role], 0);
   const grandRoleSum = Object.values(totalRoleSum).reduce((s, v) => s + v, 0);
+  const n = regions.length || 1;
 
-  // 각 역할 그룹 첫 칸은 "합계"(그 지역 전체 활동 대비 그 역할 비율) + 이어서 11개 항목(그 역할 내 비율).
+  // "강세 항목" 열 배경 색상용 — 지역마다 최댓값(regionTopItemValue)의 전 지역 최소~최대 범위로 정규화.
+  const topValues = regions.map(r => regionTopItemValue(b, r));
+  const topMin = Math.min(...topValues), topMax = Math.max(...topValues);
+  const strongCellStyle = v => {
+    const { bg, text } = divergingColor(topMax > topMin ? (v - topMin) / (topMax - topMin) : 0.5);
+    return `background:${bg};color:${text}`;
+  };
+
+  // 각 역할 그룹 첫 칸은 "합계"(그 지역 전체 활동 대비 그 역할 비율) + 펼쳤을 때 11개 항목(그 역할 내 비율).
   const dataCell = (count, denom) => `<td class="text-[10px] whitespace-nowrap">${count}건 <span class="text-base-content/40">(${pct(count, denom)}%)</span></td>`;
-  const sumCell = (count, denom) => `<td class="text-[10px] whitespace-nowrap font-bold border-l border-base-300">${count}건 <span class="text-base-content/40 font-normal">(${pct(count, denom)}%)</span></td>`;
-  const roleColspan = ROLE_ACTIVITY_ITEMS_DASH.length + 1; // 합계 1칸 + 항목 11칸
+  const sumCell = (count, denom, role) => `<th class="text-[10px] whitespace-nowrap font-bold border-l border-base-300 cursor-pointer hover:bg-base-200 select-none" data-role-toggle="${esc(role)}" title="클릭해서 11개 항목 펼치기/접기">${count}건 <span class="text-base-content/40 font-normal">(${pct(count, denom)}%)</span> ${state.expandedRoleCol[role] ? '▲' : '▼'}</th>`;
+  const sticky = (w, left, extra) => `position:sticky;left:${left}px;width:${w}px;min-width:${w}px;z-index:2;${extra||''}`;
+
+  const rowsHtml = regions.map(region => {
+    const rTotal = regionTotal(region);
+    const topV = regionTopItemValue(b, region);
+    return `
+      <tr>
+        <td class="font-bold text-base" style="${sticky(STICKY_COL_W.region, STICKY_LEFT.region, 'background:var(--fallback-b1,oklch(var(--b1)))')}">${esc(region)}</td>
+        <td class="font-bold text-primary text-sm border-l border-base-300" style="${sticky(STICKY_COL_W.total, STICKY_LEFT.total, 'background:var(--fallback-b1,oklch(var(--b1)))')}">${rTotal}건</td>
+        <td class="border-l border-base-300 text-center" style="${sticky(STICKY_COL_W.strong, STICKY_LEFT.strong, strongCellStyle(topV))}"><span class="font-black text-[11px]">${esc(regionTopItem(b, region))}</span></td>
+        ${ROLE_PARTS_DASH.map(role => {
+          const expanded = state.expandedRoleCol[role];
+          const sum = sumCell(b.regionRoleTotal[region][role], rTotal, role);
+          const items = expanded ? ROLE_ACTIVITY_ITEMS_DASH.map(item => {
+            const c = (b.counts[region] && b.counts[region][role] && b.counts[region][role][item]) || 0;
+            return dataCell(c, b.regionRoleTotal[region][role]);
+          }).join('') : '';
+          return sum + items;
+        }).join('')}
+      </tr>`;
+  }).join('');
+
+  const avgRowHtml = `
+    <tr style="background:#1F3864" class="text-white">
+      <td class="font-black text-sm" style="${sticky(STICKY_COL_W.region, STICKY_LEFT.region, 'background:#1F3864;color:#fff')}">전체 평균</td>
+      <td class="font-black text-sm border-l border-white/20" style="${sticky(STICKY_COL_W.total, STICKY_LEFT.total, 'background:#1F3864;color:#fff')}">${Math.round(grandRoleSum / n)}건</td>
+      <td class="border-l border-white/20" style="${sticky(STICKY_COL_W.strong, STICKY_LEFT.strong, 'background:#1F3864;color:#fff')}">-</td>
+      ${ROLE_PARTS_DASH.map(role => {
+        const expanded = state.expandedRoleCol[role];
+        const avgSum = `<th class="text-[11px] whitespace-nowrap font-black border-l border-white/20 text-white">${Math.round(totalRoleSum[role] / n)}건</th>`;
+        const avgItems = expanded ? ROLE_ACTIVITY_ITEMS_DASH.map(item => `<td class="text-[10px] whitespace-nowrap font-bold text-white">${Math.round(totalRow[role][item] / n)}건</td>`).join('') : '';
+        return avgSum + avgItems;
+      }).join('')}
+    </tr>`;
 
   return `
     ${b.isSample ? `<div class="alert bg-warning/10 border border-warning/30 py-2 px-3 mb-2 text-[11px] text-warning-content">📊 지금 보고 계신 표/그래프는 <b>샘플(시연용) 데이터</b>입니다 — 실제 등록된 활동이 아닙니다.</div>` : ''}
+    <div class="text-[10px] text-base-content/40 mb-1">💡 인도자·섬김이·교사 열 헤더(합계)를 클릭하면 11개 세부 항목이 펼쳐집니다. 지역·총건수·강세항목 3열은 가로 스크롤해도 고정됩니다.</div>
     <div class="overflow-x-auto border border-base-300 rounded-box">
       <table class="table table-zebra table-xs">
-        <thead class="sticky top-0 bg-base-100">
+        <thead>
           <tr>
-            <th rowspan="2" class="align-bottom">지역</th>
-            <th rowspan="2" class="align-bottom border-l border-base-300">총 활동<br>건수</th>
-            ${ROLE_PARTS_DASH.map(role => `<th colspan="${roleColspan}" class="text-center border-l border-base-300">${esc(role)}</th>`).join('')}
-            <th rowspan="2" class="align-bottom border-l border-base-300">강세 항목</th>
-          </tr>
-          <tr>
-            ${ROLE_PARTS_DASH.map(() => `<th class="whitespace-nowrap font-bold text-[9px] border-l border-base-300">합계</th>` + ROLE_ACTIVITY_ITEMS_DASH.map(item => `<th class="whitespace-nowrap font-normal text-[9px]">${esc(item)}</th>`).join('')).join('')}
+            <th class="align-bottom" style="${sticky(STICKY_COL_W.region, STICKY_LEFT.region, 'z-index:4;background:var(--fallback-b1,oklch(var(--b1)));position:sticky;top:0')}">지역</th>
+            <th class="align-bottom border-l border-base-300" style="${sticky(STICKY_COL_W.total, STICKY_LEFT.total, 'z-index:4;background:var(--fallback-b1,oklch(var(--b1)));position:sticky;top:0')}">총 활동<br>건수</th>
+            <th class="align-bottom border-l border-base-300" style="${sticky(STICKY_COL_W.strong, STICKY_LEFT.strong, 'z-index:4;background:var(--fallback-b1,oklch(var(--b1)));position:sticky;top:0')}">강세 항목</th>
+            ${ROLE_PARTS_DASH.map(role => {
+              const expanded = state.expandedRoleCol[role];
+              const head = `<th class="text-[10px] whitespace-nowrap border-l border-base-300 cursor-pointer hover:bg-base-200 select-none sticky top-0 z-[3] bg-base-100" data-role-toggle="${esc(role)}" title="클릭해서 11개 항목 펼치기/접기">${esc(role)} ${expanded ? '▲' : '▼'}</th>`;
+              const itemHeads = expanded ? ROLE_ACTIVITY_ITEMS_DASH.map(item => `<th class="whitespace-nowrap font-normal text-[9px] sticky top-0 z-[3] bg-base-100">${esc(item)}</th>`).join('') : '';
+              return head + itemHeads;
+            }).join('')}
           </tr>
         </thead>
         <tbody>
-          ${regions.map(region => {
-            const rTotal = regionTotal(region);
-            return `
-            <tr>
-              <td class="font-medium">${esc(region)}</td>
-              <td class="border-l border-base-300 font-bold text-primary">${rTotal}건</td>
-              ${ROLE_PARTS_DASH.map(role => sumCell(b.regionRoleTotal[region][role], rTotal) + ROLE_ACTIVITY_ITEMS_DASH.map(item => {
-                const c = (b.counts[region] && b.counts[region][role] && b.counts[region][role][item]) || 0;
-                return dataCell(c, b.regionRoleTotal[region][role]);
-              }).join('')).join('')}
-              <td class="border-l border-base-300"><span class="badge badge-primary badge-outline badge-sm">${esc(regionTopItem(b, region))}</span></td>
-            </tr>`;
-          }).join('')}
+          ${rowsHtml}
           <tr class="font-bold bg-base-200">
-            <td>합계</td>
-            <td class="border-l border-base-300">${grandRoleSum}건</td>
-            ${ROLE_PARTS_DASH.map(role => sumCell(totalRoleSum[role], grandRoleSum) + ROLE_ACTIVITY_ITEMS_DASH.map(item => dataCell(totalRow[role][item], totalRoleSum[role])).join('')).join('')}
-            <td class="border-l border-base-300">-</td>
+            <td style="${sticky(STICKY_COL_W.region, STICKY_LEFT.region, 'background:var(--fallback-b2,oklch(var(--b2)))')}">합계</td>
+            <td class="border-l border-base-300" style="${sticky(STICKY_COL_W.total, STICKY_LEFT.total, 'background:var(--fallback-b2,oklch(var(--b2)))')}">${grandRoleSum}건</td>
+            <td class="border-l border-base-300" style="${sticky(STICKY_COL_W.strong, STICKY_LEFT.strong, 'background:var(--fallback-b2,oklch(var(--b2)))')}">-</td>
+            ${ROLE_PARTS_DASH.map(role => {
+              const expanded = state.expandedRoleCol[role];
+              const sum = `<th class="text-[10px] whitespace-nowrap font-bold border-l border-base-300">${totalRoleSum[role]}건 <span class="text-base-content/40 font-normal">(${pct(totalRoleSum[role], grandRoleSum)}%)</span></th>`;
+              const items = expanded ? ROLE_ACTIVITY_ITEMS_DASH.map(item => dataCell(totalRow[role][item], totalRoleSum[role])).join('') : '';
+              return sum + items;
+            }).join('')}
           </tr>
+          ${avgRowHtml}
         </tbody>
       </table>
     </div>
@@ -805,40 +881,50 @@ function roleActivityBreakdownTableHtml(b) {
 }
 
 // 2026-09-16: 그래프2를 누적 막대 → 히트맵 스타일로 교체(사용자 요청 "강세 항목 색상 강조") —
-// Chart.js에 별도 히트맵 타입/플러그인이 없어 순수 HTML 표 + 셀 배경색 진하기로 구현. 각 지역
-// "행" 안에서 상대값(그 지역 최댓값 대비 비율)으로 색 진하기를 매겨서, 절대 건수 규모가 달라도
-// 지역마다 자기 강세 항목이 가장 진하게 보이도록 함.
+// Chart.js에 별도 히트맵 타입/플러그인이 없어 순수 HTML 표 + 셀 배경색으로 구현. 각 지역 "행"
+// 안에서 상대값(그 지역 최댓값 대비 비율)을 강세(빨강)~중간(노랑)~약세(파랑) 대비색으로 표시해서,
+// 절대 건수 규모가 달라도 지역마다 자기 강세/약세 항목이 한눈에 보이도록 함.
+// 2026-09-17: X축(항목명) 16px 굵게 45도 회전, Y축(지역명) 16px 굵게로 확대 + 맨 아래 "전체 평균" 행 추가.
 function roleActivityHeatmapHtml(b) {
   const regions = b.allRegions;
   const maxByRegion = {};
   regions.forEach(r => { maxByRegion[r] = Math.max(1, ...ROLE_ACTIVITY_ITEMS_DASH.map(item => b.regionItemTotal[r][item] || 0)); });
-  const heatStyle = (v, max) => {
-    const t = max > 0 ? v / max : 0;
-    return `background-color: rgba(79,70,229,${(0.06 + t * 0.74).toFixed(2)});`;
-  };
+  const n = regions.length || 1;
+  const avgByItem = {};
+  ROLE_ACTIVITY_ITEMS_DASH.forEach(item => {
+    avgByItem[item] = regions.reduce((s, r) => s + (b.regionItemTotal[r][item] || 0), 0) / n;
+  });
+
   return `
     <div class="overflow-x-auto border border-base-300 rounded-box">
       <table class="table table-xs">
         <thead class="sticky top-0 bg-base-100"><tr>
-          <th>지역</th>
-          ${ROLE_ACTIVITY_ITEMS_DASH.map(item => `<th class="text-center whitespace-nowrap text-[9px]">${esc(item)}</th>`).join('')}
+          <th style="font-size:16px;font-weight:900">지역</th>
+          ${ROLE_ACTIVITY_ITEMS_DASH.map(item => `<th class="align-bottom" style="height:76px;min-width:44px">
+            <div style="transform:rotate(-45deg);transform-origin:left bottom;white-space:nowrap;font-size:16px;font-weight:900;width:20px">${esc(item)}</div>
+          </th>`).join('')}
         </tr></thead>
         <tbody>
           ${regions.map(region => {
             const max = maxByRegion[region];
             return `<tr>
-              <td class="font-medium">${esc(region)}</td>
+              <td class="whitespace-nowrap" style="font-size:16px;font-weight:900">${esc(region)}</td>
               ${ROLE_ACTIVITY_ITEMS_DASH.map(item => {
                 const v = b.regionItemTotal[region][item] || 0;
                 const isMax = v === max && v > 0;
-                return `<td class="text-center text-[10px] ${isMax ? 'font-black ring-2 ring-inset ring-primary' : ''}" style="${heatStyle(v, max)}">${v}</td>`;
+                const { bg, text } = divergingColor(max > 0 ? v / max : 0);
+                return `<td class="text-center text-xs font-bold ${isMax ? 'ring-2 ring-inset ring-primary' : ''}" style="background:${bg};color:${text}">${v}</td>`;
               }).join('')}
             </tr>`;
           }).join('')}
+          <tr style="background:#374151" class="text-white">
+            <td class="whitespace-nowrap" style="font-size:18px;font-weight:900;background:#374151;color:#fff">전체 평균</td>
+            ${ROLE_ACTIVITY_ITEMS_DASH.map(item => `<td class="text-center" style="font-size:18px;font-weight:900;background:#374151;color:#fff">${avgByItem[item].toFixed(1)}</td>`).join('')}
+          </tr>
         </tbody>
       </table>
     </div>
-    <div class="text-[10px] text-base-content/40 mt-1">색이 진할수록 그 지역 안에서 활동이 몰린 항목 · 테두리 강조 = 그 지역의 강세 항목</div>
+    <div class="text-[10px] text-base-content/40 mt-1">🔴 빨강 = 그 지역 안에서 강세 항목 · 🔵 파랑 = 약세 항목(지역별 상대값 기준) · 테두리 강조 = 그 지역 1위 항목</div>
   `;
 }
 
@@ -854,7 +940,7 @@ function roleActivityBreakdownChartsHtml(b) {
       </div>
       <div class="card card-border bg-base-100 shadow-sm">
         <div class="card-body p-3">
-          <div class="text-xs font-medium text-base-content/60 mb-2">🔥 지역별 11개 항목 히트맵 (역할 무관 합산, 강세 항목 색상 강조)</div>
+          ${sectionTitleBand('🔥', '지역별 11개 항목 히트맵', '11개 활동 항목의 지역별 강세(🔴)와 약세(🔵)를 색상으로 한눈에 파악합니다.', '#FEF2F2')}
           ${roleActivityHeatmapHtml(b)}
         </div>
       </div>
@@ -899,10 +985,11 @@ function renderRoleActivityBreakdownCharts(b) {
 }
 
 function roleActivityBreakdownSectionHtml(b) {
+  const titleHtml = sectionTitleBand('🙌', '지역별 인도자·섬김이·교사 활동', '3가지 역할별 활동 건수를 지역별로 비교합니다. 역할 클릭 시 11개 세부 항목을 확인할 수 있습니다.', '#FFFBEB');
   if (!state.showSampleData && allActivitiesLoading && !allActivities) {
     return `
       <div class="px-4 pt-3">
-        <div class="text-xs font-bold text-base-content/50 mb-2">🙌 지역별 인도자·섬김이·교사 활동 (이번 달)</div>
+        ${titleHtml}
         <div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center">
           <span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...
         </div>
@@ -912,10 +999,11 @@ function roleActivityBreakdownSectionHtml(b) {
   const toggleLabel = state.roleActivityView === 'table' ? '📊 그래프로 보기' : '📋 표로 보기';
   return `
     <div class="px-4 pt-3">
-      <div class="flex items-center justify-between mb-2">
-        <div class="text-xs font-bold text-base-content/50">🙌 지역별 인도자·섬김이·교사 활동 (${b.isSample ? '샘플 데이터' : '이번 달, 신규 역할기반 기록'})</div>
-        <button id="btn-role-activity-view-toggle" class="btn btn-xs btn-outline">${toggleLabel}</button>
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex-1">${titleHtml}</div>
+        <button id="btn-role-activity-view-toggle" class="btn btn-xs btn-outline shrink-0 mt-1">${toggleLabel}</button>
       </div>
+      <div class="text-[10px] text-base-content/40 mb-1">${b.isSample ? '샘플 데이터' : '이번 달, 신규 역할기반 기록'}</div>
       ${state.roleActivityView === 'table' ? roleActivityBreakdownTableHtml(b) : roleActivityBreakdownChartsHtml(b)}
     </div>
   `;
@@ -1110,6 +1198,11 @@ function render() {
       <div class="px-4 pt-3 flex items-center justify-between">
         <button id="btn-back-overview" class="text-xs text-primary hover:underline">← 전체 요약</button>
         <div class="text-sm font-bold text-base-content flex items-center gap-1">${DEPT_ICON[state.dept] || '📁'} ${esc(state.dept)}</div>
+      </div>
+      <div class="px-4 pt-2">
+        <div class="alert bg-base-200 border border-base-300 py-2.5 px-3 text-[11px] text-base-content/70 leading-relaxed">
+          🧭 이 화면은 지역장·교관이 담당 지역 교사들의 3역할(인도자·섬김이·교사) 11항목 활동을 체계적으로 관찰·관리하는 직무 공간입니다. 지역별 강세·약세를 파악하고 보완 방향을 제시하세요.
+        </div>
       </div>` : ''}
 
     ${isOverview
@@ -1120,16 +1213,19 @@ function render() {
           ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div></div>`
           : `
             ${summaryCardHtml(report && report.summary)}
+            ${targetStageSectionHtml(report && report.targetStageCounts)}
             ${byRegionSectionHtml(report && report.byRegion)}
             ${roleActivitySectionHtml(report && report.byRegion, report && report.roleActivityCounts)}
             ${roleActivityBreakdownSectionHtml(roleBreakdown)}
             ${aiAnalysisSectionHtml(roleBreakdown)}
-            ${targetStageSectionHtml(report && report.targetStageCounts)}
             ${activityAnalysisSectionHtml(analysis)}
             <details id="teacher-detail-details" class="mt-3 mx-4 border border-base-300 rounded-box bg-base-100 overflow-hidden" ${state.teacherDetailOpen ? 'open' : ''}>
-              <summary class="cursor-pointer select-none px-4 py-3 text-xs font-bold text-base-content/50 flex items-center justify-between">
-                <span>🔍 교사별 상세 (${tableRows.length}${state.pendingOnly ? `/${filteredRows.length}` : ''}명)</span>
-                <span class="text-base-content/30 text-[11px] font-normal">펼치기/접기</span>
+              <summary class="cursor-pointer select-none px-4 py-3 flex items-center justify-between" style="background:#F5F3FF">
+                <div>
+                  <div style="font-size:24px;font-weight:900;color:#1F3864">👥 교사별 상세 ${tableRows.length}${state.pendingOnly ? `/${filteredRows.length}` : ''}명</div>
+                  <div class="text-xs text-base-content/50 mt-1">각 교사의 역할(인도자·섬김이·교사)과 이번 달 활동 현황을 확인하고 승급·강등 조건 근거를 검토하세요.</div>
+                </div>
+                <span class="text-base-content/30 text-[11px] font-normal shrink-0 ml-2">펼치기/접기</span>
               </summary>
               <div class="border-t border-base-300">
                 ${regionFilterHtml((report && report.regions) || [], filteredRows.length)}
@@ -1185,6 +1281,13 @@ function render() {
     state.roleActivityView = state.roleActivityView === 'table' ? 'chart' : 'table';
     render();
   };
+  document.querySelectorAll('[data-role-toggle]').forEach(el => {
+    el.onclick = () => {
+      const role = el.dataset.roleToggle;
+      state.expandedRoleCol[role] = !state.expandedRoleCol[role];
+      render();
+    };
+  });
   const sampleToggleBtn = document.getElementById('btn-sample-toggle');
   if (sampleToggleBtn) sampleToggleBtn.onclick = () => {
     state.showSampleData = !state.showSampleData;
