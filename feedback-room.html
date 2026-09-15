@@ -260,7 +260,7 @@ function buildCoachingPrompt(targetGroup, stage, courseType, studentStatus, selM
 대상: ${targetGroup || '선택안함'}
 현재 진행 단계 및 목표: ${stage ? `[${stage}] - ${STAGE_DESCRIPTIONS[stage] || ''}` : '선택안함'}
 ${stage === '수강생' ? `수강 단계: ${courseType || '선택안함'}\n수강 상태: ${studentStatus || '선택안함'}` : ''}
-하츠 유형(리딩 결과 연동): ${heartsTypes && heartsTypes.length ? heartsTypes.join(', ') : '선택안함'}
+하츠 유형(심리 상담 결과 연동): ${heartsTypes && heartsTypes.length ? heartsTypes.join(', ') : '선택안함'}
 매난국죽: ${selSagunja || '선택안함'}
 MBTI: ${selMbti || '선택안함'}
 에니어그램: ${selEnneagram || '선택안함'}
@@ -409,7 +409,7 @@ function toggleAcc(id) {
   if (c) c.classList.toggle('rotate-180');
 }
 
-// ===== 리딩 결과 → 퍼스널 코칭 성향 자동 연동 (index.html useEffect 이식) =====
+// ===== 심리 상담 결과 → 퍼스널 코칭 성향 자동 연동 (index.html useEffect 이식) =====
 function extractHeartsTypes(text) {
   if (!text) return [];
   const out = [];
@@ -506,7 +506,7 @@ let state = {
   },
   // 내 수강생 코칭 탭 상태
   sc: {
-    subMode: 'script',      // analyze(리딩/마음읽기) | script(퍼스널 코칭 대본)
+    subMode: 'script',      // analyze(심리 상담) | script(퍼스널 코칭 대본)
     targetGroup: '',
     stage: '',
     courseType: '',
@@ -521,7 +521,7 @@ let state = {
     resultMode: '',        // 결과가 생성된 시점의 subMode (analyze | script)
     receiptNo: '',
     escalated: false,
-    linkedTypes: [],       // 리딩 결과에서 추출된 하츠 세부 유형 (→ 퍼스널 코칭 자동 연동)
+    linkedTypes: [],       // 심리 상담 결과에서 추출된 하츠 세부 유형 (→ 퍼스널 코칭 자동 연동)
     copied: false,
     followUpHistory: [],
     followUpText: '',
@@ -668,7 +668,10 @@ async function runScGenerate(silent) {
     if (sc.subMode === 'analyze') {
       systemInstruction = buildAnalyzeSystemInstruction(sc.targetGroup);
       prompt = buildAnalyzePrompt(sc.targetGroup, sc.stage, sc.selMbti, sc.selEnneagram, sc.selDisc, sc.selSagunja, sc.situationText);
-      tag = `[리딩/${sc.targetGroup}]`;
+      // 2026-09-15: "리딩(마음읽기)" → "심리 상담" 명칭 변경(사용자 요청, UI+저장 태그 모두).
+      // 이 태그는 피드백이력 시트 situation 앞에 붙어 저장됨 — 옛 데이터는 "[리딩/..." 그대로 남아
+      // 있지만 이 접두어를 파싱하는 코드는 없어서 무해(표시용일 뿐).
+      tag = `[심리상담/${sc.targetGroup}]`;
     } else {
       const built = buildCoachingPrompt(sc.targetGroup, sc.stage, sc.courseType, sc.studentStatus, sc.selMbti, sc.selEnneagram, sc.selDisc, sc.selSagunja, sc.situationText, sc.linkedTypes);
       systemInstruction = built.systemInstruction;
@@ -711,7 +714,7 @@ async function runScGenerate(silent) {
     sc.resultText = res.coachText;
     sc.receiptNo = res.receiptNo;
     sc.resultMode = sc.subMode;
-    // 리딩 결과 → 퍼스널 코칭 성향 자동 연동
+    // 심리 상담 결과 → 퍼스널 코칭 성향 자동 연동
     if (sc.subMode === 'analyze') {
       const types = extractHeartsTypes(sc.resultText);
       if (types.length) sc.linkedTypes = types;
@@ -741,7 +744,7 @@ function renderStudentCoachTab(body) {
 
     <div class="flex bg-gray-100/80 backdrop-blur-md rounded-full p-1.5 shadow-inner relative max-w-[320px] mx-auto border border-gray-200">
       <div class="absolute inset-y-1.5 rounded-full transition-all duration-300 ease-out shadow-[0_4px_15px_rgba(192,38,211,0.4)] bg-gradient-to-r from-violet-500 to-fuchsia-500" style="width:calc(50% - 6px);left:${analyze ? '6px' : 'calc(50%)'}"></div>
-      <button id="sc-mode-analyze" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 ${analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}">🔍 리딩(마음읽기)</button>
+      <button id="sc-mode-analyze" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 ${analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}">🔍 심리 상담</button>
       <button id="sc-mode-script" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 ${!analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}">📝 퍼스널 코칭</button>
     </div>
 
@@ -764,7 +767,7 @@ function renderStudentCoachTab(body) {
         <span class="text-[14px] shrink-0 opacity-80 mt-0.5 mr-2">🌿</span>
         ${sc.linkedTypes.length
           ? `<div class="flex flex-wrap gap-1.5 flex-1">${sc.linkedTypes.map((t,i) => `<button data-chip="${i}" class="sc-chip bg-white border border-teal-300 text-teal-800 text-[11px] font-extrabold px-2 py-1 rounded-md shadow-sm">${esc(t)} ✕</button>`).join('')}</div>`
-          : `<span class="text-[12px] font-bold mt-0.5">리딩(마음읽기) 결과가 자동으로 연동됩니다</span>`}
+          : `<span class="text-[12px] font-bold mt-0.5">심리 상담 결과가 자동으로 연동됩니다</span>`}
       </div>
       <div class="grid grid-cols-2 gap-2.5">
         ${scSelect('sc-mbti', 'MBTI', sc.selMbti, mbtiOpts, '🧠')}

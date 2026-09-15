@@ -52,6 +52,135 @@ const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp
 let rows = [];
 let roster = [];       // getRoster 캐시 (교사명단)
 let rosterTiers = [];  // 교사구분 참고 목록 (백엔드 TEACHER_TIERS)
+
+// ============ 2026-09-15: "필수교육 이수 등록" (교육부·전도부 전용) ============
+// study-room.html에서 교사 본인이 체크하던 기능을 없애고, 등록 권한을 이 관리자 화면으로 옮겨옴.
+// 백엔드 REQUIRED_EDU_CATEGORIES와 동일 순서(study-room.html REQ_EDU_CATEGORIES_DEFAULT와도 동일).
+const REQ_EDU_CATEGORIES = ['복음방교사양성교육', '섭외전도교육', '상담교육', '복음방교재교육', '교사소양교육'];
+const REQ_EDU_ICON = { '복음방교사양성교육': '🌟', '섭외전도교육': '📣', '상담교육': '💬', '복음방교재교육': '📖', '교사소양교육': '🎓' };
+let reqEduForm = {
+  query: '',           // 고유번호 또는 이름 검색어
+  picked: null,        // 선택된 교사 { memberId, name, dept, region }
+  category: REQ_EDU_CATEGORIES[0],
+  date: new Date().toISOString().slice(0, 10),
+  saving: false,
+  note: '',            // 결과 안내 문구
+  current: null        // 선택된 교사의 현재 이수 현황(getRequiredEducation 응답)
+};
+
+function reqEduTodayStr() { return new Date().toISOString().slice(0, 10); }
+
+// 검색어로 교사명단에서 최대 8명까지 후보를 찾는다(고유번호 부분일치 또는 이름 부분일치).
+function reqEduSearchResults() {
+  const q = reqEduForm.query.trim();
+  if (!q) return [];
+  return roster.filter(r =>
+    String(r.memberId || '').includes(q) || String(r.name || '').includes(q)
+  ).slice(0, 8);
+}
+
+async function pickReqEduTeacher(memberId) {
+  const t = roster.find(r => String(r.memberId) === String(memberId));
+  if (!t) return;
+  reqEduForm.picked = { memberId: t.memberId, name: t.name, dept: t.dept || '', region: t.region || '' };
+  reqEduForm.note = '';
+  reqEduForm.current = null;
+  render();
+  try {
+    const res = await callApi({ action: 'getRequiredEducation', memberId: t.memberId });
+    if (res && !res.error) reqEduForm.current = res;
+  } catch (e) { /* 현재 현황 조회 실패는 등록 자체를 막지 않음 — 안내만 생략 */ }
+  render();
+}
+
+async function submitReqEdu() {
+  const f = reqEduForm;
+  if (!f.picked) { alert('교사를 먼저 선택해주세요.'); return; }
+  if (!f.category) { alert('이수 항목을 선택해주세요.'); return; }
+  f.saving = true;
+  f.note = '';
+  render();
+  try {
+    const res = await callApi({
+      action: 'updateRequiredEducation',
+      memberId: f.picked.memberId, name: f.picked.name,
+      category: f.category, date: f.date || reqEduTodayStr()
+    });
+    if (res && res.error) throw new Error(res.error);
+    f.current = res;
+    f.note = `✅ ${f.picked.name} 교사 · ${f.category} · ${f.date || reqEduTodayStr()} 이수로 등록했습니다.`;
+  } catch (e) {
+    f.note = '⚠️ 등록 실패: ' + (e.message || e);
+  }
+  f.saving = false;
+  render();
+}
+
+function renderReqEduAdminSection() {
+  const f = reqEduForm;
+  const results = reqEduSearchResults();
+  const cur = f.current || {};
+  const body = `
+    <div class="flex flex-col gap-3">
+      <div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">① 교사 검색 (고유번호 또는 이름)</div>
+        <input id="reqedu-query" type="text" class="input input-bordered input-sm w-full" placeholder="예: 00210118-00001 또는 홍길동" value="${esc(f.query)}">
+        ${results.length > 0 ? `
+          <div class="mt-1.5 border border-base-300 rounded-box overflow-hidden">
+            ${results.map(r => `
+              <button class="reqedu-pick w-full text-left px-3 py-2 text-xs hover:bg-base-200 border-b border-base-200 last:border-b-0 ${f.picked && f.picked.memberId === r.memberId ? 'bg-primary/10 font-bold' : ''}" data-mid="${esc(r.memberId)}">
+                ${esc(r.name)} <span class="text-base-content/40">· ${esc(r.dept || '')} ${esc(r.region || '')} · ${esc(r.memberId)}</span>
+              </button>`).join('')}
+          </div>` : (f.query.trim() ? `<div class="text-[11px] text-base-content/40 mt-1.5">검색 결과가 없습니다.</div>` : '')}
+      </div>
+
+      ${f.picked ? `
+        <div class="rounded-box border border-primary/30 bg-primary/5 px-3 py-2">
+          <div class="text-xs font-bold">선택됨: ${esc(f.picked.name)} <span class="font-normal text-base-content/50">(${esc(f.picked.memberId)} · ${esc(f.picked.dept)} ${esc(f.picked.region)})</span></div>
+          ${f.current ? `<div class="flex flex-wrap gap-1 mt-1.5">
+            ${REQ_EDU_CATEGORIES.map(c => `<span class="badge badge-xs ${cur[c] ? 'badge-success' : 'badge-ghost'}">${REQ_EDU_ICON[c] || ''} ${esc(c)}${cur[c] ? ' ' + esc(cur[c]) : ''}</span>`).join('')}
+          </div>` : `<div class="text-[11px] text-base-content/40 mt-1">현재 이수 현황 불러오는 중...</div>`}
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs font-bold text-base-content/50 mb-1">② 이수 항목</div>
+            <select id="reqedu-category" class="select select-bordered select-sm w-full">
+              ${REQ_EDU_CATEGORIES.map(c => `<option value="${esc(c)}" ${f.category === c ? 'selected' : ''}>${REQ_EDU_ICON[c] || ''} ${esc(c)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-base-content/50 mb-1">③ 이수일</div>
+            <input id="reqedu-date" type="date" class="input input-bordered input-sm w-full" value="${esc(f.date)}" max="${esc(reqEduTodayStr())}">
+          </div>
+        </div>
+
+        <button id="reqedu-submit" class="btn btn-primary btn-sm" ${f.saving ? 'disabled' : ''}>${f.saving ? '등록 중...' : '이수 등록'}</button>
+      ` : `<div class="text-xs text-base-content/40">교사를 검색해서 선택하면 이수 항목·이수일을 입력할 수 있습니다.</div>`}
+
+      ${f.note ? `<div class="text-xs ${f.note.startsWith('⚠️') ? 'text-error' : 'text-success'} font-bold">${esc(f.note)}</div>` : ''}
+    </div>
+  `;
+  return sectionCard('primary', '🎓', '필수교육 이수 등록', '교육부·전도부가 교사의 필수교육 이수를 등록합니다 (교사 어플 공부방은 열람 전용)', body);
+}
+
+function wireReqEduAdminSection() {
+  const q = document.getElementById('reqedu-query');
+  if (q) {
+    q.oninput = (e) => { reqEduForm.query = e.target.value; render(); };
+    // 검색어 입력 중 리렌더로 포커스가 날아가므로 캐럿을 맨 뒤로 복원
+    if (document.activeElement !== q && reqEduForm.query) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  }
+  document.querySelectorAll('.reqedu-pick').forEach(btn => {
+    btn.onclick = () => pickReqEduTeacher(btn.dataset.mid);
+  });
+  const cat = document.getElementById('reqedu-category');
+  if (cat) cat.onchange = (e) => { reqEduForm.category = e.target.value; };
+  const dt = document.getElementById('reqedu-date');
+  if (dt) dt.onchange = (e) => { reqEduForm.date = e.target.value; };
+  const sb = document.getElementById('reqedu-submit');
+  if (sb) sb.onclick = submitReqEdu;
+}
 let loading = true;
 
 // 월별 결산 현황 (getSettlementReport) — 메인 로드 후 지연 로드
@@ -420,9 +549,14 @@ async function callApi(payload) {
 }
 
 // 아주 단순한 키워드 기반 카테고리 분류 (추후 AI 분류로 교체 가능)
+// ⚠️ 2026-09-15 버그 수정: feedback-room.html이 situation 앞에 붙여 저장하는 분류 태그
+// ("[심리상담/자문]", "[수강생코칭/자문/만남]" 등)가 아래 키워드 매칭에 그대로 걸려들어
+// 실제 고민 내용과 무관하게 카테고리가 결정되던 문제가 있었다(예: "[수강생코칭/..."은 '수강'이
+// 걸려 전부 '센터 활동'으로 분류됨). 맨 앞 대괄호 태그를 먼저 떼어낸 뒤 본문만 분류한다.
 function categorize(text) {
   if (!text) return '기타';
-  const t = text;
+  const t = String(text).replace(/^\s*\[[^\]]*\]\s*/, '');
+  if (!t) return '기타';
   if (t.includes('복음방') || t.includes('전도')) return '복음방/전도';
   if (t.includes('상담')) return '상담 기술';
   if (t.includes('관계') || t.includes('갈등') || t.includes('싸') ) return '관계/갈등';
@@ -905,13 +1039,14 @@ function render() {
   const teacherSummaryHtml = renderTeacherSummarySection();
   const settlementHtml = renderSettlementSection();
   const rosterHtml = renderRosterSection();
-  const tierBundle = teacherSummaryHtml + settlementHtml + renderWeeklyTrendSection() + renderTopRegionsSection();
+  const tierBundle = teacherSummaryHtml + renderReqEduAdminSection() + settlementHtml + renderWeeklyTrendSection() + renderTopRegionsSection();
 
   if (rows.length === 0) {
     content.innerHTML = tierBundle + rosterHtml + renderAiAnalysisSection() + (roster.length === 0
       ? `<div class="text-sm text-base-content/40 text-center py-16">아직 데이터가 없습니다.</div>`
       : `<div class="text-sm text-base-content/40 text-center py-10">아직 피드백 데이터가 없습니다.</div>`);
     wireSettlementFilters();
+  wireReqEduAdminSection();
     wireAiAnalysisButton();
     renderRosterCharts();
     return;
@@ -999,6 +1134,7 @@ function render() {
   });
 
   wireSettlementFilters();
+  wireReqEduAdminSection();
   wireAiAnalysisButton();
   renderRosterCharts();
 }
