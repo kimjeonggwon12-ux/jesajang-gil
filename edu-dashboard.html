@@ -77,7 +77,7 @@ let settlementView = null;
 function setSettlementView(v) { settlementView = (settlementView === v) ? null : v; render(); }
 
 // ============ 2026-09-17: "이번 달 교사 활동 우수 지역" ============
-// 백엔드 getTopRegions(dept)/getChurchTopRegions() 신규 액션 재사용 — 3역할 11항목 활동 데이터
+// 백엔드 getTopRegions(dept)/getChurchTopRegions() 신규 액션 재사용 — 4역할 11항목 활동 데이터
 // 기반 만남/상담/복음방/센터인도/종합 5개 측면 지역 랭킹.
 const TOP_REGION_DEPTS = ['자문회', '장년회', '부녀회', '청년회'];
 const TOP_REGION_ASPECT_ORDER = ['만남', '상담', '복음방', '센터인도', '종합'];
@@ -123,13 +123,13 @@ function switchTopRegionsTab(dept) {
   loadTopRegionsForDept(dept);
 }
 
-function topRegionsTableRows(byAspect) {
+function topRegionsTableRows(byAspect, dept) {
   return TOP_REGION_ASPECT_ORDER.map(aspect => {
     const top3 = byAspect[aspect] || [];
     const cells = [0, 1, 2].map(i => {
       const r = top3[i];
       if (!r) return `<td colspan="2" class="text-center text-base-content/30 text-xs">-</td>`;
-      return `<td class="font-medium text-sm" style="${MEDAL_BG[i]}">${MEDAL[i]} ${esc(r.region)}</td><td class="text-right font-bold text-sm" style="${MEDAL_BG[i]}">${r.count}건</td>`;
+      return `<td class="font-medium text-sm" style="${MEDAL_BG[i]}">${MEDAL[i]} ${esc(regionFullLabel(dept, r.region))}</td><td class="text-right font-bold text-sm" style="${MEDAL_BG[i]}">${r.count}건</td>`;
     }).join('');
     return `<tr><td class="font-bold text-xs">${esc(TOP_REGION_ASPECT_LABEL[aspect])}</td>${cells}</tr>`;
   }).join('');
@@ -150,7 +150,7 @@ function deptTopRegionsSectionHtml() {
             <div class="overflow-x-auto border border-base-300 rounded-box">
               <table class="table table-sm">
                 <thead><tr><th>측면</th><th colspan="2">🥇 1위</th><th colspan="2">🥈 2위</th><th colspan="2">🥉 3위</th></tr></thead>
-                <tbody>${topRegionsTableRows(data.byAspect)}</tbody>
+                <tbody>${topRegionsTableRows(data.byAspect, dept)}</tbody>
               </table>
             </div>
             ${data.isSample ? `<div class="text-[11px] text-warning-content bg-warning/10 border border-warning/30 rounded px-2 py-1 mt-2">※ 샘플 데이터 기준</div>` : ''}
@@ -164,12 +164,15 @@ function churchTopRegionsTableRows(byAspect) {
     const cells = [0, 1, 2].map(i => {
       const r = top3[i];
       if (!r) return `<td colspan="3" class="text-center text-base-content/30 text-xs">-</td>`;
-      return `<td class="font-medium text-sm" style="${MEDAL_BG[i]}">${MEDAL[i]} ${esc(r.region)}</td><td class="text-xs" style="${MEDAL_BG[i]}">${DEPT_ICON[r.dept] || ''} ${esc(r.dept)}</td><td class="text-right font-bold text-sm" style="${MEDAL_BG[i]}">${r.count}건</td>`;
+      return `<td class="font-medium text-sm" style="${MEDAL_BG[i]}">${MEDAL[i]} ${esc(regionFullLabel(r.dept, r.region))}</td><td class="text-xs" style="${MEDAL_BG[i]}">${DEPT_ICON[r.dept] || ''} ${esc(r.dept)}</td><td class="text-right font-bold text-sm" style="${MEDAL_BG[i]}">${r.count}건</td>`;
     }).join('');
     return `<tr><td class="font-bold text-xs">${esc(aspect)}</td>${cells}</tr>`;
   }).join('');
 }
 
+// 참고: byRole의 topRegion은 4개 부서를 합산한 뒤 지역명 문자열로만 집계한 결과라 특정 부서 하나로
+// 단정할 수 없음(다른 부서에 같은 이름의 지역이 있으면 섞여 합산됨) — regionFullLabel(dept, region)을
+// 적용하려면 부서를 특정할 수 있어야 하므로, 이 표만 예외로 지역명을 그대로("O지역") 둔다.
 function roleTopRegionsTableHtml(byRole) {
   return `
     <div class="overflow-x-auto border border-base-300 rounded-box">
@@ -178,7 +181,7 @@ function roleTopRegionsTableHtml(byRole) {
         <tbody>
           ${byRole.map(r => `
             <tr>
-              <td class="font-bold">${esc(r.role)}</td>
+              <td class="font-bold">${esc(roleShortLabel(r.role))}</td>
               <td>🥇 ${esc(r.topRegion)}</td>
               <td class="font-bold text-primary">${r.totalCount}건</td>
               <td><span class="badge badge-outline badge-sm">${esc(r.topItem)}</span></td>
@@ -198,7 +201,7 @@ function renderTopRegionsSection() {
         <div class="rounded-lg px-3 py-2 mb-1" style="background:linear-gradient(90deg,#FDE68A,#FBBF24)">
           <div style="font-size:24px;font-weight:900;color:#78350F">🏆 이번 달 교사 활동 우수 지역</div>
         </div>
-        <div class="text-xs text-base-content/50 mb-4 leading-relaxed">3역할 11항목 활동 데이터를 기반으로 만남·상담·복음방·센터인도 4개 측면의 우수 지역을 자동 선정합니다.</div>
+        <div class="text-xs text-base-content/50 mb-4 leading-relaxed">4역할 11항목 활동 데이터를 기반으로 만남·상담·복음방·센터인도 4개 측면의 우수 지역을 자동 선정합니다.</div>
 
         ${deptTopRegionsSectionHtml()}
 
@@ -234,6 +237,16 @@ const ORG_MAIN_DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청
 function orgBucket(dept) { return ORG_MAIN_DEPTS.includes(dept) ? dept : '기타'; }
 const ORG_DEPTS = ORG_MAIN_DEPTS.concat(['기타']);
 const DEPT_ICON = { '교역자': '⛪', '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓', '기타': '📁' };
+
+// 2026-09-15: 지역 표기 "O지역" → "전주 OO회 OO지역"(사용자 요청, district-dashboard.html과 동일 규칙).
+// ORG_MAIN_DEPTS 값 자체가 이미 "~회"를 포함(자문회/장년회/부녀회/청년회) — 교역자만 "회"를 붙여야 함.
+function regionFullLabel(dept, region) {
+  const label = (dept === '교역자') ? '교역자회' : (dept || '');
+  return region ? `전주 ${label} ${region}`.trim() : `전주 ${label}`.trim();
+}
+
+// 2026-09-15: 사용자 요청 — "협력교사"는 표 등 UI 라벨에는 짧게 "협력"으로만 표기(district-dashboard.html과 동일).
+function roleShortLabel(role) { return role === '협력교사' ? '협력' : role; }
 
 const TIER_ORDER = ['휴교사', '교사', '활동교사', '우수교사'];
 const TIER_TEXT_COLOR = { '휴교사': 'text-base-content/50', '교사': 'text-primary', '활동교사': 'text-accent', '우수교사': 'text-secondary' };

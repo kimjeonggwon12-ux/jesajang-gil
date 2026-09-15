@@ -246,9 +246,18 @@
     const TIER_COLORS = { '휴교사': '#9ca3af', '교사': '#3b82f6', '활동교사': '#f59e0b', '우수교사': '#f97316' };
 
     // 활동 기록 Step2/3 — Code.gs ROLE_OPTIONS/ROLE_ACTIVITY_OPTIONS 와 동일(둘 다 바뀌면 같이 고칠 것).
-    const ROLE_OPTIONS = ['인도자', '섬김이', '교사'];
+    // 2026-09-15: 3역할(인도자/섬김이/교사) → 4역할로 확장, 순서도 인도자/교사/섬김이/협력교사로 변경.
+    // 협력교사 = 순수 협력자로서 돕는 역할, 교사와 동일하게 11종 전부(동행교사 포함) 사용.
+    const ROLE_OPTIONS = ['인도자', '교사', '섬김이', '협력교사'];
     const ROLE_ACTIVITY_OPTIONS = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
     const TEACHER_EXTRA_ACTIVITY = '동행교사';
+    // '동행교사' 추가 항목을 받는 역할(Code.gs ROLES_WITH_EXTRA_ACTIVITY와 동일).
+    const ROLES_WITH_EXTRA_ACTIVITY = ['교사', '협력교사'];
+    // 2026-09-15: 사용자 요청 — "협력교사"는 UI 라벨(칩/타일 등)에는 짧게 "협력"으로만 표기.
+    // 내부 값(체크박스 value, 백엔드로 보내는 role 문자열)은 항상 '협력교사' 그대로 유지.
+    function roleShortLabel(role) { return role === '협력교사' ? '협력' : role; }
+    // 상담1/상담2/복음방 선택 시 추가 입력하는 반응(Code.gs REACTION_OPTIONS와 동일).
+    const REACTION_OPTIONS = ['긍정적', '중립', '부정적'];
     const GENDER_OPTIONS = ['남', '여'];
     // 2026-09-15: "60대이상" 뭉뚱그림 → 60대/70대이상 분리(장년회/자문회 자동 배정에 필요, ageGenderToOrg 참고).
     const AGE_GROUP_OPTIONS = ['10대', '20대', '30대', '40대', '50대', '60대', '70대이상'];
@@ -283,7 +292,7 @@
       centerLeads: [],         // getMyCenterLeads rows(읽기 전용, 전도부 입력)
       targets: [],             // getMyTargets rows
       stages: TARGET_STAGES_FALLBACK,
-      expandedRolePart: null,  // '인도자'|'섬김이'|'교사'|null — 이번 달 활동 "항목별 건수 펼쳐보기"
+      expandedRolePart: null,  // '인도자'|'교사'|'섬김이'|'협력교사'|null — 이번 달 활동 "항목별 건수 펼쳐보기"
       view: 'dashboard',       // 'dashboard' | 'targetDetail'
       detailTargetId: null,
       detailJournal: null,     // getTargetJournal 응답
@@ -294,6 +303,8 @@
         activityItem: '',
         targetName: '', targetGender: '', targetAgeGroup: '', targetStage: '',
         note: '', todayWork: '', nextWork: '',
+        // 2026-09-15: 상담1/상담2/복음방 선택 시에만 쓰는 추가 입력(상담제목 또는 복음방과목 겸용 + 반응).
+        extraTitle: '', reaction: '', reactionNote: '',
         loading: false
       }
     };
@@ -433,7 +444,7 @@
         return `
           <div class="border border-base-300 rounded-box p-2.5 cursor-pointer" onclick="toggleRolePart('${role}')">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-base-content/60">${esc(role)} 활동</span>
+              <span class="text-xs font-bold text-base-content/60">${esc(roleShortLabel(role))} 활동</span>
               <span class="text-lg font-black ${colorCls}">${rc[role] || 0}<span class="text-xs font-normal text-base-content/40">건</span></span>
             </div>
             ${expanded ? (itemKeys.length
@@ -459,8 +470,9 @@
             </div>
             <div class="flex flex-col gap-2">
               ${roleTile('인도자', 'text-primary')}
-              ${roleTile('섬김이', 'text-secondary')}
               ${roleTile('교사', 'text-accent')}
+              ${roleTile('섬김이', 'text-secondary')}
+              ${roleTile('협력교사', 'text-warning')}
             </div>
           </div>
         </div>
@@ -471,9 +483,12 @@
 
     function activityFormHtml() {
       const f = home.form;
-      const hasTeacher = f.roles.includes('교사');
-      const itemOptions = hasTeacher ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS;
+      const hasTeacherExtra = f.roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r));
+      const itemOptions = hasTeacherExtra ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS;
       const stageOptions = home.stages.length ? home.stages : TARGET_STAGES_FALLBACK;
+      const isConsult = f.activityItem === '상담1' || f.activityItem === '상담2';
+      const isGospel = f.activityItem === '복음방';
+      const extraTitleLabel = isConsult ? '상담 제목' : (isGospel ? '과목 제목' : '');
 
       return `
         <div class="card card-border bg-base-100 shadow-sm mx-4">
@@ -487,10 +502,10 @@
 
             <div>
               <div class="text-xs font-bold text-base-content/50 mb-1">② 역할 (복수 선택 가능)</div>
-              <div class="flex gap-2">
+              <div class="flex flex-wrap gap-2">
                 ${ROLE_OPTIONS.map(r => `
                   <label class="flex items-center gap-1.5 border border-base-300 rounded-box px-2 py-2 text-xs cursor-pointer flex-1 justify-center ${f.roles.includes(r) ? 'bg-primary/10 border-primary text-primary font-bold' : ''}">
-                    <input type="checkbox" class="checkbox checkbox-xs af-role-cb" value="${esc(r)}" ${f.roles.includes(r) ? 'checked' : ''}> ${esc(r)}
+                    <input type="checkbox" class="checkbox checkbox-xs af-role-cb" value="${esc(r)}" ${f.roles.includes(r) ? 'checked' : ''}> ${esc(roleShortLabel(r))}
                   </label>`).join('')}
               </div>
             </div>
@@ -503,6 +518,21 @@
                   : '<option>역할을 먼저 선택하세요</option>'}
               </select>
             </div>
+
+            ${(isConsult || isGospel) ? `
+            <div class="border-t border-base-200 pt-3">
+              <div class="text-xs font-bold text-base-content/50 mb-2">${isConsult ? '상담 상세' : '복음방 상세'}</div>
+              <input type="text" id="af-extra-title" placeholder="${esc(extraTitleLabel)}" class="input input-bordered input-sm w-full mb-2" value="${esc(f.extraTitle)}">
+              <div class="text-xs text-base-content/50 mb-1.5">반응</div>
+              <div class="flex gap-3 mb-2">
+                ${REACTION_OPTIONS.map(r => `
+                  <label class="flex items-center gap-1 text-xs cursor-pointer">
+                    <input type="radio" name="af-reaction" class="radio radio-xs af-reaction-radio" value="${esc(r)}" ${f.reaction === r ? 'checked' : ''}> ${esc(r)}
+                  </label>`).join('')}
+              </div>
+              <input type="text" id="af-reaction-note" placeholder="반응 메모 (선택)" class="input input-bordered input-sm w-full" value="${esc(f.reactionNote)}">
+            </div>
+            ` : ''}
 
             <div class="border-t border-base-200 pt-3">
               <div class="text-xs font-bold text-base-content/50 mb-2">④ 대상자 일지</div>
@@ -547,8 +577,8 @@
           const v = e.target.value;
           if (e.target.checked) { if (!f.roles.includes(v)) f.roles.push(v); }
           else { f.roles = f.roles.filter(r => r !== v); }
-          const hasTeacher = f.roles.includes('교사');
-          const opts = hasTeacher ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS;
+          const hasTeacherExtra = f.roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r));
+          const opts = hasTeacherExtra ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS;
           if (!opts.includes(f.activityItem)) f.activityItem = f.roles.length ? opts[0] : '';
           renderHome();
         };
@@ -558,7 +588,10 @@
       if (itemEl) itemEl.onchange = e => {
         f.activityItem = e.target.value;
         const mapped = ACTIVITY_TO_STAGE[f.activityItem];
-        if (mapped) { f.targetStage = mapped; renderHome(); }
+        if (mapped) f.targetStage = mapped;
+        // 상담1/상담2/복음방 전용 추가 입력란은 항목이 바뀌면 이전 값이 새 항목에 잘못 딸려가지 않도록 매번 초기화.
+        f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
+        renderHome();
       };
 
       const bindInput = (id, key) => { const el = document.getElementById(id); if (el) el.oninput = e => { f[key] = e.target.value; }; };
@@ -566,11 +599,17 @@
       bindInput('af-note', 'note');
       bindInput('af-today', 'todayWork');
       bindInput('af-next', 'nextWork');
+      bindInput('af-extra-title', 'extraTitle');
+      bindInput('af-reaction-note', 'reactionNote');
 
       const bindChange = (id, key) => { const el = document.getElementById(id); if (el) el.onchange = e => { f[key] = e.target.value; }; };
       bindChange('af-tgender', 'targetGender');
       bindChange('af-tage', 'targetAgeGroup');
       bindChange('af-tstage', 'targetStage');
+
+      document.querySelectorAll('.af-reaction-radio').forEach(radio => {
+        radio.onchange = e => { f.reaction = e.target.value; };
+      });
 
       const submitBtn = document.getElementById('af-submit');
       if (submitBtn) submitBtn.onclick = submitActivityForm;
@@ -583,6 +622,9 @@
       if (!f.roles.length) { alert('역할을 하나 이상 선택해주세요.'); return; }
       if (!f.activityItem) { alert('활동 항목을 선택해주세요.'); return; }
 
+      const isConsult = f.activityItem === '상담1' || f.activityItem === '상담2';
+      const isGospel = f.activityItem === '복음방';
+
       f.loading = true;
       renderHome();
       try {
@@ -592,12 +634,17 @@
           target: {
             name: f.targetName.trim(), gender: f.targetGender, ageGroup: f.targetAgeGroup, stage: f.targetStage,
             note: f.note.trim(), todayWork: f.todayWork.trim(), nextWork: f.nextWork.trim()
-          }
+          },
+          consultTitle: isConsult ? f.extraTitle.trim() : '',
+          gospelSubject: isGospel ? f.extraTitle.trim() : '',
+          reaction: (isConsult || isGospel) ? f.reaction : '',
+          reactionNote: (isConsult || isGospel) ? f.reactionNote.trim() : ''
         });
         if (res && res.error) throw new Error(res.error);
         // 대상자 일지 내용만 비우고(다음 대상자를 이어서 기록하기 쉽게), 날짜/역할/항목은 유지.
         f.targetName = ''; f.targetGender = ''; f.targetAgeGroup = ''; f.targetStage = '';
         f.note = ''; f.todayWork = ''; f.nextWork = '';
+        f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
         await refreshAfterSubmit();
       } catch (e) {
         alert('등록 중 오류가 발생했습니다: ' + e.message);
