@@ -68,6 +68,13 @@ const COURSE_TABS = [
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+// home.html/district-dashboard.html과 동일 규칙 — 2/3글자 이상 이름 마스킹.
+function maskName(nm) {
+  const s = String(nm || '').trim();
+  if (s.length <= 1) return s;
+  if (s.length === 2) return s[0] + '*';
+  return s[0] + '*'.repeat(s.length - 2) + s[s.length - 1];
+}
 
 async function callApi(payload) {
   const res = await fetch(PROXY_URL, {
@@ -91,8 +98,17 @@ let state = {
   saving: {},            // courseId -> true(저장 중)
   reqEdu: null,          // getRequiredEducation 원본: { memberId, name, [카테고리]: 날짜|'', categories }
   reqEduToggling: {},    // 카테고리명 -> true(토글 처리 중)
-  reqEduForm: { open: false, category: '', date: '' } // "이수 교육 등록하기" 폼(카테고리 선택+이수일 입력)
+  reqEduForm: { open: false, category: '', date: '' }, // "이수 교육 등록하기" 폼(카테고리 선택+이수일 입력)
+  // Phase 4(2026-09-15): "내 수강생 현재 상태 입력" → AI 교재 추천(generateCoachingScript).
+  studentRec: {
+    studentName: '', stage: '', note: '',
+    loadingTab: '',    // 현재 생성 중인 탭 key('' = 없음)
+    resultByTab: {}    // tabKey -> { text, studentName, stage } (탭 전환해도 마지막 결과 유지)
+  }
 };
+
+// Code.gs TARGET_STAGES와 동일 9단계 — study-room.html "수강생 현재 상태" 단계 선택용.
+const REC_STAGES = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
 
 // list(교재 배열)를 courseName 기준으로 묶는다 — 5개 탭 전부 공용(카테고리로 이미 필터링된 리스트를 넘겨줌).
 function groupCourses(list) {
@@ -111,6 +127,78 @@ function groupCourses(list) {
 
 function coursesForCategory(cat) {
   return state.courses.filter(c => c.category === cat);
+}
+
+// ============ Phase 4: "내 수강생 현재 상태 입력" → AI 교재 추천 ============
+
+function studentRecSectionHtml(tabDef) {
+  const sr = state.studentRec;
+  const result = sr.resultByTab[tabDef.key];
+  const loading = sr.loadingTab === tabDef.key;
+  return `
+    <div class="rounded-[1.5rem] p-4 bg-white/80 backdrop-blur-md border border-white/60 shadow-[0_4px_15px_rgba(0,0,0,0.03)] space-y-2.5">
+      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5 tracking-tight"><span class="text-indigo-500">🎯</span> 내 수강생 현재 상태 입력</h3>
+      <input id="sr-name" type="text" placeholder="수강생 이름" class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-indigo-400" value="${esc(sr.studentName)}">
+      <select id="sr-stage" class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-indigo-400">
+        <option value="">현재 단계 선택</option>
+        ${REC_STAGES.map(s => `<option value="${esc(s)}" ${sr.stage === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}
+      </select>
+      <textarea id="sr-note" rows="2" placeholder="특이사항 (선택)" class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] resize-none outline-none focus:border-indigo-400">${esc(sr.note)}</textarea>
+      <button class="sr-generate-btn w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl py-2.5 text-[13px] font-bold disabled:opacity-50" data-tabkey="${esc(tabDef.key)}" ${loading ? 'disabled' : ''}>
+        ${loading ? '⏳ AI가 추천을 생성 중입니다...' : `✨ 이 단계에 맞는 ${esc(tabDef.label)} 교재 추천받기`}
+      </button>
+      ${result ? `
+        <div class="mt-1 rounded-xl bg-indigo-50 border border-indigo-100 p-3 text-[12.5px] text-gray-800 whitespace-pre-wrap leading-relaxed">
+          <div class="text-[10.5px] font-bold text-indigo-500 mb-1.5">${esc(maskName(result.studentName))}님 · ${esc(result.stage)} 단계 추천</div>${esc(result.text)}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function wireStudentRecSection(body, tabDef) {
+  const sr = state.studentRec;
+  const bindInput = (id, key) => { const el = body.querySelector('#' + id); if (el) el.oninput = e => { sr[key] = e.target.value; }; };
+  bindInput('sr-name', 'studentName');
+  bindInput('sr-note', 'note');
+  const stageEl = body.querySelector('#sr-stage');
+  if (stageEl) stageEl.onchange = e => { sr.stage = e.target.value; };
+  body.querySelectorAll('.sr-generate-btn').forEach(btn => {
+    btn.onclick = () => generateStudentRec(tabDef);
+  });
+}
+
+// 백엔드(_callAi_)가 이미 503 등 일시 오류를 최대 3회 자동 재시도하지만, 클라이언트 fetch 자체가
+// 실패(네트워크 오류 등)하는 경우까지 대비해 여기서도 최대 3회, 1초 간격 재시도
+// (district-dashboard.html runAiAnalysis()와 동일한 패턴).
+async function generateStudentRec(tabDef) {
+  const sr = state.studentRec;
+  if (!sr.studentName.trim()) { alert('수강생 이름을 입력해주세요.'); return; }
+  if (!sr.stage) { alert('현재 단계를 선택해주세요.'); return; }
+  sr.loadingTab = tabDef.key;
+  render();
+
+  const courseNames = [...new Set(coursesForCategory(tabDef.category).map(c => c.courseName))];
+  let lastErrMsg = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await callApi({
+        action: 'generateCoachingScript',
+        targetInfo: { studentName: sr.studentName.trim(), stage: sr.stage, note: sr.note.trim(), category: tabDef.category, courseNames }
+      });
+      if (res && res.error) throw new Error(res.error);
+      sr.resultByTab[tabDef.key] = { text: res.text, studentName: sr.studentName.trim(), stage: sr.stage };
+      sr.loadingTab = '';
+      render();
+      return;
+    } catch (e) {
+      lastErrMsg = e.message || String(e);
+    }
+    if (attempt < 3) await new Promise(r => setTimeout(r, 1000));
+  }
+  sr.resultByTab[tabDef.key] = { text: '오류가 발생했습니다: ' + lastErrMsg, studentName: sr.studentName.trim(), stage: sr.stage };
+  sr.loadingTab = '';
+  render();
 }
 
 function todayStr() {
@@ -297,11 +385,15 @@ function renderCourseCategoryTab(body, tabDef) {
   const list = coursesForCategory(tabDef.category);
   if (list.length === 0) {
     body.innerHTML = `
-      <div class="animate-fade-in text-center py-16">
-        <div class="text-4xl mb-3">🚧</div>
-        <div class="text-sm font-bold text-gray-500">${esc(tabDef.label)} 교재 준비 중입니다</div>
-        <div class="text-xs text-gray-400 mt-1">교재가 등록되면 이곳에 자동으로 표시됩니다.</div>
+      <div class="animate-fade-in space-y-4">
+        ${studentRecSectionHtml(tabDef)}
+        <div class="text-center py-12">
+          <div class="text-4xl mb-3">🚧</div>
+          <div class="text-sm font-bold text-gray-500">${esc(tabDef.label)} 교재 준비 중입니다</div>
+          <div class="text-xs text-gray-400 mt-1">교재가 등록되면 이곳에 자동으로 표시됩니다.</div>
+        </div>
       </div>`;
+    wireStudentRecSection(body, tabDef);
     return;
   }
 
@@ -314,6 +406,8 @@ function renderCourseCategoryTab(body, tabDef) {
   body.innerHTML = `
     <div class="animate-fade-in space-y-4">
       <div class="text-[11px] text-gray-400">${esc(state.name)}님 (${esc(state.memberId)}) · 교재를 눌러 학습 후 진도를 갱신하세요</div>
+
+      ${studentRecSectionHtml(tabDef)}
 
       <div class="rounded-[1.5rem] p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-[0_8px_25px_rgba(99,102,241,0.3)]">
         <div class="flex items-baseline justify-between">
@@ -356,6 +450,7 @@ function renderCourseCategoryTab(body, tabDef) {
   });
 
   wireProgressControls(body);
+  wireStudentRecSection(body, tabDef);
 }
 
 function renderUnitRow(u) {

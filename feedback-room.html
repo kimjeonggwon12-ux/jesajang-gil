@@ -686,14 +686,28 @@ async function runScGenerate(silent) {
         { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
       ]
     };
-    const res = await callApi({
-      action: 'aiCoach',
-      memberId: state.memberId,
-      name: state.name,
-      situation: `${tag} ${sc.situationText}`,
-      payload: payload
-    });
-    if (res.error) throw new Error(res.error);
+    // 백엔드(_callAi_)가 이미 503 등 일시 오류를 최대 3회 자동 재시도하지만, 이 클라이언트 fetch
+    // 자체가 실패(네트워크 오류 등)하는 경우까지 대비해 여기서도 최대 3회, 1초 간격 재시도
+    // (district-dashboard.html runAiAnalysis()와 동일한 패턴).
+    let res, lastErr;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        res = await callApi({
+          action: 'aiCoach',
+          memberId: state.memberId,
+          name: state.name,
+          situation: `${tag} ${sc.situationText}`,
+          payload: payload
+        });
+        if (res.error) throw new Error(res.error);
+        lastErr = null;
+        break;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < 3) await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+    if (lastErr) throw lastErr;
     sc.resultText = res.coachText;
     sc.receiptNo = res.receiptNo;
     sc.resultMode = sc.subMode;
@@ -905,13 +919,23 @@ function renderStudentCoachTab(body) {
           { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
         ]
       };
-      try {
-        const res = await callApi({ action: 'generateContent', model: 'gemini-3-flash-preview', payload: payload });
-        const text = extractGenText(res);
-        sc.followUpHistory.push({ role: 'model', text: text || '(응답 없음)' });
-      } catch (err) {
-        sc.followUpHistory.push({ role: 'model', text: '오류가 발생했습니다: ' + err.message });
+      // 최대 3회, 1초 간격 재시도(다른 AI 호출 지점들과 동일한 패턴) — generateContent는 부작용이
+      // 없는 순수 조회라 재시도해도 안전.
+      let text, lastErr;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const res = await callApi({ action: 'generateContent', model: 'gemini-3-flash-preview', payload: payload });
+          text = extractGenText(res);
+          lastErr = null;
+          break;
+        } catch (err) {
+          lastErr = err;
+          if (attempt < 3) await new Promise(r => setTimeout(r, 1000));
+        }
       }
+      sc.followUpHistory.push(lastErr
+        ? { role: 'model', text: '오류가 발생했습니다: ' + lastErr.message }
+        : { role: 'model', text: text || '(응답 없음)' });
       sc.followUpLoading = false;
       render();
     };
@@ -922,11 +946,12 @@ function renderStudentCoachTab(body) {
 }
 
 function renderCoachTab(body) {
+  const spinnerSm = `<svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>`;
   body.innerHTML = `
     <div class="text-xs text-gray-400 mb-3">${state.name}님 (${state.memberId})</div>
     <textarea id="situation" rows="5" placeholder="겪고 계신 어려움이나 상황을 구체적으로 적어주세요." class="w-full border rounded-lg px-3 py-2 text-sm mb-3">${state.situation}</textarea>
-    <button id="btn-ask" class="w-full bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-50" ${state.loading ? 'disabled' : ''}>
-      ${state.loading ? '분석 중...' : 'AI 코칭 받기'}
+    <button id="btn-ask" class="w-full bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2" ${state.loading ? 'disabled' : ''}>
+      ${state.loading ? spinnerSm : ''}${state.loading ? 'AI가 코칭 대본을 생성 중입니다...' : 'AI 코칭 받기'}
     </button>
     <div id="result-area" class="mt-4"></div>
   `;
@@ -941,8 +966,20 @@ function renderCoachTab(body) {
       const payload = {
         contents: [{ parts: [{ text: '당신은 교회 교사를 위한 코칭 도우미입니다. 다음 상황에 대해 구체적이고 실천 가능한 코칭 방향을 제시해주세요.\\n\\n상황: ' + val }] }]
       };
-      const res = await callApi({ action: 'aiCoach', memberId: state.memberId, name: state.name, situation: val, payload: payload });
-      if (res.error) throw new Error(res.error);
+      // 최대 3회, 1초 간격 재시도(다른 AI 호출 지점들과 동일한 패턴).
+      let res, lastErr;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          res = await callApi({ action: 'aiCoach', memberId: state.memberId, name: state.name, situation: val, payload: payload });
+          if (res.error) throw new Error(res.error);
+          lastErr = null;
+          break;
+        } catch (err) {
+          lastErr = err;
+          if (attempt < 3) await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+      if (lastErr) throw lastErr;
       state.lastReceiptNo = res.receiptNo;
       state.lastCoachText = res.coachText;
       state.escalated = false;

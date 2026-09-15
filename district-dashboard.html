@@ -69,7 +69,7 @@ let state = {
   teacherDetailOpen: false, // 교사별 상세(지역 필터+표) 접기/펼치기 — 기본 접힘
   pendingOnly: false, // true면 교사별 상세 표를 "승급·강등 제안 있는 교사만"으로 좁혀서 보여줌
   showSampleData: false, // 2026-09-16: 브리핑용 샘플 데이터 토글 — ON이면 "지역별 인섬교 활동" 표/그래프/AI분석이 실제 데이터 대신 고정 샘플을 사용
-  aiAnalysis: null, // { loading, error, text } — 부서 탭 하단 "🤖 AI 분석 보기" 결과(부서 바뀌면 초기화)
+  aiAnalysis: null, // { loading, error, text } — 부서 탭 하단 "🤖 AI 지역 분석" 결과(부서 바뀌면 초기화)
   // 2026-09-15: 3역할(인도자/섬김이/교사) → 4역할(인도자/교사/섬김이/협력교사)로 확장.
   expandedRoleCol: { '인도자': false, '교사': false, '섬김이': false, '협력교사': false }, // "지역별 인섬교 활동" 표에서 역할 열 헤더 클릭 시 11개 항목 펼치기/접기
   // Phase 2(2026-09-15): 리더 격려 메시지 팝업 — encourageTarget이 {memberId,name}이면 열림.
@@ -1198,7 +1198,7 @@ function aiAnalysisSectionHtml(b) {
     <div class="px-4 pt-3 pb-4">
       <div class="flex items-start justify-between gap-2 mb-1">
         <div class="flex-1">${sectionTitleBand('🤖', 'AI 분석', '', '#F5F3FF')}</div>
-        <button id="btn-ai-analysis" class="btn btn-xs btn-outline btn-primary shrink-0 mt-1" ${a.loading ? 'disabled' : ''}>${a.loading ? '분석 중...' : '🤖 AI 분석 보기'}</button>
+        <button id="btn-ai-analysis" class="btn btn-xs btn-outline btn-primary shrink-0 mt-1" ${a.loading ? 'disabled' : ''}>${a.loading ? '분석 중...' : '🤖 AI 지역 분석'}</button>
       </div>
       ${a.loading ? `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>🤖 데이터 분석 중...</div>` : ''}
       ${a.error ? `<div class="alert alert-warning py-2 text-sm"><div>⚠️ ${esc(a.error)}</div></div>` : ''}
