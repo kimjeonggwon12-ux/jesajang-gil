@@ -40,6 +40,13 @@
     /* 브랜드 그라데이션 액센트 바 — navbar 바로 아래, 여러 파일에서 재사용 */
     .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); flex-shrink: 0; }
     .brand-avatar { background: linear-gradient(135deg, oklch(var(--p)), oklch(var(--a))); }
+    /* Phase 2: 대상자 단계 상승 축하 모달 — 위에서 뚝 떨어지는 효과 */
+    @keyframes stageUpDrop {
+      0%   { transform: translateY(-140px) scale(0.9); opacity: 0; }
+      70%  { transform: translateY(8px) scale(1.02); opacity: 1; }
+      100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .stage-up-drop { animation: stageUpDrop .55s cubic-bezier(.34,1.56,.64,1); }
   </style>
 </head>
 <body class="bg-base-200">
@@ -107,6 +114,31 @@
       <div id="growthModalBody"></div>
       <div class="modal-action">
         <button class="btn btn-ghost" onclick="closeGrowthModal()">닫기</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>닫기</button></form>
+  </dialog>
+
+  <!-- Phase 2: 대상자 단계 상승 축하 모달 -->
+  <dialog id="stageUpModal" class="modal">
+    <div class="modal-box stage-up-drop text-center">
+      <div id="stageUpEmoji" style="font-size:56px;line-height:1">🎉</div>
+      <div id="stageUpMainText" class="text-lg font-bold mt-2"></div>
+      <div id="stageUpBonusText" class="text-sm font-bold text-primary mt-1"></div>
+      <div class="modal-action justify-center">
+        <button class="btn btn-primary btn-sm" onclick="closeStageUpModal()">확인</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>닫기</button></form>
+  </dialog>
+
+  <!-- Phase 2: 격려 메시지 전체 보기 모달 -->
+  <dialog id="encourageBannerModal" class="modal">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-3">💌 받은 격려 메시지</h3>
+      <div id="encourageBannerBody" class="flex flex-col gap-3"></div>
+      <div class="modal-action">
+        <button class="btn btn-primary btn-sm" onclick="closeEncourageBannerModal()">확인했어요</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>닫기</button></form>
@@ -273,6 +305,23 @@
       '섭외': '친분', '친분': '친분', '만남1': '만남', '만남2': '만남',
       '상담1': '상담', '상담2': '상담', '복음방': '스터디', '센터소개': '아카데미 소개', '센터수강': '수강생'
     };
+    // Phase 2(2026-09-15): "관계 온도계" — 대상자 현재 단계에 따라 차갑게→매우 뜨겁게 색상 단계 부여.
+    // 대상자 일지 카드 배경 + 대상자 막대 그래프(renderTargetsChart)에 공용으로 사용.
+    // TARGET_STAGES_FALLBACK/home.stages와 이름이 같이 바뀌면 이 맵도 같이 고칠 것.
+    const STAGE_TEMP = {
+      '섭외':   { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8', color: '#3B82F6', label: '차갑게' },
+      '친분':   { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8', color: '#3B82F6', label: '차갑게' },
+      '만남1':  { bg: '#F0F9FF', border: '#BAE6FD', text: '#0369A1', color: '#0EA5E9', label: '시원하게' },
+      '만남2':  { bg: '#F0F9FF', border: '#BAE6FD', text: '#0369A1', color: '#0EA5E9', label: '시원하게' },
+      '상담1':  { bg: '#FFF7ED', border: '#FED7AA', text: '#C2410C', color: '#F97316', label: '따뜻하게' },
+      '상담2':  { bg: '#FFF7ED', border: '#FED7AA', text: '#C2410C', color: '#F97316', label: '따뜻하게' },
+      '복음방': { bg: '#FEF2F2', border: '#FECACA', text: '#B91C1C', color: '#EF4444', label: '뜨겁게' },
+      '센터소개': { bg: '#FEF2F2', border: '#FCA5A5', text: '#991B1B', color: '#DC2626', label: '매우 뜨겁게' },
+      '센터수강': { bg: '#FEF2F2', border: '#FCA5A5', text: '#991B1B', color: '#DC2626', label: '매우 뜨겁게' }
+    };
+    const STAGE_TEMP_DEFAULT = { bg: '#F9FAFB', border: '#E5E7EB', text: '#6B7280', color: '#9CA3AF', label: '-' };
+    function stageTemp(stage) { return STAGE_TEMP[stage] || STAGE_TEMP_DEFAULT; }
+
     // 2026-09-15: 대상자 연령대×성별 → 부서(자문회/장년회/부녀회/청년회) 자동 배정.
     // 사용자 확정 규칙: 70대이상=자문회(공통) / 40~60대=남 장년회·여 부녀회 / 10~30대=청년회(공통).
     // feedback-room.html TARGET_OPTIONS(자문/장년/부녀/청년)에 그대로 대응.
@@ -292,6 +341,7 @@
       centerLeads: [],         // getMyCenterLeads rows(읽기 전용, 전도부 입력)
       targets: [],             // getMyTargets rows
       stages: TARGET_STAGES_FALLBACK,
+      encouragements: [],      // getMyEncouragements rows(읽지 않은 격려 메시지만, 최신순)
       expandedRolePart: null,  // '인도자'|'교사'|'섬김이'|'협력교사'|null — 이번 달 활동 "항목별 건수 펼쳐보기"
       view: 'dashboard',       // 'dashboard' | 'targetDetail'
       detailTargetId: null,
@@ -313,17 +363,19 @@
       home.loading = true; home.error = '';
       renderHome();
       try {
-        const [tierRes, actRes, gospelRes, centerRes, targetRes] = await Promise.all([
+        const [tierRes, actRes, gospelRes, centerRes, targetRes, encRes] = await Promise.all([
           callApi({ action: 'getMyTierStatus', memberId }),
           callApi({ action: 'getMyActivities', memberId }),
           callApi({ action: 'getMyGospelLeads', memberId }),
           callApi({ action: 'getMyCenterLeads', memberId }),
-          callApi({ action: 'getMyTargets', memberId })
+          callApi({ action: 'getMyTargets', memberId }),
+          callApi({ action: 'getMyEncouragements', memberId })
         ]);
         if (tierRes && !tierRes.error) home.tierStatus = tierRes;
         home.monthlyActRes = (actRes && !actRes.error) ? actRes : { rows: [], roleCounts: {}, roleItemCounts: {} };
         home.gospelLeads = (gospelRes && gospelRes.rows) || [];
         home.centerLeads = (centerRes && centerRes.rows) || [];
+        home.encouragements = (encRes && encRes.rows) || [];
         if (targetRes && !targetRes.error) {
           home.targets = targetRes.rows || [];
           home.stages = targetRes.stages || TARGET_STAGES_FALLBACK;
@@ -412,10 +464,16 @@
         calloutHtml = `<div class="mt-3 text-xs text-success font-bold">현재 최고 등급(우수교사)입니다 🎉</div>`;
       }
 
+      // Phase 2: 내 등급이 활동교사 이상이면 작은 MVP 후보 배지 표시(사용자 요청).
+      const isMvpCandidate = current && GROWTH_STAGES.indexOf(current) >= GROWTH_STAGES.indexOf('활동교사');
+
       return `
         <div class="card card-border bg-base-100 shadow-sm mx-4">
           <div class="card-body p-4 cursor-pointer" onclick="openGrowthModal()">
-            <div class="text-sm font-bold text-base-content mb-3">내 성장 나무</div>
+            <div class="flex items-center justify-between mb-3">
+              <div class="text-sm font-bold text-base-content">내 성장 나무</div>
+              ${isMvpCandidate ? `<span class="badge badge-sm" style="background:#FBBF24;color:#78350F;border:none">이번 달 지역 MVP 후보 🏆</span>` : ''}
+            </div>
             <div class="flex items-stretch gap-1.5">${pills}</div>
             ${calloutHtml}
           </div>
@@ -489,6 +547,7 @@
       const isConsult = f.activityItem === '상담1' || f.activityItem === '상담2';
       const isGospel = f.activityItem === '복음방';
       const extraTitleLabel = isConsult ? '상담 제목' : (isGospel ? '과목 제목' : '');
+      const temp = stageTemp(f.targetStage);
 
       return `
         <div class="card card-border bg-base-100 shadow-sm mx-4">
@@ -536,25 +595,31 @@
 
             <div class="border-t border-base-200 pt-3">
               <div class="text-xs font-bold text-base-content/50 mb-2">④ 대상자 일지</div>
-              <div class="grid grid-cols-2 gap-2 mb-2">
-                <input type="text" id="af-tname" placeholder="이름" class="input input-bordered input-sm w-full col-span-2" value="${esc(f.targetName)}">
-                <select id="af-tgender" class="select select-bordered select-sm w-full">
-                  <option value="">성별</option>
-                  ${GENDER_OPTIONS.map(g => `<option value="${esc(g)}" ${f.targetGender === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}
-                </select>
-                <select id="af-tage" class="select select-bordered select-sm w-full">
-                  <option value="">연령대</option>
-                  ${AGE_GROUP_OPTIONS.map(a => `<option value="${esc(a)}" ${f.targetAgeGroup === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}
-                </select>
-                <select id="af-tstage" class="select select-bordered select-sm w-full col-span-2">
-                  <option value="">현재 단계</option>
-                  ${stageOptions.map(s => `<option value="${esc(s)}" ${f.targetStage === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}
-                </select>
+              <div class="rounded-box p-3" style="background:${temp.bg};border:1px solid ${temp.border};transition:background .3s ease,border-color .3s ease">
+                <div class="flex items-center gap-1.5 mb-3">
+                  <span style="font-size:18px;line-height:1">🌡️</span>
+                  <span class="text-xs font-bold" style="color:${temp.text}">${f.targetStage ? `관계 온도: ${esc(f.targetStage)} (${esc(temp.label)})` : '관계 온도: 단계를 선택하면 표시돼요'}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                  <input type="text" id="af-tname" placeholder="이름" class="input input-bordered input-sm w-full col-span-2" value="${esc(f.targetName)}">
+                  <select id="af-tgender" class="select select-bordered select-sm w-full">
+                    <option value="">성별</option>
+                    ${GENDER_OPTIONS.map(g => `<option value="${esc(g)}" ${f.targetGender === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}
+                  </select>
+                  <select id="af-tage" class="select select-bordered select-sm w-full">
+                    <option value="">연령대</option>
+                    ${AGE_GROUP_OPTIONS.map(a => `<option value="${esc(a)}" ${f.targetAgeGroup === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}
+                  </select>
+                  <select id="af-tstage" class="select select-bordered select-sm w-full col-span-2">
+                    <option value="">현재 단계</option>
+                    ${stageOptions.map(s => `<option value="${esc(s)}" ${f.targetStage === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}
+                  </select>
+                </div>
+                <textarea id="af-note" rows="2" placeholder="특이사항" class="textarea textarea-bordered textarea-sm w-full mb-2">${esc(f.note)}</textarea>
+                <textarea id="af-today" rows="2" placeholder="오늘 한 일" class="textarea textarea-bordered textarea-sm w-full mb-2">${esc(f.todayWork)}</textarea>
+                <textarea id="af-next" rows="2" placeholder="다음 할 일" class="textarea textarea-bordered textarea-sm w-full">${esc(f.nextWork)}</textarea>
+                <div class="text-[10px] text-base-content/40 mt-1">이름 가운데 글자는 목록/현황 화면에 자동으로 * 표시돼요 (예: 홍*동)</div>
               </div>
-              <textarea id="af-note" rows="2" placeholder="특이사항" class="textarea textarea-bordered textarea-sm w-full mb-2">${esc(f.note)}</textarea>
-              <textarea id="af-today" rows="2" placeholder="오늘 한 일" class="textarea textarea-bordered textarea-sm w-full mb-2">${esc(f.todayWork)}</textarea>
-              <textarea id="af-next" rows="2" placeholder="다음 할 일" class="textarea textarea-bordered textarea-sm w-full">${esc(f.nextWork)}</textarea>
-              <div class="text-[10px] text-base-content/40 mt-1">이름 가운데 글자는 목록/현황 화면에 자동으로 * 표시돼요 (예: 홍*동)</div>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
@@ -605,7 +670,9 @@
       const bindChange = (id, key) => { const el = document.getElementById(id); if (el) el.onchange = e => { f[key] = e.target.value; }; };
       bindChange('af-tgender', 'targetGender');
       bindChange('af-tage', 'targetAgeGroup');
-      bindChange('af-tstage', 'targetStage');
+      // af-tstage는 관계 온도계 카드 배경을 실시간으로 바꿔야 해서 다른 필드와 달리 renderHome() 호출.
+      const tstageEl = document.getElementById('af-tstage');
+      if (tstageEl) tstageEl.onchange = e => { f.targetStage = e.target.value; renderHome(); };
 
       document.querySelectorAll('.af-reaction-radio').forEach(radio => {
         radio.onchange = e => { f.reaction = e.target.value; };
@@ -625,6 +692,14 @@
       const isConsult = f.activityItem === '상담1' || f.activityItem === '상담2';
       const isGospel = f.activityItem === '복음방';
 
+      // Phase 2: 단계 상승 축하 모달 판정용 — refreshAfterSubmit()이 home.targets를 새 값으로
+      // 덮어쓰기 전에, 지금 이름의 기존 대상자가 있었는지·이전 단계가 몇 단계였는지 미리 기록.
+      const targetNameTrimmed = f.targetName.trim();
+      const newStage = f.targetStage;
+      const prevTarget = targetNameTrimmed ? home.targets.find(t => t.targetName === targetNameTrimmed) : null;
+      const prevStageIdx = prevTarget ? stageIndex(prevTarget.stage) : -1;
+      const newStageIdx = stageIndex(newStage);
+
       f.loading = true;
       renderHome();
       try {
@@ -632,7 +707,7 @@
           action: 'submitActivity', memberId, name,
           roles: f.roles, activityItem: f.activityItem, date: f.date,
           target: {
-            name: f.targetName.trim(), gender: f.targetGender, ageGroup: f.targetAgeGroup, stage: f.targetStage,
+            name: targetNameTrimmed, gender: f.targetGender, ageGroup: f.targetAgeGroup, stage: f.targetStage,
             note: f.note.trim(), todayWork: f.todayWork.trim(), nextWork: f.nextWork.trim()
           },
           consultTitle: isConsult ? f.extraTitle.trim() : '',
@@ -646,11 +721,39 @@
         f.note = ''; f.todayWork = ''; f.nextWork = '';
         f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
         await refreshAfterSubmit();
+        // 기존 대상자(이름 일치)가 있었고, 이번에 선택한 단계가 그보다 앞서 있었다면 승급으로 간주.
+        if (targetNameTrimmed && prevTarget && newStageIdx >= 0 && newStageIdx > prevStageIdx) {
+          openStageUpModal(targetNameTrimmed, prevTarget.stage, newStage);
+        }
       } catch (e) {
         alert('등록 중 오류가 발생했습니다: ' + e.message);
       }
       f.loading = false;
       renderHome();
+    }
+
+    // ============ D-1. 단계 상승 축하 모달 ============
+    let stageUpAutoCloseTimer = null;
+    function openStageUpModal(targetName, fromStage, toStage) {
+      const maskedName = maskName(targetName);
+      const mainEl = document.getElementById('stageUpMainText');
+      const bonusEl = document.getElementById('stageUpBonusText');
+      const emojiEl = document.getElementById('stageUpEmoji');
+      if (mainEl) mainEl.textContent = `${maskedName}님이 ${fromStage} → ${toStage}로 올라갔어요!`;
+      let bonus = '';
+      if (toStage === '복음방') bonus = '복음방 인도 완료! 🎉';
+      else if (toStage === '센터소개') bonus = '센터 소개 완료! 🏆';
+      if (bonusEl) bonusEl.textContent = bonus;
+      if (emojiEl) emojiEl.textContent = toStage === '센터소개' ? '🏆' : '🎉';
+      const dlg = document.getElementById('stageUpModal');
+      if (dlg && !dlg.open) dlg.showModal();
+      if (stageUpAutoCloseTimer) clearTimeout(stageUpAutoCloseTimer);
+      stageUpAutoCloseTimer = setTimeout(closeStageUpModal, 2000);
+    }
+    function closeStageUpModal() {
+      if (stageUpAutoCloseTimer) { clearTimeout(stageUpAutoCloseTimer); stageUpAutoCloseTimer = null; }
+      const dlg = document.getElementById('stageUpModal');
+      if (dlg && dlg.open) dlg.close();
     }
 
     // ============ E. AI코칭 연동 ============
@@ -765,7 +868,7 @@
         type: 'bar',
         data: { labels, datasets: [{
           data: values,
-          backgroundColor: home.targets.map(t => stageIndex(t.stage) >= 0 ? '#4f46e5' : '#d1d5db'),
+          backgroundColor: home.targets.map(t => stageIndex(t.stage) >= 0 ? stageTemp(t.stage).color : '#d1d5db'),
           borderRadius: 4
         }] },
         options: {
@@ -876,6 +979,47 @@
       `;
     }
 
+    // ============ G. 리더 격려 메시지 배너 ============
+
+    function encouragementBannerHtml() {
+      if (!home.encouragements.length) return '';
+      const first = home.encouragements[0];
+      const more = home.encouragements.length - 1;
+      return `
+        <div id="encourage-banner" class="mx-4 rounded-box px-3 py-2.5 flex items-center gap-2 cursor-pointer" style="background:linear-gradient(90deg,#FDE68A,#FCD34D);border:1px solid #FBBF24">
+          <span style="font-size:20px">💌</span>
+          <div class="flex-1 text-xs font-bold truncate" style="color:#78350F">${esc(first.fromName || '지역장')}님: '${esc(first.message)}'${more > 0 ? ` 외 ${more}건` : ''}</div>
+          <span class="text-[10px] shrink-0" style="color:#92400E">전체보기 →</span>
+        </div>
+      `;
+    }
+
+    function openEncourageBannerModal() {
+      const body = document.getElementById('encourageBannerBody');
+      if (body) {
+        body.innerHTML = home.encouragements.map(m => `
+          <div class="border border-base-300 rounded-box p-3">
+            <div class="text-xs font-bold text-base-content/60 mb-1">${esc(m.fromName || '지역장')}님 · ${esc(String(m.sentAt || '').slice(0, 16))}</div>
+            <div class="text-sm">${esc(m.message)}</div>
+          </div>
+        `).join('');
+      }
+      document.getElementById('encourageBannerModal').showModal();
+    }
+
+    async function closeEncourageBannerModal() {
+      const ids = home.encouragements.map(m => m.id);
+      const dlg = document.getElementById('encourageBannerModal');
+      if (dlg && dlg.open) dlg.close();
+      home.encouragements = []; // 배너는 바로 사라짐 — 읽음 처리는 아래에서 백그라운드로 진행
+      renderHome();
+      try {
+        await Promise.all(ids.map(id => callApi({ action: 'markEncouragementRead', messageId: id })));
+      } catch (e) {
+        // 읽음 처리가 실패해도 화면엔 이미 반영됨 — 실패한 메시지는 다음 로그인 때 배너로 다시 뜸(데이터 유실 아님).
+      }
+    }
+
     // ============ 화면 조립 ============
 
     function dashboardViewHtml() {
@@ -887,6 +1031,7 @@
       }
       return `
         <div class="py-4 flex flex-col gap-5">
+          ${encouragementBannerHtml()}
           ${growthStagesHtml()}
           ${monthlyBoxesHtml()}
           ${activityFormHtml()}
@@ -905,6 +1050,8 @@
       root.innerHTML = dashboardViewHtml();
       wireActivityForm();
       renderTargetsChart();
+      const bannerEl = document.getElementById('encourage-banner');
+      if (bannerEl) bannerEl.onclick = openEncourageBannerModal;
     }
   </script>
 </body>

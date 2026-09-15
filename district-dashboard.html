@@ -71,7 +71,13 @@ let state = {
   showSampleData: false, // 2026-09-16: 브리핑용 샘플 데이터 토글 — ON이면 "지역별 인섬교 활동" 표/그래프/AI분석이 실제 데이터 대신 고정 샘플을 사용
   aiAnalysis: null, // { loading, error, text } — 부서 탭 하단 "🤖 AI 분석 보기" 결과(부서 바뀌면 초기화)
   // 2026-09-15: 3역할(인도자/섬김이/교사) → 4역할(인도자/교사/섬김이/협력교사)로 확장.
-  expandedRoleCol: { '인도자': false, '교사': false, '섬김이': false, '협력교사': false } // "지역별 인섬교 활동" 표에서 역할 열 헤더 클릭 시 11개 항목 펼치기/접기
+  expandedRoleCol: { '인도자': false, '교사': false, '섬김이': false, '협력교사': false }, // "지역별 인섬교 활동" 표에서 역할 열 헤더 클릭 시 11개 항목 펼치기/접기
+  // Phase 2(2026-09-15): 리더 격려 메시지 팝업 — encourageTarget이 {memberId,name}이면 열림.
+  encourageTarget: null,
+  encourageFromName: '', // 세션 내 재입력 편의를 위해 보내는 분 성함을 기억(로그인 없는 관리자 화면이라 매번 입력 필요)
+  encourageText: '',
+  encourageSending: false,
+  encourageSentNote: ''
 };
 
 // 전체 조직별 요약 (getOrgSummary) — "전체 요약" 화면 전용, 부서 상세와 별도로 캐시.
@@ -102,6 +108,13 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
+// home.html maskName()과 동일 규칙(2/3글자 이상 이름 마스킹) — MVP 카드에서 실명 노출 방지용.
+function maskName(nm) {
+  const s = String(nm || '').trim();
+  if (s.length <= 1) return s;
+  if (s.length === 2) return s[0] + '*';
+  return s[0] + '*'.repeat(s.length - 2) + s[s.length - 1];
+}
 
 // 2026-09-17: 소제목 스타일 전면 강화(사용자 요청 — "폰트 크기 20px+/900굵기/네이비/배경 띠 +
 // 바로 아래 1~2줄 설명"). 모든 섹션 소제목을 이 함수 하나로 통일해서 재사용 — 소제목 스타일을
@@ -242,6 +255,81 @@ async function approveAs(t, role) {
   }
   delete state.approving[key];
   render();
+}
+
+// ============ Phase 2(2026-09-15): 리더 격려 메시지 ============
+// 교사별 상세 표의 이름 클릭 → 메시지 팝업 → sendEncouragement → home.html 상단 배너로 수신.
+// 이 화면은 로그인이 없는 관리자 도구라 approveAs()의 prompt() 방식과 달리, 발신자 성함은
+// 팝업 안 입력란으로 받고 세션 동안 state.encourageFromName에 기억해둔다(연속 발송 편의).
+function openEncourageModal(memberId, name) {
+  state.encourageTarget = { memberId, name };
+  state.encourageText = '';
+  state.encourageSentNote = '';
+  render();
+  const el = document.getElementById('enc-message');
+  if (el) el.focus();
+}
+function closeEncourageModal() {
+  state.encourageTarget = null;
+  render();
+}
+async function sendEncourageMessage() {
+  const t = state.encourageTarget;
+  if (!t) return;
+  const fromName = (state.encourageFromName || '').trim();
+  const message = (state.encourageText || '').trim();
+  if (!fromName) { alert('보내는 분 성함을 입력해주세요.'); return; }
+  if (!message) { alert('메시지를 입력해주세요.'); return; }
+  state.encourageSending = true;
+  render();
+  try {
+    const res = await callApi({ action: 'sendEncouragement', fromId: '', fromName, toId: t.memberId, message });
+    if (res && res.error) throw new Error(res.error);
+    state.encourageSentNote = `${t.name} 교사님께 전달했습니다! 💌`;
+    state.encourageText = '';
+  } catch (e) {
+    state.encourageSentNote = '오류가 발생했습니다: ' + e.message;
+  }
+  state.encourageSending = false;
+  render();
+}
+
+function encourageModalHtml() {
+  const t = state.encourageTarget;
+  if (!t) return '';
+  return `
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
+      <div class="bg-base-100 rounded-box shadow-xl w-full max-w-sm p-5">
+        <div class="text-lg font-bold mb-1">💌 격려 메시지 보내기</div>
+        <div class="text-sm text-base-content/60 mb-3">받는 사람: <b>${esc(t.name)}</b> 교사님</div>
+        <input id="enc-from" type="text" placeholder="보내는 분 성함" class="input input-bordered input-sm w-full mb-2" value="${esc(state.encourageFromName || '')}">
+        <textarea id="enc-message" rows="4" placeholder="예: 이번 달 수고 많으셨어요! 항상 응원합니다 💪" class="textarea textarea-bordered textarea-sm w-full mb-3">${esc(state.encourageText || '')}</textarea>
+        ${state.encourageSentNote ? `<div class="text-xs ${state.encourageSentNote.startsWith('오류') ? 'text-error' : 'text-success'} mb-2">${esc(state.encourageSentNote)}</div>` : ''}
+        <div class="grid grid-cols-2 gap-2">
+          <button id="btn-encourage-cancel" class="btn btn-sm btn-ghost">닫기</button>
+          <button id="btn-encourage-send" class="btn btn-sm btn-primary" ${state.encourageSending ? 'disabled' : ''}>${state.encourageSending ? '전송 중...' : '전송'}</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============ Phase 2(2026-09-15): 이번 달 MVP 카드 ============
+// 부서 상세 진입 시 always dept 전체(지역 필터 무관) 기준, 이번 달 활동(monthlyCount) 1위 교사를 표시.
+function mvpCardHtml(allRows) {
+  if (!allRows || allRows.length === 0) return '';
+  const top = allRows.reduce((best, r) => (!best || r.monthlyCount > best.monthlyCount) ? r : best, null);
+  if (!top || !top.monthlyCount) return ''; // 이번 달 활동이 전무하면(전부 0건) MVP를 뽑지 않음
+  return `
+    <div class="mx-4 mt-3 rounded-box p-3 flex items-center gap-3" style="background:linear-gradient(90deg,#FDE68A,#FBBF24)">
+      <div style="font-size:30px;line-height:1">🥇</div>
+      <div class="flex-1">
+        <div class="text-[11px] font-bold" style="color:#78350F">이번 달 MVP</div>
+        <div class="text-sm font-black" style="color:#78350F">${esc(regionFullLabel(state.dept, top.region))} ${esc(maskName(top.name))} 교사님</div>
+        <div class="text-[10px]" style="color:#92400E">이번 달 활동 ${top.monthlyCount}건</div>
+      </div>
+    </div>
+  `;
 }
 
 // ============ 관리자 즉시 반영 (지역장·교관 2인 승인과 별개) ============
@@ -1180,7 +1268,10 @@ function tableHtml(rows) {
         <tbody>
           ${rows.map(t => `
             <tr>
-              <td class="font-medium">${esc(t.name)}<div class="text-[10px] text-base-content/40">${esc(t.memberId)}</div></td>
+              <td class="font-medium">
+                <button class="btn-encourage-trigger text-left hover:underline hover:text-primary" data-mid="${esc(t.memberId)}" data-name="${esc(t.name)}" title="격려 메시지 보내기">${esc(t.name)} 💌</button>
+                <div class="text-[10px] text-base-content/40">${esc(t.memberId)}</div>
+              </td>
               <td class="text-base-content/60 text-xs">${esc(t.region || '')}</td>
               <td><span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'} badge-sm">${esc(t.tier)}</span></td>
               <td class="text-center">${t.monthlyCount}건</td>
@@ -1235,6 +1326,7 @@ function render() {
         : state.error
           ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div></div>`
           : `
+            ${mvpCardHtml(allRows)}
             ${summaryCardHtml(report && report.summary)}
             ${targetStageSectionHtml(report && report.targetStageCounts)}
             ${byRegionSectionHtml(report && report.byRegion)}
@@ -1266,6 +1358,7 @@ function render() {
               </div>
             </details>
           `}
+    ${encourageModalHtml()}
   `;
 
   document.querySelectorAll('.btn-org-card').forEach(btn => {
@@ -1281,6 +1374,19 @@ function render() {
       if (t) approveAs(t, btn.dataset.role);
     };
   });
+  document.querySelectorAll('.btn-encourage-trigger').forEach(btn => {
+    btn.onclick = () => openEncourageModal(btn.dataset.mid, btn.dataset.name);
+  });
+  if (state.encourageTarget) {
+    const fromEl = document.getElementById('enc-from');
+    if (fromEl) fromEl.oninput = e => { state.encourageFromName = e.target.value; };
+    const msgEl = document.getElementById('enc-message');
+    if (msgEl) msgEl.oninput = e => { state.encourageText = e.target.value; };
+    const cancelBtn = document.getElementById('btn-encourage-cancel');
+    if (cancelBtn) cancelBtn.onclick = closeEncourageModal;
+    const sendBtn = document.getElementById('btn-encourage-send');
+    if (sendBtn) sendBtn.onclick = sendEncourageMessage;
+  }
   document.querySelectorAll('.btn-tier-apply').forEach(btn => {
     btn.onclick = () => applyTierChangeInstant(btn.dataset.mid, btn.dataset.tier);
   });
