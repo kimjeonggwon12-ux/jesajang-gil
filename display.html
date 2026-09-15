@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전주 교회 교사 활동 현황</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  /* Phase 3(2026-09-15): 로그인 없이 TV/모니터에 띄우는 교회 디스플레이 — 어두운 배경 + 큰 글씨,
+     jesagil(밝은) 테마를 그대로 쓰면 TV에서 너무 눈부시고 글씨가 작아 보여서 전용 다크 팔레트를 씀. */
+  html, body { margin:0; padding:0; background:#0B1220; color:#F1F5F9; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  .display-card { background:#141E33; border:1px solid #24314F; border-radius:16px; }
+  .brand-accent-bar { height:4px; background:linear-gradient(90deg,#6366F1,#F59E0B,#10B981); }
+  ::-webkit-scrollbar { display:none; }
+  @keyframes pulseFeed { 0% { background:#1E293B; } 50% { background:#26334D; } 100% { background:#1E293B; } }
+  .feed-new { animation: pulseFeed 1.6s ease-in-out 1; }
+</style>
+</head>
+<body>
+<div class="brand-accent-bar"></div>
+<div id="root" style="max-width:1400px;margin:0 auto;padding:20px 24px 40px"></div>
+
+<script>
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
+
+// 백엔드 ORG_MAIN_DEPTS와 동일 순서(교자장부청) — district/edu-dashboard.html과 동일 규칙.
+const DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
+const DEPT_ICON = { '교역자': '⛪', '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓' };
+const MEDAL = ['🥇', '🥈', '🥉'];
+const REGION_PALETTE = ['#818CF8', '#38BDF8', '#34D399', '#FBBF24', '#F87171', '#C084FC', '#F472B6', '#A3E635'];
+const REFRESH_SECONDS = 300; // 5분마다 전체 새로고침
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+// district-dashboard.html/home.html과 동일 규칙 — 2/3글자 이상 이름 마스킹.
+function maskName(nm) {
+  const s = String(nm || '').trim();
+  if (s.length <= 1) return s;
+  if (s.length === 2) return s[0] + '*';
+  return s[0] + '*'.repeat(s.length - 2) + s[s.length - 1];
+}
+// district-dashboard.html/edu-dashboard.html과 동일 규칙 — "O지역" → "전주 OO회 OO지역".
+function regionFullLabel(dept, region) {
+  const label = (dept === '교역자') ? '교역자회' : (dept || '');
+  return region ? `전주 ${label} ${region}`.trim() : `전주 ${label}`.trim();
+}
+function timeAgoKo(ts) {
+  const d = new Date(String(ts || '').replace(' ', 'T'));
+  if (isNaN(d)) return '';
+  const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (diffMin < 1) return '방금 전';
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  return `${Math.floor(diffHour / 24)}일 전`;
+}
+
+async function callApi(body) {
+  const res = await fetch(PROXY_URL, { method: 'POST', body: JSON.stringify(body) });
+  return res.json();
+}
+
+let state = {
+  loading: true,
+  error: '',
+  data: null,       // getDisplayData 응답
+  rankTab: DEPTS[0],
+  secondsLeft: REFRESH_SECONDS
+};
+let rankChart = null;
+
+async function load() {
+  state.loading = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getDisplayData' });
+    if (res && res.error) throw new Error(res.error);
+    state.data = res;
+  } catch (e) {
+    state.error = String(e.message || e);
+  }
+  state.loading = false;
+  render();
+}
+
+function switchRankTab(dept) {
+  state.rankTab = dept;
+  render();
+}
+
+// ============ 상단 헤더 ============
+function headerHtml() {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  const mm = String(Math.floor(state.secondsLeft / 60)).padStart(2, '0');
+  const ss = String(state.secondsLeft % 60).padStart(2, '0');
+  return `
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div>
+        <div style="font-size:32px;font-weight:900;letter-spacing:-0.5px">⛪ 전주 교회 교사 활동 현황</div>
+        <div style="font-size:16px;color:#94A3B8;margin-top:4px">${esc(dateStr)}</div>
+      </div>
+      <div class="text-right">
+        <div id="display-clock" style="font-size:28px;font-weight:900;font-variant-numeric:tabular-nums">${esc(timeStr)}</div>
+        <div style="font-size:14px;color:#64748B">새로고침까지 <span id="display-countdown" style="font-variant-numeric:tabular-nums">${mm}:${ss}</span></div>
+      </div>
+    </div>
+  `;
+}
+
+// ============ ① 이번 달 지역별 활동 순위 ============
+function rankSectionHtml(d) {
+  const dept = state.rankTab;
+  const list = (d.byDept && d.byDept[dept]) || [];
+  const top1 = list[0];
+  return `
+    <div class="display-card p-5 mb-5">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div style="font-size:22px;font-weight:900">🏆 이번 달 지역별 활동 순위</div>
+        ${d.overallTop ? `<div style="font-size:15px;color:#FBBF24;font-weight:700">전체 1위: ${esc(regionFullLabel(d.overallTop.dept, d.overallTop.region))} (${d.overallTop.count}건)</div>` : ''}
+      </div>
+      <div class="flex flex-wrap gap-2 mb-4">
+        ${DEPTS.map(dep => `<button class="rank-tab-btn" data-dept="${esc(dep)}" style="font-size:16px;font-weight:700;padding:8px 16px;border-radius:10px;border:1px solid ${dept === dep ? '#6366F1' : '#334155'};background:${dept === dep ? '#4338CA' : 'transparent'};color:#F1F5F9;cursor:pointer">${DEPT_ICON[dep] || ''} ${esc(dep)}</button>`).join('')}
+      </div>
+      ${list.length === 0 ? `<div style="font-size:16px;color:#64748B;text-align:center;padding:24px 0">이번 달 데이터가 없습니다.</div>` : `
+        ${top1 ? `
+          <div style="background:linear-gradient(90deg,#78350F,#B45309);border-radius:14px;padding:18px 22px;margin-bottom:14px;display:flex;align-items:center;gap:16px">
+            <div style="font-size:44px;line-height:1">🥇</div>
+            <div>
+              <div style="font-size:14px;color:#FDE68A;font-weight:700">${esc(dept)} 1위</div>
+              <div style="font-size:26px;font-weight:900;color:#FFFBEB">${esc(regionFullLabel(top1.dept, top1.region))}</div>
+              <div style="font-size:16px;color:#FDE68A">이번 달 활동 ${top1.count}건</div>
+            </div>
+          </div>
+        ` : ''}
+        <div class="grid gap-2 mb-4">
+          ${list.map((r, i) => `
+            <div style="display:flex;align-items:center;gap:12px;background:#1E293B;border-radius:10px;padding:10px 16px">
+              <div style="font-size:22px;width:34px">${MEDAL[i] || ''}</div>
+              <div style="flex:1;font-size:17px;font-weight:700">${esc(regionFullLabel(r.dept, r.region))}</div>
+              <div style="font-size:18px;font-weight:900;color:#93C5FD">${r.count}건</div>
+            </div>
+          `).join('')}
+        </div>
+        <div style="height:${Math.max(140, list.length * 46 + 30)}px"><canvas id="chart-rank"></canvas></div>
+      `}
+    </div>
+  `;
+}
+
+function renderRankChart(d) {
+  if (rankChart) { rankChart.destroy(); rankChart = null; }
+  const canvas = document.getElementById('chart-rank');
+  const list = (d.byDept && d.byDept[state.rankTab]) || [];
+  if (!canvas || list.length === 0) return;
+  rankChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: list.map(r => regionFullLabel(r.dept, r.region)),
+      datasets: [{ data: list.map(r => r.count), backgroundColor: list.map((_, i) => REGION_PALETTE[i % REGION_PALETTE.length]), borderRadius: 6 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, ticks: { color: '#94A3B8', font: { size: 14 } }, grid: { color: '#24314F' } },
+        y: { ticks: { color: '#F1F5F9', font: { size: 15, weight: 'bold' } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ============ ②③ 복음방 / 센터 인도 현황 ============
+function leadSectionHtml(icon, title, total, byRegion, accentColor) {
+  return `
+    <div class="display-card p-5 mb-5">
+      <div style="font-size:20px;font-weight:900;margin-bottom:10px">${icon} ${esc(title)}</div>
+      <div style="font-size:48px;font-weight:900;color:${accentColor};line-height:1;margin-bottom:14px">${total}<span style="font-size:20px;color:#94A3B8;font-weight:700">건</span></div>
+      <div class="grid gap-1.5">
+        ${byRegion.slice(0, 6).map(r => `
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="flex:1;font-size:15px;color:#CBD5E1">${esc(r.region)}</div>
+            <div style="font-size:16px;font-weight:800;color:${accentColor}">${r.count}건</div>
+          </div>
+        `).join('') || `<div style="font-size:15px;color:#64748B">데이터 없음</div>`}
+      </div>
+    </div>
+  `;
+}
+
+// ============ ④ 실시간 활동 피드 ============
+function feedSectionHtml(feed) {
+  return `
+    <div class="display-card p-5">
+      <div style="font-size:20px;font-weight:900;margin-bottom:12px">📡 실시간 활동 피드</div>
+      <div class="flex flex-col gap-2">
+        ${feed.map(f => `
+          <div style="background:#1E293B;border-radius:10px;padding:12px 16px;font-size:16px;line-height:1.5">
+            <span style="color:#64748B">${esc(timeAgoKo(f.submittedAt))}</span>
+            <span style="color:#F1F5F9"> ${esc(regionFullLabel(f.dept, f.region))} <b style="color:#93C5FD">${esc(maskName(f.name))}</b> 교사님이 <b>${esc(f.activityItem)}</b> 활동을 기록했습니다.</span>
+          </div>
+        `).join('') || `<div style="font-size:15px;color:#64748B">최근 활동이 없습니다.</div>`}
+      </div>
+    </div>
+  `;
+}
+
+// ============ 화면 조립 ============
+function render() {
+  const root = document.getElementById('root');
+  if (state.loading) {
+    root.innerHTML = headerHtml() + `<div style="text-align:center;padding:80px 0;font-size:18px;color:#64748B">불러오는 중...</div>`;
+    return;
+  }
+  if (state.error || !state.data) {
+    root.innerHTML = headerHtml() + `<div style="text-align:center;padding:80px 0;font-size:18px;color:#F87171">⚠️ ${esc(state.error || '데이터를 불러오지 못했습니다.')}</div>`;
+    return;
+  }
+  const d = state.data;
+  root.innerHTML = `
+    ${headerHtml()}
+    ${d.isSample ? `<div style="display:inline-block;background:#7C2D12;color:#FED7AA;font-size:14px;font-weight:700;padding:5px 14px;border-radius:999px;margin-bottom:16px">📊 샘플 데이터 기준(실제 데이터가 쌓이면 자동으로 전환됩니다)</div>` : ''}
+    ${rankSectionHtml(d)}
+    <div class="grid gap-5" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+      ${leadSectionHtml('📖', '이번 달 복음방 인도 현황', d.gospelTotal, d.gospelByRegion, '#34D399')}
+      ${leadSectionHtml('🎯', '이번 달 센터 인도 현황', d.centerTotal, d.centerByRegion, '#FBBF24')}
+    </div>
+    <div class="mt-5">${feedSectionHtml(d.recentFeed)}</div>
+  `;
+  document.querySelectorAll('.rank-tab-btn').forEach(btn => {
+    btn.onclick = () => switchRankTab(btn.dataset.dept);
+  });
+  renderRankChart(d);
+}
+
+// 실시간 시계 — 1초마다 헤더의 시계 텍스트만 갱신(전체 재렌더 안 함, 차트 재생성 방지).
+setInterval(() => {
+  const clockEl = document.getElementById('display-clock');
+  if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  state.secondsLeft = Math.max(0, state.secondsLeft - 1);
+  const cdEl = document.getElementById('display-countdown');
+  if (cdEl) {
+    const mm = String(Math.floor(state.secondsLeft / 60)).padStart(2, '0');
+    const ss = String(state.secondsLeft % 60).padStart(2, '0');
+    cdEl.textContent = `${mm}:${ss}`;
+  }
+}, 1000);
+
+// 5분마다 전체 새로고침(스펙 명시) — location.reload()로 페이지 자체를 새로 불러와 캐시/메모리 누수 없이 깔끔하게 갱신.
+setTimeout(() => location.reload(), REFRESH_SECONDS * 1000);
+
+load();
+</script>
+</body>
+</html>
