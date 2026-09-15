@@ -41,6 +41,13 @@ const ORG_DEPTS = ORG_MAIN_DEPTS.concat(['기타']);
 function orgBucket(dept) { return ORG_MAIN_DEPTS.includes(dept) ? dept : '기타'; }
 const DEPT_ICON = { '교역자': '⛪', '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓', '기타': '📁' };
 
+// 2026-09-17: 다른 방 파일들(home.html 등)과 동일한 관례 — ?memberId=&name= 로 특정 교관 계정
+// 미리보기/실사용 가능(예: coach-dashboard.html?memberId=0020113000010&name=김정권). 파라미터가
+// 없으면 기존처럼 로그인 없는 순수 관리자 열람 화면 그대로 동작(하위 호환).
+const urlParams = new URLSearchParams(window.location.search);
+const paramMemberId = urlParams.get('memberId');
+const paramName = urlParams.get('name');
+
 let state = {
   loading: true,
   error: '',
@@ -49,7 +56,12 @@ let state = {
   region: '',        // 부서 상세에서 지역 필터('' = 전체)
   coachAdminOpen: false, // "교관 등록 관리" 접기/펼치기
   coachSaving: false,
-  coachForm: { region: '', coachId: '', coachName: '', dept: ORG_DEPTS[0], status: '활성' }
+  coachForm: { region: '', coachId: '', coachName: '', dept: ORG_DEPTS[0], status: '활성' },
+  myCoach: null,       // getMyCoach 응답의 myCoachInfo(isCoach===true일 때만) — { coachId, coachName, regions[], depts[] }
+  autoScoped: false,   // 최초 1회만 내 담당 부서/지역으로 자동 이동(이후 사용자가 다른 부서를 눌러도 안 되돌림)
+  detailReceiptNo: null, // 클릭한 요청 상세 모달(receiptNo) — null이면 닫힘
+  replyText: '',
+  replySaving: false
 };
 
 // 관리자 화면 공통 메인 내비게이션 — 관리자 홈 / 통합 / 부서별 / 피드백 / 교사 어플로 가기 5개.
@@ -93,6 +105,22 @@ async function load() {
   } catch (e) {
     state.error = '서버 연결에 실패했습니다: ' + e;
   }
+
+  // 2026-09-17: ?memberId=&name= 으로 들어온 경우 — 활성 교관인지 확인해서 담당 지역 자동 인식.
+  if (paramMemberId) {
+    try {
+      const myRes = await callApi({ action: 'getMyCoach', memberId: paramMemberId });
+      if (myRes && myRes.isCoach && myRes.myCoachInfo) state.myCoach = myRes.myCoachInfo;
+    } catch (e) { /* 실패해도 기존 관리자 열람 화면으로는 계속 동작 */ }
+  }
+  // 담당 부서/지역으로 최초 1회만 자동 이동(이후 사용자가 다른 부서를 눌러도 안 되돌림).
+  if (state.myCoach && !state.autoScoped) {
+    state.autoScoped = true;
+    const dept = state.myCoach.depts && state.myCoach.depts[0];
+    const region = state.myCoach.regions && state.myCoach.regions[0];
+    if (dept && ORG_DEPTS.includes(orgBucket(dept))) { state.dept = orgBucket(dept); state.region = region || ''; }
+  }
+
   state.loading = false;
   render();
 }
@@ -264,6 +292,12 @@ function statusBadge(status) {
     : `<span class="badge badge-warning badge-sm">미답변</span>`;
 }
 
+// 요청 내용을 목록 카드에서는 요약(길면 자르기), 상세 모달에서는 전체 표시.
+function summarize(text, len) {
+  const s = String(text || '');
+  return s.length > len ? s.slice(0, len) + '…' : s;
+}
+
 function deptDetailSectionHtml() {
   const dept = state.dept;
   const data = state.data;
@@ -292,7 +326,7 @@ function deptDetailSectionHtml() {
               <thead><tr><th>지역</th><th>담당 교관</th><th>미답변</th><th>답변완료</th></tr></thead>
               <tbody>
                 ${byRegion.map(r => `
-                  <tr>
+                  <tr class="btn-region-row cursor-pointer hover:bg-base-200" data-region="${esc(r.region)}" title="클릭해서 이 지역만 보기">
                     <td class="font-medium">${esc(r.region)}</td>
                     <td>${r.coachName ? esc(r.coachName) : `<span class="text-warning text-xs">⚠️ 미등록</span>`}</td>
                     <td class="${r.pending ? 'text-warning font-bold' : ''}">${r.pending}건</td>
@@ -318,20 +352,87 @@ function deptDetailSectionHtml() {
           </div>`
         : `<div class="flex flex-col gap-2 pb-4">
             ${filteredRequests.map(r => `
-              <div class="card card-border bg-base-100 shadow-sm">
+              <div class="btn-request-card card card-border bg-base-100 shadow-sm cursor-pointer hover:shadow-md" data-receipt="${esc(r.receiptNo)}">
                 <div class="card-body p-4">
                   <div class="flex items-center justify-between gap-2 mb-1">
                     <div class="text-sm font-medium">${esc(r.name)} <span class="text-base-content/40 font-normal text-xs">${esc(r.region)} · ${esc(r.tier)}</span></div>
                     ${statusBadge(r.status)}
                   </div>
                   <div class="text-[10px] text-base-content/30 mb-2">${esc(r.receiptNo)} · ${esc(r.submittedAt)}</div>
-                  <div class="text-sm text-base-content/80 mb-2"><span class="font-medium">💬 요청 내용:</span> ${esc(r.situation)}</div>
-                  ${r.handlerAnswer ? `<div class="text-xs text-base-content/60 bg-base-200 rounded-lg p-3 border-l-4 border-success/40"><span class="font-medium">✅ 답변:</span> ${esc(r.handlerAnswer)}</div>` : `<div class="text-xs text-base-content/30">아직 담당 교관이 답변하지 않았습니다(답변은 교사 어플의 "교관 모드"에서 등록됩니다).</div>`}
+                  <div class="text-sm text-base-content/80"><span class="font-medium">💬 요청 내용:</span> ${esc(summarize(r.situation, 60))}</div>
+                  <div class="text-[11px] text-primary mt-1">눌러서 상세 보기 →</div>
                 </div>
               </div>`).join('')}
           </div>`}
     </div>
   `;
+}
+
+// ============ 2026-09-17: 요청 상세 모달 (교사 정보 + 전체 내용 + AI 코칭 결과 + 답변 등록) ============
+
+// innerHTML을 매 렌더마다 통째로 새로 그리는 이 파일 구조상, <dialog>+showModal()(브라우저 API,
+// DOM이 유지돼야 동작)보다 고정 오버레이 div가 더 안전 — home.html의 <dialog> 패턴과 달리 여기선
+// state.detailReceiptNo 유무로 매번 있다/없다를 그냥 다시 그린다.
+function requestDetailModalHtml() {
+  if (!state.detailReceiptNo || !state.data) return '';
+  const r = (state.data.requests || []).find(x => x.receiptNo === state.detailReceiptNo);
+  if (!r) return '';
+  const canReply = !!state.myCoach; // ?memberId=&name= 으로 식별된 활성 교관일 때만 답변 입력란 노출
+  return `
+    <div id="request-detail-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.5)">
+      <div class="bg-base-100 rounded-box shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-5">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="font-bold text-lg">${esc(r.name)} <span class="text-sm font-normal text-base-content/50">${esc(r.region)} · ${esc(r.tier)}</span></h3>
+          ${statusBadge(r.status)}
+        </div>
+        <div class="text-[10px] text-base-content/30 mb-3">${esc(r.receiptNo)} · ${esc(r.submittedAt)}</div>
+
+        <div class="text-sm bg-base-200 rounded-lg p-3 mb-3">
+          <div class="font-medium mb-1">💬 요청 전체 내용</div>
+          <div class="text-base-content/80 whitespace-pre-wrap">${esc(r.situation)}</div>
+        </div>
+
+        ${r.aiCoachText ? `
+        <div class="text-sm bg-info/10 border border-info/30 rounded-lg p-3 mb-3">
+          <div class="font-medium mb-1">🤖 AI 코칭 결과</div>
+          <div class="text-base-content/70 whitespace-pre-wrap text-xs">${esc(r.aiCoachText)}</div>
+        </div>` : ''}
+
+        ${r.handlerAnswer ? `
+        <div class="text-sm bg-success/10 border-l-4 border-success/40 rounded-lg p-3 mb-3">
+          <div class="font-medium mb-1">✅ 답변</div>
+          <div class="text-base-content/70 whitespace-pre-wrap">${esc(r.handlerAnswer)}</div>
+        </div>` : (canReply ? `
+        <div class="mb-3">
+          <label class="text-xs font-bold text-base-content/50 mb-1 block">답변 입력</label>
+          <textarea id="reply-textarea" rows="4" class="textarea textarea-bordered w-full text-sm" placeholder="이 교사에게 보낼 답변을 입력하세요.">${esc(state.replyText)}</textarea>
+          <button id="btn-submit-reply" class="btn btn-primary btn-sm w-full mt-2" ${state.replySaving ? 'disabled' : ''}>${state.replySaving ? '등록 중...' : '✅ 답변 등록'}</button>
+        </div>` : `<div class="text-xs text-base-content/30 mb-3">아직 담당 교관이 답변하지 않았습니다(교사 어플 "교관 모드"에서도 답변 등록 가능). 이 화면에서 직접 답변하려면 담당 교관 계정으로 접속해주세요(?memberId=&name=).</div>`)}
+
+        <button id="btn-close-detail" class="btn btn-ghost btn-sm w-full">닫기</button>
+      </div>
+    </div>
+  `;
+}
+
+async function submitReply() {
+  const r = (state.data.requests || []).find(x => x.receiptNo === state.detailReceiptNo);
+  if (!r || !state.myCoach) return;
+  const reply = state.replyText.trim();
+  if (!reply) { alert('답변 내용을 입력해주세요.'); return; }
+  state.replySaving = true;
+  render();
+  try {
+    const res = await callApi({ action: 'submitCoachReply', feedbackId: r.receiptNo, reply, coachId: state.myCoach.coachId });
+    if (res && res.error) throw new Error(res.error);
+    // 처리 완료 시 상태 자동 변경(재요청 없이 캐시된 목록에도 즉시 반영).
+    r.handlerAnswer = reply; r.status = '완료'; r.answeredAt = new Date().toISOString();
+    state.replyText = '';
+  } catch (e) {
+    alert('답변 등록 중 오류가 발생했습니다: ' + e.message);
+  }
+  state.replySaving = false;
+  render();
 }
 
 function render() {
@@ -348,6 +449,13 @@ function render() {
     <div class="brand-accent-bar"></div>
     ${mainNavHtml('coach')}
 
+    ${state.myCoach ? `
+      <div class="px-4 pt-2">
+        <div class="alert bg-primary/10 border border-primary/30 py-2 px-3 text-sm">
+          🎧 <b>${esc(state.myCoach.coachName)} 교관님</b> 담당 지역: <b>${state.myCoach.regions.map(esc).join(', ')}</b>
+        </div>
+      </div>` : ''}
+
     ${coachAdminSectionHtml()}
 
     ${!isOverview ? `
@@ -361,6 +469,8 @@ function render() {
       : state.error
         ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div></div>`
         : (isOverview ? overviewSectionHtml() : deptDetailSectionHtml())}
+
+    ${requestDetailModalHtml()}
   `;
 
   const coachAdminEl = document.getElementById('coach-admin-details');
@@ -389,6 +499,20 @@ function render() {
   if (backBtn) backBtn.onclick = () => switchDept(null);
   const regionSelect = document.getElementById('dept-region-select');
   if (regionSelect) regionSelect.onchange = (e) => switchRegion(e.target.value);
+  document.querySelectorAll('.btn-region-row').forEach(row => {
+    row.onclick = () => switchRegion(row.dataset.region);
+  });
+  document.querySelectorAll('.btn-request-card').forEach(card => {
+    card.onclick = () => { state.detailReceiptNo = card.dataset.receipt; state.replyText = ''; render(); };
+  });
+  const closeBtn = document.getElementById('btn-close-detail');
+  if (closeBtn) closeBtn.onclick = () => { state.detailReceiptNo = null; render(); };
+  const overlay = document.getElementById('request-detail-overlay');
+  if (overlay) overlay.onclick = (e) => { if (e.target === overlay) { state.detailReceiptNo = null; render(); } };
+  const replyTextarea = document.getElementById('reply-textarea');
+  if (replyTextarea) replyTextarea.oninput = (e) => { state.replyText = e.target.value; };
+  const submitReplyBtn = document.getElementById('btn-submit-reply');
+  if (submitReplyBtn) submitReplyBtn.onclick = submitReply;
 }
 
 load();
