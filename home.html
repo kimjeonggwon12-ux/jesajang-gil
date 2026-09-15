@@ -290,6 +290,11 @@
     function roleShortLabel(role) { return role === '협력교사' ? '협력' : role; }
     // 상담1/상담2/복음방 선택 시 추가 입력하는 반응(Code.gs REACTION_OPTIONS와 동일).
     const REACTION_OPTIONS = ['긍정적', '중립', '부정적'];
+    // 2026-09-15: 협력 교사 찾기 — Code.gs COOP_STATUSES/COOP_REQUEST_TYPES와 문구가 같아야 함.
+    const COOP_STATUSES = ['여유 있음', '보통', '바쁨'];
+    const COOP_STATUS_ICON = { '여유 있음': '🟢', '보통': '🟡', '바쁨': '🔴' };
+    const COOP_STATUS_CLS = { '여유 있음': 'badge-success', '보통': 'badge-warning', '바쁨': 'badge-error' };
+    const COOP_REQUEST_TYPES = ['섬김이 동행', '상담 협력', '복음방 보조', '기타'];
     const GENDER_OPTIONS = ['남', '여'];
     // 2026-09-15: "60대이상" 뭉뚱그림 → 60대/70대이상 분리(장년회/자문회 자동 배정에 필요, ageGenderToOrg 참고).
     const AGE_GROUP_OPTIONS = ['10대', '20대', '30대', '40대', '50대', '60대', '70대이상'];
@@ -347,12 +352,32 @@
       detailTargetId: null,
       detailJournal: null,     // getTargetJournal 응답
       detailLoading: false,
+      // 2026-09-15: 활동 기록 목록(접이식) + 항목별 AI 피드백
+      historyOpen: false,      // "내 활동 기록" 펼침 여부(기본 접힘)
+      aiFeedback: {},          // 활동 행 키 -> { loading, text }
+      // 2026-09-15: 협력 교사 찾기
+      coop: {
+        open: false,           // 섹션 펼침 여부(기본 접힘 — 목록이 길어서)
+        myStatus: '',          // 내가 선언한 상태('' = 미선언)
+        myMemo: '',
+        savingStatus: false,
+        filterRole: '', filterStatus: '', filterRegion: '__mine__',
+        list: null,            // getCoopList 응답 { myRegion, rows, total }
+        listLoading: false,
+        requests: null,        // getMyCoopRequests 응답 { incoming, outgoing }
+        modalTarget: null,     // 협력 요청 팝업 대상 { memberId, name }
+        modalType: '섬김이 동행', modalMemo: '', modalSending: false,
+        inboxOpen: false,      // 받은 요청 상세 보기
+        responding: {}         // requestId -> true
+      },
       form: {
         date: todayStr(),
         roles: [],
         activityItem: '',
         targetName: '', targetGender: '', targetAgeGroup: '', targetStage: '',
-        note: '', todayWork: '', nextWork: '',
+        // 2026-09-15: "특이사항" 입력란 제거(사용자 요청) — 오늘 한 일/다음 할 일 2개만 받는다.
+        // 시트의 "특이사항" 컬럼은 기존 데이터 보존을 위해 그대로 두고 새 입력만 빈값으로 저장.
+        todayWork: '', nextWork: '',
         // 2026-09-15: 상담1/상담2/복음방 선택 시에만 쓰는 추가 입력(상담제목 또는 복음방과목 겸용 + 반응).
         extraTitle: '', reaction: '', reactionNote: '',
         loading: false
@@ -387,6 +412,15 @@
       }
       home.loading = false;
       renderHome();
+      // 협력 요청 수신 배너용 — 메인 로드를 막지 않도록 뒤이어 별도로(실패해도 조용히 무시).
+      loadCoopRequests();
+    }
+
+    async function loadCoopRequests() {
+      try {
+        const res = await callApi({ action: 'getMyCoopRequests', memberId });
+        if (res && !res.error) { home.coop.requests = res; renderHome(); }
+      } catch (e) { /* 배너는 부가 기능 — 실패해도 대시보드 동작에 영향 없음 */ }
     }
 
     async function refreshAfterSubmit() {
@@ -615,7 +649,6 @@
                     ${stageOptions.map(s => `<option value="${esc(s)}" ${f.targetStage === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}
                   </select>
                 </div>
-                <textarea id="af-note" rows="2" placeholder="특이사항" class="textarea textarea-bordered textarea-sm w-full mb-2">${esc(f.note)}</textarea>
                 <textarea id="af-today" rows="2" placeholder="오늘 한 일" class="textarea textarea-bordered textarea-sm w-full mb-2">${esc(f.todayWork)}</textarea>
                 <textarea id="af-next" rows="2" placeholder="다음 할 일" class="textarea textarea-bordered textarea-sm w-full">${esc(f.nextWork)}</textarea>
                 <div class="text-[10px] text-base-content/40 mt-1">이름 가운데 글자는 목록/현황 화면에 자동으로 * 표시돼요 (예: 홍*동)</div>
@@ -661,7 +694,6 @@
 
       const bindInput = (id, key) => { const el = document.getElementById(id); if (el) el.oninput = e => { f[key] = e.target.value; }; };
       bindInput('af-tname', 'targetName');
-      bindInput('af-note', 'note');
       bindInput('af-today', 'todayWork');
       bindInput('af-next', 'nextWork');
       bindInput('af-extra-title', 'extraTitle');
@@ -708,7 +740,7 @@
           roles: f.roles, activityItem: f.activityItem, date: f.date,
           target: {
             name: targetNameTrimmed, gender: f.targetGender, ageGroup: f.targetAgeGroup, stage: f.targetStage,
-            note: f.note.trim(), todayWork: f.todayWork.trim(), nextWork: f.nextWork.trim()
+            note: '', todayWork: f.todayWork.trim(), nextWork: f.nextWork.trim()
           },
           consultTitle: isConsult ? f.extraTitle.trim() : '',
           gospelSubject: isGospel ? f.extraTitle.trim() : '',
@@ -718,7 +750,7 @@
         if (res && res.error) throw new Error(res.error);
         // 대상자 일지 내용만 비우고(다음 대상자를 이어서 기록하기 쉽게), 날짜/역할/항목은 유지.
         f.targetName = ''; f.targetGender = ''; f.targetAgeGroup = ''; f.targetStage = '';
-        f.note = ''; f.todayWork = ''; f.nextWork = '';
+        f.todayWork = ''; f.nextWork = '';
         f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
         await refreshAfterSubmit();
         // 기존 대상자(이름 일치)가 있었고, 이번에 선택한 단계가 그보다 앞서 있었다면 승급으로 간주.
@@ -764,8 +796,8 @@
       const parts = [];
       if (maskedName) parts.push(`대상자: ${maskedName}`);
       if (f.targetStage) parts.push(`단계: ${f.targetStage}`);
-      if (f.note.trim()) parts.push(`특이사항: ${f.note.trim()}`);
       if (f.todayWork.trim()) parts.push(`오늘 한 일: ${f.todayWork.trim()}`);
+      if (f.nextWork.trim()) parts.push(`다음 할 일: ${f.nextWork.trim()}`);
 
       const params = new URLSearchParams();
       params.set('memberId', memberId);
@@ -979,6 +1011,350 @@
       `;
     }
 
+    // ============ F-2. 내 활동 기록(접이식) + 항목별 AI 피드백 ============
+    // 2026-09-15 신설. 데이터는 이미 받아둔 getMyActivities 응답(home.monthlyActRes.rows)을 그대로 씀
+    // — 추가 API 호출 없음. 각 행의 "🤖 AI 피드백"만 getActivityFeedback 액션을 호출한다.
+
+    function activityRowKey(a) { return `${a.submittedAt}::${a.activityItem || (a.activities && a.activities[0]) || ''}`; }
+
+    function toggleHistory() { home.historyOpen = !home.historyOpen; renderHome(); }
+
+    async function runActivityAiFeedback(key) {
+      const rows = (home.monthlyActRes && home.monthlyActRes.rows) || [];
+      const a = rows.find(r => activityRowKey(r) === key);
+      if (!a) return;
+      home.aiFeedback[key] = { loading: true, text: '' };
+      renderHome();
+
+      // 다른 AI 호출 지점과 동일하게 최대 3회, 1초 간격 재시도(백엔드 _callAi_의 503 재시도와 별개).
+      let lastErr = '';
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const res = await callApi({
+            action: 'getActivityFeedback',
+            targetName: maskName(a.targetName) || '대상자',   // 원본 이름은 보내지 않음(마스킹 후 전송)
+            stage: a.targetStage || '',
+            todayWork: a.todayWork || '',
+            nextWork: a.nextWork || ''
+          });
+          if (res && res.error) throw new Error(res.error);
+          home.aiFeedback[key] = { loading: false, text: res.text || '(응답 없음)' };
+          renderHome();
+          return;
+        } catch (e) {
+          lastErr = e.message || String(e);
+        }
+        if (attempt < 3) await new Promise(r => setTimeout(r, 1000));
+      }
+      home.aiFeedback[key] = { loading: false, text: '오류가 발생했습니다: ' + lastErr };
+      renderHome();
+    }
+
+    function activityHistoryRowHtml(a) {
+      const key = activityRowKey(a);
+      const fb = home.aiFeedback[key];
+      const item = a.activityItem || (a.activities && a.activities[0]) || '';
+      const temp = stageTemp(a.targetStage);
+      return `
+        <div class="border-b border-base-200 last:border-0 py-3">
+          <div class="flex items-start gap-2">
+            <div class="text-[11px] text-base-content/40 w-[70px] shrink-0 leading-tight">${esc(String(a.submittedAt || '').split(' ')[0])}</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex flex-wrap items-center gap-1 mb-1">
+                ${(a.roles || []).map(r => `<span class="badge badge-ghost badge-xs">${esc(roleShortLabel(r))}</span>`).join('')}
+                <span class="font-bold text-xs">${esc(item)}</span>
+                ${a.targetStage ? `<span class="badge badge-xs" style="background:${temp.bg};color:${temp.text};border:1px solid ${temp.border}">${esc(a.targetStage)}</span>` : ''}
+              </div>
+              ${a.targetName ? `<div class="text-xs text-base-content/60">대상자: ${esc(maskName(a.targetName))}</div>` : ''}
+              ${a.todayWork ? `<div class="text-xs text-base-content/60">오늘: ${esc(a.todayWork)}</div>` : ''}
+              ${a.nextWork ? `<div class="text-xs text-base-content/60">다음: ${esc(a.nextWork)}</div>` : ''}
+              <button class="ai-fb-btn btn btn-xs btn-outline btn-secondary mt-2" data-key="${esc(key)}" ${fb && fb.loading ? 'disabled' : ''}>
+                ${fb && fb.loading ? '<span class="loading loading-spinner loading-xs"></span> AI 분석 중...' : '🤖 AI 피드백'}
+              </button>
+              ${fb && !fb.loading && fb.text ? `
+                <div class="mt-2 rounded-box bg-secondary/5 border border-secondary/20 p-3 text-xs leading-relaxed whitespace-pre-wrap">${esc(fb.text)}</div>
+              ` : ''}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function activityHistorySectionHtml() {
+      const rows = (home.monthlyActRes && home.monthlyActRes.rows) || [];
+      return `
+        <div class="card card-border bg-base-100 shadow-sm mx-4">
+          <div class="card-body p-4">
+            <button id="history-toggle" class="flex items-center justify-between w-full text-left">
+              <span class="text-sm font-bold text-base-content">내 활동 기록 <span class="text-xs font-normal text-base-content/40">(${rows.length}건)</span></span>
+              <span class="text-xs text-base-content/40">${home.historyOpen ? '접기 ▲' : '펼치기 ▼'}</span>
+            </button>
+            ${home.historyOpen ? (rows.length === 0
+              ? `<div class="text-xs text-base-content/40 text-center py-6">아직 등록한 활동이 없습니다.</div>`
+              : `<div class="mt-2">${rows.map(activityHistoryRowHtml).join('')}</div>`) : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    // ============ F-3. 협력 교사 찾기 ============
+
+    function coopStatusBadge(status, declared) {
+      return `<span class="badge badge-sm ${COOP_STATUS_CLS[status] || 'badge-ghost'}">${COOP_STATUS_ICON[status] || ''} ${esc(status)}${declared ? '' : ' (자동)'}</span>`;
+    }
+
+    async function setMyCoopStatus(status) {
+      const c = home.coop;
+      c.savingStatus = true;
+      renderHome();
+      try {
+        const res = await callApi({ action: 'setCoopStatus', memberId, name, status, memo: c.myMemo });
+        if (res && res.error) throw new Error(res.error);
+        c.myStatus = status;
+      } catch (e) {
+        alert('상태 저장 중 오류가 발생했습니다: ' + e.message);
+      }
+      c.savingStatus = false;
+      renderHome();
+      loadCoopList(); // 내 상태가 바뀌면 목록의 자동/선언 표시도 최신화
+    }
+
+    async function loadCoopList() {
+      const c = home.coop;
+      c.listLoading = true;
+      renderHome();
+      try {
+        const res = await callApi({
+          action: 'getCoopList', memberId,
+          region: c.filterRegion, role: c.filterRole, status: c.filterStatus
+        });
+        c.list = (res && !res.error) ? res : { rows: [], total: 0, error: (res && res.error) || '불러오기 실패' };
+      } catch (e) {
+        c.list = { rows: [], total: 0, error: String(e.message || e) };
+      }
+      c.listLoading = false;
+      renderHome();
+    }
+
+    function toggleCoopSection() {
+      const c = home.coop;
+      c.open = !c.open;
+      renderHome();
+      if (c.open && !c.list) loadCoopList(); // 처음 펼칠 때만 로드
+    }
+
+    function openCoopModal(mid, nm) {
+      const c = home.coop;
+      c.modalTarget = { memberId: mid, name: nm };
+      c.modalType = COOP_REQUEST_TYPES[0];
+      c.modalMemo = '';
+      renderHome();
+    }
+    function closeCoopModal() { home.coop.modalTarget = null; renderHome(); }
+
+    async function sendCoopRequest() {
+      const c = home.coop;
+      if (!c.modalTarget) return;
+      c.modalSending = true;
+      renderHome();
+      try {
+        const res = await callApi({
+          action: 'requestCoop', fromId: memberId, fromName: name,
+          toId: c.modalTarget.memberId, type: c.modalType, memo: c.modalMemo.trim()
+        });
+        if (res && res.error) throw new Error(res.error);
+        alert(`${c.modalTarget.name} 교사님께 협력을 요청했습니다 🤝`);
+        c.modalTarget = null;
+      } catch (e) {
+        alert('요청 전송 중 오류가 발생했습니다: ' + e.message);
+      }
+      c.modalSending = false;
+      renderHome();
+    }
+
+    async function respondCoopRequest(requestId, accept) {
+      const c = home.coop;
+      c.responding[requestId] = true;
+      renderHome();
+      try {
+        const res = await callApi({ action: 'respondCoop', requestId, accept, memberId });
+        if (res && res.error) throw new Error(res.error);
+        // 처리한 요청은 배너/목록에서 즉시 제거(서버 재조회 없이)
+        if (c.requests) c.requests.incoming = c.requests.incoming.filter(r => r.requestId !== requestId);
+      } catch (e) {
+        alert('처리 중 오류가 발생했습니다: ' + e.message);
+      }
+      delete c.responding[requestId];
+      renderHome();
+    }
+
+    // 받은 협력 요청 배너(상단) — 격려 메시지 배너와 같은 자리 계열
+    function coopInboxBannerHtml() {
+      const inc = (home.coop.requests && home.coop.requests.incoming) || [];
+      if (!inc.length) return '';
+      const first = inc[0];
+      const more = inc.length - 1;
+      return `
+        <div class="mx-4">
+          <div id="coop-inbox-banner" class="rounded-box px-3 py-2.5 flex items-center gap-2 cursor-pointer" style="background:linear-gradient(90deg,#DBEAFE,#BFDBFE);border:1px solid #93C5FD">
+            <span style="font-size:20px">🤝</span>
+            <div class="flex-1 text-xs font-bold truncate" style="color:#1E3A8A">${esc(maskName(first.fromName) || '어느 교사')}님이 협력을 요청했습니다${more > 0 ? ` 외 ${more}건` : ''}</div>
+            <span class="text-[10px] shrink-0" style="color:#1D4ED8">${home.coop.inboxOpen ? '접기 ▲' : '자세히 →'}</span>
+          </div>
+          ${home.coop.inboxOpen ? `
+            <div class="mt-2 flex flex-col gap-2">
+              ${inc.map(r => `
+                <div class="card card-border bg-base-100 shadow-sm">
+                  <div class="card-body p-3">
+                    <div class="text-xs font-bold">${esc(maskName(r.fromName) || '교사')} · <span class="badge badge-xs badge-outline">${esc(r.type)}</span></div>
+                    ${r.memo ? `<div class="text-xs text-base-content/60 mt-1">${esc(r.memo)}</div>` : ''}
+                    <div class="text-[10px] text-base-content/40 mt-1">${esc(String(r.requestedAt || '').slice(0, 16))}</div>
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                      <button class="coop-respond btn btn-xs btn-primary" data-rid="${esc(r.requestId)}" data-accept="1" ${home.coop.responding[r.requestId] ? 'disabled' : ''}>수락</button>
+                      <button class="coop-respond btn btn-xs btn-ghost" data-rid="${esc(r.requestId)}" data-accept="0" ${home.coop.responding[r.requestId] ? 'disabled' : ''}>거절</button>
+                    </div>
+                  </div>
+                </div>`).join('')}
+            </div>` : ''}
+        </div>
+      `;
+    }
+
+    function coopSectionHtml() {
+      const c = home.coop;
+      const list = c.list;
+      return `
+        <div class="card card-border bg-base-100 shadow-sm mx-4">
+          <div class="card-body p-4">
+            <button id="coop-toggle" class="flex items-center justify-between w-full text-left">
+              <span class="text-sm font-bold text-base-content">🤝 협력 교사 찾기</span>
+              <span class="text-xs text-base-content/40">${c.open ? '접기 ▲' : '펼치기 ▼'}</span>
+            </button>
+
+            ${c.open ? `
+              <div class="mt-3 border-t border-base-200 pt-3">
+                <div class="text-xs font-bold text-base-content/50 mb-1.5">이번 주 나는:</div>
+                <div class="flex gap-2 mb-1">
+                  ${COOP_STATUSES.map(s => `
+                    <button class="coop-mystatus btn btn-xs flex-1 ${c.myStatus === s ? 'btn-primary' : 'btn-outline'}" data-status="${esc(s)}" ${c.savingStatus ? 'disabled' : ''}>
+                      ${COOP_STATUS_ICON[s]} ${esc(s)}
+                    </button>`).join('')}
+                </div>
+                <input id="coop-mymemo" type="text" placeholder="상태 메모 (선택)" class="input input-bordered input-xs w-full mb-3" value="${esc(c.myMemo)}">
+
+                <div class="text-xs font-bold text-base-content/50 mb-1.5">검색 필터</div>
+                <div class="grid grid-cols-3 gap-2 mb-3">
+                  <select id="coop-f-role" class="select select-bordered select-xs w-full">
+                    <option value="">역할 전체</option>
+                    ${ROLE_OPTIONS.map(r => `<option value="${esc(r)}" ${c.filterRole === r ? 'selected' : ''}>${esc(roleShortLabel(r))}</option>`).join('')}
+                  </select>
+                  <select id="coop-f-status" class="select select-bordered select-xs w-full">
+                    <option value="">상태 전체</option>
+                    ${COOP_STATUSES.map(s => `<option value="${esc(s)}" ${c.filterStatus === s ? 'selected' : ''}>${COOP_STATUS_ICON[s]} ${esc(s)}</option>`).join('')}
+                  </select>
+                  <select id="coop-f-region" class="select select-bordered select-xs w-full">
+                    <option value="__mine__" ${c.filterRegion === '__mine__' ? 'selected' : ''}>내 지역</option>
+                    <option value="" ${c.filterRegion === '' ? 'selected' : ''}>전체 지역</option>
+                  </select>
+                </div>
+
+                ${c.listLoading ? `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`
+                  : !list ? ''
+                    : list.error ? `<div class="alert alert-error py-2 text-xs">⚠️ ${esc(list.error)}</div>`
+                      : list.rows.length === 0 ? `<div class="text-xs text-base-content/40 text-center py-6">조건에 맞는 교사가 없습니다.</div>`
+                        : `
+                          <div class="text-[10px] text-base-content/40 mb-2">${list.total}명 중 ${list.rows.length}명 표시 · 상태는 본인 선언값이 있으면 그 값, 없으면 이번 달 활동량으로 자동 계산</div>
+                          <div class="flex flex-col gap-2">
+                            ${list.rows.slice(0, 30).map(r => `
+                              <div class="border border-base-300 rounded-box p-2.5">
+                                <div class="flex items-center justify-between gap-2 mb-1">
+                                  <div class="text-xs font-bold truncate">${esc(maskName(r.name))} <span class="font-normal text-base-content/40">· ${esc(r.region || '-')}</span></div>
+                                  ${coopStatusBadge(r.status, r.declared)}
+                                </div>
+                                <div class="flex flex-wrap items-center gap-1 mb-1.5">
+                                  ${(r.roles || []).map(x => `<span class="badge badge-ghost badge-xs">${esc(roleShortLabel(x))}</span>`).join('') || '<span class="text-[10px] text-base-content/30">이번 달 역할 기록 없음</span>'}
+                                  <span class="text-[10px] text-base-content/40">· 이번 달 ${r.monthlyCount}건</span>
+                                </div>
+                                ${r.memo ? `<div class="text-[10px] text-base-content/50 mb-1.5">"${esc(r.memo)}"</div>` : ''}
+                                <button class="coop-req-btn btn btn-xs btn-outline btn-primary w-full" data-mid="${esc(r.memberId)}" data-name="${esc(r.name)}">협력 요청하기</button>
+                              </div>`).join('')}
+                          </div>
+                          ${list.rows.length > 30 ? `<div class="text-[10px] text-base-content/40 text-center mt-2">상위 30명만 표시됩니다 — 필터를 좁혀보세요.</div>` : ''}
+                        `}
+              </div>` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    function coopModalHtml() {
+      const c = home.coop;
+      if (!c.modalTarget) return '';
+      return `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
+          <div class="bg-base-100 rounded-box shadow-xl w-full max-w-sm p-5">
+            <div class="text-lg font-bold mb-1">🤝 협력 요청하기</div>
+            <div class="text-sm text-base-content/60 mb-3">받는 사람: <b>${esc(maskName(c.modalTarget.name))}</b> 교사님</div>
+            <div class="text-xs font-bold text-base-content/50 mb-1">요청 유형</div>
+            <select id="coop-modal-type" class="select select-bordered select-sm w-full mb-2">
+              ${COOP_REQUEST_TYPES.map(t => `<option value="${esc(t)}" ${c.modalType === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+            </select>
+            <textarea id="coop-modal-memo" rows="3" placeholder="메모 (선택)" class="textarea textarea-bordered textarea-sm w-full mb-3">${esc(c.modalMemo)}</textarea>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="coop-modal-cancel" class="btn btn-sm btn-ghost">닫기</button>
+              <button id="coop-modal-send" class="btn btn-sm btn-primary" ${c.modalSending ? 'disabled' : ''}>${c.modalSending ? '전송 중...' : '전송'}</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function wireHistoryAndCoop() {
+      const ht = document.getElementById('history-toggle');
+      if (ht) ht.onclick = toggleHistory;
+      document.querySelectorAll('.ai-fb-btn').forEach(btn => {
+        btn.onclick = () => runActivityAiFeedback(btn.dataset.key);
+      });
+
+      const c = home.coop;
+      const banner = document.getElementById('coop-inbox-banner');
+      if (banner) banner.onclick = () => { c.inboxOpen = !c.inboxOpen; renderHome(); };
+      document.querySelectorAll('.coop-respond').forEach(btn => {
+        btn.onclick = () => respondCoopRequest(btn.dataset.rid, btn.dataset.accept === '1');
+      });
+
+      const ct = document.getElementById('coop-toggle');
+      if (ct) ct.onclick = toggleCoopSection;
+      document.querySelectorAll('.coop-mystatus').forEach(btn => {
+        btn.onclick = () => setMyCoopStatus(btn.dataset.status);
+      });
+      const memoEl = document.getElementById('coop-mymemo');
+      if (memoEl) memoEl.oninput = e => { c.myMemo = e.target.value; };
+
+      // 필터 3종 — 값이 바뀌면 곧바로 재조회
+      const bindFilter = (id, key) => {
+        const el = document.getElementById(id);
+        if (el) el.onchange = e => { c[key] = e.target.value; loadCoopList(); };
+      };
+      bindFilter('coop-f-role', 'filterRole');
+      bindFilter('coop-f-status', 'filterStatus');
+      bindFilter('coop-f-region', 'filterRegion');
+
+      document.querySelectorAll('.coop-req-btn').forEach(btn => {
+        btn.onclick = () => openCoopModal(btn.dataset.mid, btn.dataset.name);
+      });
+
+      if (c.modalTarget) {
+        const t = document.getElementById('coop-modal-type');
+        if (t) t.onchange = e => { c.modalType = e.target.value; };
+        const m = document.getElementById('coop-modal-memo');
+        if (m) m.oninput = e => { c.modalMemo = e.target.value; };
+        const cancel = document.getElementById('coop-modal-cancel');
+        if (cancel) cancel.onclick = closeCoopModal;
+        const send = document.getElementById('coop-modal-send');
+        if (send) send.onclick = sendCoopRequest;
+      }
+    }
+
     // ============ G. 리더 격려 메시지 배너 ============
 
     function encouragementBannerHtml() {
@@ -1032,11 +1408,15 @@
       return `
         <div class="py-4 flex flex-col gap-5">
           ${encouragementBannerHtml()}
+          ${coopInboxBannerHtml()}
           ${growthStagesHtml()}
           ${monthlyBoxesHtml()}
           ${activityFormHtml()}
+          ${activityHistorySectionHtml()}
           ${targetsSectionHtml()}
+          ${coopSectionHtml()}
         </div>
+        ${coopModalHtml()}
       `;
     }
 
@@ -1050,6 +1430,7 @@
       root.innerHTML = dashboardViewHtml();
       wireActivityForm();
       renderTargetsChart();
+      wireHistoryAndCoop();
       const bannerEl = document.getElementById('encourage-banner');
       if (bannerEl) bannerEl.onclick = openEncourageBannerModal;
     }
