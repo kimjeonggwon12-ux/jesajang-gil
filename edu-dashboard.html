@@ -307,7 +307,9 @@ const REGION_PALETTE = ['#4f46e5', '#0ea5e9', '#059669', '#d97706', '#dc2626', '
 let weeklyTrendTab = WEEKLY_TREND_DEPTS[0];
 let weeklyTrendByDept = {};    // dept -> getWeeklyTrend 응답({weekLabels,regions,byRegion,isSample}) 캐시
 let weeklyTrendLoading = {};   // dept -> true(로딩중)
-let weeklyTrendRegionFilter = ''; // '' = 전체 지역 표시, 지역명이면 그 지역만 굵게 강조 + 나머지는 흐리게
+// 2026-09-19: 버튼(단일선택, 강조/흐림)에서 체크박스(다중선택, 완전 숨김)로 변경(사용자 요청) —
+// 빈 배열 []이면 전체 지역 표시, 하나 이상 체크하면 체크된 지역만 표시(나머지는 그래프에서 제외).
+let weeklyTrendRegionFilter = [];
 // 2026-09-19: "모두 보기/모두 닫기" — 기본은 그래프별 전체 합산 한 줄만, 눌러야 지역별 개별 선이 펼쳐짐.
 let weeklyTrendShowAllGospel = false;
 let weeklyTrendShowAllCenter = false;
@@ -328,7 +330,7 @@ async function loadWeeklyTrendForDept(dept) {
 }
 function switchWeeklyTrendTab(dept) {
   weeklyTrendTab = dept;
-  weeklyTrendRegionFilter = ''; // 부서를 바꾸면 이전 부서의 지역 필터는 의미가 없으므로 초기화
+  weeklyTrendRegionFilter = []; // 부서를 바꾸면 이전 부서의 지역 필터는 의미가 없으므로 초기화
   weeklyTrendShowAllGospel = false;
   weeklyTrendShowAllCenter = false;
   loadWeeklyTrendForDept(dept);
@@ -375,10 +377,16 @@ function weeklyTrendSectionHtml() {
               </div>
             </div>
             ${anyExpanded ? `
-            <div class="text-xs font-bold text-base-content/50 mb-1.5">지역 필터 — 클릭하면 그 지역만 굵고 뚜렷하게 강조되고 나머지는 흐려집니다(모두 보기 중인 그래프에 적용)</div>
-            <div class="flex flex-wrap gap-1.5">
-              <button class="btn btn-xs weeklytrend-region-btn ${weeklyTrendRegionFilter === '' ? 'btn-primary' : 'btn-outline'}" data-region="">전체</button>
-              ${regions.map(r => `<button class="btn btn-xs weeklytrend-region-btn ${weeklyTrendRegionFilter === r ? 'btn-primary' : 'btn-outline'}" data-region="${esc(r)}">${esc(r)}</button>`).join('')}
+            <div class="flex items-center gap-2 mb-1.5">
+              <div class="text-xs font-bold text-base-content/50">지역 필터 — 체크한 지역만 표시됩니다(미체크 시 전체 표시, 모두 보기 중인 그래프에 적용)</div>
+              ${weeklyTrendRegionFilter.length > 0 ? `<button class="weeklytrend-region-clear text-[11px] text-primary underline">전체 보기로 되돌리기</button>` : ''}
+            </div>
+            <div class="flex flex-wrap gap-x-3 gap-y-1.5">
+              ${regions.map(r => `
+                <label class="flex items-center gap-1 text-xs cursor-pointer">
+                  <input type="checkbox" class="checkbox checkbox-xs weeklytrend-region-check" data-region="${esc(r)}" ${weeklyTrendRegionFilter.includes(r) ? 'checked' : ''}>
+                  ${esc(r)}
+                </label>`).join('')}
             </div>` : ''}
           `}
   `;
@@ -403,9 +411,6 @@ X축(가로)은 최근 12주를 나타내며, Y축(세로)은 해당 주의 활�
   `;
 }
 
-// 흐리게 표시할 때 쓰는 16진 alpha 접미사(다른 지역이 선택되면 이 색을 씀). 2026-09-19: 30%로 통일(4D).
-function _withAlpha_(hex, alpha) { return hex + alpha; }
-
 function renderWeeklyTrendCharts() {
   if (weeklyGospelChart) { weeklyGospelChart.destroy(); weeklyGospelChart = null; }
   if (weeklyCenterChart) { weeklyCenterChart.destroy(); weeklyCenterChart = null; }
@@ -422,19 +427,22 @@ function renderWeeklyTrendCharts() {
     data: data.weekLabels.map((_, wi) => regions.reduce((s, r) => s + (data.byRegion[r][key][wi] || 0), 0)),
     borderColor: color, backgroundColor: 'transparent', borderWidth: 3, pointRadius: 3, tension: 0.3
   });
-  const buildRegionDatasets = (key) => regions.map((r, i) => {
-    const color = REGION_PALETTE[i % REGION_PALETTE.length];
-    const isFocused = !weeklyTrendRegionFilter || weeklyTrendRegionFilter === r;
-    return {
-      label: r,
-      data: data.byRegion[r][key],
-      borderColor: isFocused ? color : _withAlpha_(color, '4D'),
-      backgroundColor: 'transparent',
-      borderWidth: (weeklyTrendRegionFilter && weeklyTrendRegionFilter === r) ? 5 : 3,
-      pointRadius: isFocused ? 3 : 1,
-      tension: 0.3
-    };
-  });
+  // 2026-09-19: 체크박스 다중선택 — 체크된 지역이 있으면 그 지역들만(완전 숨김), 없으면 전체 표시.
+  const buildRegionDatasets = (key) => regions
+    .map((r, i) => ({ r, i }))
+    .filter(({ r }) => weeklyTrendRegionFilter.length === 0 || weeklyTrendRegionFilter.includes(r))
+    .map(({ r, i }) => {
+      const color = REGION_PALETTE[i % REGION_PALETTE.length];
+      return {
+        label: r,
+        data: data.byRegion[r][key],
+        borderColor: color,
+        backgroundColor: 'transparent',
+        borderWidth: 3,
+        pointRadius: 3,
+        tension: 0.3
+      };
+    });
   const commonOptions = {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } },
@@ -1302,8 +1310,19 @@ function wireSettlementFilters() {
   document.querySelectorAll('.weeklytrend-tab').forEach(tab => {
     tab.onclick = () => switchWeeklyTrendTab(tab.dataset.weeklytrendDept);
   });
-  document.querySelectorAll('.weeklytrend-region-btn').forEach(btn => {
-    btn.onclick = () => { weeklyTrendRegionFilter = btn.dataset.region; render(); };
+  document.querySelectorAll('.weeklytrend-region-check').forEach(cb => {
+    cb.onchange = () => {
+      const r = cb.dataset.region;
+      if (cb.checked) {
+        if (!weeklyTrendRegionFilter.includes(r)) weeklyTrendRegionFilter.push(r);
+      } else {
+        weeklyTrendRegionFilter = weeklyTrendRegionFilter.filter(x => x !== r);
+      }
+      render();
+    };
+  });
+  document.querySelectorAll('.weeklytrend-region-clear').forEach(btn => {
+    btn.onclick = () => { weeklyTrendRegionFilter = []; render(); };
   });
   document.querySelectorAll('.weeklytrend-showall-btn').forEach(btn => {
     btn.onclick = () => {
