@@ -238,7 +238,20 @@ function renderReqEduAdminSection() {
 function wireReqEduAdminSection() {
   const q = document.getElementById('reqedu-query');
   if (q) {
-    q.oninput = (e) => { reqEduForm.query = e.target.value; render(); };
+    // 2026-09-19: 한글 입력 시 초성만 입력되던 버그 수정 — 매 input마다 render()가 #content를
+    // 통째로 다시 그려 <input>을 새로 만들면서 브라우저의 한글 조합(IME) 상태가 끊겨버렸음
+    // (음절이 완성되기 전에 DOM 노드가 교체됨). compositionstart~compositionend 구간에서는
+    // 값만 저장하고 render()를 미루다가, 조합이 끝난 뒤(음절 확정 시점)에만 다시 그리도록 수정.
+    q.oninput = (e) => {
+      reqEduForm.query = e.target.value;
+      if (!q.dataset.composing) render();
+    };
+    q.addEventListener('compositionstart', () => { q.dataset.composing = '1'; });
+    q.addEventListener('compositionend', (e) => {
+      delete q.dataset.composing;
+      reqEduForm.query = e.target.value;
+      render();
+    });
     // 검색어 입력 중 리렌더로 포커스가 날아가므로 캐럿을 맨 뒤로 복원
     if (document.activeElement !== q && reqEduForm.query) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
   }
@@ -289,7 +302,7 @@ function setSettlementView(v) { settlementView = (settlementView === v) ? null :
 const TOP_REGION_DEPTS = ['자문회', '장년회', '부녀회', '청년회'];
 const TOP_REGION_ASPECT_ORDER = ['만남', '상담', '복음방', '센터인도', '종합'];
 const TOP_REGION_ASPECT_LABEL = { '만남': '만남 (만남1+만남2)', '상담': '상담 (상담1+상담2)', '복음방': '복음방', '센터인도': '센터 인도', '종합': '종합' };
-const MEDAL = ['🥇', '🥈', '🥉'];
+// 2026-09-19: 메달 이모지는 제거(칸 차지 크다는 지적) — 등수는 이 배경색만으로 구분.
 const MEDAL_BG = ['background:#FEF3C7', 'background:#F3F4F6', 'background:#FDE7CE'];
 
 let topRegionsTab = TOP_REGION_DEPTS[0];
@@ -504,15 +517,17 @@ function switchTopRegionsTab(dept) {
   loadTopRegionsForDept(dept);
 }
 
+// 2026-09-19: 메달 이모지 제거(칸 차지 크다는 지적) — 등수는 MEDAL_BG 배경색으로만 구분.
+// 측면(만남/상담/...) 라벨은 더 크고 굵게(text-sm→base, 사용자 요청 "키워서 잘 보이게").
 function topRegionsTableRows(byAspect, dept) {
   return TOP_REGION_ASPECT_ORDER.map(aspect => {
     const top3 = byAspect[aspect] || [];
     const cells = [0, 1, 2].map(i => {
       const r = top3[i];
       if (!r) return `<td colspan="2" class="text-center text-base-content/30 text-xs">-</td>`;
-      return `<td class="font-medium text-sm" style="${MEDAL_BG[i]}">${MEDAL[i]} ${esc(regionFullLabel(dept, r.region))}</td><td class="text-right font-bold text-sm" style="${MEDAL_BG[i]}">${r.count}건</td>`;
+      return `<td class="font-medium text-sm" style="${MEDAL_BG[i]}">${esc(regionFullLabel(dept, r.region))}</td><td class="text-right font-bold text-sm" style="${MEDAL_BG[i]}">${r.count}건</td>`;
     }).join('');
-    return `<tr><td class="font-bold text-xs">${esc(TOP_REGION_ASPECT_LABEL[aspect])}</td>${cells}</tr>`;
+    return `<tr><td class="font-black text-base">${esc(TOP_REGION_ASPECT_LABEL[aspect])}</td>${cells}</tr>`;
   }).join('');
 }
 
@@ -530,7 +545,7 @@ function deptTopRegionsSectionHtml() {
           : `
             <div class="overflow-x-auto border border-base-300 rounded-box">
               <table class="table table-sm">
-                <thead><tr><th>측면</th><th colspan="2">🥇 1위</th><th colspan="2">🥈 2위</th><th colspan="2">🥉 3위</th></tr></thead>
+                <thead><tr><th>측면</th><th colspan="2" class="text-base font-black">1위</th><th colspan="2" class="text-base font-black">2위</th><th colspan="2" class="text-base font-black">3위</th></tr></thead>
                 <tbody>${topRegionsTableRows(data.byAspect, dept)}</tbody>
               </table>
             </div>
@@ -539,15 +554,18 @@ function deptTopRegionsSectionHtml() {
   `;
 }
 
+// 2026-09-19: 메달 이모지·부서 아이콘 제거(칸 차지 크다는 지적, "전주 " 접두어 제거로 부서명이
+// 이미 지역 라벨 안에 들어있어 아이콘 없이 텍스트만으로도 충분) — 등수는 MEDAL_BG 배경색으로만
+// 구분. 측면 라벨도 더 크고 굵게.
 function churchTopRegionsTableRows(byAspect) {
   return TOP_REGION_ASPECT_ORDER.map(aspect => {
     const top3 = byAspect[aspect] || [];
     const cells = [0, 1, 2].map(i => {
       const r = top3[i];
       if (!r) return `<td colspan="3" class="text-center text-base-content/30 text-xs">-</td>`;
-      return `<td class="font-medium text-sm" style="${MEDAL_BG[i]}">${MEDAL[i]} ${esc(regionFullLabel(r.dept, r.region))}</td><td class="text-xs" style="${MEDAL_BG[i]}">${DEPT_ICON[r.dept] || ''} ${esc(r.dept)}</td><td class="text-right font-bold text-sm" style="${MEDAL_BG[i]}">${r.count}건</td>`;
+      return `<td class="font-medium text-sm" style="${MEDAL_BG[i]}">${esc(regionFullLabel(r.dept, r.region))}</td><td class="text-xs" style="${MEDAL_BG[i]}">${esc(r.dept)}</td><td class="text-right font-bold text-sm" style="${MEDAL_BG[i]}">${r.count}건</td>`;
     }).join('');
-    return `<tr><td class="font-bold text-xs">${esc(aspect)}</td>${cells}</tr>`;
+    return `<tr><td class="font-black text-base">${esc(aspect)}</td>${cells}</tr>`;
   }).join('');
 }
 
@@ -563,7 +581,7 @@ function roleTopRegionsTableHtml(byRole) {
           ${byRole.map(r => `
             <tr>
               <td class="font-bold">${esc(roleShortLabel(r.role))}</td>
-              <td>🥇 ${esc(regionFullLabel(r.topDept, r.topRegion))}</td>
+              <td>${esc(regionFullLabel(r.topDept, r.topRegion))}</td>
               <td class="font-bold text-primary">${r.totalCount}건</td>
               <td><span class="badge badge-outline badge-sm">${esc(r.topItem)}</span></td>
             </tr>`).join('')}
@@ -595,7 +613,7 @@ function renderTopRegionsSection() {
               : `
                 <div class="overflow-x-auto border border-base-300 rounded-box mb-2">
                   <table class="table table-sm">
-                    <thead><tr><th>측면</th><th colspan="3">🥇 1위</th><th colspan="3">🥈 2위</th><th colspan="3">🥉 3위</th></tr></thead>
+                    <thead><tr><th>측면</th><th colspan="3" class="text-base font-black">1위</th><th colspan="3" class="text-base font-black">2위</th><th colspan="3" class="text-base font-black">3위</th></tr></thead>
                     <tbody>${churchTopRegionsTableRows(churchTopRegions.byAspect)}</tbody>
                   </table>
                 </div>
@@ -624,11 +642,13 @@ function orgBucket(dept) { return ORG_MAIN_DEPTS.includes(dept) ? dept : '기타
 const ORG_DEPTS = ORG_MAIN_DEPTS.concat(['기타']);
 const DEPT_ICON = { '교역자': '⛪', '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓', '기타': '📁' };
 
-// 2026-09-15: 지역 표기 "O지역" → "전주 OO회 OO지역"(사용자 요청, district-dashboard.html과 동일 규칙).
-// ORG_MAIN_DEPTS 값 자체가 이미 "~회"를 포함(자문회/장년회/부녀회/청년회) — 교역자만 "회"를 붙여야 함.
+// 2026-09-15: 지역 표기 "O지역" → "전주 OO회 OO지역"(district-dashboard.html과 동일 규칙)으로
+// 바꿨었으나, 2026-09-19 "전주를 붙이니 표 배열이 깨진다"는 사용자 지적으로 "전주 " 접두어 제거
+// — 이제 "OO회 OO지역" 형식만 씀. ORG_MAIN_DEPTS 값 자체가 이미 "~회"를 포함(자문회/장년회/
+// 부녀회/청년회) — 교역자만 "회"를 붙여야 함.
 function regionFullLabel(dept, region) {
   const label = (dept === '교역자') ? '교역자회' : (dept || '');
-  return region ? `전주 ${label} ${region}`.trim() : `전주 ${label}`.trim();
+  return region ? `${label} ${region}`.trim() : label.trim();
 }
 
 // 2026-09-15: 사용자 요청 — "협력교사"는 표 등 UI 라벨에는 짧게 "협력"으로만 표기(district-dashboard.html과 동일).
