@@ -34,13 +34,6 @@ const REFRESH_SECONDS = 300; // 5분마다 전체 새로고침
 function esc(s) {
   return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-// 2026-09-19: "전주 OO회 OO지역" 표기가 표/그래프 배열을 깨뜨린다는 지적(edu-dashboard.html에서도
-// 동일하게 수정됨) — "전주 " 접두어 전면 제거, "OO회 OO지역" 형식만 사용.
-function regionFullLabel(dept, region) {
-  const label = (dept === '교역자') ? '교역자회' : (dept || '');
-  return region ? `${label} ${region}`.trim() : label.trim();
-}
-
 async function callApi(body) {
   const res = await fetch(PROXY_URL, { method: 'POST', body: JSON.stringify(body) });
   return res.json();
@@ -198,18 +191,22 @@ function deptViewHtml(d) {
       </div>
     </div>
     <div class="display-card p-5 mb-5">
-      ${top1 ? `
-        <div style="background:linear-gradient(90deg,#78350F,#B45309);border-radius:14px;padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:16px">
-          <div style="font-size:44px;line-height:1">🥇</div>
-          <div>
-            <div style="font-size:14px;color:#FDE68A;font-weight:700">${esc(dept)} 1위</div>
-            <div style="font-size:26px;font-weight:900;color:#FFFBEB">${esc(regionFullLabel(top1.dept, top1.region))}</div>
-            <div style="font-size:16px;color:#FDE68A">이번 달 활동 ${top1.count}건</div>
+      ${dept === '교역자' ? `
+        <div style="font-size:15px;color:#94A3B8;text-align:center;padding:20px 0">⛪ 교역자는 지역 구분이 없는 단일 조직입니다.</div>
+      ` : `
+        ${top1 ? `
+          <div style="background:linear-gradient(90deg,#78350F,#B45309);border-radius:14px;padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:16px">
+            <div style="font-size:44px;line-height:1">🥇</div>
+            <div>
+              <div style="font-size:14px;color:#FDE68A;font-weight:700">${esc(dept)} 1위</div>
+              <div style="font-size:26px;font-weight:900;color:#FFFBEB">${esc(top1.region)}</div>
+              <div style="font-size:16px;color:#FDE68A">이번 달 활동 ${top1.count}건</div>
+            </div>
           </div>
-        </div>
-      ` : `<div style="font-size:15px;color:#64748B;margin-bottom:14px">이번 달 활동 데이터가 없습니다.</div>`}
-      <div style="font-size:20px;font-weight:900;margin-bottom:12px">🗺️ 지역별 전도 현황 (상담1 이상)</div>
-      ${regionItems.length ? stageBarChartHtml(regionItems, { clickable: false, labelWidth: 90 }) : `<div style="font-size:15px;color:#64748B;text-align:center;padding:20px 0">지역별 데이터가 없습니다.</div>`}
+        ` : `<div style="font-size:15px;color:#64748B;margin-bottom:14px">이번 달 활동 데이터가 없습니다.</div>`}
+        <div style="font-size:20px;font-weight:900;margin-bottom:12px">🗺️ 지역별 전도 현황 (상담1 이상)</div>
+        ${regionItems.length ? stageBarChartHtml(regionItems, { clickable: false, labelWidth: 90 }) : `<div style="font-size:15px;color:#64748B;text-align:center;padding:20px 0">지역별 데이터가 없습니다.</div>`}
+      `}
     </div>
     <div class="grid gap-5" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
       ${numberCardHtml('🎯', `지난달(${(d.prevMonth || '').split('-')[1] || ''}월) 센터 인도 현황`, centerPrev, '#FBBF24')}

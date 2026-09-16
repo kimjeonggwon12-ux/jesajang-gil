@@ -366,7 +366,12 @@ function switchWeeklyTrendTab(dept) {
 
 // 2026-09-19: 버튼 문구를 기능이 바로 드러나게 변경(사용자 요청) — "모두 닫기"→"OO회 전체 보기"
 // (부서 전체 합산 1줄), "모두 보기"→"지역별 보기"(지역별 개별 선 + 아래 지역 체크박스 노출).
+// 2026-09-19 추가: "교역자는 지역이 없는 단일 조직" — 교역자 탭에서는 지역별로 나눌 게 없으므로
+// "지역별 보기" 토글 자체를 안 보여주고 항상 전체 합산 1줄만 표시.
 function showAllToggleHtml(dataKey, showAll) {
+  if (weeklyTrendTab === '교역자') {
+    return `<div class="text-xs text-base-content/40 mb-2">교역자는 지역 구분이 없는 단일 조직이라 전체 합산으로만 표시됩니다.</div>`;
+  }
   return `
     <div class="flex items-center gap-1.5 mb-2">
       <button class="btn btn-xs weeklytrend-showall-btn ${showAll ? 'btn-outline' : 'btn-primary'}" data-key="${dataKey}" data-showall="0">${esc(weeklyTrendTab)} 전체 보기</button>
@@ -380,7 +385,7 @@ function weeklyTrendSectionHtml() {
   const data = weeklyTrendByDept[dept];
   const loading = weeklyTrendLoading[dept];
   const regions = (data && data.regions) || [];
-  const anyExpanded = weeklyTrendShowAllGospel || weeklyTrendShowAllCenter;
+  const anyExpanded = dept !== '교역자' && (weeklyTrendShowAllGospel || weeklyTrendShowAllCenter);
   return `
     <div class="tabs tabs-boxed mb-3 inline-flex">
       ${WEEKLY_TREND_DEPTS.map(d => `<a class="tab tab-sm weeklytrend-tab ${weeklyTrendTab === d ? 'tab-active' : ''}" data-weeklytrend-dept="${esc(d)}">${DEPT_ICON[d] || ''} ${esc(d)}</a>`).join('')}
@@ -540,13 +545,16 @@ function switchTopRegionsTab(dept) {
 
 // 2026-09-19: 메달 이모지 제거(칸 차지 크다는 지적) — 등수는 MEDAL_BG 배경색으로만 구분.
 // 측면(만남/상담/...) 라벨은 더 크고 굵게(text-sm→base, 사용자 요청 "키워서 잘 보이게").
+// 2026-09-19: 이 표는 이미 부서 탭 하나로 스코프된 화면(예: 자문회 탭 안)이라 지역명 앞에
+// "자문회"를 또 붙이면 중복 — regionFullLabel(dept,...) 대신 지역명만 표기(사용자 요청).
+// 교회 전체/역할별처럼 여러 부서가 섞이는 표는 그대로 "OO회 OO지역" 유지(아래 함수들 참고).
 function topRegionsTableRows(byAspect, dept) {
   return TOP_REGION_ASPECT_ORDER.map(aspect => {
     const top3 = byAspect[aspect] || [];
     const cells = [0, 1, 2].map(i => {
       const r = top3[i];
       if (!r) return `<td colspan="2" class="text-center text-base-content/30 text-xs">-</td>`;
-      return `<td class="font-medium text-sm" style="${MEDAL_BG[i]}">${esc(regionFullLabel(dept, r.region))}</td><td class="text-right font-bold text-sm" style="${MEDAL_BG[i]}">${r.count}건</td>`;
+      return `<td class="font-medium text-sm" style="${MEDAL_BG[i]}">${esc(r.region)}</td><td class="text-right font-bold text-sm" style="${MEDAL_BG[i]}">${r.count}건</td>`;
     }).join('');
     return `<tr><td class="font-black text-base">${esc(TOP_REGION_ASPECT_LABEL[aspect])}</td>${cells}</tr>`;
   }).join('');
