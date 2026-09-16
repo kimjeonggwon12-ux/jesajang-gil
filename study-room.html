@@ -81,9 +81,7 @@ let state = {
   identified: TEST_MODE ? true : false,
   loading: false,
   courses: [],           // getCourseList 원본(전체, category 필드 포함): [{courseId, courseName, unitName, order, content, minutes, category}]
-  progress: {},          // courseId -> {progress, completedAt, lastStudiedAt}
   expanded: null,        // 펼쳐진 courseId
-  saving: {},            // courseId -> true(저장 중)
   reqEdu: null           // getRequiredEducation 원본: { memberId, name, [카테고리]: 날짜|'', categories } — 읽기 전용
 };
 
@@ -108,11 +106,8 @@ function coursesForCategory(cat) {
 
 // 2026-09-15: "내 수강생 현재 상태 입력" + AI 교재 추천(generateCoachingScript 호출) 기능 전체 삭제
 // (사용자 요청 — 공부방은 교재 열람/학습 완료 체크에만 집중). 백엔드 액션도 함께 제거함.
-
-function progressOf(courseId) {
-  const p = state.progress[courseId];
-  return p ? Number(p.progress || 0) : 0;
-}
+// 2026-09-16: 단원별 "학습 완료" 체크 + 진도율 UI 전체 삭제(사용자 요청 — 공부방은 교재 열람 전용).
+// 백엔드 updateProgress_/getMyProgress_/getAllProgress_ 도 함께 제거함.
 
 // ===== 다운로드 (워드용 .doc) =====
 // 파일명에 못 쓰는 문자(\/:*?"<>|, 줄바꿈)만 밑줄로 치환 — 내용은 건드리지 않음.
@@ -159,9 +154,6 @@ ${bodyHtml}
   a.remove();
   URL.revokeObjectURL(url);
 }
-
-// 2026-09-15: "내 전체 진도율" 상단 바 삭제(사용자 요청 — 공부방 UI 정리).
-// 탭별 진도율 카드도 함께 삭제됐고, 진도는 이제 단원별 "학습 완료" 체크로만 관리한다.
 
 const TAB_DEFS = [
   { key: 'reqEdu', icon: '✅', label: '내가 이수한 교육' },
@@ -222,18 +214,14 @@ async function loadAll() {
   state.loading = true;
   render();
   try {
-    const [courseRes, progRes, reqEduRes] = await Promise.all([
+    const [courseRes, reqEduRes] = await Promise.all([
       callApi({ action: 'getCourseList' }),
-      callApi({ action: 'getMyProgress', memberId: state.memberId }),
       callApi({ action: 'getRequiredEducation', memberId: state.memberId })
     ]);
     state.courses = (courseRes && courseRes.rows) || [];
-    state.progress = {};
-    ((progRes && progRes.rows) || []).forEach(r => { state.progress[r.courseId] = r; });
     state.reqEdu = (reqEduRes && !reqEduRes.error) ? reqEduRes : null;
   } catch (err) {
     state.courses = [];
-    state.progress = {};
     state.reqEdu = null;
   }
   state.loading = false;
@@ -249,14 +237,6 @@ function renderContentHtml(text) {
       ? `<div class="font-black text-indigo-700 text-[13px] mt-2 first:mt-0">${html}</div>`
       : `<div class="text-[13px] text-gray-700 leading-relaxed mt-1">${html}</div>`;
   }).join('');
-}
-
-function progressBar(pct, colorCls) {
-  colorCls = colorCls || 'bg-indigo-500';
-  return `
-    <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-      <div class="h-full ${colorCls} rounded-full transition-all" style="width:${Math.max(0,Math.min(100,pct))}%"></div>
-    </div>`;
 }
 
 // 2026-09-18: 5개 테마 탭("교사 소양"/"상담"/"무신앙"/"복음방 교재") 공용 렌더러 — 기존
@@ -281,36 +261,18 @@ function renderCourseCategoryTab(body, tabDef) {
 
   const groups = groupCourses(list);
   const totalUnits = groups.reduce((s,g) => s + g.units.length, 0);
-  const doneUnits = groups.reduce((s,g) => s + g.units.filter(u => progressOf(u.courseId) >= 100).length, 0);
-  const catAvg = totalUnits ? Math.round(groups.reduce((s,g) => s + g.units.reduce((s2,u)=>s2+progressOf(u.courseId),0), 0) / totalUnits) : 0;
   const cardCls = 'bg-white/80 backdrop-blur-md rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 overflow-hidden';
 
   body.innerHTML = `
     <div class="animate-fade-in space-y-4">
-      <div class="text-[11px] text-gray-400">${esc(state.name)}님 (${esc(state.memberId)}) · 교재를 눌러 학습한 뒤 "학습 완료"를 체크하세요</div>
-
-      <div class="rounded-[1.5rem] p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-[0_8px_25px_rgba(99,102,241,0.3)]">
-        <div class="flex items-baseline justify-between">
-          <span class="text-[12px] font-bold text-indigo-100">${esc(tabDef.label)} 내 진도율</span>
-          <span class="text-2xl font-black">${catAvg}%</span>
-        </div>
-        <div class="mt-2 h-2 bg-white/25 rounded-full overflow-hidden">
-          <div class="h-full bg-white rounded-full" style="width:${catAvg}%"></div>
-        </div>
-        <div class="text-[11px] text-indigo-100 mt-2">완료 ${doneUnits} / 전체 ${totalUnits}단원</div>
-      </div>
+      <div class="text-[11px] text-gray-400">${esc(state.name)}님 (${esc(state.memberId)}) · 교재를 눌러 내용을 확인하세요 · 전체 ${totalUnits}단원</div>
 
       ${groups.map(g => {
         const total = g.units.length;
-        const avg = total ? Math.round(g.units.reduce((s,u) => s + progressOf(u.courseId), 0) / total) : 0;
         return `
         <div class="${cardCls}">
           <div class="px-4 py-3.5 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100/70">
-            <div class="flex items-center justify-between mb-1.5">
-              <h3 class="text-[13.5px] font-black text-indigo-900">${esc(g.courseName)} <span class="text-[10.5px] font-normal text-gray-400">(${total}단원)</span></h3>
-              <span class="text-[11px] font-bold text-indigo-500">${avg}%</span>
-            </div>
-            ${progressBar(avg)}
+            <h3 class="text-[13.5px] font-black text-indigo-900">${esc(g.courseName)} <span class="text-[10.5px] font-normal text-gray-400">(${total}단원)</span></h3>
           </div>
           <div class="divide-y divide-gray-100">
             ${g.units.map(u => renderUnitRow(u)).join('')}
@@ -328,39 +290,31 @@ function renderCourseCategoryTab(body, tabDef) {
     };
   });
 
-  wireProgressControls(body);
+  wireUnitControls(body);
 }
 
 function renderUnitRow(u) {
-  const pct = progressOf(u.courseId);
   const isExpanded = state.expanded === u.courseId;
-  const done = pct >= 100;
   return `
     <div>
       <div class="unit-row-head px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-indigo-50/40 transition-all" data-course="${esc(u.courseId)}">
-        <span class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black ${done ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'}">
-          ${done ? '✓' : u.order}
+        <span class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black bg-gray-100 text-gray-400">
+          ${u.order}
         </span>
         <div class="flex-1 min-w-0">
           <div class="text-[12.5px] font-bold text-gray-800 truncate">${esc(u.unitName)}</div>
-          <div class="mt-1">${progressBar(pct, done ? 'bg-emerald-500' : 'bg-indigo-400')}</div>
         </div>
-        <span class="text-[10.5px] font-bold text-gray-400 w-8 text-right">${pct}%</span>
         <span class="text-gray-300 text-[10px] transition-transform ${isExpanded ? 'rotate-90' : ''}">▶</span>
       </div>
       ${isExpanded ? renderUnitDetail(u) : ''}
     </div>`;
 }
 
-// 2026-09-15: "진도 갱신"(슬라이더+0/50/100% 퀵버튼+진도 저장) 전부 삭제, 단원별 "학습 완료"
-// 체크 버튼 하나만 남김(사용자 요청). 백엔드는 기존 updateProgress 그대로 재사용하되 0/100만 보냄.
+// 2026-09-16: 단원별 "학습 완료" 체크(진도 저장) 전부 삭제(사용자 요청) — 이제 교재 열람 전용.
 function renderUnitDetail(u) {
-  const done = progressOf(u.courseId) >= 100;
-  const isSaving = !!state.saving[u.courseId];
-  const rec = state.progress[u.courseId];
   return `
     <div class="animate-fade-in-up bg-indigo-50/30 px-4 py-4 border-t border-indigo-100/60">
-      <div class="text-[10.5px] text-gray-400 mb-2">예상 소요시간 약 ${u.minutes || '-'}분${rec && rec.lastStudiedAt ? ` · 마지막 학습 ${esc(rec.lastStudiedAt)}` : ''}</div>
+      <div class="text-[10.5px] text-gray-400 mb-2">예상 소요시간 약 ${u.minutes || '-'}분</div>
       <div class="bg-white rounded-[14px] p-3.5 max-h-64 overflow-y-auto border border-gray-100 shadow-sm">
         ${renderContentHtml(u.content)}
       </div>
@@ -368,52 +322,16 @@ function renderUnitDetail(u) {
       <button class="download-unit-btn mt-2.5 w-full bg-white border border-indigo-200 text-indigo-600 rounded-[12px] py-2 text-[12.5px] font-bold flex items-center justify-center gap-1.5 hover:bg-indigo-50 transition-all" data-course="${esc(u.courseId)}">
         <span>⬇</span> 워드로 다운로드
       </button>
-
-      <button class="complete-btn mt-2.5 w-full rounded-[12px] py-2.5 text-[13px] font-black active:scale-[0.98] transition-all disabled:opacity-50 ${done ? 'bg-emerald-500 text-white shadow-[0_6px_18px_rgba(16,185,129,0.3)]' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-[0_6px_18px_rgba(99,102,241,0.3)]'}" data-course="${esc(u.courseId)}" data-done="${done ? '1' : '0'}" ${isSaving ? 'disabled' : ''}>
-        ${isSaving ? '저장 중...' : (done ? '✓ 학습 완료됨 (눌러서 취소)' : '학습 완료 체크')}
-      </button>
     </div>`;
 }
 
-function wireProgressControls(body) {
+function wireUnitControls(body) {
   body.querySelectorAll('.download-unit-btn').forEach(el => {
     el.onclick = (e) => {
       e.stopPropagation();
       const id = el.dataset.course;
       const u = state.courses.find(c => c.courseId === id);
       if (u) downloadUnitAsWord(u);
-    };
-  });
-
-  // "학습 완료 체크" 토글 — 완료(100) ↔ 미완료(0)만 보낸다(옛 슬라이더/퀵버튼/진도 저장 대체).
-  body.querySelectorAll('.complete-btn').forEach(el => {
-    el.onclick = async (e) => {
-      e.stopPropagation();
-      const id = el.dataset.course;
-      const u = state.courses.find(c => c.courseId === id);
-      if (!u) return;
-      const val = el.dataset.done === '1' ? 0 : 100;
-      state.saving[id] = true;
-      render();
-      try {
-        const res = await callApi({
-          action: 'updateProgress',
-          memberId: state.memberId,
-          name: state.name,
-          courseId: id,
-          courseName: u.courseName,
-          progress: val
-        });
-        if (res && res.error) throw new Error(res.error);
-        state.progress[id] = {
-          courseId: id, courseName: u.courseName,
-          progress: res.progress, completedAt: res.completedAt, lastStudiedAt: res.lastStudiedAt
-        };
-      } catch (err) {
-        alert('학습 완료 저장 중 오류가 발생했습니다: ' + err.message);
-      }
-      state.saving[id] = false;
-      render();
     };
   });
 }

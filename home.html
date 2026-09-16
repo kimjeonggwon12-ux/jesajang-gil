@@ -290,10 +290,7 @@
     function roleShortLabel(role) { return role === '협력교사' ? '협력' : role; }
     // 상담1/상담2/복음방 선택 시 추가 입력하는 반응(Code.gs REACTION_OPTIONS와 동일).
     const REACTION_OPTIONS = ['긍정적', '중립', '부정적'];
-    // 2026-09-15: 협력 교사 찾기 — Code.gs COOP_STATUSES/COOP_REQUEST_TYPES와 문구가 같아야 함.
-    const COOP_STATUSES = ['여유 있음', '보통', '바쁨'];
-    const COOP_STATUS_ICON = { '여유 있음': '🟢', '보통': '🟡', '바쁨': '🔴' };
-    const COOP_STATUS_CLS = { '여유 있음': 'badge-success', '보통': 'badge-warning', '바쁨': 'badge-error' };
+    // 2026-09-15: 협력 교사 찾기 — Code.gs COOP_REQUEST_TYPES와 문구가 같아야 함.
     const COOP_REQUEST_TYPES = ['섬김이 동행', '상담 협력', '복음방 보조', '기타'];
     const GENDER_OPTIONS = ['남', '여'];
     // 2026-09-15: "60대이상" 뭉뚱그림 → 60대/70대이상 분리(장년회/자문회 자동 배정에 필요, ageGenderToOrg 참고).
@@ -355,14 +352,16 @@
       // 2026-09-15: 활동 기록 목록(접이식) + 항목별 AI 피드백
       historyOpen: false,      // "내 활동 기록" 펼침 여부(기본 접힘)
       aiFeedback: {},          // 활동 행 키 -> { loading, text }
-      // 2026-09-15: 협력 교사 찾기
+      // 2026-09-15: 협력 교사 찾기 (2026-09-19: 바쁨정도 선언→프로필 등록 기반으로 개편)
       coop: {
         open: false,           // 섹션 펼침 여부(기본 접힘 — 목록이 길어서)
-        myStatus: '',          // 내가 선언한 상태('' = 미선언)
-        myMemo: '',
-        savingStatus: false,
-        filterRole: '', filterStatus: '', filterRegion: '__mine__',
-        list: null,            // getCoopList 응답 { myRegion, rows, total }
+        myProfile: null,       // getTeacherProfile 응답(등록된 프로필 없으면 null)
+        myProfileLoading: false,
+        myProfileForm: { phone: '', strengths: '', tools: '', intro: '', photoUrl: '' },
+        myProfileSaving: false,
+        myProfileNote: '',
+        filterRole: '', filterRegion: '__mine__', filterKeyword: '',
+        list: null,            // searchTeachers 응답 { myRegion, rows, total }
         listLoading: false,
         requests: null,        // getMyCoopRequests 응답 { incoming, outgoing }
         modalTarget: null,     // 협력 요청 팝업 대상 { memberId, name }
@@ -1096,36 +1095,95 @@
       `;
     }
 
-    // ============ F-3. 협력 교사 찾기 ============
+    // ============ F-3. 협력 교사 찾기 (2026-09-19: 바쁨정도/활동량 기반 → 프로필 기반으로 전면 개편) ============
 
-    function coopStatusBadge(status, declared) {
-      return `<span class="badge badge-sm ${COOP_STATUS_CLS[status] || 'badge-ghost'}">${COOP_STATUS_ICON[status] || ''} ${esc(status)}${declared ? '' : ' (자동)'}</span>`;
+    // 이미지 파일을 작은 정사각형 썸네일로 축소+압축해서 base64 data URL로 변환(시트 셀 용량 한도
+    // 고려 — 원본 그대로 저장하면 너무 커서 128x128, JPEG 70%로 축소).
+    function fileToThumbnailDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('이미지를 읽지 못했습니다.'));
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = () => reject(new Error('이미지를 불러오지 못했습니다.'));
+          img.onload = () => {
+            const size = 128;
+            const canvas = document.createElement('canvas');
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const s = Math.min(img.width, img.height);
+            const sx = (img.width - s) / 2, sy = (img.height - s) / 2;
+            ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
     }
 
-    async function setMyCoopStatus(status) {
+    async function loadMyProfile() {
       const c = home.coop;
-      c.savingStatus = true;
+      c.myProfileLoading = true;
       renderHome();
       try {
-        const res = await callApi({ action: 'setCoopStatus', memberId, name, status, memo: c.myMemo });
-        if (res && res.error) throw new Error(res.error);
-        c.myStatus = status;
-      } catch (e) {
-        alert('상태 저장 중 오류가 발생했습니다: ' + e.message);
-      }
-      c.savingStatus = false;
+        const res = await callApi({ action: 'getTeacherProfile', memberId });
+        c.myProfile = (res && !res.error) ? res : null;
+        if (c.myProfile) {
+          c.myProfileForm = {
+            phone: c.myProfile.phone || '', strengths: c.myProfile.strengths || '',
+            tools: c.myProfile.tools || '', intro: c.myProfile.intro || '', photoUrl: c.myProfile.photoUrl || ''
+          };
+        }
+      } catch (e) { /* 실패해도 등록 폼은 빈 값으로 계속 쓸 수 있음 */ }
+      c.myProfileLoading = false;
       renderHome();
-      loadCoopList(); // 내 상태가 바뀌면 목록의 자동/선언 표시도 최신화
     }
 
-    async function loadCoopList() {
+    async function saveMyProfile() {
+      const c = home.coop;
+      c.myProfileSaving = true; c.myProfileNote = '';
+      renderHome();
+      try {
+        const res = await callApi({ action: 'saveTeacherProfile', memberId, name, ...c.myProfileForm });
+        if (res && res.error) throw new Error(res.error);
+        c.myProfile = res;
+        c.myProfileNote = '✅ 프로필이 저장되었습니다.';
+        searchCoopTeachers(); // 검색 결과에도 즉시 반영
+      } catch (e) {
+        c.myProfileNote = '⚠️ 저장 실패: ' + (e.message || e);
+      }
+      c.myProfileSaving = false;
+      renderHome();
+    }
+
+    async function deleteMyProfile() {
+      if (!confirm('프로필을 삭제할까요? 등록해둔 강점·자격증·소개·사진이 모두 지워집니다.')) return;
+      const c = home.coop;
+      c.myProfileSaving = true; c.myProfileNote = '';
+      renderHome();
+      try {
+        const res = await callApi({ action: 'saveTeacherProfile', memberId, name, delete: true });
+        if (res && res.error) throw new Error(res.error);
+        c.myProfile = null;
+        c.myProfileForm = { phone: '', strengths: '', tools: '', intro: '', photoUrl: '' };
+        c.myProfileNote = '🗑️ 프로필을 삭제했습니다.';
+        searchCoopTeachers();
+      } catch (e) {
+        c.myProfileNote = '⚠️ 삭제 실패: ' + (e.message || e);
+      }
+      c.myProfileSaving = false;
+      renderHome();
+    }
+
+    async function searchCoopTeachers() {
       const c = home.coop;
       c.listLoading = true;
       renderHome();
       try {
         const res = await callApi({
-          action: 'getCoopList', memberId,
-          region: c.filterRegion, role: c.filterRole, status: c.filterStatus
+          action: 'searchTeachers', memberId,
+          region: c.filterRegion, role: c.filterRole, keyword: c.filterKeyword.trim()
         });
         c.list = (res && !res.error) ? res : { rows: [], total: 0, error: (res && res.error) || '불러오기 실패' };
       } catch (e) {
@@ -1139,7 +1197,8 @@
       const c = home.coop;
       c.open = !c.open;
       renderHome();
-      if (c.open && !c.list) loadCoopList(); // 처음 펼칠 때만 로드
+      if (c.open && !c.myProfile && !c.myProfileLoading) loadMyProfile(); // 처음 펼칠 때만 로드
+      if (c.open && !c.list) searchCoopTeachers();
     }
 
     function openCoopModal(mid, nm) {
@@ -1219,6 +1278,41 @@
       `;
     }
 
+    // 프로필 사진 렌더 — 없으면 기본 아이콘.
+    function profilePhotoHtml(url, sizeCls) {
+      sizeCls = sizeCls || 'w-10 h-10';
+      if (url) return `<img src="${esc(url)}" class="${sizeCls} rounded-full object-cover border border-base-300 shrink-0" alt="프로필 사진">`;
+      return `<div class="${sizeCls} rounded-full bg-base-200 text-base-content/30 flex items-center justify-center shrink-0" style="font-size:1.2em">👤</div>`;
+    }
+
+    function myProfileFormHtml() {
+      const c = home.coop;
+      const f = c.myProfileForm;
+      if (c.myProfileLoading) return `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`;
+      return `
+        <div class="flex items-center gap-3 mb-3">
+          ${profilePhotoHtml(f.photoUrl, 'w-14 h-14')}
+          <div class="flex-1">
+            <input id="coop-profile-photo" type="file" accept="image/*" class="file-input file-input-bordered file-input-xs w-full">
+            ${f.photoUrl ? `<button id="coop-profile-photo-clear" class="text-[10px] text-error mt-1">사진 지우기</button>` : ''}
+          </div>
+        </div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">전화번호</div>
+        <input id="coop-profile-phone" type="tel" placeholder="예: 010-1234-5678" class="input input-bordered input-xs w-full mb-2" value="${esc(f.phone)}">
+        <div class="text-xs font-bold text-base-content/50 mb-1">나의 강점</div>
+        <input id="coop-profile-strengths" type="text" placeholder="예: 상담·복음방 경험 5년" class="input input-bordered input-xs w-full mb-2" value="${esc(f.strengths)}">
+        <div class="text-xs font-bold text-base-content/50 mb-1">전도 도구 및 자격증</div>
+        <input id="coop-profile-tools" type="text" placeholder="예: HARTS, 상담사 자격증, 복음방 교사 수료" class="input input-bordered input-xs w-full mb-2" value="${esc(f.tools)}">
+        <div class="text-xs font-bold text-base-content/50 mb-1">자기소개 (선택)</div>
+        <textarea id="coop-profile-intro" rows="2" placeholder="짧은 자기소개" class="textarea textarea-bordered textarea-xs w-full mb-2">${esc(f.intro)}</textarea>
+        <div class="flex gap-2">
+          <button id="coop-profile-save" class="btn btn-primary btn-xs flex-1" ${c.myProfileSaving ? 'disabled' : ''}>${c.myProfileSaving ? '저장 중...' : (c.myProfile ? '수정 저장' : '프로필 등록')}</button>
+          ${c.myProfile ? `<button id="coop-profile-delete" class="btn btn-outline btn-error btn-xs" ${c.myProfileSaving ? 'disabled' : ''}>삭제</button>` : ''}
+        </div>
+        ${c.myProfileNote ? `<div class="text-[11px] mt-1.5 font-bold ${c.myProfileNote.startsWith('⚠️') ? 'text-error' : 'text-success'}">${esc(c.myProfileNote)}</div>` : ''}
+      `;
+    }
+
     function coopSectionHtml() {
       const c = home.coop;
       const list = c.list;
@@ -1232,14 +1326,8 @@
 
             ${c.open ? `
               <div class="mt-3 border-t border-base-200 pt-3">
-                <div class="text-xs font-bold text-base-content/50 mb-1.5">이번 주 나는:</div>
-                <div class="flex gap-2 mb-1">
-                  ${COOP_STATUSES.map(s => `
-                    <button class="coop-mystatus btn btn-xs flex-1 ${c.myStatus === s ? 'btn-primary' : 'btn-outline'}" data-status="${esc(s)}" ${c.savingStatus ? 'disabled' : ''}>
-                      ${COOP_STATUS_ICON[s]} ${esc(s)}
-                    </button>`).join('')}
-                </div>
-                <input id="coop-mymemo" type="text" placeholder="상태 메모 (선택)" class="input input-bordered input-xs w-full mb-3" value="${esc(c.myMemo)}">
+                <div class="text-xs font-bold text-base-content/50 mb-1.5">내 프로필 (등록해야 다른 교사가 나를 찾을 수 있어요)</div>
+                <div class="border border-base-300 rounded-box p-3 mb-4">${myProfileFormHtml()}</div>
 
                 <div class="text-xs font-bold text-base-content/50 mb-1.5">검색 필터</div>
                 <div class="grid grid-cols-3 gap-2 mb-3">
@@ -1247,34 +1335,32 @@
                     <option value="">역할 전체</option>
                     ${ROLE_OPTIONS.map(r => `<option value="${esc(r)}" ${c.filterRole === r ? 'selected' : ''}>${esc(roleShortLabel(r))}</option>`).join('')}
                   </select>
-                  <select id="coop-f-status" class="select select-bordered select-xs w-full">
-                    <option value="">상태 전체</option>
-                    ${COOP_STATUSES.map(s => `<option value="${esc(s)}" ${c.filterStatus === s ? 'selected' : ''}>${COOP_STATUS_ICON[s]} ${esc(s)}</option>`).join('')}
-                  </select>
                   <select id="coop-f-region" class="select select-bordered select-xs w-full">
                     <option value="__mine__" ${c.filterRegion === '__mine__' ? 'selected' : ''}>내 지역</option>
                     <option value="" ${c.filterRegion === '' ? 'selected' : ''}>전체 지역</option>
                   </select>
+                  <input id="coop-f-keyword" type="text" placeholder="강점 키워드" class="input input-bordered input-xs w-full" value="${esc(c.filterKeyword)}">
                 </div>
 
                 ${c.listLoading ? `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`
                   : !list ? ''
                     : list.error ? `<div class="alert alert-error py-2 text-xs">⚠️ ${esc(list.error)}</div>`
-                      : list.rows.length === 0 ? `<div class="text-xs text-base-content/40 text-center py-6">조건에 맞는 교사가 없습니다.</div>`
+                      : list.rows.length === 0 ? `<div class="text-xs text-base-content/40 text-center py-6">프로필을 등록한 교사가 아직 없거나, 조건에 맞는 교사가 없습니다.</div>`
                         : `
-                          <div class="text-[10px] text-base-content/40 mb-2">${list.total}명 중 ${list.rows.length}명 표시 · 상태는 본인 선언값이 있으면 그 값, 없으면 이번 달 활동량으로 자동 계산</div>
+                          <div class="text-[10px] text-base-content/40 mb-2">${list.total}명 중 ${list.rows.length}명 표시 · 프로필을 등록한 교사만 검색됩니다</div>
                           <div class="flex flex-col gap-2">
                             ${list.rows.slice(0, 30).map(r => `
                               <div class="border border-base-300 rounded-box p-2.5">
-                                <div class="flex items-center justify-between gap-2 mb-1">
-                                  <div class="text-xs font-bold truncate">${esc(maskName(r.name))} <span class="font-normal text-base-content/40">· ${esc(r.region || '-')}</span></div>
-                                  ${coopStatusBadge(r.status, r.declared)}
+                                <div class="flex items-start gap-2 mb-1.5">
+                                  ${profilePhotoHtml(r.photoUrl)}
+                                  <div class="flex-1 min-w-0">
+                                    <div class="text-xs font-bold truncate">${esc(maskName(r.name))}</div>
+                                    <div class="text-[10px] text-base-content/40">${esc(r.dept || '-')} · ${esc(r.region || '-')}</div>
+                                  </div>
                                 </div>
-                                <div class="flex flex-wrap items-center gap-1 mb-1.5">
-                                  ${(r.roles || []).map(x => `<span class="badge badge-ghost badge-xs">${esc(roleShortLabel(x))}</span>`).join('') || '<span class="text-[10px] text-base-content/30">이번 달 역할 기록 없음</span>'}
-                                  <span class="text-[10px] text-base-content/40">· 이번 달 ${r.monthlyCount}건</span>
-                                </div>
-                                ${r.memo ? `<div class="text-[10px] text-base-content/50 mb-1.5">"${esc(r.memo)}"</div>` : ''}
+                                ${r.strengths ? `<div class="flex flex-wrap gap-1 mb-1">${r.strengths.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="badge badge-primary badge-outline badge-xs">${esc(t)}</span>`).join('')}</div>` : ''}
+                                ${r.tools ? `<div class="flex flex-wrap gap-1 mb-1.5">${r.tools.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="badge badge-secondary badge-outline badge-xs">${esc(t)}</span>`).join('')}</div>` : ''}
+                                ${r.intro ? `<div class="text-[10px] text-base-content/50 mb-1.5">"${esc(r.intro)}"</div>` : ''}
                                 <button class="coop-req-btn btn btn-xs btn-outline btn-primary w-full" data-mid="${esc(r.memberId)}" data-name="${esc(r.name)}">협력 요청하기</button>
                               </div>`).join('')}
                           </div>
@@ -1324,20 +1410,43 @@
 
       const ct = document.getElementById('coop-toggle');
       if (ct) ct.onclick = toggleCoopSection;
-      document.querySelectorAll('.coop-mystatus').forEach(btn => {
-        btn.onclick = () => setMyCoopStatus(btn.dataset.status);
-      });
-      const memoEl = document.getElementById('coop-mymemo');
-      if (memoEl) memoEl.oninput = e => { c.myMemo = e.target.value; };
 
-      // 필터 3종 — 값이 바뀌면 곧바로 재조회
-      const bindFilter = (id, key) => {
+      // 내 프로필 입력폼 — 텍스트류는 값만 저장(재렌더 안 해 포커스/한글조합 안 끊김), 저장/삭제 버튼만 서버 호출.
+      const pf = c.myProfileForm;
+      const bindProfileField = (id, key) => {
         const el = document.getElementById(id);
-        if (el) el.onchange = e => { c[key] = e.target.value; loadCoopList(); };
+        if (el) el.oninput = e => { pf[key] = e.target.value; };
       };
-      bindFilter('coop-f-role', 'filterRole');
-      bindFilter('coop-f-status', 'filterStatus');
-      bindFilter('coop-f-region', 'filterRegion');
+      bindProfileField('coop-profile-phone', 'phone');
+      bindProfileField('coop-profile-strengths', 'strengths');
+      bindProfileField('coop-profile-tools', 'tools');
+      bindProfileField('coop-profile-intro', 'intro');
+      const photoInput = document.getElementById('coop-profile-photo');
+      if (photoInput) photoInput.onchange = async e => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try { pf.photoUrl = await fileToThumbnailDataUrl(file); renderHome(); }
+        catch (err) { alert('사진을 불러오지 못했습니다: ' + err.message); }
+      };
+      const photoClear = document.getElementById('coop-profile-photo-clear');
+      if (photoClear) photoClear.onclick = () => { pf.photoUrl = ''; renderHome(); };
+      const saveBtn = document.getElementById('coop-profile-save');
+      if (saveBtn) saveBtn.onclick = saveMyProfile;
+      const delBtn = document.getElementById('coop-profile-delete');
+      if (delBtn) delBtn.onclick = deleteMyProfile;
+
+      // 검색 필터 3종 — select는 즉시 재조회, 키워드 입력창은 Enter로 조회(매 타이핑마다 재조회 안 함).
+      const bindFilterSelect = (id, key) => {
+        const el = document.getElementById(id);
+        if (el) el.onchange = e => { c[key] = e.target.value; searchCoopTeachers(); };
+      };
+      bindFilterSelect('coop-f-role', 'filterRole');
+      bindFilterSelect('coop-f-region', 'filterRegion');
+      const kwEl = document.getElementById('coop-f-keyword');
+      if (kwEl) {
+        kwEl.oninput = e => { c.filterKeyword = e.target.value; };
+        kwEl.onkeydown = e => { if (e.key === 'Enter') searchCoopTeachers(); };
+      }
 
       document.querySelectorAll('.coop-req-btn').forEach(btn => {
         btn.onclick = () => openCoopModal(btn.dataset.mid, btn.dataset.name);

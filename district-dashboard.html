@@ -39,25 +39,27 @@ const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp
 const DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회', '기타'];
 const DEPT_ICON = { '교역자': '⛪', '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓', '기타': '📁' };
 
-// 2026-09-15: 지역 표기 "O지역" → "전주 OO회 OO지역"(사용자 요청, 교자장부청 구분).
-// DEPTS 값 자체가 이미 "~회"를 포함(자문회/장년회/부녀회/청년회) — 교역자만 "회"를 붙여야 함,
-// 기타는 그대로 "기타". region이 없으면(예: 교역자는 지역 데이터가 없음) 지역명 없이 부서만 표기.
 // 2026-09-15: 사용자 요청 — "협력교사"는 표/카드/그래프 등 UI 라벨에는 짧게 "협력"으로만 표기.
 // 내부 값(ROLE_PARTS_DASH 원소, state.expandedRoleCol 키, getDistrictReport 응답 필드명)은
 // 항상 '협력교사' 그대로 유지하고, 화면에 그릴 때만 이 함수를 통해 표시 텍스트를 바꾼다.
 function roleShortLabel(role) { return role === '협력교사' ? '협력' : role; }
 
-function regionFullLabel(dept, region) {
-  const label = (dept === '교역자') ? '교역자회' : (dept || '');
-  return region ? `전주 ${label} ${region}`.trim() : `전주 ${label}`.trim();
+// 2026-09-16: 전도부 총무 피드백 — 이 화면은 이미 부서 탭 하나로 범위가 좁혀진 상세 화면이라
+// "전주 OO회" 접두어가 중복이라는 지적으로 전부 제거, 지역 번호만 표기(예: "1지역"). 교역자처럼
+// 지역 구분이 없는 부서는 region이 비어있으므로 그때만 부서명을 대신 보여준다.
+function regionOnlyLabel(dept, region) {
+  if (region) return region;
+  return (dept === '교역자') ? '전체' : (dept || '전체');
 }
 
 const TIER_ORDER = ['휴교사', '교사', '활동교사', '우수교사'];
 const TIER_BADGE = { '우수교사': 'badge-secondary', '활동교사': 'badge-accent', '교사': 'badge-primary', '휴교사': 'badge-ghost' };
 const TIER_TEXT_COLOR = { '휴교사': 'text-base-content/50', '교사': 'text-primary', '활동교사': 'text-accent', '우수교사': 'text-secondary' };
 
+const TEACHER_LIST_TAB = '__teacherList__'; // state.dept 의 특수값 — "👥 교사 명단" 탭(전체 교사 flat list)
+
 let state = {
-  dept: null,        // null = "전체 요약" 화면(조직별 요약), DEPTS 중 하나면 그 부서 상세 화면
+  dept: null,        // null = "전체 요약" 화면(조직별 요약), DEPTS 중 하나면 그 부서 상세 화면, TEACHER_LIST_TAB이면 교사 명단 탭
   region: '',       // '' = 전체 — per-teacher 목록만 이 값으로 클라이언트에서 필터링(요약/지역별 표는 항상 부서 전체 기준)
   loading: false,
   error: '',
@@ -77,7 +79,13 @@ let state = {
   encourageFromName: '', // 세션 내 재입력 편의를 위해 보내는 분 성함을 기억(로그인 없는 관리자 화면이라 매번 입력 필요)
   encourageText: '',
   encourageSending: false,
-  encourageSentNote: ''
+  encourageSentNote: '',
+  // 2026-09-16: "👥 교사 명단" 탭 — 전체 교사 flat list 필터 + 선택된 교사(상세 패널).
+  tlFilterDept: '',
+  tlFilterRegion: '',
+  tlFilterTier: '',
+  tlSelected: null, // 선택된 교사의 memberId
+  tlAssigning: false // 교관/지역장 지정 API 호출 중
 };
 
 // 전체 조직별 요약 (getOrgSummary) — "전체 요약" 화면 전용, 부서 상세와 별도로 캐시.
@@ -87,6 +95,10 @@ let orgSummaryLoading = false;
 // 전체 활동실적(getAllActivities) — "지역별 활동 분석" 전용, 부서 상세 화면 진입 시 1회만 로드해 캐시.
 let allActivities = null;
 let allActivitiesLoading = false;
+
+// 2026-09-16: "👥 교사 명단" 탭 전용 — 전체 교사 명단(getRoster) 1회만 로드해 캐시.
+let rosterAll = null;
+let rosterLoading = false;
 
 // 활동방(activity-room.html) ACTIVITY_OPTIONS 와 동일 목록 — 표/그래프의 열(항목) 표준 순서용.
 const ACTIVITY_OPTIONS = [
@@ -142,7 +154,6 @@ function mainNavHtml(current) {
       ${item('edu', 'edu-dashboard.html', '🎓', '통합')}
       ${item('district', 'district-dashboard.html', '🗺️', '부서별')}
       ${item('coach', 'coach-dashboard.html', '🎧', '피드백')}
-      ${item('opening', 'opening.html', '🎯', '개강')}
       <a href="home.html" class="btn btn-xs btn-ghost ml-auto">🏃 교사 어플로 가기</a>
     </div>
   `;
@@ -203,18 +214,144 @@ async function loadAllActivities(force) {
   render();
 }
 
-// dept가 null이면 "전체 요약" 화면으로 전환 — 이미 요약을 받아왔으면 재요청 없이 그대로 보여줌.
+// "👥 교사 명단" 탭 전용 — 전체 교사 명단을 1회만 받아 캐시(부서 무관, 탭 전환해도 재요청 없음).
+async function loadRosterAll(force) {
+  if (!force && (rosterAll || rosterLoading)) return;
+  rosterLoading = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getRoster' });
+    rosterAll = (res && Array.isArray(res.rows)) ? res.rows : [];
+  } catch (e) {
+    rosterAll = [];
+  }
+  rosterLoading = false;
+  render();
+}
+
+// dept가 null이면 "전체 요약" 화면, TEACHER_LIST_TAB이면 "교사 명단" 탭으로 전환 — 이미 받아왔으면 재요청 없이 그대로 보여줌.
 function switchDept(dept) {
   state.dept = dept;
   state.region = ''; // 부서를 바꾸면 지역 필터는 초기화(그 부서에 없는 지역일 수 있어서)
   state.aiAnalysis = null; // 다른 부서의 AI 분석 결과가 남아있지 않도록 초기화
   if (dept === null) loadOrgSummary(false);
+  else if (dept === TEACHER_LIST_TAB) loadRosterAll(false);
   else { loadReport(false); loadAllActivities(false); }
 }
 
 function switchRegion(region) {
   state.region = region;
   render(); // 이미 캐시된 부서 전체 데이터에서 클라이언트 필터링만 하면 되므로 재요청 불필요
+}
+
+// ============ 2026-09-16: "👥 교사 명단" 탭 — 전체 교사 flat list + 교관/지역장 지정 ============
+// 기존 upsertRosterLeader 액션(교사명단 시트 "직책"열 갱신)을 그대로 재사용 — 신규 백엔드 없음.
+async function assignPosition(t, position) {
+  // 이미 그 직책이면 눌렀을 때 해제(빈 직책으로 되돌림), 아니면 새로 지정.
+  const nextPosition = (t.position === position) ? '' : position;
+  const label = position === '교관' ? '교관' : '지역장';
+  const verb = nextPosition ? '지정' : '해제';
+  if (!confirm(`${maskName(t.name)} 교사를 ${label}(으)로 ${verb}하시겠습니까?`)) return;
+  state.tlAssigning = true;
+  render();
+  try {
+    const res = await callApi({
+      action: 'upsertRosterLeader',
+      memberId: t.memberId, name: t.name, region: t.region, dept: t.dept, position: nextPosition
+    });
+    if (res && res.error) throw new Error(res.error);
+    t.position = nextPosition; // 캐시된 rosterAll 행에도 즉시 반영(재요청 없이 화면 갱신)
+  } catch (e) {
+    alert(`${label} ${verb} 중 오류가 발생했습니다: ` + e.message);
+  }
+  state.tlAssigning = false;
+  render();
+}
+
+function teacherListFilterHtml() {
+  const regionsForDept = state.tlFilterDept
+    ? [...new Set((rosterAll || []).filter(t => t.dept === state.tlFilterDept).map(t => t.region).filter(Boolean))].sort()
+    : [];
+  return `
+    <div class="grid grid-cols-3 gap-2 px-4 pt-3">
+      <select id="tl-filter-dept" class="select select-bordered select-sm w-full">
+        <option value="">부서 전체</option>
+        ${DEPTS.map(d => `<option value="${esc(d)}" ${state.tlFilterDept === d ? 'selected' : ''}>${DEPT_ICON[d]||''} ${esc(d)}</option>`).join('')}
+      </select>
+      <select id="tl-filter-region" class="select select-bordered select-sm w-full" ${state.tlFilterDept ? '' : 'disabled'}>
+        <option value="">지역 전체</option>
+        ${regionsForDept.map(r => `<option value="${esc(r)}" ${state.tlFilterRegion === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+      </select>
+      <select id="tl-filter-tier" class="select select-bordered select-sm w-full">
+        <option value="">등급 전체</option>
+        ${TIER_ORDER.map(t => `<option value="${esc(t)}" ${state.tlFilterTier === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function teacherListDetailHtml(t) {
+  if (!t) return '';
+  return `
+    <div class="border-t border-base-300 bg-base-200/40 p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-base font-black text-base-content">${esc(t.name)} 교사 <span class="text-xs font-normal text-base-content/40">(${esc(t.memberId)})</span></div>
+        <button id="tl-detail-close" class="btn btn-ghost btn-xs">닫기 ✕</button>
+      </div>
+      <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-3">
+        <div class="text-base-content/50">부서</div><div class="font-medium">${DEPT_ICON[t.dept]||''} ${esc(t.dept||'-')}</div>
+        <div class="text-base-content/50">지역</div><div class="font-medium">${esc(t.region||'-')}</div>
+        <div class="text-base-content/50">등급</div><div class="font-medium"><span class="badge ${TIER_BADGE[t.tier]||'badge-ghost'} badge-sm">${esc(t.tier||'-')}</span></div>
+        <div class="text-base-content/50">현재 직책</div><div class="font-medium">${t.position ? esc(t.position) : '(일반 교사)'}</div>
+        <div class="text-base-content/50">소속</div><div class="font-medium">${esc(t.affiliation||'-')}</div>
+        ${t.note ? `<div class="text-base-content/50">비고</div><div class="font-medium">${esc(t.note)}</div>` : ''}
+      </div>
+      <div class="flex gap-2">
+        <button id="tl-btn-coach" class="btn btn-sm flex-1 ${t.position==='교관' ? 'btn-primary' : 'btn-outline btn-primary'}" ${state.tlAssigning ? 'disabled' : ''}>${t.position==='교관' ? '✓ 교관 지정됨 (해제)' : '🧭 교관 지정'}</button>
+        <button id="tl-btn-leader" class="btn btn-sm flex-1 ${t.position==='지역장' ? 'btn-secondary' : 'btn-outline btn-secondary'}" ${state.tlAssigning ? 'disabled' : ''}>${t.position==='지역장' ? '✓ 지역장 지정됨 (해제)' : '🏳️ 지역장 지정'}</button>
+      </div>
+    </div>
+  `;
+}
+
+function teacherListSectionHtml() {
+  if (rosterLoading && !rosterAll) {
+    return `<div class="p-6 text-center text-sm text-base-content/40"><span class="loading loading-spinner loading-md align-middle mr-2"></span>교사 명단 불러오는 중...</div>`;
+  }
+  if (!rosterAll) return '';
+  let rows = rosterAll;
+  if (state.tlFilterDept) rows = rows.filter(t => t.dept === state.tlFilterDept);
+  if (state.tlFilterRegion) rows = rows.filter(t => t.region === state.tlFilterRegion);
+  if (state.tlFilterTier) rows = rows.filter(t => t.tier === state.tlFilterTier);
+  rows = [...rows].sort((a, b) => (a.dept+a.region+a.name).localeCompare(b.dept+b.region+b.name, 'ko'));
+  const selected = state.tlSelected ? rosterAll.find(t => t.memberId === state.tlSelected) : null;
+
+  return `
+    <div class="px-4 pt-3">
+      ${sectionTitleBand('👥', '교사 명단', '전체 교사를 부서·지역·등급으로 찾아보고, 교관·지역장을 지정할 수 있습니다. 이름을 누르면 상세 정보가 열립니다.', '#F5F3FF')}
+    </div>
+    ${teacherListFilterHtml()}
+    <div class="px-4 pt-3 text-xs text-base-content/40">${rows.length}명</div>
+    <div class="px-4 pt-1 pb-4">
+      <div class="overflow-x-auto border border-base-300 rounded-box">
+        <table class="table table-zebra table-sm">
+          <thead class="sticky top-0 bg-base-100"><tr><th>이름</th><th>부서</th><th>지역</th><th>등급</th><th>직책</th></tr></thead>
+          <tbody>
+            ${rows.map(t => `
+              <tr class="tl-row cursor-pointer ${state.tlSelected === t.memberId ? 'active' : ''}" data-mid="${esc(t.memberId)}">
+                <td class="font-medium">${esc(t.name)}</td>
+                <td>${DEPT_ICON[t.dept]||''} ${esc(t.dept||'-')}</td>
+                <td>${esc(t.region||'-')}</td>
+                <td><span class="badge ${TIER_BADGE[t.tier]||'badge-ghost'} badge-xs">${esc(t.tier||'-')}</span></td>
+                <td>${t.position ? `<span class="badge badge-outline badge-xs">${esc(t.position)}</span>` : ''}</td>
+              </tr>`).join('')}
+            ${rows.length === 0 ? `<tr><td colspan="5" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+      ${selected ? teacherListDetailHtml(selected) : ''}
+    </div>
+  `;
 }
 
 // 2026-09-15: "2인 승인"(먼저 누른 사람이 1번) → 교관/지역장 전용 칸으로 분리(사용자 요청 —
@@ -326,7 +463,7 @@ function mvpCardHtml(allRows) {
       <div style="font-size:30px;line-height:1">🥇</div>
       <div class="flex-1">
         <div class="text-[11px] font-bold" style="color:#78350F">이번 달 MVP</div>
-        <div class="text-sm font-black" style="color:#78350F">${esc(regionFullLabel(state.dept, top.region))} ${esc(maskName(top.name))} 교사님</div>
+        <div class="text-sm font-black" style="color:#78350F">${esc(regionOnlyLabel(state.dept, top.region))} ${esc(maskName(top.name))} 교사님</div>
         <div class="text-[10px]" style="color:#92400E">이번 달 활동 ${top.monthlyCount}건</div>
       </div>
     </div>
@@ -470,7 +607,7 @@ function byRegionTableHtml(byRegion) {
         <tbody>
           ${byRegion.map(r => `
             <tr>
-              <td class="font-medium">${esc(regionFullLabel(state.dept, r.region))}</td>
+              <td class="font-medium">${esc(regionOnlyLabel(state.dept, r.region))}</td>
               <td>${r.totalTeachers}명</td>
               ${TIER_ORDER.map(t => `<td class="text-xs whitespace-nowrap">${(r.tierCounts[t]||0)}명 <span class="text-base-content/40">(${pct(r.tierCounts[t]||0, r.totalTeachers)}%)</span></td>`).join('')}
               <td>${r.activeCount}명</td>
@@ -513,7 +650,7 @@ function destroyRegionCharts() {
 
 function renderRegionCharts(byRegion) {
   if (!byRegion || byRegion.length === 0) return;
-  const labels = byRegion.map(r => regionFullLabel(state.dept, r.region));
+  const labels = byRegion.map(r => regionOnlyLabel(state.dept, r.region));
 
   // 지역(세트)마다 휴교사·교사·활동교사·우수교사 4개 막대를 나란히(그룹) 표시 — 한 지역 안에서
   // 전 교사의 등급 분포 추이를 한눈에 비교하는 지표(지역장·중간관리자용). stacked 아님(그룹 막대).
@@ -554,7 +691,7 @@ function roleActivitySectionHtml(byRegion, roleActivityCounts) {
           <thead class="sticky top-0 bg-base-100"><tr><th>지역</th><th>인도자</th><th>교사</th><th>섬김이</th><th>협력</th></tr></thead>
           <tbody>
             ${byRegion.map(r => `<tr>
-              <td class="font-medium">${esc(regionFullLabel(state.dept, r.region))}</td>
+              <td class="font-medium">${esc(regionOnlyLabel(state.dept, r.region))}</td>
               <td>${(r.roleActivityCounts && r.roleActivityCounts.인도자) || 0}건</td>
               <td>${(r.roleActivityCounts && r.roleActivityCounts.교사) || 0}건</td>
               <td>${(r.roleActivityCounts && r.roleActivityCounts.섬김이) || 0}건</td>
@@ -666,7 +803,7 @@ function activityAnalysisTableHtml(analysis) {
         <tbody>
           ${regionStats.map(r => `
             <tr>
-              <td class="font-medium">${esc(r.region ? regionFullLabel(state.dept, r.region) : '(미상)')}</td>
+              <td class="font-medium">${esc(r.region ? regionOnlyLabel(state.dept, r.region) : '(미상)')}</td>
               <td>${r.total}건</td>
               ${types.map(t => {
                 const c = r.counts[t] || 0;
@@ -695,7 +832,7 @@ function activityAnalysisChartsHtml(analysis) {
 function renderActivityAnalysisChart(analysis) {
   const c = document.getElementById('chart-activity-analysis');
   if (!c || !analysis || analysis.regionStats.length === 0) return;
-  const labels = analysis.regionStats.map(r => r.region ? regionFullLabel(state.dept, r.region) : '(미상)');
+  const labels = analysis.regionStats.map(r => r.region ? regionOnlyLabel(state.dept, r.region) : '(미상)');
   const datasets = analysis.types.map((t, i) => ({
     label: t,
     backgroundColor: ACTIVITY_PALETTE[i % ACTIVITY_PALETTE.length],
@@ -884,7 +1021,6 @@ function buildSampleRoleActivityBreakdown() {
 }
 
 // 열 고정 폭(px) — 지역/총건수/강세항목 3열이 sticky. offset은 앞 열 폭의 누적.
-// 2026-09-15: 지역명이 "전주 OO회 OO지역"으로 길어져서 region 칸 폭을 64→132로 확대.
 const STICKY_COL_W = { region: 132, total: 84, strong: 84 };
 const STICKY_LEFT = { region: 0, total: STICKY_COL_W.region, strong: STICKY_COL_W.region + STICKY_COL_W.total };
 
@@ -926,7 +1062,7 @@ function roleActivityBreakdownTableHtml(b) {
     const topV = regionTopItemValue(b, region);
     return `
       <tr>
-        <td class="font-bold text-base" style="${sticky(STICKY_COL_W.region, STICKY_LEFT.region, 'background:var(--fallback-b1,oklch(var(--b1)))')}">${esc(regionFullLabel(state.dept, region))}</td>
+        <td class="font-bold text-base" style="${sticky(STICKY_COL_W.region, STICKY_LEFT.region, 'background:var(--fallback-b1,oklch(var(--b1)))')}">${esc(regionOnlyLabel(state.dept, region))}</td>
         <td class="font-bold text-primary text-sm border-l border-base-300" style="${sticky(STICKY_COL_W.total, STICKY_LEFT.total, 'background:var(--fallback-b1,oklch(var(--b1)))')}">${rTotal}건</td>
         <td class="border-l border-base-300 text-center" style="${sticky(STICKY_COL_W.strong, STICKY_LEFT.strong, strongCellStyle(topV))}"><span class="font-black text-[11px]">${esc(regionTopItem(b, region))}</span></td>
         ${ROLE_PARTS_DASH.map(role => {
@@ -1020,7 +1156,7 @@ function roleActivityHeatmapHtml(b) {
           ${regions.map(region => {
             const max = maxByRegion[region];
             return `<tr>
-              <td class="whitespace-nowrap" style="font-size:16px;font-weight:900">${esc(regionFullLabel(state.dept, region))}</td>
+              <td class="whitespace-nowrap" style="font-size:16px;font-weight:900">${esc(regionOnlyLabel(state.dept, region))}</td>
               ${ROLE_ACTIVITY_ITEMS_DASH.map(item => {
                 const v = b.regionItemTotal[region][item] || 0;
                 const isMax = v === max && v > 0;
@@ -1288,15 +1424,17 @@ function tableHtml(rows) {
 function render() {
   const root = document.getElementById('root');
   const isOverview = state.dept === null;
-  const report = isOverview ? null : state.cache[state.dept];
+  const isTeacherList = state.dept === TEACHER_LIST_TAB;
+  const isDeptDetail = !isOverview && !isTeacherList;
+  const report = isDeptDetail ? state.cache[state.dept] : null;
   const allRows = report ? report.rows : [];
   const filteredRows = state.region ? allRows.filter(r => r.region === state.region) : allRows;
   const pendingCount = filteredRows.filter(t => t.suggestion).length;
   const tableRows = state.pendingOnly ? filteredRows.filter(t => t.suggestion) : filteredRows;
-  const analysis = (!isOverview && report) ? buildActivityAnalysis(report) : null;
+  const analysis = (isDeptDetail && report) ? buildActivityAnalysis(report) : null;
   const roleBreakdown = state.showSampleData
     ? buildSampleRoleActivityBreakdown()
-    : ((!isOverview && report) ? buildRoleActivityBreakdown(report) : null);
+    : ((isDeptDetail && report) ? buildRoleActivityBreakdown(report) : null);
 
   root.innerHTML = `
     <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
@@ -1304,15 +1442,21 @@ function render() {
         <span class="text-xl leading-none">🗺️</span>
         <div class="text-lg font-bold">부서별</div>
       </div>
-      ${!isOverview ? `<button id="btn-sample-toggle" class="btn btn-xs ${state.showSampleData ? 'btn-warning' : 'btn-ghost btn-outline'}">📊 샘플 데이터 ${state.showSampleData ? 'ON' : '보기'}</button>` : ''}
+      ${isDeptDetail ? `<button id="btn-sample-toggle" class="btn btn-xs ${state.showSampleData ? 'btn-warning' : 'btn-ghost btn-outline'}">📊 샘플 데이터 ${state.showSampleData ? 'ON' : '보기'}</button>` : ''}
     </div>
     <div class="brand-accent-bar"></div>
     ${mainNavHtml('district')}
 
-    ${!isOverview ? `
+    <div class="flex flex-wrap items-center gap-1.5 px-4 py-2 border-b border-base-200">
+      <a class="tab-dept-btn btn btn-xs ${isOverview ? 'btn-primary' : 'btn-ghost'}" data-dept="">📋 전체 요약</a>
+      ${DEPTS.map(d => `<a class="tab-dept-btn btn btn-xs ${state.dept === d ? 'btn-primary' : 'btn-ghost'}" data-dept="${esc(d)}">${DEPT_ICON[d]||''} ${esc(d)}</a>`).join('')}
+      <a class="tab-dept-btn btn btn-xs ${isTeacherList ? 'btn-primary' : 'btn-ghost'}" data-dept="${TEACHER_LIST_TAB}">👥 교사 명단</a>
+    </div>
+
+    ${isDeptDetail ? `
       <div class="px-4 pt-3 flex items-center justify-between">
         <button id="btn-back-overview" class="font-bold text-primary hover:underline" style="font-size:15px">← 전체 요약</button>
-        <div class="text-sm font-bold text-base-content flex items-center gap-1">${DEPT_ICON[state.dept] || '📁'} ${esc(state.dept)}</div>
+        <div class="flex items-center gap-2" style="font-size:28px;font-weight:900;color:#1F3864">${DEPT_ICON[state.dept] || '📁'} ${esc(state.dept)}</div>
       </div>
       <div class="px-4 pt-2">
         <div class="alert bg-base-200 border border-base-300 py-2.5 px-3 text-[11px] text-base-content/70 leading-relaxed">
@@ -1322,6 +1466,8 @@ function render() {
 
     ${isOverview
       ? orgSummarySectionHtml()
+      : isTeacherList
+      ? teacherListSectionHtml()
       : state.loading
         ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
         : state.error
@@ -1365,8 +1511,34 @@ function render() {
   document.querySelectorAll('.btn-org-card').forEach(btn => {
     btn.onclick = () => switchDept(btn.dataset.dept);
   });
+  document.querySelectorAll('.tab-dept-btn').forEach(btn => {
+    btn.onclick = () => switchDept(btn.dataset.dept || null);
+  });
   const backBtn = document.getElementById('btn-back-overview');
   if (backBtn) backBtn.onclick = () => switchDept(null);
+  if (isTeacherList) {
+    const tlDeptSel = document.getElementById('tl-filter-dept');
+    if (tlDeptSel) tlDeptSel.onchange = (e) => { state.tlFilterDept = e.target.value; state.tlFilterRegion = ''; render(); };
+    const tlRegionSel = document.getElementById('tl-filter-region');
+    if (tlRegionSel) tlRegionSel.onchange = (e) => { state.tlFilterRegion = e.target.value; render(); };
+    const tlTierSel = document.getElementById('tl-filter-tier');
+    if (tlTierSel) tlTierSel.onchange = (e) => { state.tlFilterTier = e.target.value; render(); };
+    document.querySelectorAll('.tl-row').forEach(row => {
+      row.onclick = () => { state.tlSelected = state.tlSelected === row.dataset.mid ? null : row.dataset.mid; render(); };
+    });
+    const tlDetailClose = document.getElementById('tl-detail-close');
+    if (tlDetailClose) tlDetailClose.onclick = () => { state.tlSelected = null; render(); };
+    const tlBtnCoach = document.getElementById('tl-btn-coach');
+    if (tlBtnCoach) tlBtnCoach.onclick = () => {
+      const t = rosterAll.find(x => x.memberId === state.tlSelected);
+      if (t) assignPosition(t, '교관');
+    };
+    const tlBtnLeader = document.getElementById('tl-btn-leader');
+    if (tlBtnLeader) tlBtnLeader.onclick = () => {
+      const t = rosterAll.find(x => x.memberId === state.tlSelected);
+      if (t) assignPosition(t, '지역장');
+    };
+  }
   const regionSelect = document.getElementById('region-select');
   if (regionSelect) regionSelect.onchange = (e) => switchRegion(e.target.value);
   document.querySelectorAll('.btn-approve-role').forEach(btn => {
@@ -1428,7 +1600,7 @@ function render() {
   if (aiBtn) aiBtn.onclick = () => runAiAnalysis(state.dept, state.region || '전체', roleBreakdown);
 
   destroyRegionCharts();
-  if (!isOverview && report && !state.loading && !state.error) {
+  if (isDeptDetail && report && !state.loading && !state.error) {
     if (state.regionView === 'chart') renderRegionCharts(report.byRegion);
     if (state.activityView === 'chart') renderActivityAnalysisChart(analysis);
     if (state.roleActivityView === 'chart') renderRoleActivityBreakdownCharts(roleBreakdown);

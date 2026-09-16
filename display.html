@@ -4,260 +4,35 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>교회 교사 활동 현황</title>
-<script src="https://cdn.tailwindcss.com"></script>
 <style>
-  /* Phase 3(2026-09-15): 로그인 없이 TV/모니터에 띄우는 교회 디스플레이 — 어두운 배경 + 큰 글씨,
-     jesagil(밝은) 테마를 그대로 쓰면 TV에서 너무 눈부시고 글씨가 작아 보여서 전용 다크 팔레트를 씀. */
-  html, body { margin:0; padding:0; background:#0B1220; color:#F1F5F9; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
-  .display-card { background:#141E33; border:1px solid #24314F; border-radius:16px; }
-  .brand-accent-bar { height:4px; background:linear-gradient(90deg,#6366F1,#F59E0B,#10B981); }
-  ::-webkit-scrollbar { display:none; }
-  .stage-bar-row { cursor:pointer; transition: transform .12s ease, background .12s ease; }
-  .stage-bar-row:hover { transform: translateX(4px); background:#1B2740; }
+  /* 2026-09-16: 전도부 총무 피드백 — 지역별 순위·차트 등 동적 기능 전부 삭제, 로그인 없이 TV/모니터에
+     띄우는 단순 정적 안내 화면으로 교체. 어두운 배경 + 큰 글씨는 기존 그대로 유지(TV에서 잘 보이도록). */
+  html, body { margin:0; padding:0; background:#0B1220; color:#F1F5F9; height:100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+  }
+  .brand-accent-bar { position:fixed; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg,#6366F1,#F59E0B,#10B981); }
 </style>
 </head>
 <body>
 <div class="brand-accent-bar"></div>
-<div id="root" style="max-width:1400px;margin:0 auto;padding:20px 24px 40px"></div>
+<div style="font-size:64px;line-height:1;margin-bottom:16px">⛪</div>
+<div style="font-size:38px;font-weight:900;letter-spacing:-0.5px">제사장의 길</div>
+<div style="font-size:18px;color:#94A3B8;margin-top:8px">복음방 교사 어플</div>
+<div id="display-date" style="font-size:18px;color:#CBD5E1;margin-top:32px"></div>
+<div id="display-clock" style="font-size:44px;font-weight:900;font-variant-numeric:tabular-nums;margin-top:6px"></div>
 
 <script>
-const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
-
-// 백엔드 ORG_MAIN_DEPTS와 동일 순서(교자장부청) — district/edu-dashboard.html과 동일 규칙.
-const DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
-const DEPT_ICON = { '교역자': '⛪', '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓' };
-const COUNSEL_COLOR = '#F59E0B'; // 상담1+상담2 — 주황
-const GOSPEL_COLOR = '#EF4444';  // 복음방 — 빨강
-const REFRESH_SECONDS = 300; // 5분마다 전체 새로고침
-
-function esc(s) {
-  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-async function callApi(body) {
-  const res = await fetch(PROXY_URL, { method: 'POST', body: JSON.stringify(body) });
-  return res.json();
-}
-
-let state = {
-  loading: true,
-  error: '',
-  data: null,        // getDisplayData 응답
-  opening: null,      // getOpeningStatus 응답
-  view: 'main',        // 'main' | 'dept'
-  rankTab: DEPTS[0],
-  secondsLeft: REFRESH_SECONDS
-};
-
-async function load() {
-  state.loading = true;
-  render();
-  try {
-    const [d, o] = await Promise.all([
-      callApi({ action: 'getDisplayData' }),
-      callApi({ action: 'getOpeningStatus' }).catch(() => null)
-    ]);
-    if (d && d.error) throw new Error(d.error);
-    state.data = d;
-    state.opening = (o && !o.error) ? o : null;
-  } catch (e) {
-    state.error = String(e.message || e);
-  }
-  state.loading = false;
-  render();
-}
-
-function openDept(dept) {
-  state.rankTab = dept;
-  state.view = 'dept';
-  render();
-}
-function backToMain() {
-  state.view = 'main';
-  render();
-}
-
-// ============ 상단 헤더 ============
-function headerHtml() {
+function updateClock() {
   const now = new Date();
-  const dateStr = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-  const mm = String(Math.floor(state.secondsLeft / 60)).padStart(2, '0');
-  const ss = String(state.secondsLeft % 60).padStart(2, '0');
-  const o = state.opening;
-  const ddayHtml = (o && o.dday != null) ? `
-    <div style="background:linear-gradient(90deg,#4C1D95,#6D28D9);border-radius:12px;padding:8px 18px;text-align:center">
-      <div style="font-size:13px;color:#DDD6FE;font-weight:700">🎯 개강까지</div>
-      <div style="font-size:26px;font-weight:900;color:#fff;line-height:1.2">${o.dday > 0 ? 'D-' + o.dday : (o.dday === 0 ? 'D-DAY' : 'D+' + Math.abs(o.dday))}</div>
-      <div style="font-size:11px;color:#C4B5FD">${esc(o.nextOpeningDate || o.openingDate || '')}</div>
-    </div>` : '';
-  return `
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
-      <div>
-        <div style="font-size:32px;font-weight:900;letter-spacing:-0.5px">⛪ 교회 교사 활동 현황</div>
-        <div style="font-size:16px;color:#94A3B8;margin-top:4px">${esc(dateStr)}</div>
-      </div>
-      <div class="flex items-center gap-4">
-        ${ddayHtml}
-        <div class="text-right">
-          <div id="display-clock" style="font-size:28px;font-weight:900;font-variant-numeric:tabular-nums">${esc(timeStr)}</div>
-          <div style="font-size:14px;color:#64748B">새로고침까지 <span id="display-countdown" style="font-variant-numeric:tabular-nums">${mm}:${ss}</span></div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// ============ 상담/복음방 단계 가로 막대(교자장부청 / 지역별 공용) ============
-// items: [{key, label, counsel, gospel, total}], onClick 있으면 행 클릭 가능.
-function stageBarChartHtml(items, opts) {
-  opts = opts || {};
-  const maxTotal = items.reduce((m, it) => Math.max(m, it.total), 0) || 1;
-  return `
-    <div class="flex flex-col gap-3">
-      ${items.map(it => {
-        const counselPct = Math.round(it.counsel / maxTotal * 100);
-        const gospelPct = Math.round(it.gospel / maxTotal * 100);
-        return `
-        <div class="stage-bar-row" ${opts.clickable ? `data-key="${esc(it.key)}"` : ''} style="border-radius:10px;padding:8px 10px;">
-          <div class="flex items-center gap-3">
-            <div style="width:${opts.labelWidth || 110}px;font-size:16px;font-weight:800;flex-shrink:0">${it.icon ? it.icon + ' ' : ''}${esc(it.label)}</div>
-            <div style="flex:1;height:28px;background:#1E293B;border-radius:8px;overflow:hidden;display:flex">
-              <div style="width:${counselPct}%;background:${COUNSEL_COLOR};height:100%"></div>
-              <div style="width:${gospelPct}%;background:${GOSPEL_COLOR};height:100%"></div>
-            </div>
-            <div style="width:64px;text-align:right;font-size:19px;font-weight:900;color:#F1F5F9;flex-shrink:0">${it.total}명</div>
-            ${opts.clickable ? `<div style="color:#64748B;font-size:18px">›</div>` : ''}
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
-    <div class="flex items-center gap-4 mt-3" style="font-size:13px;color:#94A3B8">
-      <div class="flex items-center gap-1.5"><span style="width:12px;height:12px;border-radius:3px;background:${COUNSEL_COLOR};display:inline-block"></span>상담1·상담2</div>
-      <div class="flex items-center gap-1.5"><span style="width:12px;height:12px;border-radius:3px;background:${GOSPEL_COLOR};display:inline-block"></span>복음방</div>
-    </div>
-  `;
-}
-
-function numberCardHtml(icon, title, total, accentColor) {
-  return `
-    <div class="display-card p-5">
-      <div style="font-size:18px;font-weight:800;color:#CBD5E1;margin-bottom:8px">${icon} ${esc(title)}</div>
-      <div style="font-size:46px;font-weight:900;color:${accentColor};line-height:1">${total}<span style="font-size:18px;color:#94A3B8;font-weight:700">명</span></div>
-    </div>
-  `;
-}
-
-// ============ 1페이지: 메인 화면 ============
-function mainViewHtml(d) {
-  const items = (d.orgStageCounts || []).map(r => ({
-    key: r.dept, label: r.dept, icon: DEPT_ICON[r.dept] || '', counsel: r.counsel, gospel: r.gospel, total: r.total
-  }));
-  return `
-    <div class="display-card p-5 mb-5">
-      <div style="font-size:22px;font-weight:900;margin-bottom:4px">📊 교자장부청 전도 현황 (상담1 이상)</div>
-      <div style="font-size:13px;color:#64748B;margin-bottom:14px">막대를 누르면 그 조직의 지역별 현황을 볼 수 있습니다.</div>
-      ${items.length ? stageBarChartHtml(items, { clickable: true, labelWidth: 110 }) : `<div style="font-size:16px;color:#64748B;text-align:center;padding:24px 0">데이터가 없습니다.</div>`}
-      ${d.isSampleStage ? `<div style="display:inline-block;background:#7C2D12;color:#FED7AA;font-size:13px;font-weight:700;padding:4px 12px;border-radius:999px;margin-top:12px">📊 샘플 데이터 기준</div>` : ''}
-    </div>
-    <div class="grid gap-5" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
-      ${numberCardHtml('🎯', `전달(${(d.prevMonth || '').split('-')[1] || ''}월) 센터 인도`, d.centerPrevMonthTotal || 0, '#FBBF24')}
-      ${numberCardHtml('📖', '이번 달 복음방 현황', d.gospelStageTotal || 0, '#34D399')}
-    </div>
-  `;
-}
-
-// ============ 2페이지: 부서별 상세(클릭 시) ============
-function deptViewHtml(d) {
-  const dept = state.rankTab;
-  const list = (d.byDept && d.byDept[dept]) || [];
-  const top1 = list[0];
-  const regionStage = (d.byDeptRegionStage && d.byDeptRegionStage[dept]) || {};
-  const regionKeys = Object.keys(regionStage).sort((a, b) => {
-    const na = parseInt(a, 10), nb = parseInt(b, 10);
-    if (!isNaN(na) && !isNaN(nb)) return na - nb;
-    return a < b ? -1 : (a > b ? 1 : 0);
-  });
-  const regionItems = regionKeys.map(r => ({ key: r, label: r, counsel: regionStage[r].counsel, gospel: regionStage[r].gospel, total: regionStage[r].total }));
-
-  const deptGospel = (d.orgStageCounts || []).find(r => r.dept === dept);
-  const centerPrev = (d.centerPrevMonthByDept && d.centerPrevMonthByDept[dept]) || 0;
-
-  return `
-    <div class="flex items-center justify-between mb-4">
-      <button id="btn-back-main" style="font-size:16px;font-weight:700;color:#93C5FD;background:none;border:none;cursor:pointer">← 전체 보기</button>
-      <div class="flex flex-wrap gap-2">
-        ${DEPTS.map(dep => `<button class="rank-tab-btn" data-dept="${esc(dep)}" style="font-size:15px;font-weight:700;padding:7px 14px;border-radius:10px;border:1px solid ${dept === dep ? '#6366F1' : '#334155'};background:${dept === dep ? '#4338CA' : 'transparent'};color:#F1F5F9;cursor:pointer">${DEPT_ICON[dep] || ''} ${esc(dep)}</button>`).join('')}
-      </div>
-    </div>
-    <div class="display-card p-5 mb-5">
-      ${dept === '교역자' ? `
-        <div style="font-size:15px;color:#94A3B8;text-align:center;padding:20px 0">⛪ 교역자는 지역 구분이 없는 단일 조직입니다.</div>
-      ` : `
-        ${top1 ? `
-          <div style="background:linear-gradient(90deg,#78350F,#B45309);border-radius:14px;padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:16px">
-            <div style="font-size:44px;line-height:1">🥇</div>
-            <div>
-              <div style="font-size:14px;color:#FDE68A;font-weight:700">${esc(dept)} 1위</div>
-              <div style="font-size:26px;font-weight:900;color:#FFFBEB">${esc(top1.region)}</div>
-              <div style="font-size:16px;color:#FDE68A">이번 달 활동 ${top1.count}건</div>
-            </div>
-          </div>
-        ` : `<div style="font-size:15px;color:#64748B;margin-bottom:14px">이번 달 활동 데이터가 없습니다.</div>`}
-        <div style="font-size:20px;font-weight:900;margin-bottom:12px">🗺️ 지역별 전도 현황 (상담1 이상)</div>
-        ${regionItems.length ? stageBarChartHtml(regionItems, { clickable: false, labelWidth: 90 }) : `<div style="font-size:15px;color:#64748B;text-align:center;padding:20px 0">지역별 데이터가 없습니다.</div>`}
-      `}
-    </div>
-    <div class="grid gap-5" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
-      ${numberCardHtml('🎯', `지난달(${(d.prevMonth || '').split('-')[1] || ''}월) 센터 인도 현황`, centerPrev, '#FBBF24')}
-      ${numberCardHtml('📖', '이번 달 복음방 현황', (deptGospel && deptGospel.gospel) || 0, '#34D399')}
-    </div>
-  `;
-}
-
-// ============ 화면 조립 ============
-function render() {
-  const root = document.getElementById('root');
-  if (state.loading) {
-    root.innerHTML = headerHtml() + `<div style="text-align:center;padding:80px 0;font-size:18px;color:#64748B">불러오는 중...</div>`;
-    return;
-  }
-  if (state.error || !state.data) {
-    root.innerHTML = headerHtml() + `<div style="text-align:center;padding:80px 0;font-size:18px;color:#F87171">⚠️ ${esc(state.error || '데이터를 불러오지 못했습니다.')}</div>`;
-    return;
-  }
-  const d = state.data;
-  root.innerHTML = `
-    ${headerHtml()}
-    ${state.view === 'main' ? mainViewHtml(d) : deptViewHtml(d)}
-  `;
-  document.querySelectorAll('.stage-bar-row[data-key]').forEach(row => {
-    row.onclick = () => openDept(row.dataset.key);
-  });
-  document.querySelectorAll('.rank-tab-btn').forEach(btn => {
-    btn.onclick = () => openDept(btn.dataset.dept);
-  });
-  const backBtn = document.getElementById('btn-back-main');
-  if (backBtn) backBtn.onclick = backToMain;
-}
-
-// 실시간 시계 — 1초마다 헤더의 시계 텍스트만 갱신(전체 재렌더 안 함).
-setInterval(() => {
+  const dateEl = document.getElementById('display-date');
   const clockEl = document.getElementById('display-clock');
-  if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-  state.secondsLeft = Math.max(0, state.secondsLeft - 1);
-  const cdEl = document.getElementById('display-countdown');
-  if (cdEl) {
-    const mm = String(Math.floor(state.secondsLeft / 60)).padStart(2, '0');
-    const ss = String(state.secondsLeft % 60).padStart(2, '0');
-    cdEl.textContent = `${mm}:${ss}`;
-  }
-}, 1000);
-
-// 5분마다 전체 새로고침(스펙 명시) — location.reload()로 페이지 자체를 새로 불러와 캐시/메모리 누수 없이 깔끔하게 갱신.
-setTimeout(() => location.reload(), REFRESH_SECONDS * 1000);
-
-load();
+  if (dateEl) dateEl.textContent = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  if (clockEl) clockEl.textContent = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+}
+updateClock();
+setInterval(updateClock, 1000);
 </script>
 </body>
 </html>
