@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="jesagil">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제사장의 길 - 개강 관리</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 관리자 화면과 동일 */
+  [data-theme="jesagil"] {
+    --p: 51.06% 0.2301 276.97; --pc: 100% 0 0;
+    --s: 66.58% 0.1574 58.32;  --sc: 100% 0 0;
+    --a: 59.60% 0.1274 163.23; --ac: 100% 0 0;
+    --n: 27.95% 0.0368 260.03; --nc: 96.70% 0.0029 264.54;
+    --b1: 100% 0 0; --b2: 96.70% 0.0029 264.54; --b3: 92.76% 0.0058 264.53;
+    --bc: 27.81% 0.0296 256.85;
+    --in: 68.47% 0.1479 237.32; --inc: 100% 0 0;
+    --su: 69.59% 0.1491 162.48; --suc: 100% 0 0;
+    --wa: 76.86% 0.1647 70.08;  --wac: 0% 0 0;
+    --er: 57.71% 0.2152 27.33;  --erc: 100% 0 0;
+    --rounded-box: 0.75rem; --rounded-btn: 0.5rem; --rounded-badge: 1rem;
+  }
+  html, body { margin:0; padding:0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); }
+  .section-card { border-radius: var(--rounded-box); overflow: hidden; }
+  .section-stripe { height: 6px; }
+</style>
+</head>
+<body class="bg-base-200 min-h-screen">
+<div id="root" class="max-w-4xl mx-auto min-h-screen bg-base-100 shadow-sm"></div>
+
+<script>
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
+
+// 개강 목표는 교역자 제외 4개 부서만(백엔드 OPENING_DEPTS와 동일 — 이 프로젝트의 "부서별" 화면
+// 관례상 교역자는 별도 목표 없이 제외됨).
+const OPENING_DEPTS = ['자문회', '장년회', '부녀회', '청년회'];
+const DEPT_ICON = { '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓' };
+const STATUS_BADGE = { danger: 'badge-error', warning: 'badge-warning', good: 'badge-success' };
+const STATUS_LABEL = { danger: '🔴 위험', warning: '🟡 주의', good: '🟢 양호' };
+const STATUS_ICON = { danger: '🔴', warning: '🟡', good: '🟢' };
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function pct(n) { return (n == null ? 0 : n) + '%'; }
+
+async function callApi(payload) {
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  return await res.json();
+}
+
+// 관리자 화면 공통 내비게이션 — 다른 관리자 파일들과 동일한 자리에 "🎯 개강 관리" 링크가 활성 표시됨.
+function mainNavHtml() {
+  return `
+    <div class="flex flex-wrap items-center gap-1.5 px-5 py-2 bg-base-200 border-b border-base-300">
+      <a href="admin-home.html" class="btn btn-xs btn-ghost">🔐 관리자 홈</a>
+      <a href="edu-dashboard.html" class="btn btn-xs btn-ghost">🎓 통합</a>
+      <a href="district-dashboard.html" class="btn btn-xs btn-ghost">🗺️ 부서별</a>
+      <a href="coach-dashboard.html" class="btn btn-xs btn-ghost">🎧 피드백</a>
+      <span class="btn btn-xs btn-primary pointer-events-none">🎯 개강 관리</span>
+      <a href="home.html" class="btn btn-xs btn-ghost ml-auto">🏃 교사 어플로 가기</a>
+    </div>
+  `;
+}
+
+function sectionCard(colorName, icon, title, subtitle, bodyHtml) {
+  return `
+    <div class="section-card bg-base-100 border border-base-300 shadow-sm mb-6">
+      <div class="section-stripe bg-${colorName}"></div>
+      <div class="p-5">
+        <div class="flex items-start gap-3 mb-4">
+          <div class="w-9 h-9 rounded-lg bg-${colorName}/10 text-${colorName} flex items-center justify-center text-lg shrink-0">${icon}</div>
+          <div>
+            <div class="text-base font-bold text-base-content">${title}</div>
+            ${subtitle ? `<div class="text-xs text-base-content/40 mt-0.5">${subtitle}</div>` : ''}
+          </div>
+        </div>
+        ${bodyHtml}
+      </div>
+    </div>
+  `;
+}
+
+let loading = true;
+let status = null;   // getOpeningStatus 응답
+let regionTab = OPENING_DEPTS[0];
+let regionData = {};  // dept -> getOpeningByRegion 응답 캐시
+let regionLoading = {};
+
+// 관리자 입력 폼 상태
+let configForm = null; // { date, church, 자문회, 장년회, 부녀회, 청년회 } — status 로드 후 채움
+let configSaving = false;
+let configNote = '';
+let candidateForm = { name: '', dept: OPENING_DEPTS[0], region: '', teacher: '' };
+let candidateSaving = false;
+let candidateNote = '';
+
+async function load() {
+  loading = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getOpeningStatus' });
+    if (res && res.error) throw new Error(res.error);
+    status = res;
+    configForm = {
+      date: status.openingDate || '',
+      church: status.churchTarget || 0,
+      '자문회': 0, '장년회': 0, '부녀회': 0, '청년회': 0
+    };
+    (status.depts || []).forEach(d => { configForm[d.dept] = d.target; });
+  } catch (e) {
+    status = { error: String(e.message || e) };
+  }
+  loading = false;
+  render();
+  loadRegion(regionTab);
+}
+
+async function loadRegion(dept) {
+  if (regionData[dept] || regionLoading[dept]) { render(); return; }
+  regionLoading[dept] = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getOpeningByRegion', dept });
+    regionData[dept] = (res && !res.error) ? res : { error: (res && res.error) || '불러오기 실패' };
+  } catch (e) {
+    regionData[dept] = { error: String(e) };
+  }
+  regionLoading[dept] = false;
+  render();
+}
+function switchRegionTab(dept) {
+  regionTab = dept;
+  loadRegion(dept);
+}
+
+// ============ 상단 D-day ============
+function ddaySectionHtml() {
+  const s = status;
+  const ddayText = s.dday == null ? '미설정' : (s.dday > 0 ? `D-${s.dday}` : (s.dday === 0 ? 'D-DAY' : `D+${Math.abs(s.dday)}`));
+  return `
+    <div class="rounded-box p-6 mb-6 text-center" style="background:linear-gradient(135deg,#4C1D95,#6D28D9)">
+      <div class="text-white/70 text-sm font-bold mb-1">🎯 개강까지</div>
+      <div class="text-white font-black" style="font-size:52px;line-height:1.1">${esc(ddayText)}</div>
+      <div class="text-white/80 text-sm mt-2">${esc(s.nextOpeningDate || s.openingDate || '개강일이 아직 설정되지 않았습니다')}</div>
+      <div class="text-white/40 text-[11px] mt-1">매월 마지막 주 기준으로 자동 갱신됩니다</div>
+    </div>
+  `;
+}
+
+// ============ 교회 전체 달성률 ============
+function churchProgressHtml() {
+  const s = status;
+  const rate = Math.min(100, s.churchRate || 0);
+  return sectionCard('primary', '🏛️', '교회 전체 달성률', '상담1 이상 + 복음방 단계 대상자 기준(중복 제거)', `
+    <div class="flex items-end justify-between mb-2">
+      <div class="text-sm text-base-content/60">목표 <b class="text-base-content">${s.churchTarget || 0}명</b> 중 현재 <b class="text-primary text-lg">${s.churchCurrent || 0}명</b></div>
+      <div class="text-2xl font-black ${s.churchRate >= 50 ? 'text-success' : s.churchRate >= 30 ? 'text-warning' : 'text-error'}">${pct(s.churchRate || 0)}</div>
+    </div>
+    <progress class="progress progress-primary w-full h-4" value="${rate}" max="100"></progress>
+    ${!s.churchTarget ? `<div class="text-[11px] text-base-content/40 mt-2">⚠️ 교회 전체 목표가 아직 설정되지 않았습니다 — 아래 "관리자 설정"에서 입력해주세요.</div>` : ''}
+    <div class="text-[11px] text-base-content/40 mt-2">전도부 확정자 등록 ${s.candidatesConfirmed || 0}명(별도 참고용, 위 달성률에는 미반영)</div>
+  `);
+}
+
+// ============ 부서별 달성률 표 ============
+function deptTableHtml() {
+  const rows = status.depts || [];
+  return sectionCard('secondary', '🏢', '부서별 달성률', '자문회·장년회·부녀회·청년회', `
+    <div class="overflow-x-auto border border-base-300 rounded-box">
+      <table class="table table-zebra table-sm">
+        <thead><tr><th>부서</th><th>목표</th><th>현재</th><th>달성률</th><th>상태</th></tr></thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td class="font-bold">${DEPT_ICON[r.dept] || ''} ${esc(r.dept)}</td>
+              <td>${r.target}명</td>
+              <td class="font-bold text-primary">${r.current}명</td>
+              <td>${r.target ? pct(r.rate) : '-'}</td>
+              <td>${r.target ? `<span class="badge ${STATUS_BADGE[r.status]} badge-sm">${STATUS_LABEL[r.status]}</span>` : `<span class="text-xs text-base-content/30">목표 미설정</span>`}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `);
+}
+
+// ============ 지역별 달성률 + AI 진단(임계값 기반) ============
+function regionSectionHtml() {
+  const data = regionData[regionTab];
+  const isLoading = regionLoading[regionTab];
+  return sectionCard('accent', '🗺️', '지역별 달성률', '부서를 선택하면 그 부서 소속 지역별 달성 현황을 볼 수 있습니다', `
+    <div class="tabs tabs-boxed mb-4 inline-flex">
+      ${OPENING_DEPTS.map(d => `<a class="tab tab-sm opening-region-tab ${regionTab === d ? 'tab-active' : ''}" data-dept="${esc(d)}">${DEPT_ICON[d] || ''} ${esc(d)}</a>`).join('')}
+    </div>
+    ${isLoading ? `<div class="text-xs text-base-content/40 text-center py-8"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`
+      : !data ? ''
+        : data.error ? `<div class="alert alert-error py-2 text-sm">⚠️ ${esc(data.error)}</div>`
+          : data.rows.length === 0 ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">이 부서는 아직 지역별 대상자 데이터가 없습니다.</div>`
+            : `
+              <div class="text-xs text-base-content/40 mb-3">${esc(regionTab)} 목표 ${data.deptTarget}명 ÷ ${data.rows.length}개 지역 = 지역별 목표 약 ${data.perRegionTarget}명(균등 배분)</div>
+              ${data.urgent.length ? `
+                <div class="alert alert-error py-3 mb-4">
+                  <div>
+                    <div class="font-bold text-sm mb-1">🚨 빨리 올라와야 할 지역</div>
+                    <div class="text-sm">${data.urgent.map(r => `${esc(r.region)}(${pct(r.rate)})`).join(', ')}</div>
+                  </div>
+                </div>` : ''}
+              <div class="flex flex-col gap-2">
+                ${data.rows.map(r => `
+                  <div class="flex items-center gap-3">
+                    <div class="w-16 text-sm font-bold shrink-0">${esc(r.region)}</div>
+                    <div class="flex-1 bg-base-200 rounded-full h-5 overflow-hidden">
+                      <div class="h-full rounded-full ${r.status === 'good' ? 'bg-success' : r.status === 'warning' ? 'bg-warning' : 'bg-error'}" style="width:${Math.min(100, r.rate)}%"></div>
+                    </div>
+                    <div class="w-14 text-right text-sm font-bold">${pct(r.rate)}</div>
+                    <div class="w-8 text-center">${STATUS_ICON[r.status]}</div>
+                    <div class="w-20 text-right text-xs text-base-content/40">${r.current}/${r.target}명</div>
+                  </div>`).join('')}
+              </div>
+            `}
+  `);
+}
+
+// ============ 관리자 입력 — 개강일·목표 설정 ============
+function configFormHtml() {
+  const f = configForm;
+  if (!f) return '';
+  return sectionCard('warning', '⚙️', '개강일·목표 설정', '전체 항목을 한 번에 저장합니다', `
+    <div class="grid sm:grid-cols-2 gap-3 mb-3">
+      <div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">개강일</div>
+        <input id="opcfg-date" type="date" class="input input-bordered input-sm w-full" value="${esc(f.date)}">
+      </div>
+      <div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">교회 전체 목표</div>
+        <input id="opcfg-church" type="number" min="0" class="input input-bordered input-sm w-full" value="${f.church}">
+      </div>
+      ${OPENING_DEPTS.map(d => `
+        <div>
+          <div class="text-xs font-bold text-base-content/50 mb-1">${DEPT_ICON[d] || ''} ${esc(d)} 목표</div>
+          <input id="opcfg-dept-${esc(d)}" type="number" min="0" class="input input-bordered input-sm w-full" value="${f[d]}">
+        </div>`).join('')}
+    </div>
+    <button id="opcfg-submit" class="btn btn-warning btn-sm" ${configSaving ? 'disabled' : ''}>${configSaving ? '저장 중...' : '저장'}</button>
+    ${configNote ? `<div class="text-xs mt-2 font-bold ${configNote.startsWith('⚠️') ? 'text-error' : 'text-success'}">${esc(configNote)}</div>` : ''}
+  `);
+}
+
+// ============ 관리자 입력 — 전도부 확정자 등록 ============
+function candidateFormHtml() {
+  const f = candidateForm;
+  return sectionCard('info', '✅', '전도부 확정자 등록', '이름 + 담당 교사 + 지역 + 부서 (이름은 저장 시 자동 마스킹됩니다)', `
+    <div class="grid sm:grid-cols-2 gap-3 mb-3">
+      <div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">이름</div>
+        <input id="opcand-name" type="text" class="input input-bordered input-sm w-full" placeholder="예: 홍길동" value="${esc(f.name)}">
+      </div>
+      <div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">부서</div>
+        <select id="opcand-dept" class="select select-bordered select-sm w-full">
+          ${OPENING_DEPTS.map(d => `<option value="${esc(d)}" ${f.dept === d ? 'selected' : ''}>${DEPT_ICON[d] || ''} ${esc(d)}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">지역</div>
+        <input id="opcand-region" type="text" class="input input-bordered input-sm w-full" placeholder="예: 3지역" value="${esc(f.region)}">
+      </div>
+      <div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">담당 교사</div>
+        <input id="opcand-teacher" type="text" class="input input-bordered input-sm w-full" placeholder="예: 김OO" value="${esc(f.teacher)}">
+      </div>
+    </div>
+    <button id="opcand-submit" class="btn btn-info btn-sm" ${candidateSaving ? 'disabled' : ''}>${candidateSaving ? '등록 중...' : '등록'}</button>
+    ${candidateNote ? `<div class="text-xs mt-2 font-bold ${candidateNote.startsWith('⚠️') ? 'text-error' : 'text-success'}">${esc(candidateNote)}</div>` : ''}
+  `);
+}
+
+async function submitConfig() {
+  configSaving = true; configNote = '';
+  render();
+  const targets = { church: Number(configForm.church) || 0 };
+  OPENING_DEPTS.forEach(d => { targets[d] = Number(configForm[d]) || 0; });
+  try {
+    const res = await callApi({ action: 'setOpeningConfig', date: configForm.date, targets });
+    if (res && res.error) throw new Error(res.error);
+    status = res;
+    configNote = '✅ 저장되었습니다.';
+  } catch (e) {
+    configNote = '⚠️ 저장 실패: ' + (e.message || e);
+  }
+  configSaving = false;
+  render();
+}
+
+async function submitCandidate() {
+  const f = candidateForm;
+  if (!f.name.trim()) { alert('이름을 입력해주세요.'); return; }
+  candidateSaving = true; candidateNote = '';
+  render();
+  try {
+    const res = await callApi({ action: 'addOpeningCandidate', name: f.name.trim(), dept: f.dept, region: f.region.trim(), teacher: f.teacher.trim() });
+    if (res && res.error) throw new Error(res.error);
+    candidateNote = `✅ ${f.name} 님을 등록했습니다.`;
+    candidateForm = { name: '', dept: f.dept, region: '', teacher: '' };
+    load(); // candidatesConfirmed 등 상태 갱신
+  } catch (e) {
+    candidateNote = '⚠️ 등록 실패: ' + (e.message || e);
+  }
+  candidateSaving = false;
+  render();
+}
+
+// ============ 화면 조립 ============
+function render() {
+  const root = document.getElementById('root');
+  root.innerHTML = `
+    <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
+      <div class="flex-1 flex items-center gap-2">
+        <span class="text-xl leading-none">🎯</span>
+        <div class="text-lg font-bold">개강 관리</div>
+      </div>
+    </div>
+    <div class="brand-accent-bar"></div>
+    ${mainNavHtml()}
+    <div class="p-5" id="content"></div>
+  `;
+  const content = document.getElementById('content');
+  if (loading) {
+    content.innerHTML = `<div class="text-sm text-base-content/40 text-center py-20"><span class="loading loading-spinner loading-md align-middle mr-2"></span>데이터 불러오는 중...</div>`;
+    return;
+  }
+  if (status.error) {
+    content.innerHTML = `<div class="alert alert-error py-2 text-sm">⚠️ ${esc(status.error)}</div>`;
+    return;
+  }
+  content.innerHTML = ddaySectionHtml() + churchProgressHtml() + deptTableHtml() + regionSectionHtml() + configFormHtml() + candidateFormHtml();
+
+  document.querySelectorAll('.opening-region-tab').forEach(tab => {
+    tab.onclick = () => switchRegionTab(tab.dataset.dept);
+  });
+  const cfgDate = document.getElementById('opcfg-date');
+  if (cfgDate) cfgDate.onchange = (e) => { configForm.date = e.target.value; };
+  const cfgChurch = document.getElementById('opcfg-church');
+  if (cfgChurch) cfgChurch.onchange = (e) => { configForm.church = e.target.value; };
+  OPENING_DEPTS.forEach(d => {
+    const el = document.getElementById('opcfg-dept-' + d);
+    if (el) el.onchange = (e) => { configForm[d] = e.target.value; };
+  });
+  const cfgSubmit = document.getElementById('opcfg-submit');
+  if (cfgSubmit) cfgSubmit.onclick = submitConfig;
+
+  const candName = document.getElementById('opcand-name');
+  if (candName) candName.oninput = (e) => { candidateForm.name = e.target.value; };
+  const candDept = document.getElementById('opcand-dept');
+  if (candDept) candDept.onchange = (e) => { candidateForm.dept = e.target.value; };
+  const candRegion = document.getElementById('opcand-region');
+  if (candRegion) candRegion.oninput = (e) => { candidateForm.region = e.target.value; };
+  const candTeacher = document.getElementById('opcand-teacher');
+  if (candTeacher) candTeacher.oninput = (e) => { candidateForm.teacher = e.target.value; };
+  const candSubmit = document.getElementById('opcand-submit');
+  if (candSubmit) candSubmit.onclick = submitCandidate;
+}
+
+load();
+</script>
+</body>
+</html>
