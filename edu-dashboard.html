@@ -307,8 +307,11 @@ const REGION_PALETTE = ['#4f46e5', '#0ea5e9', '#059669', '#d97706', '#dc2626', '
 let weeklyTrendTab = WEEKLY_TREND_DEPTS[0];
 let weeklyTrendByDept = {};    // dept -> getWeeklyTrend 응답({weekLabels,regions,byRegion,isSample}) 캐시
 let weeklyTrendLoading = {};   // dept -> true(로딩중)
-// 2026-09-19: 버튼(단일선택, 강조/흐림)에서 체크박스(다중선택, 완전 숨김)로 변경(사용자 요청) —
-// 빈 배열 []이면 전체 지역 표시, 하나 이상 체크하면 체크된 지역만 표시(나머지는 그래프에서 제외).
+// 2026-09-19: 버튼(단일선택, 강조/흐림)→체크박스(다중선택, 완전 숨김)로 변경했다가, 같은 날
+// "지역이 12개까지 있는데 하나하나 체크/해제하기 번거롭다"는 피드백으로 재수정 — 이제 이 배열은
+// "현재 화면에 표시할 지역 목록"을 그대로 담는다(빈 배열 = 아무 선도 안 보임, 예전처럼 "전체"를
+// 뜻하지 않음). 데이터 로드 시 기본값으로 전체 지역을 채워 넣어 처음엔 다 보이게 하고, 지역
+// 체크박스 위의 "전체" 마스터 체크박스로 한 번에 전부 켜고/끌 수 있게 함(아래 wireSettlementFilters).
 let weeklyTrendRegionFilter = [];
 // 2026-09-19: "모두 보기/모두 닫기" — 기본은 그래프별 전체 합산 한 줄만, 눌러야 지역별 개별 선이 펼쳐짐.
 let weeklyTrendShowAllGospel = false;
@@ -316,12 +319,20 @@ let weeklyTrendShowAllCenter = false;
 let weeklyGospelChart = null, weeklyCenterChart = null; // Chart.js 인스턴스 — 다시 그리기 전 destroy
 
 async function loadWeeklyTrendForDept(dept) {
-  if (weeklyTrendByDept[dept] || weeklyTrendLoading[dept]) { render(); return; }
+  if (weeklyTrendByDept[dept]) {
+    if (weeklyTrendTab === dept) weeklyTrendRegionFilter = (weeklyTrendByDept[dept].regions || []).slice();
+    render();
+    return;
+  }
+  if (weeklyTrendLoading[dept]) { render(); return; }
   weeklyTrendLoading[dept] = true;
   render();
   try {
     const res = await callApi({ action: 'getWeeklyTrend', dept, weeks: 12 });
     weeklyTrendByDept[dept] = (res && !res.error) ? res : { error: (res && res.error) || '불러오기 실패' };
+    // 처음 로드되면 기본값으로 전체 지역을 다 보이게(빈 배열=전부 안 보임과 헷갈리지 않도록).
+    // 다른 탭으로 넘어간 사이 응답이 늦게 와도 지금 보고 있는 탭일 때만 필터를 채운다.
+    if (weeklyTrendTab === dept && res && !res.error && res.regions) weeklyTrendRegionFilter = res.regions.slice();
   } catch (e) {
     weeklyTrendByDept[dept] = { error: String(e) };
   }
@@ -330,19 +341,20 @@ async function loadWeeklyTrendForDept(dept) {
 }
 function switchWeeklyTrendTab(dept) {
   weeklyTrendTab = dept;
-  weeklyTrendRegionFilter = []; // 부서를 바꾸면 이전 부서의 지역 필터는 의미가 없으므로 초기화
   weeklyTrendShowAllGospel = false;
   weeklyTrendShowAllCenter = false;
+  const cached = weeklyTrendByDept[dept];
+  weeklyTrendRegionFilter = (cached && cached.regions) ? cached.regions.slice() : [];
   loadWeeklyTrendForDept(dept);
 }
 
-// 모두보기/닫기 토글 버튼 1쌍(HTML) — key는 'gospel'|'centerLead', dataKey로 어느 그래프인지 구분.
+// 2026-09-19: 버튼 문구를 기능이 바로 드러나게 변경(사용자 요청) — "모두 닫기"→"OO회 전체 보기"
+// (부서 전체 합산 1줄), "모두 보기"→"지역별 보기"(지역별 개별 선 + 아래 지역 체크박스 노출).
 function showAllToggleHtml(dataKey, showAll) {
   return `
     <div class="flex items-center gap-1.5 mb-2">
-      <button class="btn btn-xs weeklytrend-showall-btn ${showAll ? 'btn-outline' : 'btn-primary'}" data-key="${dataKey}" data-showall="0">모두 닫기</button>
-      <button class="btn btn-xs weeklytrend-showall-btn ${showAll ? 'btn-primary' : 'btn-outline'}" data-key="${dataKey}" data-showall="1">모두 보기</button>
-      <span class="text-[11px] text-base-content/40 ml-1">${showAll ? '지역별 개별 선 표시 중' : `${esc(weeklyTrendTab)} 전체 합산 1줄만 표시 중`}</span>
+      <button class="btn btn-xs weeklytrend-showall-btn ${showAll ? 'btn-outline' : 'btn-primary'}" data-key="${dataKey}" data-showall="0">${esc(weeklyTrendTab)} 전체 보기</button>
+      <button class="btn btn-xs weeklytrend-showall-btn ${showAll ? 'btn-primary' : 'btn-outline'}" data-key="${dataKey}" data-showall="1">지역별 보기</button>
     </div>
   `;
 }
@@ -376,18 +388,22 @@ function weeklyTrendSectionHtml() {
                 <div style="height:260px"><canvas id="chart-weekly-center"></canvas></div>
               </div>
             </div>
-            ${anyExpanded ? `
-            <div class="flex items-center gap-2 mb-1.5">
-              <div class="text-xs font-bold text-base-content/50">지역 필터 — 체크한 지역만 표시됩니다(미체크 시 전체 표시, 모두 보기 중인 그래프에 적용)</div>
-              ${weeklyTrendRegionFilter.length > 0 ? `<button class="weeklytrend-region-clear text-[11px] text-primary underline">전체 보기로 되돌리기</button>` : ''}
-            </div>
+            ${anyExpanded ? (() => {
+              const allChecked = regions.length > 0 && regions.every(r => weeklyTrendRegionFilter.includes(r));
+              return `
+            <div class="text-xs font-bold text-base-content/50 mb-1.5">지역 필터 — 체크한 지역만 표시됩니다(모두 보기 중인 그래프에 적용). "전체"를 체크하면 한 번에 전부 켜지고, 해제하면 한 번에 전부 꺼집니다.</div>
             <div class="flex flex-wrap gap-x-3 gap-y-1.5">
+              <label class="flex items-center gap-1 text-xs cursor-pointer font-bold text-primary">
+                <input type="checkbox" class="checkbox checkbox-xs checkbox-primary weeklytrend-region-all" ${allChecked ? 'checked' : ''}>
+                전체
+              </label>
               ${regions.map(r => `
                 <label class="flex items-center gap-1 text-xs cursor-pointer">
                   <input type="checkbox" class="checkbox checkbox-xs weeklytrend-region-check" data-region="${esc(r)}" ${weeklyTrendRegionFilter.includes(r) ? 'checked' : ''}>
                   ${esc(r)}
                 </label>`).join('')}
-            </div>` : ''}
+            </div>`;
+            })() : ''}
           `}
   `;
 }
@@ -427,10 +443,12 @@ function renderWeeklyTrendCharts() {
     data: data.weekLabels.map((_, wi) => regions.reduce((s, r) => s + (data.byRegion[r][key][wi] || 0), 0)),
     borderColor: color, backgroundColor: 'transparent', borderWidth: 3, pointRadius: 3, tension: 0.3
   });
-  // 2026-09-19: 체크박스 다중선택 — 체크된 지역이 있으면 그 지역들만(완전 숨김), 없으면 전체 표시.
+  // 2026-09-19: 체크박스 다중선택 — weeklyTrendRegionFilter에 담긴 지역만 표시(빈 배열=아무 선도
+  // 없음). 데이터 로드 시 기본으로 전체 지역이 채워지므로 평소엔 다 보이고, "전체" 마스터 체크박스로
+  // 한 번에 전부 켜고/끌 수 있음.
   const buildRegionDatasets = (key) => regions
     .map((r, i) => ({ r, i }))
-    .filter(({ r }) => weeklyTrendRegionFilter.length === 0 || weeklyTrendRegionFilter.includes(r))
+    .filter(({ r }) => weeklyTrendRegionFilter.includes(r))
     .map(({ r, i }) => {
       const color = REGION_PALETTE[i % REGION_PALETTE.length];
       return {
@@ -1321,8 +1339,12 @@ function wireSettlementFilters() {
       render();
     };
   });
-  document.querySelectorAll('.weeklytrend-region-clear').forEach(btn => {
-    btn.onclick = () => { weeklyTrendRegionFilter = []; render(); };
+  document.querySelectorAll('.weeklytrend-region-all').forEach(cb => {
+    cb.onchange = () => {
+      const regions = (weeklyTrendByDept[weeklyTrendTab] || {}).regions || [];
+      weeklyTrendRegionFilter = cb.checked ? regions.slice() : [];
+      render();
+    };
   });
   document.querySelectorAll('.weeklytrend-showall-btn').forEach(btn => {
     btn.onclick = () => {
