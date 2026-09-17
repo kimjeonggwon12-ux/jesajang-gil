@@ -8,9 +8,26 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 관리자 화면과 동일 */
+  :root {
+    --color-primary: #5B4FCF;
+    --color-primary-light: #EDE9FF;
+    --color-bg: #F5F5F5;
+    --color-card: #FFFFFF;
+    --color-text: #222222;
+    --color-text-sub: #888888;
+    --color-border: #EEEEEE;
+    --radius-card: 16px;
+    --radius-btn: 12px;
+    --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  .kko-card-in { animation: kkoCardIn .3s ease; }
+  @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .kko-fade-in { animation: kkoFadeIn .2s ease; }
+  @keyframes kkoFadeIn { from { opacity:0; } to { opacity:1; } }
+
+  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 관리자 화면과 동일, primary는 카카오톡 보라(#5B4FCF)로 통일 */
   [data-theme="jesagil"] {
-    --p: 51.06% 0.2301 276.97; --pc: 100% 0 0;
+    --p: 51.43% 0.1901 281.61; --pc: 100% 0 0;
     --s: 66.58% 0.1574 58.32;  --sc: 100% 0 0;
     --a: 59.60% 0.1274 163.23; --ac: 100% 0 0;
     --n: 27.95% 0.0368 260.03; --nc: 96.70% 0.0029 264.54;
@@ -23,8 +40,20 @@
     --rounded-box: 0.75rem; --rounded-btn: 0.5rem; --rounded-badge: 1rem;
   }
   html, body { margin:0; padding:0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; background: var(--color-bg); }
   .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); }
+
+  /* 카카오톡 스타일 헤더 — 56px 보라 */
+  .kko-header { height:56px; min-height:56px; display:flex; align-items:center; background:var(--color-primary); color:#fff; padding:0 20px; }
+
+  /* 기존 DaisyUI .card.card-border 요소(요약/지역별/부서 카드 등)를 카카오톡 카드 룩(흰 배경+그림자+radius 16px)으로 통일 */
+  .card-border { border-width: 0 !important; border-radius: var(--radius-card) !important; box-shadow: var(--shadow-card) !important; }
+
+  /* 지역별 표 — 카드형(흰 배경+그림자) 래퍼. overflow는 강제하지 않음(가로 스크롤 표의 sticky 헤더/열 유지 목적) */
+  .kko-table-card { background: var(--color-card); border-radius: var(--radius-card); box-shadow: var(--shadow-card); border: none; }
+
+  /* 표 행 hover — 연보라 배경 */
+  .table tbody tr:hover, .table tbody tr:hover td { background: var(--color-primary-light) !important; }
 </style>
 </head>
 <body class="bg-base-200 min-h-screen">
@@ -333,7 +362,7 @@ function teacherListSectionHtml() {
     ${teacherListFilterHtml()}
     <div class="px-4 pt-3 text-xs text-base-content/40">${rows.length}명</div>
     <div class="px-4 pt-1 pb-4">
-      <div class="overflow-x-auto border border-base-300 rounded-box">
+      <div class="overflow-x-auto kko-table-card kko-card-in">
         <table class="table table-zebra table-sm">
           <thead class="sticky top-0 bg-base-100"><tr><th>이름</th><th>부서</th><th>지역</th><th>등급</th><th>직책</th></tr></thead>
           <tbody>
@@ -459,7 +488,7 @@ function mvpCardHtml(allRows) {
   const top = allRows.reduce((best, r) => (!best || r.monthlyCount > best.monthlyCount) ? r : best, null);
   if (!top || !top.monthlyCount) return ''; // 이번 달 활동이 전무하면(전부 0건) MVP를 뽑지 않음
   return `
-    <div class="mx-4 mt-3 rounded-box p-3 flex items-center gap-3" style="background:linear-gradient(90deg,#FDE68A,#FBBF24)">
+    <div class="mx-4 mt-3 kko-card-in p-3 flex items-center gap-3" style="background:linear-gradient(90deg,#FDE68A,#FBBF24);border-radius:var(--radius-card);box-shadow:var(--shadow-card)">
       <div style="font-size:30px;line-height:1">🥇</div>
       <div class="flex-1">
         <div class="text-[11px] font-bold" style="color:#78350F">이번 달 MVP</div>
@@ -516,7 +545,7 @@ function orgSummarySectionHtml() {
         ${orgs.map(o => {
           const tc = o.tierCounts || {};
           return `
-          <button class="btn-org-card card card-border bg-base-100 shadow-sm text-left hover:shadow-md hover:-translate-y-0.5 transition-all" data-dept="${esc(o.dept)}">
+          <button class="btn-org-card card card-border kko-card-in bg-base-100 shadow-sm text-left hover:shadow-md hover:-translate-y-0.5 transition-all" data-dept="${esc(o.dept)}">
             <div class="card-body p-4">
               <div class="flex items-center gap-2 mb-2">
                 <span class="text-xl">${DEPT_ICON[o.dept] || '📁'}</span>
@@ -597,25 +626,27 @@ function byRegionSectionHtml(byRegion) {
 
 function byRegionTableHtml(byRegion) {
   return `
-    <div class="overflow-x-auto border border-base-300 rounded-box">
-      <table class="table table-zebra table-sm">
-        <thead class="sticky top-0 bg-base-100"><tr>
-          <th>지역</th><th>총 교사</th>
-          ${TIER_ORDER.map(t => `<th>${esc(t)}</th>`).join('')}
-          <th>활동자</th><th>이번 달 활동</th><th>승급 대상</th>
-        </tr></thead>
-        <tbody>
-          ${byRegion.map(r => `
-            <tr>
-              <td class="font-medium">${esc(regionOnlyLabel(state.dept, r.region))}</td>
-              <td>${r.totalTeachers}명</td>
-              ${TIER_ORDER.map(t => `<td class="text-xs whitespace-nowrap">${(r.tierCounts[t]||0)}명 <span class="text-base-content/40">(${pct(r.tierCounts[t]||0, r.totalTeachers)}%)</span></td>`).join('')}
-              <td>${r.activeCount}명</td>
-              <td>${r.monthlyActivityCount}건</td>
-              <td class="${r.promotionCount ? 'text-success font-bold' : ''}">${r.promotionCount}명</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
+    <div class="kko-table-card kko-card-in">
+      <div class="overflow-x-auto">
+        <table class="table table-zebra table-sm">
+          <thead class="sticky top-0 bg-base-100"><tr>
+            <th>지역</th><th>총 교사</th>
+            ${TIER_ORDER.map(t => `<th>${esc(t)}</th>`).join('')}
+            <th>활동자</th><th>이번 달 활동</th><th>승급 대상</th>
+          </tr></thead>
+          <tbody>
+            ${byRegion.map(r => `
+              <tr>
+                <td class="font-medium">${esc(regionOnlyLabel(state.dept, r.region))}</td>
+                <td>${r.totalTeachers}명</td>
+                ${TIER_ORDER.map(t => `<td class="text-xs whitespace-nowrap">${(r.tierCounts[t]||0)}명 <span class="text-base-content/40">(${pct(r.tierCounts[t]||0, r.totalTeachers)}%)</span></td>`).join('')}
+                <td>${r.activeCount}명</td>
+                <td>${r.monthlyActivityCount}건</td>
+                <td class="${r.promotionCount ? 'text-success font-bold' : ''}">${r.promotionCount}명</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
     </div>
   `;
 }
@@ -686,7 +717,7 @@ function roleActivitySectionHtml(byRegion, roleActivityCounts) {
         <div class="border border-base-300 rounded-box p-2 text-center"><div class="text-[10px] text-base-content/40">섬김이</div><div class="text-lg font-black text-secondary">${total.섬김이 || 0}건</div></div>
         <div class="border border-base-300 rounded-box p-2 text-center"><div class="text-[10px] text-base-content/40">협력</div><div class="text-lg font-black text-warning">${total.협력교사 || 0}건</div></div>
       </div>
-      <div class="overflow-x-auto border border-base-300 rounded-box">
+      <div class="overflow-x-auto kko-table-card kko-card-in">
         <table class="table table-zebra table-sm">
           <thead class="sticky top-0 bg-base-100"><tr><th>지역</th><th>인도자</th><th>교사</th><th>섬김이</th><th>협력</th></tr></thead>
           <tbody>
@@ -793,7 +824,7 @@ function activityAnalysisTableHtml(analysis) {
     return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">이번 달 활동 기록이 없습니다.</div>`;
   }
   return `
-    <div class="overflow-x-auto border border-base-300 rounded-box">
+    <div class="overflow-x-auto kko-table-card kko-card-in">
       <table class="table table-zebra table-sm">
         <thead class="sticky top-0 bg-base-100"><tr>
           <th>지역</th><th>총 활동</th>
@@ -1093,7 +1124,7 @@ function roleActivityBreakdownTableHtml(b) {
   return `
     ${b.isSample ? `<div class="alert bg-warning/10 border border-warning/30 py-2 px-3 mb-2 text-[11px] text-warning-content">📊 지금 보고 계신 표/그래프는 <b>샘플(시연용) 데이터</b>입니다 — 실제 등록된 활동이 아닙니다.</div>` : ''}
     <div class="text-[10px] text-base-content/40 mb-1">💡 인도자·교사·섬김이·협력 열 헤더(합계)를 클릭하면 11개 세부 항목이 펼쳐집니다. 지역·총건수·강세항목 3열은 가로 스크롤해도 고정됩니다.</div>
-    <div class="overflow-x-auto border border-base-300 rounded-box">
+    <div class="overflow-x-auto kko-table-card kko-card-in">
       <table class="table table-zebra table-xs">
         <thead>
           <tr>
@@ -1144,7 +1175,7 @@ function roleActivityHeatmapHtml(b) {
   });
 
   return `
-    <div class="overflow-x-auto border border-base-300 rounded-box">
+    <div class="overflow-x-auto kko-table-card kko-card-in">
       <table class="table table-xs">
         <thead class="sticky top-0 bg-base-100"><tr>
           <th style="font-size:16px;font-weight:900">지역</th>
@@ -1397,7 +1428,7 @@ function tableHtml(rows) {
     </div>`;
   }
   return `
-    <div class="overflow-x-auto">
+    <div class="overflow-x-auto kko-table-card kko-card-in">
       <table class="table table-zebra table-sm">
         <thead class="sticky top-0 bg-base-100"><tr>
           <th>이름</th><th>지역</th><th>등급</th><th>이번 달 활동</th><th>승급·강등 조건 내역</th><th>승급·강등 제안</th>
@@ -1437,7 +1468,7 @@ function render() {
     : ((isDeptDetail && report) ? buildRoleActivityBreakdown(report) : null);
 
   root.innerHTML = `
-    <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
+    <div class="kko-header">
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">🗺️</span>
         <div class="text-lg font-bold">부서별</div>

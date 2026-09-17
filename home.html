@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>복음방 교사</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#5B4FCF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="복음방 교사">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -83,6 +89,29 @@
       100% { transform: translateY(0) scale(1); opacity: 1; }
     }
     .stage-up-drop { animation: stageUpDrop .55s cubic-bezier(.34,1.56,.64,1); }
+
+    /* 2026-09-17: 카카오톡 스타일 3단계 — 마이크로 애니메이션 + PWA 보조 UI (모든 파일 공통 클래스명) */
+    @keyframes kkoFadeIn { from { opacity:0; } to { opacity:1; } }
+    .kko-fade-in { animation: kkoFadeIn .2s ease; }
+    @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+    .kko-card-in { animation: kkoCardIn .3s ease; }
+    .kko-btn-main, .kko-btn-outline, #bottomTabBar .tab, #bottomTabBar .bottom-tab-settings > button, .coop-req-btn {
+      transition: transform .1s ease;
+    }
+    .kko-btn-main:active, .kko-btn-outline:active, .coop-req-btn:active { transform: scale(0.97); }
+    #bottomTabBar .tab.tab-active .tab-icon { animation: kkoTabBounce .2s ease; }
+    @keyframes kkoTabBounce { 0% { transform: translateY(0); } 40% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
+    @keyframes kkoShimmer { 0% { background-position:-200px 0; } 100% { background-position:200px 0; } }
+    .kko-skeleton { background:linear-gradient(90deg,#EEEEEE 25%,#F5F5F5 37%,#EEEEEE 63%); background-size:400px 100%; animation:kkoShimmer 1.4s ease infinite; border-radius:8px; }
+    .kko-spinner { width:36px; height:36px; border-radius:50%; border:3px solid #EDE9FF; border-top-color:#5B4FCF; animation:kkoSpin .7s linear infinite; display:inline-block; }
+    @keyframes kkoSpin { to { transform:rotate(360deg); } }
+    #kkoInstallToast {
+      position:fixed; left:16px; right:16px; z-index:60;
+      bottom:calc(72px + env(safe-area-inset-bottom, 0px));
+      background:#222222; color:#fff; border-radius:12px; padding:12px 14px;
+      font-size:12px; line-height:1.5; box-shadow:0 4px 16px rgba(0,0,0,0.25);
+      animation: kkoCardIn .3s ease;
+    }
   </style>
 </head>
 <body>
@@ -141,6 +170,11 @@
         </ul>
       </div>
     </nav>
+  </div>
+
+  <!-- 2026-09-17: iOS/안드로이드 홈화면 추가 안내 토스트 (localStorage로 최초 1회만) -->
+  <div id="kkoInstallToast" style="display:none">
+    <span id="kkoInstallToastText"></span>
   </div>
 
   <!-- 내 성장 박스 클릭 시 뜨는 승급 조건 상세 모달 -->
@@ -209,6 +243,30 @@
       document.getElementById('appPanel').style.display = 'flex';
       document.getElementById('greetName').textContent = name;
       switchTab('activity', document.querySelector('.tab[data-room="activity"]'));
+      showInstallToastIfNeeded();
+    }
+
+    // 2026-09-17: iOS/안드로이드 홈화면 추가 안내 — localStorage 키로 최초 1회만, 3초 후 자동 소멸.
+    function showInstallToastIfNeeded() {
+      try {
+        if (localStorage.getItem('kko_install_toast_shown')) return;
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const guide = isIOS ? '사파리: 공유 버튼 → 홈 화면에 추가' : '브라우저 메뉴 → 홈 화면에 추가';
+        const el = document.getElementById('kkoInstallToast');
+        const textEl = document.getElementById('kkoInstallToastText');
+        if (!el || !textEl) return;
+        textEl.textContent = `홈 화면에 추가하면 앱처럼 사용할 수 있어요! (${guide})`;
+        el.style.display = 'block';
+        localStorage.setItem('kko_install_toast_shown', '1');
+        setTimeout(() => { el.style.display = 'none'; }, 3000);
+      } catch (e) {}
+    }
+
+    // 2026-09-17: PWA service worker 등록(오프라인 기본화면 캐시).
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
     }
     // 옛 "🏠 홈" 버튼 자리를 대체(현재는 아무 곳에서도 호출하지 않지만, 외부 링크 호환을 위해 보존).
     function goHome() {
@@ -244,15 +302,20 @@
       const homeEl = document.getElementById('homeContent');
       const iframeEl = document.getElementById('content');
 
+      // 2026-09-17: 탭 전환 페이드인 — 매번 클래스 제거 후 리플로우해서 재트리거.
+      const retriggerFade = (el) => { el.classList.remove('kko-fade-in'); void el.offsetWidth; el.classList.add('kko-fade-in'); };
+
       if (room === 'activity') {
         iframeEl.style.display = 'none';
         homeEl.style.display = 'block';
+        retriggerFade(homeEl);
         loadHomeDashboard();
         return;
       }
 
       homeEl.style.display = 'none';
       iframeEl.style.display = 'block';
+      retriggerFade(iframeEl);
 
       const file = ROOM_FILES[room];
       if (!file) {
@@ -1312,11 +1375,12 @@
       `;
     }
 
-    // 프로필 사진 렌더 — 없으면 기본 아이콘.
-    function profilePhotoHtml(url, sizeCls) {
-      sizeCls = sizeCls || 'w-10 h-10';
+    // 프로필 사진 렌더 — 없으면 보라 원 + 이니셜(카카오톡 스타일).
+    function profilePhotoHtml(url, sizeCls, name) {
+      sizeCls = sizeCls || 'w-12 h-12';
       if (url) return `<img src="${esc(url)}" class="${sizeCls} rounded-full object-cover border border-base-300 shrink-0" alt="프로필 사진">`;
-      return `<div class="${sizeCls} rounded-full bg-base-200 text-base-content/30 flex items-center justify-center shrink-0" style="font-size:1.2em">👤</div>`;
+      const initial = name ? esc(String(name).trim().charAt(0)) : '👤';
+      return `<div class="${sizeCls} rounded-full flex items-center justify-center shrink-0 text-white font-bold" style="background:#5B4FCF;font-size:1.1em">${initial}</div>`;
     }
 
     function myProfileFormHtml() {
@@ -1384,18 +1448,18 @@
                           <div class="text-[10px] text-base-content/40 mb-2">${list.total}명 중 ${list.rows.length}명 표시 · 프로필을 등록한 교사만 검색됩니다</div>
                           <div class="flex flex-col gap-2">
                             ${list.rows.slice(0, 30).map(r => `
-                              <div class="border border-base-300 rounded-box p-2.5">
-                                <div class="flex items-start gap-2 mb-1.5">
-                                  ${profilePhotoHtml(r.photoUrl)}
+                              <div class="p-3 kko-card-in" style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
+                                <div class="flex items-start gap-2.5 mb-2">
+                                  ${profilePhotoHtml(r.photoUrl, 'w-12 h-12', r.name)}
                                   <div class="flex-1 min-w-0">
-                                    <div class="text-xs font-bold truncate">${esc(maskName(r.name))}</div>
-                                    <div class="text-[10px] text-base-content/40">${esc(r.dept || '-')} · ${esc(r.region || '-')}</div>
+                                    <div class="text-sm font-bold truncate" style="color:#222222">${esc(maskName(r.name))}</div>
+                                    <div class="text-[11px]" style="color:#888888">${esc(r.dept || '-')} · ${esc(r.region || '-')}</div>
                                   </div>
                                 </div>
-                                ${r.strengths ? `<div class="flex flex-wrap gap-1 mb-1">${r.strengths.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="badge badge-primary badge-outline badge-xs">${esc(t)}</span>`).join('')}</div>` : ''}
-                                ${r.tools ? `<div class="flex flex-wrap gap-1 mb-1.5">${r.tools.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="badge badge-secondary badge-outline badge-xs">${esc(t)}</span>`).join('')}</div>` : ''}
-                                ${r.intro ? `<div class="text-[10px] text-base-content/50 mb-1.5">"${esc(r.intro)}"</div>` : ''}
-                                <button class="coop-req-btn btn btn-xs btn-outline btn-primary w-full" data-mid="${esc(r.memberId)}" data-name="${esc(r.name)}">협력 요청하기</button>
+                                ${r.strengths ? `<div class="flex flex-wrap gap-1 mb-1">${r.strengths.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="text-[10px] font-bold px-2 py-1 rounded-full" style="background:#EDE9FF;color:#5B4FCF">${esc(t)}</span>`).join('')}</div>` : ''}
+                                ${r.tools ? `<div class="flex flex-wrap gap-1 mb-1.5">${r.tools.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="text-[10px] font-bold px-2 py-1 rounded-full" style="background:#EEEEEE;color:#888888">${esc(t)}</span>`).join('')}</div>` : ''}
+                                ${r.intro ? `<div class="text-[11px] mb-1.5" style="color:#888888">"${esc(r.intro)}"</div>` : ''}
+                                <button class="coop-req-btn kko-btn-outline w-full" data-mid="${esc(r.memberId)}" data-name="${esc(r.name)}">협력 요청하기</button>
                               </div>`).join('')}
                           </div>
                           ${list.rows.length > 30 ? `<div class="text-[10px] text-base-content/40 text-center mt-2">상위 30명만 표시됩니다 — 필터를 좁혀보세요.</div>` : ''}

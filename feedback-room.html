@@ -6,8 +6,58 @@
 <title>제사장의 길 - 피드백방</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  html, body { margin:0; padding:0; background:#f4f6f5; }
+  html, body { margin:0; padding:0; background:#F5F5F5; }
   * { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; }
+
+  /* 2026-09-17: 카카오톡 스타일 디자인 2단계 — home.html과 동일한 공통 토큰/컴포넌트 */
+  :root {
+    --color-primary: #5B4FCF;
+    --color-primary-light: #EDE9FF;
+    --color-bg: #F5F5F5;
+    --color-card: #FFFFFF;
+    --color-text: #222222;
+    --color-text-sub: #888888;
+    --color-border: #EEEEEE;
+    --radius-card: 16px;
+    --radius-btn: 12px;
+    --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
+    --height-btn: 52px;
+    --height-btn-sm: 44px;
+    --height-header: 56px;
+  }
+  .kko-header { height:var(--height-header); background:var(--color-primary); display:flex; align-items:center; gap:10px; padding:0 16px; flex-shrink:0; }
+  .kko-header .kko-back { color:#fff; font-size:20px; line-height:1; text-decoration:none; }
+  .kko-header .kko-title { color:#fff; font-weight:700; font-size:16px; }
+  .kko-tabs { display:flex; border-bottom:1px solid var(--color-border); overflow-x:auto; background:#fff; }
+  .kko-tab { flex:1; padding:12px 8px; font-size:12px; font-weight:500; white-space:nowrap; color:var(--color-text-sub); border-bottom:2px solid transparent; background:transparent; }
+  .kko-tab.kko-tab-active { color:var(--color-primary); font-weight:700; border-bottom-color:var(--color-primary); }
+  .kko-card { background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:20px; }
+  .kko-btn-main {
+    display:flex; align-items:center; justify-content:center;
+    height:var(--height-btn); min-height:var(--height-btn); border-radius:var(--radius-btn);
+    background:var(--color-primary); color:#fff; font-size:16px; font-weight:700; border:none; width:100%;
+  }
+  .kko-btn-main[disabled] { opacity:.6; }
+  .kko-btn-outline {
+    display:flex; align-items:center; justify-content:center;
+    height:var(--height-btn-sm); min-height:var(--height-btn-sm); border-radius:var(--radius-btn);
+    background:#fff; color:var(--color-primary); font-size:14px; font-weight:700; border:1.5px solid var(--color-primary); width:100%;
+  }
+  .kko-input, textarea.kko-input { min-height:48px; border-radius:var(--radius-btn); border:1px solid var(--color-border); }
+  .kko-input:focus { border-color:var(--color-primary); outline-color:var(--color-primary); }
+
+  @keyframes kkoFadeIn { from { opacity:0; } to { opacity:1; } }
+  .kko-fade-in { animation: kkoFadeIn .2s ease; }
+  @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .kko-card-in { animation: kkoCardIn .3s ease; }
+  .kko-btn-main, .kko-btn-outline { transition: transform .1s ease; }
+  .kko-btn-main:active, .kko-btn-outline:active { transform: scale(0.97); }
+  @keyframes kkoShimmer { 0% { background-position:-200px 0; } 100% { background-position:200px 0; } }
+  .kko-skeleton { background:linear-gradient(90deg,#EEEEEE 25%,#F5F5F5 37%,#EEEEEE 63%); background-size:400px 100%; animation:kkoShimmer 1.4s ease infinite; border-radius:8px; }
+
+  /* 채팅형 UI 공통 말풍선 (2026-09-17 카카오톡 스타일) */
+  .kko-bubble-mine { background:var(--color-primary); color:#fff; border-radius:18px; }
+  .kko-bubble-other { background:#fff; color:var(--color-text); border:1px solid var(--color-border); border-radius:18px; }
 
   /* ===== index.html(하츠) 이식 애니메이션 ===== */
   @keyframes hx-fade-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
@@ -23,7 +73,7 @@
 </style>
 </head>
 <body>
-<div id="root" class="max-w-md mx-auto min-h-screen bg-white shadow"></div>
+<div id="root" class="max-w-md mx-auto min-h-screen shadow flex flex-col" style="background:var(--color-bg)"></div>
 
 <script>
 const urlParams = new URLSearchParams(window.location.search);
@@ -547,17 +597,18 @@ async function callApi(payload) {
 function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
-    <div class="flex items-center px-4 py-2 border-b border-gray-100">
-      <a href="home.html" class="text-xs text-gray-400 hover:text-gray-600">← 홈</a>
+    <div class="kko-header">
+      <a href="home.html" class="kko-back">←</a>
+      <span class="kko-title">피드백방</span>
     </div>
-    <div class="flex border-b overflow-x-auto">
-      <button id="tab-coach" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='coach' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-400'}">AI 셀프 코칭</button>
-      <button id="tab-studentCoach" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='studentCoach' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-400'}">내 수강생 코칭</button>
-      <button id="tab-history" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='history' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-400'}">내 피드백 이력</button>
-      <button id="tab-askCoach" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='askCoach' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-gray-400'}">교관에게 요청</button>
-      ${state.coachInfo && state.coachInfo.isCoach ? `<button id="tab-coachMode" class="flex-1 py-3 text-xs font-medium whitespace-nowrap px-2 ${state.tab==='coachMode' ? 'text-rose-700 border-b-2 border-rose-700' : 'text-rose-400'}">교관 모드 🔑</button>` : ''}
+    <div class="kko-tabs">
+      <button id="tab-coach" class="kko-tab ${state.tab==='coach' ? 'kko-tab-active' : ''}">AI 셀프 코칭</button>
+      <button id="tab-studentCoach" class="kko-tab ${state.tab==='studentCoach' ? 'kko-tab-active' : ''}">내 수강생 코칭</button>
+      <button id="tab-history" class="kko-tab ${state.tab==='history' ? 'kko-tab-active' : ''}">내 피드백 이력</button>
+      <button id="tab-askCoach" class="kko-tab ${state.tab==='askCoach' ? 'kko-tab-active' : ''}">교관에게 요청</button>
+      ${state.coachInfo && state.coachInfo.isCoach ? `<button id="tab-coachMode" class="kko-tab ${state.tab==='coachMode' ? 'kko-tab-active' : ''}">교관 모드 🔑</button>` : ''}
     </div>
-    <div id="body" class="p-5"></div>
+    <div id="body" class="p-4"></div>
   `;
   document.getElementById('tab-coach').onclick = () => { state.tab = 'coach'; render(); };
   document.getElementById('tab-studentCoach').onclick = () => { state.tab = 'studentCoach'; render(); };
@@ -584,11 +635,11 @@ function render() {
 
   if (!state.identified) {
     body.innerHTML = `
-      <div class="space-y-3">
-        <div class="text-sm text-gray-500 mb-2">먼저 본인 확인이 필요합니다.</div>
-        <input id="input-memberId" type="text" placeholder="성도 고유번호" class="w-full border rounded-lg px-3 py-2 text-sm" value="${state.memberId}">
-        <input id="input-name" type="text" placeholder="이름" class="w-full border rounded-lg px-3 py-2 text-sm" value="${state.name}">
-        <button id="btn-identify" class="w-full bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-medium">확인</button>
+      <div class="kko-card kko-card-in space-y-3">
+        <div class="text-sm mb-2" style="color:var(--color-text-sub)">먼저 본인 확인이 필요합니다.</div>
+        <input id="input-memberId" type="text" placeholder="성도 고유번호" class="kko-input w-full px-3 text-sm" value="${state.memberId}">
+        <input id="input-name" type="text" placeholder="이름" class="kko-input w-full px-3 text-sm" value="${state.name}">
+        <button id="btn-identify" class="kko-btn-main">확인</button>
       </div>
     `;
     document.getElementById('btn-identify').onclick = () => {
@@ -743,13 +794,13 @@ function renderStudentCoachTab(body) {
     <div class="text-[11px] text-gray-400">${state.name}님 (${state.memberId}) · 내 수강생/멘티 코칭</div>
 
     <div class="flex bg-gray-100/80 backdrop-blur-md rounded-full p-1.5 shadow-inner relative max-w-[320px] mx-auto border border-gray-200">
-      <div class="absolute inset-y-1.5 rounded-full transition-all duration-300 ease-out shadow-[0_4px_15px_rgba(192,38,211,0.4)] bg-gradient-to-r from-violet-500 to-fuchsia-500" style="width:calc(50% - 6px);left:${analyze ? '6px' : 'calc(50%)'}"></div>
+      <div class="absolute inset-y-1.5 rounded-full transition-all duration-300 ease-out shadow-[0_4px_15px_rgba(91,79,207,0.4)] bg-[var(--color-primary)]" style="width:calc(50% - 6px);left:${analyze ? '6px' : 'calc(50%)'}"></div>
       <button id="sc-mode-analyze" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 ${analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}">🔍 심리 상담</button>
       <button id="sc-mode-script" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 ${!analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}">📝 퍼스널 코칭</button>
     </div>
 
-    <div class="bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 space-y-3 relative z-30">
-      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5 tracking-tight"><span class="text-fuchsia-500">⚙️</span> 멘티 기본 설정</h3>
+    <div class="kko-card kko-card-in space-y-3 relative z-30">
+      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5 tracking-tight"><span style="color:var(--color-primary)">⚙️</span> 멘티 기본 설정</h3>
       <div class="grid grid-cols-2 gap-2.5">
         ${scSelect('sc-target', '대상 선택', sc.targetGroup, TARGET_OPTIONS, '👤')}
         ${scSelect('sc-stage', '진행 단계', sc.stage, STAGE_OPTIONS, '📈')}
@@ -761,12 +812,12 @@ function renderStudentCoachTab(body) {
       </div>` : ''}
     </div>
 
-    <div class="bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 space-y-3 relative z-20">
-      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5 tracking-tight"><span class="text-fuchsia-500">🧩</span> 멘티 유형</h3>
-      <div class="w-full relative flex items-start border rounded-[14px] p-3 shadow-sm text-left min-h-[50px] ${sc.linkedTypes.length ? 'bg-teal-50 border-teal-200' : 'bg-gray-50/80 border-gray-200 text-gray-500'}">
+    <div class="kko-card kko-card-in space-y-3 relative z-20">
+      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5 tracking-tight"><span style="color:var(--color-primary)">🧩</span> 멘티 유형</h3>
+      <div class="w-full relative flex items-start border rounded-[14px] p-3 shadow-sm text-left min-h-[50px] ${sc.linkedTypes.length ? '' : 'bg-gray-50/80 border-gray-200 text-gray-500'}" style="${sc.linkedTypes.length ? 'background:var(--color-primary-light);border-color:var(--color-primary)' : ''}">
         <span class="text-[14px] shrink-0 opacity-80 mt-0.5 mr-2">🌿</span>
         ${sc.linkedTypes.length
-          ? `<div class="flex flex-wrap gap-1.5 flex-1">${sc.linkedTypes.map((t,i) => `<button data-chip="${i}" class="sc-chip bg-white border border-teal-300 text-teal-800 text-[11px] font-extrabold px-2 py-1 rounded-md shadow-sm">${esc(t)} ✕</button>`).join('')}</div>`
+          ? `<div class="flex flex-wrap gap-1.5 flex-1">${sc.linkedTypes.map((t,i) => `<button data-chip="${i}" class="sc-chip bg-white text-[11px] font-extrabold px-2 py-1 rounded-md shadow-sm" style="border:1px solid var(--color-primary);color:var(--color-primary)">${esc(t)} ✕</button>`).join('')}</div>`
           : `<span class="text-[12px] font-bold mt-0.5">심리 상담 결과가 자동으로 연동됩니다</span>`}
       </div>
       <div class="grid grid-cols-2 gap-2.5">
@@ -777,21 +828,21 @@ function renderStudentCoachTab(body) {
       </div>
     </div>
 
-    <div class="bg-white/80 backdrop-blur-md p-4 rounded-[1.5rem] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-white/60 space-y-3 relative z-10">
-      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5 tracking-tight"><span class="text-blue-500">💬</span> 현재 상황 및 고민</h3>
-      <textarea id="sc-situation" rows="5" placeholder="${analyze ? '멘티의 발언/고민을 있는 그대로 적어주세요.' : '멘티의 현재 상황과 고민을 입력해주세요.'}" class="w-full bg-white border border-gray-200 text-gray-900 text-[13.5px] font-medium rounded-[20px] p-4 outline-none focus:border-teal-400 focus:ring-4 focus:ring-teal-500/10 transition-all resize-none leading-relaxed shadow-sm">${esc(sc.situationText)}</textarea>
+    <div class="kko-card kko-card-in space-y-3 relative z-10">
+      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5 tracking-tight"><span style="color:var(--color-primary)">💬</span> 현재 상황 및 고민</h3>
+      <textarea id="sc-situation" rows="5" placeholder="${analyze ? '멘티의 발언/고민을 있는 그대로 적어주세요.' : '멘티의 현재 상황과 고민을 입력해주세요.'}" class="kko-input w-full p-4 text-[13.5px] font-medium resize-none leading-relaxed">${esc(sc.situationText)}</textarea>
     </div>
 
     <div class="flex justify-center mt-5">
       <div class="relative flex flex-col justify-center items-center">
-        ${!sc.loading ? `<div class="absolute top-0 w-16 h-16 bg-teal-400/30 rounded-full animate-ping opacity-75"></div>` : ''}
-        <button id="btn-sc-generate" ${sc.loading ? 'disabled' : ''} class="relative z-10 w-16 h-16 rounded-full shadow-[0_8px_25px_rgba(20,184,166,0.4)] flex items-center justify-center transition-all duration-300 border-[1.5px] border-white/80 ${sc.loading ? 'bg-teal-500 cursor-not-allowed scale-[0.98]' : 'bg-gradient-to-br from-teal-500 to-emerald-500 hover:scale-110 active:scale-95'}">
+        ${!sc.loading ? `<div class="absolute top-0 w-16 h-16 rounded-full animate-ping opacity-75" style="background:rgba(91,79,207,0.3)"></div>` : ''}
+        <button id="btn-sc-generate" ${sc.loading ? 'disabled' : ''} class="relative z-10 w-16 h-16 rounded-full shadow-[0_8px_25px_rgba(91,79,207,0.4)] flex items-center justify-center transition-all duration-300 border-[1.5px] border-white/80 ${sc.loading ? 'cursor-not-allowed scale-[0.98]' : 'hover:scale-110 active:scale-95'}" style="background:var(--color-primary)">
           ${sc.loading ? spinner : genIcon}
         </button>
-        <div class="mt-2 text-[11px] font-black tracking-widest ${sc.loading ? 'text-teal-600 animate-pulse' : 'text-teal-800 opacity-80'}">
+        <div class="mt-2 text-[11px] font-black tracking-widest ${sc.loading ? 'animate-pulse' : 'opacity-80'}" style="color:var(--color-primary)">
           ${sc.loading ? (analyze ? '심층 분석 진행 중...' : '맞춤 대본 작성 중...') : (analyze ? 'ANALYZE' : 'GENERATE')}
         </div>
-        ${sc.loading ? `<div class="mt-1 text-[10px] text-teal-500/70">AI가 몰리면 최대 몇 초 정도 자동으로 다시 시도해요. 잠시만 기다려주세요...</div>` : ''}
+        ${sc.loading ? `<div class="mt-1 text-[10px]" style="color:var(--color-text-sub)">AI가 몰리면 최대 몇 초 정도 자동으로 다시 시도해요. 잠시만 기다려주세요...</div>` : ''}
       </div>
     </div>
 
@@ -835,11 +886,11 @@ function renderStudentCoachTab(body) {
     const isAnalyze = sc.resultMode === 'analyze';
     const actBtn = (id, label, activeLabel, active) => `<button id="${id}" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm ${active ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-white text-gray-500 hover:bg-teal-50 hover:text-teal-700 border border-gray-200'}">${active ? activeLabel : label}</button>`;
     area.innerHTML = `
-      <div class="bg-white p-5 rounded-[1.5rem] border border-teal-100 shadow-[0_10px_40px_rgba(13,148,136,0.08)] animate-slide-in relative overflow-hidden mt-2">
-        <div class="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-400"></div>
+      <div class="kko-card kko-card-in relative overflow-hidden mt-2">
+        <div class="absolute top-0 inset-x-0 h-1.5" style="background:var(--color-primary)"></div>
         <div class="flex items-center justify-between mb-3 mt-1">
-          <h3 class="text-[15px] font-black text-teal-900 flex items-center gap-2">${isAnalyze ? '✨ 심리 분석 리포트' : '📝 단계별 맞춤 대본'}</h3>
-          ${isAnalyze && sc.linkedTypes.length ? `<span class="text-[10px] font-bold text-teal-600 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">유형 자동연동됨</span>` : ''}
+          <h3 class="text-[15px] font-black flex items-center gap-2" style="color:var(--color-text)">${isAnalyze ? '✨ 심리 분석 리포트' : '📝 단계별 맞춤 대본'}</h3>
+          ${isAnalyze && sc.linkedTypes.length ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="color:var(--color-primary);background:var(--color-primary-light);border:1px solid var(--color-primary)">유형 자동연동됨</span>` : ''}
         </div>
         <div class="text-[13.5px] leading-relaxed text-gray-700 bg-gray-50/80 rounded-2xl p-4 border border-gray-100/80">${renderCoachMarkdown(sc.resultText)}</div>
         <div class="mt-3 pt-3 flex flex-wrap justify-end gap-1.5 border-t border-gray-200/60">
@@ -852,20 +903,20 @@ function renderStudentCoachTab(body) {
       </div>
 
       ${sc.escalated
-        ? `<div class="text-sm text-emerald-700 bg-emerald-50 rounded-xl p-3 my-3 border border-emerald-100">교관님께 전달되었습니다. 답변이 오면 '내 피드백 이력'에서 확인하실 수 있습니다.</div>`
-        : `<button id="btn-sc-escalate" class="w-full border-2 border-emerald-700 text-emerald-700 rounded-xl py-3 text-sm font-bold my-3 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2">🚩 이 내용 그대로 교관님께도 전달하기</button>`
+        ? `<div class="text-sm rounded-xl p-3 my-3" style="color:var(--color-primary);background:var(--color-primary-light);border:1px solid var(--color-primary)">교관님께 전달되었습니다. 답변이 오면 '내 피드백 이력'에서 확인하실 수 있습니다.</div>`
+        : `<button id="btn-sc-escalate" class="kko-btn-outline my-3 flex items-center justify-center gap-2">🚩 이 내용 그대로 교관님께도 전달하기</button>`
       }
 
-      <div class="mt-2 pt-4 border-t border-teal-100/60 animate-fade-in">
-        <h4 class="text-[13px] font-black text-teal-800 mb-1 flex items-center gap-1.5">
+      <div class="kko-card kko-card-in mt-2">
+        <h4 class="text-[13px] font-black mb-1 flex items-center gap-1.5" style="color:var(--color-primary)">
           <span>💬</span> 추가 질문이 있으신가요?
           <span class="bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-md tracking-wider shadow-sm">NEW</span>
         </h4>
-        <p class="text-[11.5px] text-teal-700/80 font-bold mb-3 pl-6 break-keep">결과를 바탕으로 무한 맞춤 답변을 받아보세요.</p>
+        <p class="text-[11.5px] font-bold mb-3 pl-6 break-keep" style="color:var(--color-text-sub)">결과를 바탕으로 무한 맞춤 답변을 받아보세요.</p>
         <div id="sc-followup-history" class="space-y-3 mb-3 max-h-[300px] overflow-y-auto pr-1 hx-scroll"></div>
         <div class="flex items-end gap-2 w-full">
-          <input id="sc-followup-input" type="text" placeholder="추가질문: MBTI / 감동문자 / 드레스코드 ... ∞" class="flex-1 bg-white border border-teal-200 text-gray-800 text-[13px] rounded-[20px] px-4 py-3 outline-none focus:border-teal-400 focus:ring-4 focus:ring-teal-500/10 transition-all shadow-sm">
-          <button id="btn-sc-followup" class="shrink-0 bg-teal-500 hover:bg-teal-600 text-white w-11 h-11 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95">
+          <input id="sc-followup-input" type="text" placeholder="추가질문: MBTI / 감동문자 / 드레스코드 ... ∞" class="kko-input flex-1 px-4 py-3 text-[13px]">
+          <button id="btn-sc-followup" class="shrink-0 text-white w-11 h-11 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95" style="background:var(--color-primary)">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
           </button>
         </div>
@@ -893,12 +944,12 @@ function renderStudentCoachTab(body) {
 
     const histBox = document.getElementById('sc-followup-history');
     histBox.innerHTML = sc.followUpHistory.map(m => `
-      <div class="flex ${m.role==='user' ? 'justify-end' : 'justify-start'}">
-        <div class="max-w-[85%] rounded-2xl p-3 text-[13px] leading-relaxed break-keep shadow-sm ${m.role==='user' ? 'bg-teal-500 text-white rounded-tr-sm' : 'bg-gray-100 text-gray-800 border border-gray-200/50 rounded-tl-sm'}">${m.role==='user' ? esc(m.text) : renderCoachMarkdown(m.text)}</div>
+      <div class="flex kko-fade-in ${m.role==='user' ? 'justify-end' : 'justify-start'}">
+        <div class="max-w-[85%] p-3 text-[13px] leading-relaxed break-keep shadow-sm ${m.role==='user' ? 'kko-bubble-mine' : 'kko-bubble-other'}">${m.role==='user' ? esc(m.text) : renderCoachMarkdown(m.text)}</div>
       </div>
     `).join('') + (sc.followUpLoading ? `
-      <div class="flex justify-start"><div class="bg-gray-100 text-gray-500 text-[12px] p-3 rounded-2xl rounded-tl-sm font-medium flex items-center gap-2">
-        <svg class="animate-spin h-3.5 w-3.5 text-teal-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+      <div class="flex justify-start kko-fade-in"><div class="kko-bubble-other text-[12px] p-3 font-medium flex items-center gap-2" style="color:var(--color-text-sub)">
+        <svg class="animate-spin h-3.5 w-3.5" style="color:var(--color-primary)" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
         답변 작성 중...
       </div></div>` : '');
 
@@ -951,11 +1002,13 @@ function renderStudentCoachTab(body) {
 function renderCoachTab(body) {
   const spinnerSm = `<svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>`;
   body.innerHTML = `
-    <div class="text-xs text-gray-400 mb-3">${state.name}님 (${state.memberId})</div>
-    <textarea id="situation" rows="5" placeholder="겪고 계신 어려움이나 상황을 구체적으로 적어주세요." class="w-full border rounded-lg px-3 py-2 text-sm mb-3">${state.situation}</textarea>
-    <button id="btn-ask" class="w-full bg-emerald-700 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2" ${state.loading ? 'disabled' : ''}>
-      ${state.loading ? spinnerSm : ''}${state.loading ? 'AI가 코칭 대본을 생성 중입니다...' : 'AI 코칭 받기'}
-    </button>
+    <div class="text-xs mb-3" style="color:var(--color-text-sub)">${state.name}님 (${state.memberId})</div>
+    <div class="kko-card kko-card-in space-y-3">
+      <textarea id="situation" rows="5" placeholder="겪고 계신 어려움이나 상황을 구체적으로 적어주세요." class="kko-input w-full p-3 text-sm">${state.situation}</textarea>
+      <button id="btn-ask" class="kko-btn-main disabled:opacity-60 flex items-center justify-center gap-2" ${state.loading ? 'disabled' : ''}>
+        ${state.loading ? spinnerSm : ''}${state.loading ? 'AI가 코칭 대본을 생성 중입니다...' : 'AI 코칭 받기'}
+      </button>
+    </div>
     <div id="result-area" class="mt-4"></div>
   `;
 
@@ -997,11 +1050,11 @@ function renderCoachTab(body) {
   if (state.lastCoachText) {
     const resultArea = document.getElementById('result-area');
     resultArea.innerHTML = `
-      <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm whitespace-pre-wrap">${state.lastCoachText}</div>
+      <div class="kko-card kko-card-in text-sm whitespace-pre-wrap">${state.lastCoachText}</div>
       <div class="text-xs text-gray-400 mt-2">접수번호: ${state.lastReceiptNo}</div>
       ${state.escalated
-        ? `<div class="mt-3 text-sm text-emerald-700 bg-emerald-50 rounded-lg p-3">교관님께 전달되었습니다. 답변이 오면 '내 피드백 이력'에서 확인하실 수 있습니다.</div>`
-        : `<button id="btn-escalate" class="w-full mt-3 border border-emerald-700 text-emerald-700 rounded-lg py-2.5 text-sm font-medium">이 내용 그대로 교관님께도 전달하기</button>`
+        ? `<div class="mt-3 text-sm rounded-lg p-3" style="color:var(--color-primary);background:var(--color-primary-light);border:1px solid var(--color-primary)">교관님께 전달되었습니다. 답변이 오면 '내 피드백 이력'에서 확인하실 수 있습니다.</div>`
+        : `<button id="btn-escalate" class="kko-btn-outline mt-3">이 내용 그대로 교관님께도 전달하기</button>`
       }
     `;
     if (!state.escalated) {
@@ -1036,14 +1089,14 @@ function renderHistoryTab(body) {
       ? (row.source === 'AI셀프코칭' ? '<span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">AI 코칭 완료</span>' : '<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">교관 답변 완료</span>')
       : '<span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">교관 검토중</span>';
     return `
-      <div class="border rounded-lg p-3 mb-3">
+      <div class="kko-card kko-card-in mb-3">
         <div class="flex justify-between items-center mb-2">
           <span class="text-xs text-gray-400">${row.receiptNo}</span>
           ${badge}
         </div>
-        <div class="text-sm text-gray-700 mb-2">${row.situation}</div>
+        <div class="text-sm mb-2" style="color:var(--color-text)">${row.situation}</div>
         <div class="text-xs text-gray-500 bg-gray-50 rounded p-2 mb-1">AI: ${row.aiCoachText || '-'}</div>
-        ${row.handlerAnswer ? `<div class="text-xs text-blue-700 bg-blue-50 rounded p-2">교관: ${row.handlerAnswer}</div>` : ''}
+        ${row.handlerAnswer ? `<div class="text-xs rounded p-2" style="color:var(--color-primary);background:var(--color-primary-light)">교관: ${row.handlerAnswer}</div>` : ''}
       </div>
     `;
   }).join('');
@@ -1070,22 +1123,22 @@ function chatTime(ts) {
 }
 
 function coachChatBubbleHtml(row) {
-  // 내 메시지 — 오른쪽, 노란/주황 계열(카카오톡 말풍선 톤)
+  // 내 메시지 — 오른쪽, 카카오톡 스타일 보라(#5B4FCF) 말풍선
   const mine = `
-    <div class="flex flex-col items-end mb-1">
-      <div class="max-w-[78%] rounded-2xl rounded-br-md px-3 py-2 text-sm" style="background:#FEE500;color:#3C1E1E">${esc(row.situation)}</div>
+    <div class="flex flex-col items-end mb-1 kko-fade-in">
+      <div class="max-w-[78%] kko-bubble-mine px-3 py-2 text-sm">${esc(row.situation)}</div>
       <div class="text-[10px] text-gray-400 mt-0.5 mr-1">${esc(chatTime(row.submittedAt))}</div>
     </div>`;
   // 교관 답변 또는 대기중 — 왼쪽, 프로필 아이콘 포함
   const answered = !!row.handlerAnswer;
   const reply = `
-    <div class="flex items-end gap-2 mb-3">
+    <div class="flex items-end gap-2 mb-3 kko-fade-in">
       <div class="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 ${answered ? 'bg-rose-100 text-rose-600' : 'bg-gray-100 text-gray-400'}">🧑‍🏫</div>
       <div class="flex flex-col items-start">
         ${answered
-          ? `<div class="max-w-[78%] rounded-2xl rounded-bl-md px-3 py-2 text-sm bg-white border border-gray-200 text-gray-700 shadow-sm">${esc(row.handlerAnswer)}</div>
+          ? `<div class="max-w-[78%] kko-bubble-other px-3 py-2 text-sm shadow-sm">${esc(row.handlerAnswer)}</div>
              <div class="text-[10px] text-gray-400 mt-0.5 ml-1">${esc(chatTime(row.answeredAt))}</div>`
-          : `<div class="rounded-2xl rounded-bl-md px-3 py-2 text-xs bg-gray-100 text-gray-400 italic">답변 대기 중...</div>`}
+          : `<div class="kko-bubble-other px-3 py-2 text-xs text-gray-400 italic">답변 대기 중...</div>`}
       </div>
     </div>`;
   return mine + reply;
@@ -1112,11 +1165,11 @@ function renderAskCoachTab(body) {
       <div class="text-xs text-gray-400">${state.name}님 (${state.memberId})</div>
     </div>
     <div class="text-[11px] text-gray-400 mb-2">${regionNote}</div>
-    <div id="ac-chat-log" class="flex flex-col rounded-lg p-3 mb-2" style="background:#F5F5F5;max-height:55vh;overflow-y:auto">${logHtml}</div>
-    ${ac.submittedNote ? `<div class="mb-2 text-xs text-emerald-700 bg-emerald-50 rounded-lg p-2">${esc(ac.submittedNote)}</div>` : ''}
+    <div id="ac-chat-log" class="flex flex-col p-3 mb-2" style="background:var(--color-bg);border-radius:var(--radius-card);box-shadow:var(--shadow-card);max-height:55vh;overflow-y:auto">${logHtml}</div>
+    ${ac.submittedNote ? `<div class="mb-2 text-xs rounded-lg p-2" style="color:var(--color-primary);background:var(--color-primary-light)">${esc(ac.submittedNote)}</div>` : ''}
     <div class="flex items-end gap-2 pt-2 border-t border-gray-100">
-      <textarea id="ac-content" rows="1" placeholder="교관님께 전달할 내용을 입력하세요" class="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm resize-none" style="max-height:96px">${esc(ac.content)}</textarea>
-      <button id="btn-ac-submit" class="shrink-0 w-11 h-11 rounded-full bg-amber-400 text-gray-800 flex items-center justify-center text-lg disabled:opacity-50" ${ac.submitting ? 'disabled' : ''} title="전송">
+      <textarea id="ac-content" rows="1" placeholder="교관님께 전달할 내용을 입력하세요" class="flex-1 rounded-full px-4 py-2.5 text-sm resize-none" style="max-height:96px;border:1px solid var(--color-border)">${esc(ac.content)}</textarea>
+      <button id="btn-ac-submit" class="shrink-0 w-11 h-11 rounded-full text-white flex items-center justify-center text-lg disabled:opacity-50" style="background:var(--color-primary)" ${ac.submitting ? 'disabled' : ''} title="전송">
         ${ac.submitting ? '⏳' : '➤'}
       </button>
     </div>
@@ -1170,18 +1223,18 @@ async function loadCoachFeedbacks() {
 function coachFeedbackCard(row, cm, editable) {
   const draft = cm.replyDrafts[row.receiptNo] !== undefined ? cm.replyDrafts[row.receiptNo] : '';
   return `
-    <div class="border rounded-lg p-3 mb-3 ${editable ? 'border-rose-200 bg-rose-50/30' : ''}">
+    <div class="kko-card kko-card-in mb-3" style="${editable ? 'border-left:3px solid #e11d48' : ''}">
       <div class="flex justify-between items-center mb-2">
         <span class="text-sm font-bold text-gray-800">${esc(row.name)} <span class="text-xs font-normal text-gray-400">(${esc(row.region)} · ${esc(row.tier || '-')})</span></span>
         <span class="text-xs text-gray-400">${esc(String(row.submittedAt || '').slice(0, 16))}</span>
       </div>
-      <div class="text-sm text-gray-700 bg-white rounded p-2 mb-2 border border-gray-100">${esc(row.situation)}</div>
+      <div class="text-sm text-gray-700 bg-gray-50 rounded p-2 mb-2 border border-gray-100">${esc(row.situation)}</div>
       ${editable ? `
-        <textarea data-reply-for="${row.receiptNo}" rows="3" placeholder="답변을 입력해주세요." class="w-full border rounded-lg px-3 py-2 text-sm mb-2">${esc(draft)}</textarea>
-        <button data-submit-for="${row.receiptNo}" class="w-full bg-rose-700 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50" ${cm.submittingId === row.receiptNo ? 'disabled' : ''}>
+        <textarea data-reply-for="${row.receiptNo}" rows="3" placeholder="답변을 입력해주세요." class="kko-input w-full px-3 py-2 text-sm mb-2">${esc(draft)}</textarea>
+        <button data-submit-for="${row.receiptNo}" class="kko-btn-main disabled:opacity-60" ${cm.submittingId === row.receiptNo ? 'disabled' : ''}>
           ${cm.submittingId === row.receiptNo ? '등록 중...' : '답변 등록'}
         </button>
-      ` : `<div class="text-xs text-blue-700 bg-blue-50 rounded p-2">교관 답변: ${esc(row.handlerAnswer)}</div>`}
+      ` : `<div class="text-xs rounded p-2" style="color:var(--color-primary);background:var(--color-primary-light)">교관 답변: ${esc(row.handlerAnswer)}</div>`}
     </div>
   `;
 }
@@ -1200,10 +1253,10 @@ function renderCoachModeTab(body) {
   body.innerHTML = `
     <div class="text-xs text-gray-400 mb-3">${state.name}님 (${state.memberId}) · 교관 모드</div>
     <div class="flex gap-2 mb-4">
-      <button id="cm-view-pending" class="flex-1 py-2 rounded-lg text-xs font-bold ${cm.view === 'pending' ? 'bg-rose-700 text-white' : 'bg-gray-100 text-gray-500'}">
+      <button id="cm-view-pending" class="flex-1 py-2 rounded-lg text-xs font-bold" style="${cm.view === 'pending' ? 'background:#e11d48;color:#fff' : 'background:#f3f4f6;color:#6b7280'}">
         미답변 ${cm.pending.length ? `<span class="ml-1 bg-white text-rose-700 rounded-full px-1.5">${cm.pending.length}</span>` : ''}
       </button>
-      <button id="cm-view-answered" class="flex-1 py-2 rounded-lg text-xs font-bold ${cm.view === 'answered' ? 'bg-rose-700 text-white' : 'bg-gray-100 text-gray-500'}">답변완료 (${cm.answered.length})</button>
+      <button id="cm-view-answered" class="flex-1 py-2 rounded-lg text-xs font-bold" style="${cm.view === 'answered' ? 'background:#e11d48;color:#fff' : 'background:#f3f4f6;color:#6b7280'}">답변완료 (${cm.answered.length})</button>
     </div>
     <div id="cm-list"></div>
   `;

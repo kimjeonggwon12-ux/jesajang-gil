@@ -12,7 +12,8 @@
   /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — home.html / coach-dashboard.html과 동일 */
   [data-theme="jesagil"] {
     /* DaisyUI 4.12는 색상 변수를 OKLCH(L% C H)로 받음 — HSL 아님, 주의 */
-    --p: 51.06% 0.2301 276.97;
+    /* 2026-09-17: 카카오톡 스타일 리디자인 — 메인 컬러를 #5B4FCF(보라)로 변경(OKLCH 환산값), home.html과 동일 */
+    --p: 51.43% 0.1901 281.61;   /* primary: #5B4FCF */
     --pc: 100% 0 0;
     --s: 66.58% 0.1574 58.32;
     --sc: 100% 0 0;
@@ -32,15 +33,54 @@
     --wac: 0% 0 0;
     --er: 57.71% 0.2152 27.33;
     --erc: 100% 0 0;
-    --rounded-box: 0.75rem;
-    --rounded-btn: 0.5rem;
+    /* 2026-09-17: 카드 라운드를 카카오톡 스타일 16px/버튼 12px 기준으로 통일(결산 5박스·섹션카드·표에 공용 적용) */
+    --rounded-box: 1rem;
+    --rounded-btn: 0.75rem;
     --rounded-badge: 1rem;
   }
+  :root {
+    --color-primary: #5B4FCF;
+    --color-primary-light: #EDE9FF;
+    --color-bg: #F5F5F5;
+    --color-card: #FFFFFF;
+    --color-text: #222222;
+    --color-text-sub: #888888;
+    --color-border: #EEEEEE;
+    --radius-card: 16px;
+    --radius-btn: 12px;
+    --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  .kko-card-in { animation: kkoCardIn .3s ease; }
+  @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .kko-fade-in { animation: kkoFadeIn .2s ease; }
+  @keyframes kkoFadeIn { from { opacity:0; } to { opacity:1; } }
+  @keyframes kkoShimmer { 0% { background-position:-200px 0; } 100% { background-position:200px 0; } }
+  .kko-skeleton { background:linear-gradient(90deg,#EEEEEE 25%,#F5F5F5 37%,#EEEEEE 63%); background-size:400px 100%; animation:kkoShimmer 1.4s ease infinite; border-radius:8px; }
   html, body { margin:0; padding:0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; background: var(--color-bg); }
   .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); }
-  .section-card { border-radius: var(--rounded-box); overflow: hidden; }
+  .section-card { border-radius: var(--rounded-box); overflow: hidden; box-shadow: var(--shadow-card); }
   .section-stripe { height: 6px; }
+  /* 2026-09-17: 카카오톡 스타일 헤더 — 56px 보라 고정 헤더 */
+  .kko-header { height: 56px; background: var(--color-primary); color: #fff; display: flex; align-items: center; flex-shrink: 0; }
+  /* 우수지역/결산 등 border-base-300 표는 공통 회색 보더 토큰으로 통일 */
+  .border-base-300 { border-color: var(--color-border) !important; }
+  /* 인페이지 탭(전체 현황/이수 관리, 부서별 우수지역) — 카카오톡 스타일 보라 밑줄 탭 */
+  .tabs.tabs-boxed { background: transparent; padding: 0; gap: 6px; border-radius: 0; }
+  .tabs.tabs-boxed .tab {
+    background: transparent !important; border-radius: 0 !important;
+    border-bottom: 2px solid transparent; color: var(--color-text-sub); font-weight: 600;
+  }
+  .tabs.tabs-boxed .tab.tab-active {
+    background: transparent !important; color: var(--color-primary) !important;
+    border-bottom-color: var(--color-primary); font-weight: 800;
+  }
+  /* 결산 5박스 — 카드형(그림자+radius) + 아이콘 확대 */
+  .settlement-box {
+    box-shadow: var(--shadow-card) !important; transition: transform .1s ease, box-shadow .15s ease;
+  }
+  .settlement-box:active { transform: scale(0.97); }
+  .settlement-box .box-icon { font-size: 26px; line-height: 1; }
 </style>
 </head>
 <body class="bg-base-200 min-h-screen">
@@ -424,7 +464,7 @@ function roleTopRegionsTableHtml(byRole) {
 function renderTopRegionsSection() {
   const churchLoading = churchTopRegionsLoading && !churchTopRegions;
   return `
-    <div class="section-card bg-base-100 border border-base-300 shadow-sm mb-6">
+    <div class="section-card kko-card-in bg-base-100 border border-base-300 shadow-sm mb-6">
       <div class="section-stripe" style="background:linear-gradient(90deg,#FDE68A,#F59E0B)"></div>
       <div class="p-5">
         <div class="rounded-lg px-3 py-2 mb-1" style="background:linear-gradient(90deg,#FDE68A,#FBBF24)">
@@ -514,7 +554,7 @@ function mainNavHtml(current) {
 // 섹션 카드 공통 골격: 색상 스트라이프 + 아이콘 헤더 + 본문. colorName은 daisyUI 시맨틱 컬러명(primary/secondary/accent/info 등).
 function sectionCard(colorName, icon, title, subtitle, bodyHtml) {
   return `
-    <div class="section-card bg-base-100 border border-base-300 shadow-sm mb-6">
+    <div class="section-card kko-card-in bg-base-100 border border-base-300 shadow-sm mb-6">
       <div class="section-stripe bg-${colorName}"></div>
       <div class="p-5">
         <div class="flex items-start gap-3 mb-4">
@@ -640,7 +680,7 @@ function settlementBoxesHtml(s) {
     const active = settlementView === key;
     return `
       <button class="settlement-box flex-1 min-w-[100px] rounded-box border p-3 text-center transition ${active ? 'border-primary bg-primary/10' : 'border-base-300 bg-base-100 hover:bg-base-200'}" data-view="${key}">
-        <div class="text-lg">${icon}</div>
+        <div class="box-icon">${icon}</div>
         <div class="text-xl font-black ${colorCls}">${value}</div>
         <div class="text-[11px] text-base-content/50">${label}</div>
       </button>`;
@@ -1005,12 +1045,12 @@ function renderRosterCharts() {
 function render() {
   const root = document.getElementById('root');
   root.innerHTML = `
-    <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
+    <header class="kko-header px-5">
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">🎓</span>
         <div class="text-lg font-bold">통합</div>
       </div>
-    </div>
+    </header>
     <div class="brand-accent-bar"></div>
     ${mainNavHtml('edu')}
     <div class="p-5">

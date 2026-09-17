@@ -8,9 +8,26 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
-  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 관리자 화면과 동일 */
+  :root {
+    --color-primary: #5B4FCF;
+    --color-primary-light: #EDE9FF;
+    --color-bg: #F5F5F5;
+    --color-card: #FFFFFF;
+    --color-text: #222222;
+    --color-text-sub: #888888;
+    --color-border: #EEEEEE;
+    --radius-card: 16px;
+    --radius-btn: 12px;
+    --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  .kko-card-in { animation: kkoCardIn .3s ease; }
+  @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .kko-fade-in { animation: kkoFadeIn .2s ease; }
+  @keyframes kkoFadeIn { from { opacity:0; } to { opacity:1; } }
+
+  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 관리자 화면과 동일, primary는 카카오톡 보라(#5B4FCF)로 통일 */
   [data-theme="jesagil"] {
-    --p: 51.06% 0.2301 276.97; --pc: 100% 0 0;
+    --p: 51.43% 0.1901 281.61; --pc: 100% 0 0;
     --s: 66.58% 0.1574 58.32;  --sc: 100% 0 0;
     --a: 59.60% 0.1274 163.23; --ac: 100% 0 0;
     --n: 27.95% 0.0368 260.03; --nc: 96.70% 0.0029 264.54;
@@ -23,8 +40,26 @@
     --rounded-box: 0.75rem; --rounded-btn: 0.5rem; --rounded-badge: 1rem;
   }
   html, body { margin:0; padding:0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; background: var(--color-bg); }
   .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); }
+
+  /* 카카오톡 스타일 헤더 */
+  .kko-header { height:56px; min-height:56px; display:flex; align-items:center; background:var(--color-primary); color:#fff; padding:0 20px; }
+
+  /* 피드백 카드형 목록 */
+  .kko-feedback-card { background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); border:none; transition:transform .15s ease, box-shadow .15s ease; }
+  .kko-feedback-card:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,0.12); }
+  .kko-dept-card { background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); border:none; transition:transform .15s ease, box-shadow .15s ease; }
+  .kko-dept-card:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,0.12); }
+
+  /* 미처리 뱃지 — 빨간 pill */
+  .kko-badge-pending { display:inline-flex; align-items:center; background:#FF3B30; color:#fff; border-radius:9999px; padding:2px 10px; font-size:11px; font-weight:700; line-height:1.6; }
+
+  /* 버튼 */
+  .kko-btn-main { display:flex;align-items:center;justify-content:center;height:52px;min-height:52px;border-radius:12px;background:var(--color-primary);color:#fff;font-size:16px;font-weight:700;border:none;width:100%; }
+  .kko-btn-main:disabled { opacity:.6; }
+  .kko-btn-outline { display:flex;align-items:center;justify-content:center;height:44px;min-height:44px;border-radius:12px;background:#fff;color:var(--color-primary);font-size:14px;font-weight:700;border:1.5px solid var(--color-primary);width:100%; }
+  .kko-btn-outline:disabled { opacity:.6; }
 </style>
 </head>
 <body class="bg-base-200 min-h-screen">
@@ -347,7 +382,7 @@ function coachAdminSectionHtml() {
           <input id="coach-form-coachid" type="text" placeholder="교관 고유번호" value="${esc(f.coachId)}" class="input input-bordered input-sm w-full">
           <input id="coach-form-coachname" type="text" placeholder="교관 이름" value="${esc(f.coachName)}" class="input input-bordered input-sm w-full">
         </div>
-        <button id="btn-coach-save" class="btn btn-primary btn-sm w-full mb-4" ${state.coachSaving ? 'disabled' : ''}>
+        <button id="btn-coach-save" class="kko-btn-main mb-4" ${state.coachSaving ? 'disabled' : ''}>
           ${state.coachSaving ? '저장 중...' : '➕ 등록 / 수정'}
         </button>
         ${coaches.length === 0
@@ -364,7 +399,7 @@ function coachAdminSectionHtml() {
                       <td class="text-base-content/40 text-xs">${esc(c.coachId)}</td>
                       <td><span class="badge ${c.status === '활성' ? 'badge-success' : 'badge-ghost'} badge-sm">${esc(c.status)}</span></td>
                       <td>
-                        <button class="btn-coach-toggle btn btn-outline btn-xs" data-region="${esc(c.region)}" data-coachid="${esc(c.coachId)}" ${state.coachSaving ? 'disabled' : ''}>
+                        <button class="btn-coach-toggle btn btn-outline btn-primary btn-xs" data-region="${esc(c.region)}" data-coachid="${esc(c.coachId)}" ${state.coachSaving ? 'disabled' : ''}>
                           ${c.status === '활성' ? '비활성화' : '다시 활성화'}
                         </button>
                       </td>
@@ -416,7 +451,7 @@ function overviewSectionHtml() {
           const b = byDept[d];
           const total = b.pending + b.answered;
           return `
-          <button class="btn-dept-card card card-border bg-base-100 shadow-sm text-left hover:shadow-md hover:-translate-y-0.5 transition-all" data-dept="${esc(d)}">
+          <button class="btn-dept-card card kko-dept-card kko-card-in text-left" data-dept="${esc(d)}">
             <div class="card-body p-4">
               <div class="flex items-center gap-2 mb-2">
                 <span class="text-xl">${DEPT_ICON[d] || '📁'}</span>
@@ -439,7 +474,7 @@ function overviewSectionHtml() {
 function statusBadge(status) {
   return status === '완료'
     ? `<span class="badge badge-success badge-sm">답변완료</span>`
-    : `<span class="badge badge-warning badge-sm">미답변</span>`;
+    : `<span class="kko-badge-pending">미답변</span>`;
 }
 
 // 요청 내용을 목록 카드에서는 요약(길면 자르기), 상세 모달에서는 전체 표시.
@@ -502,7 +537,7 @@ function deptDetailSectionHtml() {
           </div>`
         : `<div class="flex flex-col gap-2 pb-4">
             ${filteredRequests.map(r => `
-              <div class="btn-request-card card card-border bg-base-100 shadow-sm cursor-pointer hover:shadow-md" data-receipt="${esc(r.receiptNo)}">
+              <div class="btn-request-card card kko-feedback-card kko-card-in cursor-pointer" data-receipt="${esc(r.receiptNo)}">
                 <div class="card-body p-4">
                   <div class="flex items-center justify-between gap-2 mb-1">
                     <div class="text-sm font-medium">${esc(r.name)} <span class="text-base-content/40 font-normal text-xs">${esc(r.region)} · ${esc(r.tier)}</span></div>
@@ -529,8 +564,8 @@ function requestDetailModalHtml() {
   if (!r) return '';
   const canReply = !!state.myCoach; // ?memberId=&name= 으로 식별된 활성 교관일 때만 답변 입력란 노출
   return `
-    <div id="request-detail-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,0.5)">
-      <div class="bg-base-100 rounded-box shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-5">
+    <div id="request-detail-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 kko-fade-in" style="background:rgba(0,0,0,0.5)">
+      <div class="bg-base-100 shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-5 kko-card-in" style="border-radius:var(--radius-card)">
         <div class="flex items-center justify-between mb-2">
           <h3 class="font-bold text-lg">${esc(r.name)} <span class="text-sm font-normal text-base-content/50">${esc(r.region)} · ${esc(r.tier)}</span></h3>
           ${statusBadge(r.status)}
@@ -556,10 +591,10 @@ function requestDetailModalHtml() {
         <div class="mb-3">
           <label class="text-xs font-bold text-base-content/50 mb-1 block">답변 입력</label>
           <textarea id="reply-textarea" rows="4" class="textarea textarea-bordered w-full text-sm" placeholder="이 교사에게 보낼 답변을 입력하세요.">${esc(state.replyText)}</textarea>
-          <button id="btn-submit-reply" class="btn btn-primary btn-sm w-full mt-2" ${state.replySaving ? 'disabled' : ''}>${state.replySaving ? '등록 중...' : '✅ 답변 등록'}</button>
+          <button id="btn-submit-reply" class="kko-btn-main mt-2" ${state.replySaving ? 'disabled' : ''}>${state.replySaving ? '등록 중...' : '✅ 답변 등록'}</button>
         </div>` : `<div class="text-xs text-base-content/30 mb-3">아직 담당 교관이 답변하지 않았습니다(교사 어플 "교관 모드"에서도 답변 등록 가능). 이 화면에서 직접 답변하려면 담당 교관 계정으로 접속해주세요(?memberId=&name=).</div>`)}
 
-        <button id="btn-close-detail" class="btn btn-ghost btn-sm w-full">닫기</button>
+        <button id="btn-close-detail" class="kko-btn-outline">닫기</button>
       </div>
     </div>
   `;
@@ -590,13 +625,12 @@ function render() {
   const isOverview = state.dept === null;
 
   root.innerHTML = `
-    <div class="navbar bg-neutral text-neutral-content px-5 py-4 min-h-0">
+    <div class="kko-header">
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">🎧</span>
         <div class="text-lg font-bold">피드백</div>
       </div>
     </div>
-    <div class="brand-accent-bar"></div>
     ${mainNavHtml('coach')}
 
     ${state.myCoach ? `
