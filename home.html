@@ -11,7 +11,8 @@
     /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 HTML 파일에도 동일하게 붙여넣어 사용 */
     [data-theme="jesagil"] {
       /* DaisyUI 4.12는 색상 변수를 OKLCH(L% C H)로 받음 — HSL 아님, 주의 */
-      --p: 51.06% 0.2301 276.97;   /* primary: indigo-600 */
+      /* 2026-09-17: 카카오톡 스타일 리디자인 — 메인 컬러를 #5B4FCF(보라)로 변경(OKLCH 환산값) */
+      --p: 51.43% 0.1901 281.61;   /* primary: #5B4FCF */
       --pc: 100% 0 0;
       --s: 66.58% 0.1574 58.32;    /* secondary: amber-600 */
       --sc: 100% 0 0;
@@ -36,10 +37,45 @@
       --rounded-badge: 1rem;
     }
     html, body { height: 100%; margin: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; background: #F5F5F5; }
     /* 브랜드 그라데이션 액센트 바 — navbar 바로 아래, 여러 파일에서 재사용 */
     .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); flex-shrink: 0; }
     .brand-avatar { background: linear-gradient(135deg, oklch(var(--p)), oklch(var(--a))); }
+
+    /* 2026-09-17: 카카오톡 스타일 리디자인 — 카드/버튼/입력창/하단 탭바 공통 스타일 */
+    .card-border { border-width: 0 !important; border-radius: 16px !important; box-shadow: 0 2px 12px rgba(0,0,0,0.08) !important; }
+    .kko-btn-main {
+      display: flex; align-items: center; justify-content: center;
+      height: 52px; min-height: 52px; border-radius: 12px;
+      background: #5B4FCF; color: #fff; font-size: 16px; font-weight: 700;
+      border: none; width: 100%;
+    }
+    .kko-btn-main[disabled] { opacity: .6; }
+    .kko-btn-outline {
+      display: flex; align-items: center; justify-content: center;
+      height: 44px; min-height: 44px; border-radius: 12px;
+      background: #fff; color: #5B4FCF; font-size: 14px; font-weight: 700;
+      border: 1.5px solid #5B4FCF; width: 100%;
+    }
+    .kko-form .input, .kko-form .select, .kko-form textarea {
+      min-height: 48px; border-radius: 12px;
+    }
+    .kko-form .input:focus, .kko-form .select:focus, .kko-form textarea:focus {
+      border-color: #5B4FCF !important; outline-color: #5B4FCF !important;
+    }
+    #bottomTabBar { display: flex; height: 60px; flex-shrink: 0; background: #fff; border-top: 1px solid #E5E7EB; }
+    #bottomTabBar .tab {
+      flex: 1; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: center; justify-content: center;
+      gap: 2px; font-size: 10px; color: #9CA3AF; background: transparent !important; border: none !important;
+    }
+    #bottomTabBar .tab:before, #bottomTabBar .tab:after { display: none !important; }
+    #bottomTabBar .tab .tab-icon { font-size: 20px; line-height: 1; }
+    #bottomTabBar .tab.tab-active { color: #5B4FCF; }
+    #bottomTabBar .bottom-tab-settings { flex: 1; display: flex; }
+    #bottomTabBar .bottom-tab-settings > button {
+      width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 2px; font-size: 10px; color: #9CA3AF; background: transparent; border: none; cursor: pointer;
+    }
     /* Phase 2: 대상자 단계 상승 축하 모달 — 위에서 뚝 떨어지는 효과 */
     @keyframes stageUpDrop {
       0%   { transform: translateY(-140px) scale(0.9); opacity: 0; }
@@ -49,7 +85,7 @@
     .stage-up-drop { animation: stageUpDrop .55s cubic-bezier(.34,1.56,.64,1); }
   </style>
 </head>
-<body class="bg-base-200">
+<body>
   <!--
     ⚠️ 임시(당분간만): 편의를 위해 입장(성도고유번호+이름) 화면을 비활성화했습니다.
     운영 복귀 시 → 아래 loginPanel 의 style="display:none" 를 지우고,
@@ -67,7 +103,7 @@
             <input type="text" id="memberId" placeholder="성도고유번호" class="input input-bordered w-full" />
             <input type="text" id="name" placeholder="이름" class="input input-bordered w-full" />
           </div>
-          <button onclick="startSession()" class="btn btn-primary w-full mt-4">입장</button>
+          <button onclick="startSession()" class="kko-btn-main mt-4">입장</button>
         </div>
       </div>
     </div>
@@ -78,33 +114,33 @@
     완전히 제거하고, 세로 폭이 기존의 약 2/3인 얇은 인사말 바로 교체했습니다. "홈" 탭은 별도로
     없고, 이 인사말 바 아래 탭 이름 자체가 "활동방"이며 그 안에 옛 홈 대시보드+활동방 등록 화면이
     하나로 합쳐져 있습니다(activity-room.html은 이제 이 화면으로 리다이렉트만 함).
+    2026-09-17: 카카오톡 스타일 리디자인 — 위 인사말 바 위에 얇은 퍼플 앱 헤더를 다시 추가하고,
+    상단 tabs-boxed 탭바는 제거해 하단 고정 탭바(⚙️ 설정 포함)로 옮겼습니다.
   -->
   <div id="appPanel" class="flex flex-col h-screen" style="display:none">
-    <div class="flex items-center justify-between px-4 py-2 bg-base-100">
-      <div class="text-sm font-bold text-base-content">안녕하세요, <span id="greetName">-</span> 교사님</div>
-      <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-ghost btn-xs text-base-content/40">⚙️</div>
-        <ul tabindex="0" class="dropdown-content menu menu-sm bg-base-100 rounded-box z-10 w-44 p-2 shadow-md border border-base-300">
-          <li><a href="admin-home.html" target="_blank" rel="noopener">🔐 관리자 홈</a></li>
-        </ul>
+    <header class="flex items-center justify-between px-4 flex-shrink-0" style="height:56px;background:#5B4FCF">
+      <div class="text-white font-bold text-base">복음방 교사</div>
+      <div class="flex items-center gap-3 text-white">
+        <span style="font-size:20px" title="알림">🔔</span>
+        <span style="font-size:20px" title="내 프로필">👤</span>
       </div>
+    </header>
+    <div class="px-4 flex-shrink-0" style="padding-top:16px;padding-bottom:16px;background:#fff">
+      <div style="font-size:20px;font-weight:700;color:#333333">안녕하세요, <span id="greetName">-</span> 교사님</div>
     </div>
-    <div class="brand-accent-bar"></div>
-    <div role="tablist" class="tabs tabs-boxed bg-base-300 rounded-none p-1.5 gap-1">
-      <button role="tab" class="tab tab-active flex-1 gap-1.5" data-room="activity" onclick="switchTab('activity', this)"><span>🙌</span> 활동방</button>
-      <button role="tab" class="tab flex-1 gap-1.5" data-room="feedback" onclick="switchTab('feedback', this)"><span>💬</span> 피드백방</button>
-      <button role="tab" class="tab flex-1 gap-1.5" data-room="study" onclick="switchTab('study', this)"><span>📚</span> 공부방</button>
-    </div>
-    <div id="homeContent" class="flex-1 w-full overflow-y-auto bg-base-200" style="display:none"></div>
+    <div id="homeContent" class="flex-1 w-full overflow-y-auto" style="display:none;background:#F5F5F5"></div>
     <iframe id="content" class="flex-1 w-full border-0" style="display:none"></iframe>
-    <div class="text-center py-2 bg-base-100 border-t border-base-300 text-xs">
-      <div class="dropdown dropdown-top dropdown-center">
-        <div tabindex="0" role="button" class="link link-primary">⚙️ 관리자 메뉴</div>
-        <ul tabindex="0" class="dropdown-content menu menu-sm bg-base-100 rounded-box z-10 w-44 p-2 shadow-md border border-base-300">
+    <nav id="bottomTabBar">
+      <button role="tab" class="tab tab-active" data-room="activity" onclick="switchTab('activity', this)"><span class="tab-icon">🙌</span><span>활동방</span></button>
+      <button role="tab" class="tab" data-room="feedback" onclick="switchTab('feedback', this)"><span class="tab-icon">💬</span><span>피드백방</span></button>
+      <button role="tab" class="tab" data-room="study" onclick="switchTab('study', this)"><span class="tab-icon">📚</span><span>공부방</span></button>
+      <div class="dropdown dropdown-top dropdown-end bottom-tab-settings">
+        <button tabindex="0"><span class="tab-icon">⚙️</span><span>설정</span></button>
+        <ul tabindex="0" class="dropdown-content menu menu-sm bg-base-100 rounded-box z-10 w-44 p-2 shadow-md border border-base-300 mb-2">
           <li><a href="admin-home.html" target="_blank" rel="noopener">🔐 관리자 홈</a></li>
         </ul>
       </div>
-    </div>
+    </nav>
   </div>
 
   <!-- 내 성장 박스 클릭 시 뜨는 승급 조건 상세 모달 -->
@@ -275,7 +311,6 @@
 
     // 교사 구분 4단계 표시(2026-09-15: "센터교사"는 실존하지 않는 단계라 삭제, 전부 실제 TEACHER_TIERS).
     const GROWTH_STAGES = ['휴교사', '교사', '활동교사', '우수교사'];
-    const TIER_COLORS = { '휴교사': '#9ca3af', '교사': '#3b82f6', '활동교사': '#f59e0b', '우수교사': '#f97316' };
 
     // 활동 기록 Step2/3 — Code.gs ROLE_OPTIONS/ROLE_ACTIVITY_OPTIONS 와 동일(둘 다 바뀌면 같이 고칠 것).
     // 2026-09-15: 3역할(인도자/섬김이/교사) → 4역할로 확장, 순서도 인도자/교사/섬김이/협력교사로 변경.
@@ -480,9 +515,8 @@
       const current = ts ? ts.tier : '';
       const pills = GROWTH_STAGES.map(s => {
         const active = s === current;
-        const cls = active ? '' : 'bg-base-100 text-base-content/50 border-base-300';
-        const style = active ? `background:${TIER_COLORS[s]};color:#fff;border-color:transparent` : '';
-        return `<div class="flex-1 text-center py-2.5 px-1 rounded-box text-[11px] font-bold border ${cls}" style="${style}">${esc(s)}</div>`;
+        const style = active ? 'background:#5B4FCF;color:#fff' : 'background:#F0F0F0;color:#9CA3AF';
+        return `<div class="flex-1 flex items-center justify-center text-[11px] font-bold" style="height:44px;border-radius:22px;${style}">${esc(s)}</div>`;
       }).join('');
 
       let calloutHtml = '';
@@ -502,7 +536,7 @@
 
       return `
         <div class="card card-border bg-base-100 shadow-sm mx-4">
-          <div class="card-body p-4 cursor-pointer" onclick="openGrowthModal()">
+          <div class="card-body p-5 cursor-pointer" onclick="openGrowthModal()">
             <div class="flex items-center justify-between mb-3">
               <div class="text-sm font-bold text-base-content">내 성장 나무</div>
               ${isMvpCandidate ? `<span class="badge badge-sm" style="background:#FBBF24;color:#78350F;border:none">이번 달 지역 MVP 후보 🏆</span>` : ''}
@@ -528,7 +562,7 @@
       const rc = (home.monthlyActRes && home.monthlyActRes.roleCounts) || {};
       const ric = (home.monthlyActRes && home.monthlyActRes.roleItemCounts) || {};
 
-      const roleTile = (role, colorCls) => {
+      const roleTile = (role) => {
         const expanded = home.expandedRolePart === role;
         const items = ric[role] || {};
         const itemKeys = Object.keys(items);
@@ -536,7 +570,7 @@
           <div class="border border-base-300 rounded-box p-2.5 cursor-pointer" onclick="toggleRolePart('${role}')">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-base-content/60">${esc(roleShortLabel(role))} 활동</span>
-              <span class="text-lg font-black ${colorCls}">${rc[role] || 0}<span class="text-xs font-normal text-base-content/40">건</span></span>
+              <span class="text-2xl font-black" style="color:#5B4FCF">${rc[role] || 0}<span class="text-xs font-normal text-base-content/40">건</span></span>
             </div>
             ${expanded ? (itemKeys.length
               ? `<div class="mt-2 pt-2 border-t border-base-200 flex flex-wrap gap-1">${itemKeys.map(k => `<span class="badge badge-ghost badge-sm">${esc(k)} ${items[k]}건</span>`).join('')}</div>`
@@ -560,10 +594,10 @@
               </div>
             </div>
             <div class="flex flex-col gap-2">
-              ${roleTile('인도자', 'text-primary')}
-              ${roleTile('교사', 'text-accent')}
-              ${roleTile('섬김이', 'text-secondary')}
-              ${roleTile('협력교사', 'text-warning')}
+              ${roleTile('인도자')}
+              ${roleTile('교사')}
+              ${roleTile('섬김이')}
+              ${roleTile('협력교사')}
             </div>
           </div>
         </div>
@@ -583,7 +617,7 @@
       const temp = stageTemp(f.targetStage);
 
       return `
-        <div class="card card-border bg-base-100 shadow-sm mx-4">
+        <div class="card card-border bg-base-100 shadow-sm mx-4 kko-form">
           <div class="card-body p-4 gap-4">
             <div class="text-sm font-bold text-base-content">활동 기록</div>
 
@@ -655,8 +689,8 @@
             </div>
 
             <div class="grid grid-cols-2 gap-2">
-              <button id="af-submit" class="btn btn-primary btn-sm" ${f.loading ? 'disabled' : ''}>${f.loading ? '등록 중...' : '등록'}</button>
-              <button id="af-aicoach" class="btn btn-outline btn-secondary btn-sm">AI코칭 바로가기 →</button>
+              <button id="af-submit" class="kko-btn-main" ${f.loading ? 'disabled' : ''}>${f.loading ? '등록 중...' : '등록'}</button>
+              <button id="af-aicoach" class="kko-btn-outline">AI코칭 바로가기 →</button>
             </div>
           </div>
         </div>
