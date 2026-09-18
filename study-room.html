@@ -48,6 +48,7 @@
   .kko-skeleton { background:linear-gradient(90deg,#EEEEEE 25%,#F5F5F5 37%,#EEEEEE 63%); background-size:400px 100%; animation:kkoShimmer 1.4s ease infinite; border-radius:8px; }
   .kko-spinner { width:36px; height:36px; border-radius:50%; border:3px solid #EDE9FF; border-top-color:#5B4FCF; animation:kkoSpin .7s linear infinite; display:inline-block; }
   @keyframes kkoSpin { to { transform:rotate(360deg); } }
+  .reqedu-row:last-child { border-bottom:none; }
 
   html, body { margin:0; padding:0; background:var(--color-bg); }
   * { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; }
@@ -94,15 +95,20 @@ const TEST_MEMBER = {
 // 응답이 없을 때만 이 기본값으로 대체.
 const REQ_EDU_CATEGORIES_DEFAULT = ['복음방교사양성교육', '섭외전도교육', '상담교육', '복음방교재교육', '교사소양교육'];
 const REQ_EDU_ICONS = { '복음방교사양성교육': '🌟', '섭외전도교육': '📣', '상담교육': '💬', '복음방교재교육': '📖', '교사소양교육': '🎓' };
+// 2026-09-18: 사용자 요청 — "필수 과목"/"추가 과목" 2개 그룹으로 화면을 나눔(백엔드 카테고리
+// 자체는 그대로 5개, 프런트에서만 그룹핑). categories 가 이 5개와 다르게 내려오는 경우를 대비해
+// 이 두 목록에 없는 나머지 카테고리는 "추가 과목"에 자동으로 붙인다(REQ_EDU_GROUP 참고).
+const REQ_EDU_REQUIRED = ['복음방교사양성교육', '복음방교재교육'];
+const REQ_EDU_ADDITIONAL = ['섭외전도교육', '상담교육', '교사소양교육'];
 
 // 2026-09-18: 5개 테마 탭 개편 — "교재" 시트 courseId 접두어(G1/G2/G3)를 백엔드가
 // category 필드로 매핑해서 내려줌(Code.gs _studyCourseCategory_와 동일 결). "교사소양"/
 // "무신앙"은 아직 교재가 없어 목록이 비어있으면 "준비 중"으로 표시(에러 아님).
 const COURSE_TABS = [
-  { key: 'teacherQuality', category: '교사소양', label: '교사소양' },
+  { key: 'teacherQuality', category: '교사소양', label: '소양' },
   { key: 'counseling', category: '상담', label: '상담' },
   { key: 'noFaith', category: '무신앙', label: '무신앙' },
-  { key: 'gospelRoom', category: '복음방', label: '복음방교재' }
+  { key: 'gospelRoom', category: '복음방', label: '복음방' }
 ];
 
 function esc(s) {
@@ -362,7 +368,7 @@ function renderUnitDetail(u) {
   return `
     <div class="kko-fade-in px-4 py-4 border-t" style="background:var(--color-primary-light); border-color:var(--color-border);">
       <div class="text-[10.5px] mb-2" style="color:var(--color-text-sub);">예상 소요시간 약 ${u.minutes || '-'}분</div>
-      <div class="bg-white rounded-[14px] p-3.5 max-h-64 overflow-y-auto border shadow-sm" style="border-color:var(--color-border);">
+      <div class="bg-white rounded-[14px] p-3.5 border shadow-sm" style="border-color:var(--color-border);">
         ${renderContentHtml(u.content)}
       </div>
 
@@ -385,24 +391,33 @@ function wireUnitControls(body) {
 
 
 // 2026-09-15: 교사 본인 체크 → 읽기 전용으로 변경(사용자 요청). 이수 등록은 교육부·전도부가
-// 관리자 화면(edu-dashboard.html "필수교육 이수 등록")에서만 할 수 있다. 여기선 <button> 대신
-// <div>로 바꿔 클릭 자체가 불가능하게 함.
-function renderReqEduCard(cat, rec) {
+// 관리자 화면(edu-dashboard.html "필수교육 이수 등록")에서만 할 수 있다.
+// 2026-09-18: 카드 그리드(바둑판) → 1열 목록(한 행에 한 과목), 체크박스 대신 "이수"/"미이수"
+// 글자를 열 표면에 직접 표시하는 방식으로 재설계(사용자 요청).
+function renderReqEduRow(cat, rec) {
   const date = rec[cat];
   const done = !!date;
-  const cardStyle = done
-    ? 'background:#ECFDF5; border:1.5px solid #34D399;'
-    : 'background:#fff; border:1.5px dashed #CCCCCC;';
   return `
-    <div class="text-left p-3.5 rounded-[1.25rem]" style="${cardStyle}">
-      <div class="flex items-center justify-between mb-1.5">
-        <span class="text-lg">${REQ_EDU_ICONS[cat] || '✅'}</span>
-        <span class="w-5 h-5 rounded-md flex items-center justify-center shrink-0 border-2 ${done ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300 bg-white'}">
-          ${done ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3.5" d="M5 13l4 4L19 7"/></svg>' : ''}
-        </span>
+    <div class="reqedu-row flex items-center justify-between gap-3 px-4" style="min-height:56px; border-bottom:1px solid var(--color-border);">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-base shrink-0">${REQ_EDU_ICONS[cat] || '✅'}</span>
+        <div class="min-w-0">
+          <div class="text-[13px] font-bold truncate" style="color:var(--color-text);">${esc(cat)}</div>
+          <div class="text-[10.5px] mt-0.5" style="color:var(--color-text-sub);">${done ? esc(date) : '이수 기록 없음'}</div>
+        </div>
       </div>
-      <div class="text-[12.5px] font-black" style="color:${done ? '#065F46' : 'var(--color-text-sub)'};">${esc(cat)}</div>
-      <div class="text-[10.5px] mt-1 font-bold" style="color:${done ? '#059669' : 'var(--color-text-sub)'};">${done ? esc(date) + ' 이수' : '미이수'}</div>
+      <div class="text-[13px] font-black shrink-0" style="color:${done ? '#059669' : '#AAAAAA'};">${done ? '이수' : '미이수'}</div>
+    </div>`;
+}
+
+function reqEduSectionHtml(title, cats, rec) {
+  if (!cats.length) return '';
+  return `
+    <div class="kko-card-in overflow-hidden" style="background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:0;">
+      <div class="px-4 py-3" style="background:var(--color-primary-light);">
+        <h3 class="text-[13px] font-black" style="color:var(--color-primary);">${esc(title)}</h3>
+      </div>
+      ${cats.map(cat => renderReqEduRow(cat, rec)).join('')}
     </div>`;
 }
 
@@ -413,33 +428,21 @@ function renderRequiredEduTab(body) {
   }
   const rec = state.reqEdu || {};
   const categories = (rec.categories && rec.categories.length) ? rec.categories : REQ_EDU_CATEGORIES_DEFAULT;
-  const doneCount = categories.filter(c => rec[c]).length;
-  const pct = categories.length ? Math.round(doneCount / categories.length * 100) : 0;
+  // 응답 categories에 REQ_EDU_REQUIRED/ADDITIONAL에 없는 값이 섞여 와도(백엔드가 나중에
+  // 카테고리를 추가하는 경우 대비) 누락 없이 "추가 과목"에 자동으로 붙인다.
+  const requiredCats = REQ_EDU_REQUIRED.filter(c => categories.includes(c));
+  const additionalCats = categories.filter(c => !requiredCats.includes(c));
 
   body.innerHTML = `
     <div class="kko-fade-in space-y-4">
-      <div class="text-[11px]" style="color:var(--color-text-sub);">${esc(state.name)}님 (${esc(state.memberId)}) · 필수 이수 교육</div>
+      <div class="text-[11px]" style="color:var(--color-text-sub);">${esc(state.name)}님 (${esc(state.memberId)}) · 이수교육</div>
 
       <div class="rounded-[1.25rem] px-4 py-3 text-[12px] leading-relaxed" style="background:var(--color-primary-light); color:var(--color-primary);">
         ℹ️ <b>교육부·전도부에서 등록한 이수 내역입니다.</b> 열람만 가능하며, 이수 기록이 실제와 다르면 교육부에 문의해주세요.
       </div>
 
-      <div class="rounded-[1.5rem] p-4 text-white" style="background:var(--color-primary); box-shadow:var(--shadow-card);">
-        <div class="flex items-baseline justify-between">
-          <span class="text-[12px] font-bold text-white/80">필수 교육 이수 현황</span>
-          <span class="text-2xl font-black">${doneCount} / ${categories.length}개 이수</span>
-        </div>
-        <div class="mt-2 h-2 bg-white/25 rounded-full overflow-hidden">
-          <div class="h-full bg-white rounded-full transition-all" style="width:${pct}%"></div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
-        ${categories.map(cat => renderReqEduCard(cat, rec)).join('')}
-      </div>
-
-      ${doneCount === categories.length ? `
-      <div class="text-center text-[12px] font-bold py-2" style="color:#059669;">🎉 필수 교육을 전부 이수했습니다!</div>` : ''}
+      ${reqEduSectionHtml('필수 과목', requiredCats, rec)}
+      ${reqEduSectionHtml('추가 과목', additionalCats, rec)}
 
       ${!state.reqEdu ? `<div class="text-[11px] text-center py-2" style="color:var(--color-text-sub);">서버에서 현재 이수 상태를 불러오지 못했습니다.</div>` : ''}
     </div>
