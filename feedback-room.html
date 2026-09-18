@@ -93,6 +93,10 @@ const paramName = urlParams.get('name');
 const paramHeartsStage = urlParams.get('heartsStage');
 const paramSituation = urlParams.get('situation');
 const paramTargetGroup = urlParams.get('targetGroup');
+// 2026-09-19: home.html "내 명함"/"나 가능해요" 카드의 [채팅하기] 버튼에서 넘어온 경우 —
+// "대화함" 탭으로 바로 진입 + 해당 상대와의 채팅방을 자동으로 연다.
+const paramChatWith = urlParams.get('chatWith');
+const paramChatWithName = urlParams.get('chatWithName');
 if (paramMemberId && paramName) {
   window.TEST_MEMBER_ID = paramMemberId;
   window.TEST_NAME = paramName;
@@ -534,7 +538,8 @@ function printResult(text) {
 
 let state = {
   // 2026-09-18: home.html "교관 답변 완료" 배너에서 ?tab=history 로 넘어오면 그 탭으로 바로 진입.
-  tab: (urlParams.get('tab') === 'history') ? 'history' : 'studentCoach',    // coach | studentCoach | history | askCoach | coachMode — 2026-09-15: 기본탭을 "내 수강생 코칭"으로 변경(사용자 요청)
+  // 2026-09-19: [채팅하기]로 넘어온 경우(?chatWith=) "대화함" 탭으로 바로 진입.
+  tab: (urlParams.get('tab') === 'history') ? 'history' : (paramChatWith ? 'chats' : 'studentCoach'),    // coach | studentCoach | history | askCoach | coachMode | chats — 2026-09-15: 기본탭을 "내 수강생 코칭"으로 변경(사용자 요청)
   memberId: TEST_MODE ? TEST_MEMBER.memberId : '',
   name:     TEST_MODE ? TEST_MEMBER.name : '',
   identified: TEST_MODE ? true : false,
@@ -586,6 +591,18 @@ let state = {
     followUpHistory: [],
     followUpText: '',
     followUpLoading: false
+  },
+  // 2026-09-19: "대화함" 탭 — home.html 명함/가용 카드의 [채팅하기]에서 시작되는 교사간 채팅.
+  chat: {
+    list: [],
+    listLoaded: false,
+    listLoading: false,
+    activeChatId: null,
+    activeOther: null,   // { memberId, name, dept, region }
+    messages: [],
+    input: '',
+    sending: false,
+    pollTimer: null
   }
 };
 
@@ -616,25 +633,37 @@ function render() {
       <button id="tab-studentCoach" class="kko-tab ${state.tab==='studentCoach' ? 'kko-tab-active' : ''}">내 수강생 코칭</button>
       <button id="tab-history" class="kko-tab ${state.tab==='history' ? 'kko-tab-active' : ''}">내 피드백 이력</button>
       <button id="tab-askCoach" class="kko-tab ${state.tab==='askCoach' ? 'kko-tab-active' : ''}">교관에게 요청</button>
+      <button id="tab-chats" class="kko-tab ${state.tab==='chats' ? 'kko-tab-active' : ''}">💬 대화함${chatUnreadBadgeHtml()}</button>
       ${state.coachInfo && state.coachInfo.isCoach ? `<button id="tab-coachMode" class="kko-tab ${state.tab==='coachMode' ? 'kko-tab-active' : ''}">교관 모드 <svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /><circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>` : ''}
     </div>
     <div id="body" class="p-4"></div>
   `;
-  document.getElementById('tab-coach').onclick = () => { state.tab = 'coach'; render(); };
-  document.getElementById('tab-studentCoach').onclick = () => { state.tab = 'studentCoach'; render(); };
+  document.getElementById('tab-coach').onclick = () => { stopChatPolling(); state.tab = 'coach'; render(); };
+  document.getElementById('tab-studentCoach').onclick = () => { stopChatPolling(); state.tab = 'studentCoach'; render(); };
   document.getElementById('tab-history').onclick = () => {
+    stopChatPolling();
     state.tab = 'history';
     render();
     if (state.identified) loadHistory();
   };
   document.getElementById('tab-askCoach').onclick = () => {
+    stopChatPolling();
     state.tab = 'askCoach';
     render();
     if (state.identified) loadMyCoachRequests();
   };
+  document.getElementById('tab-chats').onclick = () => {
+    stopChatPolling();
+    state.chat.activeChatId = null;
+    state.chat.activeOther = null;
+    state.tab = 'chats';
+    render();
+    if (state.identified) loadChatList();
+  };
   const tabCoachModeBtn = document.getElementById('tab-coachMode');
   if (tabCoachModeBtn) {
     tabCoachModeBtn.onclick = () => {
+      stopChatPolling();
       state.tab = 'coachMode';
       render();
       loadCoachFeedbacks();
@@ -661,6 +690,10 @@ function render() {
       state.identified = true;
       render();
       if (state.tab === 'history') loadHistory();
+      if (state.tab === 'chats') {
+        if (paramChatWith) openChatRoom(paramChatWith, paramChatWithName || '', '', '');
+        else loadChatList();
+      }
       loadMyCoach();
     };
     return;
@@ -674,9 +707,17 @@ function render() {
     renderHistoryTab(body);
   } else if (state.tab === 'askCoach') {
     renderAskCoachTab(body);
+  } else if (state.tab === 'chats') {
+    renderChatsTab(body);
   } else if (state.tab === 'coachMode') {
     renderCoachModeTab(body);
   }
+}
+
+// 탭 옆 미읽음 뱃지 — 채팅 목록을 아직 안 불러왔으면 표시 안 함(불필요한 선조회 방지).
+function chatUnreadBadgeHtml() {
+  const n = (state.chat.list || []).reduce((s, r) => s + (r.unreadCount || 0), 0);
+  return n > 0 ? ` <span class="text-[10px] font-bold text-white rounded-full px-1.5 align-middle" style="background:var(--color-error)">${n}</span>` : '';
 }
 
 // ===== 교관 시스템: 로그인 시 1회 조회 =====
@@ -1209,6 +1250,169 @@ function renderAskCoachTab(body) {
   };
 }
 
+// ===== "대화함" 탭 (2026-09-19 신규) — home.html 명함/가용 카드 [채팅하기] 진입점 =====
+// 실시간 아님: 구글시트에 메시지 저장 + 5초 폴링. 채팅방을 열어둔 동안만 폴링(탭 나가면 정지).
+
+async function loadChatList() {
+  const ch = state.chat;
+  ch.listLoading = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getChatList', memberId: state.memberId });
+    ch.list = res.rows || [];
+  } catch (e) { /* 목록 실패는 조용히 무시 — 빈 목록으로 표시 */ }
+  ch.listLoaded = true;
+  ch.listLoading = false;
+  render();
+}
+
+function openChatRoom(mid, nm, dept, region) {
+  const ch = state.chat;
+  ch.activeOther = { memberId: mid, name: nm || '', dept: dept || '', region: region || '' };
+  ch.activeChatId = [String(state.memberId).trim(), String(mid).trim()].sort().join('__');
+  ch.messages = [];
+  render();
+  loadMessages(true);
+  startChatPolling();
+}
+
+function closeChatRoom() {
+  stopChatPolling();
+  state.chat.activeChatId = null;
+  state.chat.activeOther = null;
+  render();
+  loadChatList();
+}
+
+function startChatPolling() {
+  stopChatPolling();
+  state.chat.pollTimer = setInterval(() => loadMessages(false), 5000);
+}
+function stopChatPolling() {
+  if (state.chat.pollTimer) { clearInterval(state.chat.pollTimer); state.chat.pollTimer = null; }
+}
+
+async function loadMessages(scrollToBottom) {
+  const ch = state.chat;
+  if (!ch.activeChatId) return;
+  try {
+    const res = await callApi({ action: 'getMessages', chatId: ch.activeChatId });
+    ch.messages = res.rows || [];
+  } catch (e) { /* 폴링 실패는 조용히 무시 — 다음 5초 주기에 다시 시도 */ }
+  if (state.tab === 'chats' && ch.activeChatId) render();
+  if (scrollToBottom) scrollChatToBottom();
+  callApi({ action: 'markRead', chatId: ch.activeChatId, memberId: state.memberId }).catch(() => {});
+}
+
+function scrollChatToBottom() {
+  const logEl = document.getElementById('chat-log');
+  if (logEl) logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function sendChatMessage() {
+  const ch = state.chat;
+  const val = ch.input.trim();
+  if (!val || !ch.activeOther || ch.sending) return;
+  ch.input = ''; ch.sending = true;
+  render();
+  try {
+    const res = await callApi({ action: 'sendMessage', fromId: state.memberId, fromName: state.name, toId: ch.activeOther.memberId, message: val });
+    if (res.error) throw new Error(res.error);
+    await loadMessages(true);
+  } catch (e) {
+    alert('전송 중 오류가 발생했습니다: ' + e.message);
+  }
+  ch.sending = false;
+  render();
+}
+
+async function shareMyContact() {
+  const ch = state.chat;
+  if (!ch.activeOther) return;
+  if (!confirm(`${ch.activeOther.name} 교사님께 내 전화번호를 공유할까요?`)) return;
+  try {
+    const res = await callApi({ action: 'shareContact', fromId: state.memberId, fromName: state.name, toId: ch.activeOther.memberId });
+    if (res.error) throw new Error(res.error);
+    await loadMessages(true);
+  } catch (e) {
+    alert('연락처 공유 중 오류가 발생했습니다: ' + e.message);
+  }
+}
+
+function chatBubbleHtml(m) {
+  const mine = String(m.fromId).trim() === String(state.memberId).trim();
+  const other = state.chat.activeOther;
+  return `
+    <div class="flex ${mine ? 'justify-end' : 'items-end gap-2'} mb-2 kko-fade-in">
+      ${mine ? '' : `<div class="w-7 h-7 rounded-full flex items-center justify-center text-xs shrink-0 text-white font-bold" style="background:#5B4FCF">${esc((other && other.name || '?').charAt(0))}</div>`}
+      <div class="flex flex-col ${mine ? 'items-end' : 'items-start'}">
+        <div class="max-w-[75vw] px-3 py-2 text-sm ${mine ? 'kko-bubble-mine' : 'kko-bubble-other'}" style="white-space:pre-wrap;word-break:break-word">${esc(m.message)}</div>
+        <div class="text-[10px] text-gray-400 mt-0.5">${esc(chatTime(m.sentAt))}</div>
+      </div>
+    </div>`;
+}
+
+function renderChatRoom(body) {
+  const ch = state.chat;
+  const other = ch.activeOther;
+  body.innerHTML = `
+    <div class="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
+      <button id="chat-back" class="text-lg leading-none">←</button>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-bold truncate">${esc(other.name || '교사')}</div>
+        <div class="text-[11px] text-gray-400 truncate">${esc([other.dept, other.region].filter(Boolean).join(' '))}</div>
+      </div>
+      <button id="chat-share-contact" class="text-[11px] font-bold px-2 py-1.5 rounded-full shrink-0" style="background:var(--color-primary-light);color:var(--color-primary)">연락처 공개하기</button>
+    </div>
+    <div id="chat-log" class="flex flex-col p-3 mb-2" style="background:var(--color-bg);border-radius:var(--radius-card);max-height:58vh;overflow-y:auto">
+      ${ch.messages.length ? ch.messages.map(chatBubbleHtml).join('') : `<div class="text-xs text-gray-400 text-center py-10">아직 대화가 없습니다.<br>메시지를 보내 대화를 시작해보세요.</div>`}
+    </div>
+    <div class="flex items-end gap-2 pt-2 border-t border-gray-100">
+      <textarea id="chat-input" rows="1" placeholder="메시지를 입력하세요" class="flex-1 rounded-full px-4 py-2.5 text-sm resize-none" style="max-height:96px;border:1px solid var(--color-border)">${esc(ch.input)}</textarea>
+      <button id="chat-send" class="shrink-0 w-11 h-11 rounded-full text-white flex items-center justify-center text-lg disabled:opacity-50" style="background:var(--color-primary)" ${ch.sending ? 'disabled' : ''} title="전송">➤</button>
+    </div>
+  `;
+  scrollChatToBottom();
+  document.getElementById('chat-back').onclick = closeChatRoom;
+  document.getElementById('chat-share-contact').onclick = shareMyContact;
+  const inputEl = document.getElementById('chat-input');
+  inputEl.oninput = e => { ch.input = e.target.value; };
+  inputEl.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } };
+  document.getElementById('chat-send').onclick = sendChatMessage;
+}
+
+function chatListRowHtml(row) {
+  return `
+    <div class="chat-list-row kko-card kko-card-in flex items-center gap-3 cursor-pointer" style="padding:12px" data-mid="${esc(row.otherId)}" data-name="${esc(row.otherName)}" data-dept="${esc(row.otherDept)}" data-region="${esc(row.otherRegion)}">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0" style="background:#5B4FCF">${esc((row.otherName || '?').charAt(0))}</div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-bold truncate">${esc(row.otherName || '알 수 없음')}</div>
+        <div class="text-[12px] text-gray-400 truncate">${esc(row.lastMessage)}</div>
+      </div>
+      <div class="flex flex-col items-end gap-1 shrink-0">
+        <div class="text-[10px] text-gray-400">${esc(chatTime(row.lastAt))}</div>
+        ${row.unreadCount ? `<span class="text-[10px] font-bold text-white rounded-full px-1.5" style="background:var(--color-error)">${row.unreadCount}</span>` : ''}
+      </div>
+    </div>`;
+}
+
+function renderChatsTab(body) {
+  const ch = state.chat;
+  if (ch.activeChatId) { renderChatRoom(body); return; }
+  if (ch.listLoading && !ch.listLoaded) {
+    body.innerHTML = `<div class="text-xs text-gray-400 text-center py-10">불러오는 중...</div>`;
+    return;
+  }
+  if (!ch.list.length) {
+    body.innerHTML = `<div class="text-xs text-gray-400 text-center py-10">아직 대화가 없습니다.<br>홈 화면의 "내 명함"·"나 가능해요" 카드에서<br>[채팅하기] 버튼으로 대화를 시작해보세요.</div>`;
+    return;
+  }
+  body.innerHTML = `<div class="flex flex-col gap-2">${ch.list.map(chatListRowHtml).join('')}</div>`;
+  document.querySelectorAll('.chat-list-row').forEach(rowEl => {
+    rowEl.onclick = () => openChatRoom(rowEl.dataset.mid, rowEl.dataset.name, rowEl.dataset.dept, rowEl.dataset.region);
+  });
+}
+
 // ===== "교관 모드 🔑" 탭 (활성 교관만 노출) =====
 async function loadCoachFeedbacks() {
   const cm = state.coachMode;
@@ -1326,6 +1530,11 @@ render();
 if (state.identified) loadMyCoach(); // TEST_MODE 등으로 이미 로그인된 상태로 시작한 경우 최초 1회 조회
 // 2026-09-18: home.html 배너에서 ?tab=history 로 곧장 들어온 경우, identify 클릭 없이도 이력 로드.
 if (state.identified && state.tab === 'history') loadHistory();
+// 2026-09-19: [채팅하기]로 곧장 들어온 경우(?chatWith=), identify 클릭 없이도 해당 채팅방을 바로 연다.
+if (state.identified && state.tab === 'chats') {
+  if (paramChatWith) openChatRoom(paramChatWith, paramChatWithName || '', '', '');
+  else loadChatList();
+}
 </script>
 </body>
 </html>

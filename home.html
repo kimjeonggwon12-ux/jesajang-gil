@@ -464,8 +464,14 @@
     function roleShortLabel(role) { return ROLE_SHORT_LABEL[role] || role; }
     // 상담1/상담2/복음방 선택 시 추가 입력하는 반응(Code.gs REACTION_OPTIONS와 동일).
     const REACTION_OPTIONS = ['긍정적', '중립', '부정적'];
-    // 2026-09-15: 협력 교사 찾기 — Code.gs COOP_REQUEST_TYPES와 문구가 같아야 함.
+    // 2026-09-15: 협력 교사 찾기 — Code.gs COOP_REQUEST_TYPES와 문구가 같아야 함(이제 미사용, 참고용 보존).
     const COOP_REQUEST_TYPES = ['섬김이 동행', '상담 협력', '복음방 보조', '기타'];
+    // 2026-09-19: "나 가능해요" — Code.gs AVAIL_ROLES/AVAIL_DAYS/AVAIL_TIMES/AVAIL_PERIODS와 문구가 같아야 함.
+    const AVAIL_ROLES = ['인도', '교사', '섬김', '동행교사', '협력'];
+    const AVAIL_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+    const AVAIL_TIMES = ['오전', '오후', '저녁'];
+    const AVAIL_PERIODS = ['이번 주', '이번 달'];
+    const AVAIL_REGION_SCOPES = ['내 지역만', '인근 지역도 가능'];
     const GENDER_OPTIONS = ['남', '여'];
     // 2026-09-15: "60대이상" 뭉뚱그림 → 60대/70대이상 분리(장년회/자문회 자동 배정에 필요, ageGenderToOrg 참고).
     const AGE_GROUP_OPTIONS = ['10대', '20대', '30대', '40대', '50대', '60대', '70대이상'];
@@ -528,22 +534,26 @@
       aiFeedback: {},          // 활동 행 키 -> { loading, text }
       coachReplyNotif: [],     // 2026-09-18: 아직 안 본 교관 답변 완료 배너용 (getHistory 필터 결과)
       coachAccess: null,       // 2026-09-18: 하단 "교관" 탭 진입 가능 여부 캐시 — null=미확인, true/false=getMyCoach 결과
-      // 2026-09-15: 협력 교사 찾기 (2026-09-19: 바쁨정도 선언→프로필 등록 기반으로 개편)
-      coop: {
-        open: false,           // 섹션 펼침 여부(기본 접힘 — 목록이 길어서)
-        myProfile: null,       // getTeacherProfile 응답(등록된 프로필 없으면 null)
-        myProfileLoading: false,
-        myProfileForm: { phone: '', strengths: '', tools: '', intro: '', photoUrl: '' },
-        myProfileSaving: false,
-        myProfileNote: '',
-        filterRole: '', filterRegion: '__mine__', filterKeyword: '',
-        list: null,            // searchTeachers 응답 { myRegion, rows, total }
-        listLoading: false,
-        requests: null,        // getMyCoopRequests 응답 { incoming, outgoing }
-        modalTarget: null,     // 협력 요청 팝업 대상 { memberId, name }
-        modalType: '섬김이 동행', modalMemo: '', modalSending: false,
-        inboxOpen: false,      // 받은 요청 상세 보기
-        responding: {}         // requestId -> true
+      // 2026-09-19: "협력 교사 찾기" 전면 개편 → "내 명함" + "나 가능해요"(신규) + 교사간 채팅.
+      card: {
+        open: false,            // 섹션 펼침 여부(기본 접힘)
+        my: null,               // getTeacherProfile(본인) 응답(없으면 null)
+        myLoading: false,
+        myForm: { career: '', oneLiner: '', tags: '', tools: '', bio: '', phone: '', phonePublic: false, photoUrl: '' },
+        saving: false,
+        note: '',
+        filterScope: 'mine', filterDept: '', filterTag: '', // filterScope: 'all'|'mine'|'dept'
+        feed: null,             // searchTeachers 응답 { myRegion, myDept, rows, total }
+        feedOffset: 0,
+        feedLoading: false
+      },
+      avail: {
+        open: false,
+        myForm: { roles: [], days: [], times: [], period: '이번 주', regionScope: '내 지역만', note: '' },
+        saving: false,
+        note: '',
+        list: null,             // getAvailabilityList 응답 { myRegion, rows }
+        listLoading: false
       },
       form: {
         date: todayStr(),
@@ -587,17 +597,8 @@
       }
       home.loading = false;
       renderHome();
-      // 협력 요청 수신 배너용 — 메인 로드를 막지 않도록 뒤이어 별도로(실패해도 조용히 무시).
-      loadCoopRequests();
-      // 2026-09-18: 교관 답변 완료 알림 배너용 — 마찬가지로 메인 로드를 막지 않음.
+      // 2026-09-18: 교관 답변 완료 알림 배너용 — 메인 로드를 막지 않도록 뒤이어 별도로.
       loadCoachReplyNotif();
-    }
-
-    async function loadCoopRequests() {
-      try {
-        const res = await callApi({ action: 'getMyCoopRequests', memberId });
-        if (res && !res.error) { home.coop.requests = res; renderHome(); }
-      } catch (e) { /* 배너는 부가 기능 — 실패해도 대시보드 동작에 영향 없음 */ }
     }
 
     // 2026-09-18: 교관이 "교관에게 요청"/"AI 코칭 후 교관님께 전달" 건에 답변을 달면
@@ -1342,7 +1343,62 @@
       `;
     }
 
-    // ============ F-3. 협력 교사 찾기 (2026-09-19: 바쁨정도/활동량 기반 → 프로필 기반으로 전면 개편) ============
+    // ============ F-3. 내 명함 + 나 가능해요 + 교사간 채팅 (2026-09-19 전면 개편) ============
+    const DEPT_OPTIONS = ['자문회', '장년회', '부녀회', '청년회'];
+    const TIER_BADGE = {
+      '우수교사': { icon: '🏆', bg: '#FEF3C7', fg: '#92400E' },
+      '활동교사': { icon: '🟢', bg: '#D1FAE5', fg: '#065F46' },
+      '교사':     { icon: '',   bg: '#F3F4F6', fg: '#6B7280' },
+      '휴교사':   { icon: '',   bg: '#F3F4F6', fg: '#9CA3AF' }
+    };
+    function tierBadgeHtml(tier) {
+      const t = TIER_BADGE[tier];
+      if (!t) return '';
+      return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0" style="background:${t.bg};color:${t.fg}">${t.icon} ${esc(tier)}</span>`;
+    }
+    // "010-****-****" — 실제 전화 연결(tel:)은 그대로 되지만 화면 표시는 마스킹.
+    function maskPhone(phone) {
+      const digits = String(phone || '').replace(/[^0-9]/g, '');
+      if (digits.length < 7) return esc(phone || '');
+      return `${digits.slice(0, 3)}-****-****`;
+    }
+    function telHref(phone) { return 'tel:' + String(phone || '').replace(/[^0-9+]/g, ''); }
+    function tagPillsHtml(tagsStr, bg, fg) {
+      const tokens = String(tagsStr || '').split(/\s+/).map(t => t.trim()).filter(Boolean);
+      if (!tokens.length) return '';
+      return `<div class="flex flex-wrap gap-1 mb-1">${tokens.map(t => {
+        const label = t.startsWith('#') ? t : ('#' + t);
+        return `<span class="text-[10px] font-bold px-2 py-1 rounded-full" style="background:${bg};color:${fg}">${esc(label)}</span>`;
+      }).join('')}</div>`;
+    }
+    // 여러 개 선택 가능한 칩(체크박스) 그룹 — 활동 기록 폼의 "역할" 칩과 동일한 스타일.
+    function chipCheckboxGroupHtml(cls, options, selected, labelFn) {
+      labelFn = labelFn || (o => o);
+      return `<div class="flex flex-wrap gap-2">${options.map(o => `
+        <label class="flex items-center gap-1 border border-base-300 rounded-box px-2 py-1.5 text-xs cursor-pointer ${selected.includes(o) ? 'bg-primary/10 border-primary text-primary font-bold' : ''}">
+          <input type="checkbox" class="checkbox checkbox-xs ${cls}" value="${esc(o)}" ${selected.includes(o) ? 'checked' : ''}> ${esc(labelFn(o))}
+        </label>`).join('')}</div>`;
+    }
+    function radioGroupHtml(name, options, value) {
+      return `<div class="flex flex-wrap gap-3">${options.map(o => `
+        <label class="flex items-center gap-1 text-xs cursor-pointer">
+          <input type="radio" name="${name}" class="radio radio-xs ${name}-radio" value="${esc(o)}" ${value === o ? 'checked' : ''}> ${esc(o)}
+        </label>`).join('')}</div>`;
+    }
+    // 활동 만료까지 남은 일수 — "D-4"/"D-day" 표시.
+    function ddayLabel(expiresAt) {
+      if (!expiresAt) return '';
+      const end = new Date(String(expiresAt).replace(' ', 'T'));
+      if (isNaN(end.getTime())) return '';
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      const diff = Math.round((end - today) / 86400000);
+      return diff <= 0 ? 'D-day' : `D-${diff}`;
+    }
+    // 채팅으로 이동 — 피드백방 iframe의 "대화함" 탭에 상대방을 지정해 진입.
+    function openChatWith(mid, nm) {
+      switchTab('feedback', null, new URLSearchParams({ chatWith: mid, chatWithName: nm || '' }));
+    }
 
     // 이미지 파일을 작은 정사각형 썸네일로 축소+압축해서 base64 data URL로 변환(시트 셀 용량 한도
     // 고려 — 원본 그대로 저장하면 너무 커서 128x128, JPEG 70%로 축소).
@@ -1369,162 +1425,6 @@
       });
     }
 
-    async function loadMyProfile() {
-      const c = home.coop;
-      c.myProfileLoading = true;
-      renderHome();
-      try {
-        const res = await callApi({ action: 'getTeacherProfile', memberId });
-        c.myProfile = (res && !res.error) ? res : null;
-        if (c.myProfile) {
-          c.myProfileForm = {
-            phone: c.myProfile.phone || '', strengths: c.myProfile.strengths || '',
-            tools: c.myProfile.tools || '', intro: c.myProfile.intro || '', photoUrl: c.myProfile.photoUrl || ''
-          };
-        }
-      } catch (e) { /* 실패해도 등록 폼은 빈 값으로 계속 쓸 수 있음 */ }
-      c.myProfileLoading = false;
-      renderHome();
-    }
-
-    async function saveMyProfile() {
-      const c = home.coop;
-      c.myProfileSaving = true; c.myProfileNote = '';
-      renderHome();
-      try {
-        const res = await callApi({ action: 'saveTeacherProfile', memberId, name, ...c.myProfileForm });
-        if (res && res.error) throw new Error(res.error);
-        c.myProfile = res;
-        c.myProfileNote = '✅ 프로필이 저장되었습니다.';
-        searchCoopTeachers(); // 검색 결과에도 즉시 반영
-      } catch (e) {
-        c.myProfileNote = '⚠️ 저장 실패: ' + (e.message || e);
-      }
-      c.myProfileSaving = false;
-      renderHome();
-    }
-
-    async function deleteMyProfile() {
-      if (!confirm('프로필을 삭제할까요? 등록해둔 강점·자격증·소개·사진이 모두 지워집니다.')) return;
-      const c = home.coop;
-      c.myProfileSaving = true; c.myProfileNote = '';
-      renderHome();
-      try {
-        const res = await callApi({ action: 'saveTeacherProfile', memberId, name, delete: true });
-        if (res && res.error) throw new Error(res.error);
-        c.myProfile = null;
-        c.myProfileForm = { phone: '', strengths: '', tools: '', intro: '', photoUrl: '' };
-        c.myProfileNote = '🗑️ 프로필을 삭제했습니다.';
-        searchCoopTeachers();
-      } catch (e) {
-        c.myProfileNote = '⚠️ 삭제 실패: ' + (e.message || e);
-      }
-      c.myProfileSaving = false;
-      renderHome();
-    }
-
-    async function searchCoopTeachers() {
-      const c = home.coop;
-      c.listLoading = true;
-      renderHome();
-      try {
-        const res = await callApi({
-          action: 'searchTeachers', memberId,
-          region: c.filterRegion, role: c.filterRole, keyword: c.filterKeyword.trim()
-        });
-        c.list = (res && !res.error) ? res : { rows: [], total: 0, error: (res && res.error) || '불러오기 실패' };
-      } catch (e) {
-        c.list = { rows: [], total: 0, error: String(e.message || e) };
-      }
-      c.listLoading = false;
-      renderHome();
-    }
-
-    function toggleCoopSection() {
-      const c = home.coop;
-      c.open = !c.open;
-      renderHome();
-      if (c.open && !c.myProfile && !c.myProfileLoading) loadMyProfile(); // 처음 펼칠 때만 로드
-      if (c.open && !c.list) searchCoopTeachers();
-    }
-
-    function openCoopModal(mid, nm) {
-      const c = home.coop;
-      c.modalTarget = { memberId: mid, name: nm };
-      c.modalType = COOP_REQUEST_TYPES[0];
-      c.modalMemo = '';
-      renderHome();
-    }
-    function closeCoopModal() { home.coop.modalTarget = null; renderHome(); }
-
-    async function sendCoopRequest() {
-      const c = home.coop;
-      if (!c.modalTarget) return;
-      c.modalSending = true;
-      renderHome();
-      try {
-        const res = await callApi({
-          action: 'requestCoop', fromId: memberId, fromName: name,
-          toId: c.modalTarget.memberId, type: c.modalType, memo: c.modalMemo.trim()
-        });
-        if (res && res.error) throw new Error(res.error);
-        alert(`${c.modalTarget.name} 교사님께 협력을 요청했습니다 🤝`);
-        c.modalTarget = null;
-      } catch (e) {
-        alert('요청 전송 중 오류가 발생했습니다: ' + e.message);
-      }
-      c.modalSending = false;
-      renderHome();
-    }
-
-    async function respondCoopRequest(requestId, accept) {
-      const c = home.coop;
-      c.responding[requestId] = true;
-      renderHome();
-      try {
-        const res = await callApi({ action: 'respondCoop', requestId, accept, memberId });
-        if (res && res.error) throw new Error(res.error);
-        // 처리한 요청은 배너/목록에서 즉시 제거(서버 재조회 없이)
-        if (c.requests) c.requests.incoming = c.requests.incoming.filter(r => r.requestId !== requestId);
-      } catch (e) {
-        alert('처리 중 오류가 발생했습니다: ' + e.message);
-      }
-      delete c.responding[requestId];
-      renderHome();
-    }
-
-    // 받은 협력 요청 배너(상단) — 격려 메시지 배너와 같은 자리 계열
-    function coopInboxBannerHtml() {
-      const inc = (home.coop.requests && home.coop.requests.incoming) || [];
-      if (!inc.length) return '';
-      const first = inc[0];
-      const more = inc.length - 1;
-      return `
-        <div class="mx-4">
-          <div id="coop-inbox-banner" class="rounded-box px-3 py-2.5 flex items-center gap-2 cursor-pointer" style="background:linear-gradient(90deg,#DBEAFE,#BFDBFE);border:1px solid #93C5FD">
-            <span style="font-size:20px;color:#1D4ED8">${ICON_HANDSHAKE}</span>
-            <div class="flex-1 text-xs font-bold truncate" style="color:#1E3A8A">${esc(maskName(first.fromName) || '어느 교사')}님이 협력을 요청했습니다${more > 0 ? ` 외 ${more}건` : ''}</div>
-            <span class="text-[10px] shrink-0" style="color:#1D4ED8">${home.coop.inboxOpen ? '접기 ▲' : '자세히 →'}</span>
-          </div>
-          ${home.coop.inboxOpen ? `
-            <div class="mt-2 flex flex-col gap-2">
-              ${inc.map(r => `
-                <div class="card card-border bg-base-100 shadow-sm">
-                  <div class="card-body p-3">
-                    <div class="text-xs font-bold">${esc(maskName(r.fromName) || '교사')} · <span class="badge badge-xs badge-outline">${esc(r.type)}</span></div>
-                    ${r.memo ? `<div class="text-xs text-base-content/60 mt-1">${esc(r.memo)}</div>` : ''}
-                    <div class="text-[10px] text-base-content/40 mt-1">${esc(String(r.requestedAt || '').slice(0, 16))}</div>
-                    <div class="grid grid-cols-2 gap-2 mt-2">
-                      <button class="coop-respond btn btn-xs btn-primary" data-rid="${esc(r.requestId)}" data-accept="1" ${home.coop.responding[r.requestId] ? 'disabled' : ''}>수락</button>
-                      <button class="coop-respond btn btn-xs btn-ghost" data-rid="${esc(r.requestId)}" data-accept="0" ${home.coop.responding[r.requestId] ? 'disabled' : ''}>거절</button>
-                    </div>
-                  </div>
-                </div>`).join('')}
-            </div>` : ''}
-        </div>
-      `;
-    }
-
     // 프로필 사진 렌더 — 없으면 보라 원 + 이니셜(카카오톡 스타일).
     function profilePhotoHtml(url, sizeCls, name) {
       sizeCls = sizeCls || 'w-12 h-12';
@@ -1533,86 +1433,235 @@
       return `<div class="${sizeCls} rounded-full flex items-center justify-center shrink-0 text-white font-bold" style="background:#5B4FCF;font-size:1.1em">${initial}</div>`;
     }
 
-    function myProfileFormHtml() {
-      const c = home.coop;
-      const f = c.myProfileForm;
-      if (c.myProfileLoading) return `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`;
+    // ---------- 내 명함 ----------
+
+    async function loadMyCard() {
+      const c = home.card;
+      c.myLoading = true;
+      renderHome();
+      try {
+        const res = await callApi({ action: 'getTeacherProfile', memberId });
+        c.my = (res && !res.error) ? res : null;
+        if (c.my) {
+          c.myForm = {
+            career: c.my.career || '', oneLiner: c.my.oneLiner || '', tags: c.my.tags || '',
+            tools: c.my.tools || '', bio: c.my.bio || '', phone: c.my.phone || '',
+            phonePublic: !!c.my.phonePublic, photoUrl: c.my.photoUrl || ''
+          };
+        }
+      } catch (e) { /* 실패해도 등록 폼은 빈 값으로 계속 쓸 수 있음 */ }
+      c.myLoading = false;
+      renderHome();
+    }
+
+    async function saveMyCard() {
+      const c = home.card;
+      const f = c.myForm;
+      if (!String(f.career).trim()) { c.note = '⚠️ 교사 경력(년차)은 필수입니다.'; renderHome(); return; }
+      if (!f.oneLiner.trim()) { c.note = '⚠️ 한 줄 소개는 필수입니다.'; renderHome(); return; }
+      c.saving = true; c.note = '';
+      renderHome();
+      try {
+        const res = await callApi({ action: 'saveTeacherProfile', memberId, ...f, oneLiner: f.oneLiner.trim().slice(0, 30), bio: f.bio.slice(0, 100) });
+        if (res && res.error) throw new Error(res.error);
+        c.my = res;
+        c.note = '✅ 명함이 저장되었습니다.';
+        searchCardFeed(true); // 피드에도 즉시 반영
+      } catch (e) {
+        c.note = '⚠️ 저장 실패: ' + (e.message || e);
+      }
+      c.saving = false;
+      renderHome();
+    }
+
+    async function deleteMyCard() {
+      if (!confirm('명함을 삭제할까요? 등록해둔 내용이 모두 지워집니다.')) return;
+      const c = home.card;
+      c.saving = true; c.note = '';
+      renderHome();
+      try {
+        const res = await callApi({ action: 'saveTeacherProfile', memberId, delete: true });
+        if (res && res.error) throw new Error(res.error);
+        c.my = null;
+        c.myForm = { career: '', oneLiner: '', tags: '', tools: '', bio: '', phone: '', phonePublic: false, photoUrl: '' };
+        c.note = '🗑️ 명함을 삭제했습니다.';
+        searchCardFeed(true);
+      } catch (e) {
+        c.note = '⚠️ 삭제 실패: ' + (e.message || e);
+      }
+      c.saving = false;
+      renderHome();
+    }
+
+    async function shareMyCard() {
+      const r = home.card.my;
+      if (!r) { alert('먼저 명함을 등록해주세요.'); return; }
+      const lines = [
+        `[명함] ${name} 교사님`,
+        [r.dept, r.region].filter(Boolean).join(' '),
+        r.oneLiner ? `"${r.oneLiner}"` : '',
+        r.tags || '',
+        '하츠 앱에서 명함을 확인하고 채팅으로 연락해보세요!'
+      ].filter(Boolean);
+      const text = lines.join('\n');
+      if (navigator.share) {
+        try { await navigator.share({ text }); return; } catch (e) { /* 취소해도 무시 */ }
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('명함 공유 문구가 클립보드에 복사되었습니다. 카카오톡에 붙여넣어 보내보세요!');
+      } catch (e) { alert(text); }
+    }
+
+    // reset=true: 필터 바뀜(처음부터 새로 조회) / reset=false: "더 보기"(이어 붙이기)
+    async function searchCardFeed(reset) {
+      const c = home.card;
+      if (reset) { c.feedOffset = 0; c.feed = null; }
+      c.feedLoading = true;
+      renderHome();
+      try {
+        const region = c.filterScope === 'mine' ? '__mine__' : '';
+        const dept = c.filterScope === 'dept' ? c.filterDept : '';
+        const res = await callApi({
+          action: 'searchTeachers', memberId,
+          region, dept, tag: c.filterTag.trim(), offset: c.feedOffset, limit: 20
+        });
+        if (res && !res.error) {
+          const rows = (c.feed && !reset) ? c.feed.rows.concat(res.rows) : res.rows;
+          c.feed = { ...res, rows };
+          c.feedOffset = rows.length;
+        } else {
+          c.feed = { rows: [], total: 0, error: (res && res.error) || '불러오기 실패' };
+        }
+      } catch (e) {
+        c.feed = { rows: [], total: 0, error: String(e.message || e) };
+      }
+      c.feedLoading = false;
+      renderHome();
+    }
+
+    function toggleCardSection() {
+      const c = home.card;
+      c.open = !c.open;
+      renderHome();
+      if (c.open && !c.my && !c.myLoading) loadMyCard(); // 처음 펼칠 때만 로드
+      if (c.open && !c.feed) searchCardFeed(true);
+    }
+
+    function myCardFormHtml() {
+      const c = home.card;
+      const f = c.myForm;
+      if (c.myLoading) return `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`;
       return `
         <div class="flex items-center gap-3 mb-3">
-          ${profilePhotoHtml(f.photoUrl, 'w-14 h-14')}
+          ${profilePhotoHtml(f.photoUrl, 'w-16 h-16', name)}
           <div class="flex-1">
-            <input id="coop-profile-photo" type="file" accept="image/*" class="file-input file-input-bordered file-input-xs w-full">
-            ${f.photoUrl ? `<button id="coop-profile-photo-clear" class="text-[10px] text-error mt-1">사진 지우기</button>` : ''}
+            <input id="card-photo" type="file" accept="image/*" class="file-input file-input-bordered file-input-xs w-full">
+            ${f.photoUrl ? `<button id="card-photo-clear" class="text-[10px] text-error mt-1">사진 지우기</button>` : ''}
           </div>
         </div>
-        <div class="text-xs font-bold text-base-content/50 mb-1">전화번호</div>
-        <input id="coop-profile-phone" type="tel" placeholder="예: 010-1234-5678" class="input input-bordered input-xs w-full mb-2" value="${esc(f.phone)}">
-        <div class="text-xs font-bold text-base-content/50 mb-1">나의 강점</div>
-        <input id="coop-profile-strengths" type="text" placeholder="예: 상담·복음방 경험 5년" class="input input-bordered input-xs w-full mb-2" value="${esc(f.strengths)}">
-        <div class="text-xs font-bold text-base-content/50 mb-1">전도 도구 및 자격증</div>
-        <input id="coop-profile-tools" type="text" placeholder="예: HARTS, 상담사 자격증, 복음방 교사 수료" class="input input-bordered input-xs w-full mb-2" value="${esc(f.tools)}">
-        <div class="text-xs font-bold text-base-content/50 mb-1">자기소개 (선택)</div>
-        <textarea id="coop-profile-intro" rows="2" placeholder="짧은 자기소개" class="textarea textarea-bordered textarea-xs w-full mb-2">${esc(f.intro)}</textarea>
-        <div class="flex gap-2">
-          <button id="coop-profile-save" class="btn btn-primary btn-xs flex-1" ${c.myProfileSaving ? 'disabled' : ''}>${c.myProfileSaving ? '저장 중...' : (c.myProfile ? '수정 저장' : '프로필 등록')}</button>
-          ${c.myProfile ? `<button id="coop-profile-delete" class="btn btn-outline btn-error btn-xs" ${c.myProfileSaving ? 'disabled' : ''}>삭제</button>` : ''}
+        <div class="text-xs font-bold text-base-content/50 mb-1">교사 경력 <span class="text-error">*</span></div>
+        <div class="join w-full mb-2">
+          <input id="card-career" type="number" min="0" placeholder="예: 5" class="input input-bordered input-xs join-item w-full" value="${esc(f.career)}">
+          <span class="join-item flex items-center px-3 text-xs bg-base-200">년차</span>
         </div>
-        ${c.myProfileNote ? `<div class="text-[11px] mt-1.5 font-bold ${c.myProfileNote.startsWith('⚠️') ? 'text-error' : 'text-success'}">${esc(c.myProfileNote)}</div>` : ''}
+        <div class="text-xs font-bold text-base-content/50 mb-1">한 줄 소개 (최대 30자) <span class="text-error">*</span></div>
+        <input id="card-oneLiner" type="text" maxlength="30" placeholder="예: 복음방 5년차 교사입니다" class="input input-bordered input-xs w-full mb-2" value="${esc(f.oneLiner)}">
+        <div class="text-xs font-bold text-base-content/50 mb-1">특기 태그 (선택, #해시태그)</div>
+        <input id="card-tags" type="text" placeholder="예: #상담경험 #복음방전문 #청년사역" class="input input-bordered input-xs w-full mb-2" value="${esc(f.tags)}">
+        <div class="text-xs font-bold text-base-content/50 mb-1">전도 도구·자격증 (선택)</div>
+        <input id="card-tools" type="text" placeholder="예: HARTS수료 / 상담사2급" class="input input-bordered input-xs w-full mb-2" value="${esc(f.tools)}">
+        <div class="text-xs font-bold text-base-content/50 mb-1">한 마디 더 (선택, 최대 100자)</div>
+        <textarea id="card-bio" rows="2" maxlength="100" placeholder="인스타 바이오처럼 짧게" class="textarea textarea-bordered textarea-xs w-full mb-2">${esc(f.bio)}</textarea>
+        <div class="text-xs font-bold text-base-content/50 mb-1">전화번호 (선택)</div>
+        <input id="card-phone" type="tel" placeholder="예: 010-1234-5678" class="input input-bordered input-xs w-full mb-1.5" value="${esc(f.phone)}">
+        <label class="flex items-center gap-1.5 text-[11px] text-base-content/60 mb-2 cursor-pointer">
+          <input id="card-phonePublic" type="checkbox" class="checkbox checkbox-xs" ${f.phonePublic ? 'checked' : ''}> 전화번호 공개 (끄면 채팅으로만 연락 가능)
+        </label>
+        <div class="flex gap-2">
+          <button id="card-save" class="btn btn-primary btn-xs flex-1" ${c.saving ? 'disabled' : ''}>${c.saving ? '저장 중...' : (c.my ? '수정 저장' : '명함 등록')}</button>
+          ${c.my ? `<button id="card-delete" class="btn btn-outline btn-error btn-xs" ${c.saving ? 'disabled' : ''}>삭제</button>` : ''}
+        </div>
+        ${c.note ? `<div class="text-[11px] mt-1.5 font-bold ${c.note.startsWith('⚠️') ? 'text-error' : 'text-success'}">${esc(c.note)}</div>` : ''}
       `;
     }
 
-    function coopSectionHtml() {
-      const c = home.coop;
-      const list = c.list;
+    // 명함 한 장 — isMine이면 [수정하기] 미리보기 느낌(버튼 없이 미리보기), 아니면 채팅/전화 버튼.
+    function cardHtml(r, isMine) {
+      const canCall = !!(r.phonePublic && r.phone);
+      const metaBits = [
+        `교사경력 ${esc(r.career || '-')}년`,
+        r.lastActiveLabel ? `최근활동 ${esc(r.lastActiveLabel)}` : '',
+        r.leadCount ? `센터인도 ${r.leadCount}건` : ''
+      ].filter(Boolean).join(' · ');
+      return `
+        <div class="p-3 kko-card-in" style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
+          <div class="flex items-start gap-2.5 mb-2">
+            ${profilePhotoHtml(r.photoUrl, 'w-12 h-12', r.name || name)}
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-bold truncate" style="color:#222222">${esc(isMine ? name : maskName(r.name))}</div>
+              <div class="text-[11px] flex items-center gap-1 flex-wrap" style="color:#888888">
+                <span>${esc(r.dept || '-')} ${esc(r.region || '')}</span>
+                ${tierBadgeHtml(r.tier)}
+              </div>
+              ${metaBits ? `<div class="text-[10px] mt-0.5" style="color:#AAAAAA">${metaBits}</div>` : ''}
+            </div>
+          </div>
+          ${r.oneLiner ? `<div class="text-[12px] font-bold mb-1.5" style="color:#333333">"${esc(r.oneLiner)}"</div>` : ''}
+          ${tagPillsHtml(r.tags, '#EDE9FF', '#5B4FCF')}
+          ${r.tools ? `<div class="flex flex-wrap gap-1 mb-1.5">${r.tools.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="text-[10px] font-bold px-2 py-1 rounded-full" style="background:#EEEEEE;color:#888888">${esc(t)}</span>`).join('')}</div>` : ''}
+          ${r.bio ? `<div class="text-[11px] mb-1.5" style="color:#888888">"${esc(r.bio)}"</div>` : ''}
+          ${isMine ? '' : `
+            ${canCall ? `<div class="text-[10px] mb-1" style="color:#AAAAAA">${maskPhone(r.phone)}</div>` : ''}
+            <div class="grid ${canCall ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
+              <button class="card-chat-btn kko-btn-outline" data-mid="${esc(r.memberId)}" data-name="${esc(r.name)}">💬 채팅하기</button>
+              ${canCall ? `<a href="${telHref(r.phone)}" class="kko-btn-outline" style="text-decoration:none">📞 전화하기</a>` : ''}
+            </div>`}
+        </div>`;
+    }
+
+    function cardSectionHtml() {
+      const c = home.card;
+      const feed = c.feed;
       return `
         <div class="card card-border bg-base-100 shadow-sm mx-4">
           <div class="card-body p-4">
-            <button id="coop-toggle" class="flex items-center justify-between w-full text-left">
-              <span class="text-sm font-bold text-base-content">${ICON_HANDSHAKE} 협력 교사 찾기</span>
+            <button id="card-toggle" class="flex items-center justify-between w-full text-left">
+              <span class="text-sm font-bold text-base-content">🪪 내 명함</span>
               <span class="text-xs text-base-content/40">${c.open ? '접기 ▲' : '펼치기 ▼'}</span>
             </button>
 
             ${c.open ? `
               <div class="mt-3 border-t border-base-200 pt-3">
-                <div class="text-xs font-bold text-base-content/50 mb-1.5">내 프로필 (등록해야 다른 교사가 나를 찾을 수 있어요)</div>
-                <div class="border border-base-300 rounded-box p-3 mb-4">${myProfileFormHtml()}</div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <div class="text-xs font-bold text-base-content/50">내 명함 (등록해야 다른 교사가 나를 찾을 수 있어요)</div>
+                  ${c.my ? `<button id="card-share" class="text-[11px] font-bold" style="color:#5B4FCF">공유하기 ↗</button>` : ''}
+                </div>
+                ${c.my ? `<div class="mb-3">${cardHtml(c.my, true)}</div>` : ''}
+                <div class="border border-base-300 rounded-box p-3 mb-4">${myCardFormHtml()}</div>
 
-                <div class="text-xs font-bold text-base-content/50 mb-1.5">검색 필터</div>
-                <div class="grid grid-cols-3 gap-2 mb-3">
-                  <select id="coop-f-role" class="select select-bordered select-xs w-full">
-                    <option value="">역할 전체</option>
-                    ${ROLE_OPTIONS.map(r => `<option value="${esc(r)}" ${c.filterRole === r ? 'selected' : ''}>${esc(roleShortLabel(r))}</option>`).join('')}
+                <div class="text-xs font-bold text-base-content/50 mb-1.5">명함 피드</div>
+                <div class="flex flex-wrap gap-2 mb-2">
+                  <select id="card-f-scope" class="select select-bordered select-xs">
+                    <option value="mine" ${c.filterScope === 'mine' ? 'selected' : ''}>내 지역</option>
+                    <option value="all" ${c.filterScope === 'all' ? 'selected' : ''}>전체</option>
+                    <option value="dept" ${c.filterScope === 'dept' ? 'selected' : ''}>부서별</option>
                   </select>
-                  <select id="coop-f-region" class="select select-bordered select-xs w-full">
-                    <option value="__mine__" ${c.filterRegion === '__mine__' ? 'selected' : ''}>내 지역</option>
-                    <option value="" ${c.filterRegion === '' ? 'selected' : ''}>전체 지역</option>
-                  </select>
-                  <input id="coop-f-keyword" type="text" placeholder="강점 키워드" class="input input-bordered input-xs w-full" value="${esc(c.filterKeyword)}">
+                  ${c.filterScope === 'dept' ? `
+                    <select id="card-f-dept" class="select select-bordered select-xs">
+                      ${DEPT_OPTIONS.map(d => `<option value="${esc(d)}" ${c.filterDept === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}
+                    </select>` : ''}
+                  <input id="card-f-tag" type="text" placeholder="태그 검색 (Enter)" class="input input-bordered input-xs flex-1 min-w-[100px]" value="${esc(c.filterTag)}">
                 </div>
 
-                ${c.listLoading ? `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`
-                  : !list ? ''
-                    : list.error ? `<div class="alert alert-error py-2 text-xs">⚠️ ${esc(list.error)}</div>`
-                      : list.rows.length === 0 ? `<div class="text-xs text-base-content/40 text-center py-6">프로필을 등록한 교사가 아직 없거나, 조건에 맞는 교사가 없습니다.</div>`
+                ${c.feedLoading && (!feed || !feed.rows.length) ? `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`
+                  : !feed ? ''
+                    : feed.error ? `<div class="alert alert-error py-2 text-xs">⚠️ ${esc(feed.error)}</div>`
+                      : feed.rows.length === 0 ? `<div class="text-xs text-base-content/40 text-center py-6">명함을 등록한 교사가 아직 없거나, 조건에 맞는 교사가 없습니다.</div>`
                         : `
-                          <div class="text-[10px] text-base-content/40 mb-2">${list.total}명 중 ${list.rows.length}명 표시 · 프로필을 등록한 교사만 검색됩니다</div>
-                          <div class="flex flex-col gap-2">
-                            ${list.rows.slice(0, 30).map(r => `
-                              <div class="p-3 kko-card-in" style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
-                                <div class="flex items-start gap-2.5 mb-2">
-                                  ${profilePhotoHtml(r.photoUrl, 'w-12 h-12', r.name)}
-                                  <div class="flex-1 min-w-0">
-                                    <div class="text-sm font-bold truncate" style="color:#222222">${esc(maskName(r.name))}</div>
-                                    <div class="text-[11px]" style="color:#888888">${esc(r.dept || '-')} · ${esc(r.region || '-')}</div>
-                                  </div>
-                                </div>
-                                ${r.strengths ? `<div class="flex flex-wrap gap-1 mb-1">${r.strengths.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="text-[10px] font-bold px-2 py-1 rounded-full" style="background:#EDE9FF;color:#5B4FCF">${esc(t)}</span>`).join('')}</div>` : ''}
-                                ${r.tools ? `<div class="flex flex-wrap gap-1 mb-1.5">${r.tools.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="text-[10px] font-bold px-2 py-1 rounded-full" style="background:#EEEEEE;color:#888888">${esc(t)}</span>`).join('')}</div>` : ''}
-                                ${r.intro ? `<div class="text-[11px] mb-1.5" style="color:#888888">"${esc(r.intro)}"</div>` : ''}
-                                <button class="coop-req-btn kko-btn-outline w-full" data-mid="${esc(r.memberId)}" data-name="${esc(r.name)}">협력 요청하기</button>
-                              </div>`).join('')}
-                          </div>
-                          ${list.rows.length > 30 ? `<div class="text-[10px] text-base-content/40 text-center mt-2">상위 30명만 표시됩니다 — 필터를 좁혀보세요.</div>` : ''}
+                          <div class="text-[10px] text-base-content/40 mb-2">${feed.total}명 중 ${feed.rows.length}명 표시 · 명함을 등록한 교사만 검색됩니다</div>
+                          <div class="flex flex-col gap-2">${feed.rows.map(r => cardHtml(r, false)).join('')}</div>
+                          ${feed.rows.length < feed.total ? `<button id="card-load-more" class="kko-btn-outline mt-2" ${c.feedLoading ? 'disabled' : ''}>${c.feedLoading ? '불러오는 중...' : '더 보기'}</button>` : ''}
                         `}
               </div>` : ''}
           </div>
@@ -1620,96 +1669,243 @@
       `;
     }
 
-    function coopModalHtml() {
-      const c = home.coop;
-      if (!c.modalTarget) return '';
+    // ---------- 나 가능해요 ----------
+
+    async function loadAvailList() {
+      const c = home.avail;
+      c.listLoading = true;
+      renderHome();
+      try {
+        const res = await callApi({ action: 'getAvailabilityList', memberId });
+        c.list = (res && !res.error) ? res : { rows: [], error: (res && res.error) || '불러오기 실패' };
+      } catch (e) {
+        c.list = { rows: [], error: String(e.message || e) };
+      }
+      c.listLoading = false;
+      renderHome();
+    }
+
+    async function saveMyAvailability() {
+      const c = home.avail;
+      const f = c.myForm;
+      if (!f.roles.length || !f.days.length || !f.times.length || !f.period) {
+        c.note = '⚠️ 가능 역할·요일·시간대·기간은 모두 1개 이상 선택해야 합니다.';
+        renderHome();
+        return;
+      }
+      c.saving = true; c.note = '';
+      renderHome();
+      try {
+        const res = await callApi({ action: 'saveAvailability', memberId, ...f, note: f.note.trim().slice(0, 50) });
+        if (res && res.error) throw new Error(res.error);
+        c.note = '✅ 가용 신청이 등록되었습니다.';
+        loadAvailList();
+      } catch (e) {
+        c.note = '⚠️ 등록 실패: ' + (e.message || e);
+      }
+      c.saving = false;
+      renderHome();
+    }
+
+    async function cancelMyAvailability() {
+      if (!confirm('가용 신청을 취소할까요?')) return;
+      const c = home.avail;
+      c.saving = true; c.note = '';
+      renderHome();
+      try {
+        const res = await callApi({ action: 'cancelAvailability', memberId });
+        if (res && res.error) throw new Error(res.error);
+        c.note = '🗑️ 가용 신청을 취소했습니다.';
+        loadAvailList();
+      } catch (e) {
+        c.note = '⚠️ 취소 실패: ' + (e.message || e);
+      }
+      c.saving = false;
+      renderHome();
+    }
+
+    function toggleAvailSection() {
+      const c = home.avail;
+      c.open = !c.open;
+      renderHome();
+      if (c.open && !c.list) loadAvailList();
+    }
+
+    function availFormHtml() {
+      const c = home.avail;
+      const f = c.myForm;
       return `
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
-          <div class="bg-base-100 rounded-box shadow-xl w-full max-w-sm p-5">
-            <div class="text-lg font-bold mb-1">${ICON_HANDSHAKE} 협력 요청하기</div>
-            <div class="text-sm text-base-content/60 mb-3">받는 사람: <b>${esc(maskName(c.modalTarget.name))}</b> 교사님</div>
-            <div class="text-xs font-bold text-base-content/50 mb-1">요청 유형</div>
-            <select id="coop-modal-type" class="select select-bordered select-sm w-full mb-2">
-              ${COOP_REQUEST_TYPES.map(t => `<option value="${esc(t)}" ${c.modalType === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
-            </select>
-            <textarea id="coop-modal-memo" rows="3" placeholder="메모 (선택)" class="textarea textarea-bordered textarea-sm w-full mb-3">${esc(c.modalMemo)}</textarea>
-            <div class="grid grid-cols-2 gap-2">
-              <button id="coop-modal-cancel" class="btn btn-sm btn-ghost">닫기</button>
-              <button id="coop-modal-send" class="btn btn-sm btn-primary" ${c.modalSending ? 'disabled' : ''}>${c.modalSending ? '전송 중...' : '전송'}</button>
+        <div class="text-xs font-bold text-base-content/50 mb-1">가능 역할 (복수 선택) <span class="text-error">*</span></div>
+        <div class="mb-2">${chipCheckboxGroupHtml('avail-role-cb', AVAIL_ROLES, f.roles)}</div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">가능 요일 (복수 선택) <span class="text-error">*</span></div>
+        <div class="mb-2">${chipCheckboxGroupHtml('avail-day-cb', AVAIL_DAYS, f.days)}</div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">가능 시간대 (복수 선택) <span class="text-error">*</span></div>
+        <div class="mb-2">${chipCheckboxGroupHtml('avail-time-cb', AVAIL_TIMES, f.times)}</div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">기간 <span class="text-error">*</span></div>
+        <div class="mb-2">${radioGroupHtml('avail-period', AVAIL_PERIODS, f.period)}</div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">가능 지역 범위 (선택)</div>
+        <div class="mb-2">${radioGroupHtml('avail-regionScope', AVAIL_REGION_SCOPES, f.regionScope)}</div>
+        <div class="text-xs font-bold text-base-content/50 mb-1">한 마디 (선택, 최대 50자)</div>
+        <input id="avail-note" type="text" maxlength="50" placeholder="예: 복음방 동행 가능해요!" class="input input-bordered input-xs w-full mb-2" value="${esc(f.note)}">
+        <div class="flex gap-2">
+          <button id="avail-save" class="btn btn-primary btn-xs flex-1" ${c.saving ? 'disabled' : ''}>${c.saving ? '등록 중...' : '가용 신청'}</button>
+          <button id="avail-cancel" class="btn btn-outline btn-error btn-xs" ${c.saving ? 'disabled' : ''}>신청 취소</button>
+        </div>
+        ${c.note ? `<div class="text-[11px] mt-1.5 font-bold ${c.note.startsWith('⚠️') ? 'text-error' : 'text-success'}">${esc(c.note)}</div>` : ''}
+      `;
+    }
+
+    function availCardHtml(r) {
+      const isMine = String(r.memberId) === String(memberId);
+      const canCall = !!(r.phonePublic && r.phone);
+      const dday = ddayLabel(r.expiresAt);
+      return `
+        <div class="p-3 kko-card-in" style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
+          <div class="flex items-start gap-2.5 mb-2">
+            ${profilePhotoHtml(r.photoUrl, 'w-11 h-11', r.name)}
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-bold truncate" style="color:#222222">${esc(isMine ? name + ' (나)' : maskName(r.name))}</div>
+              <div class="text-[11px]" style="color:#888888">${esc(r.dept || '-')} ${esc(r.region || '')}</div>
             </div>
+          </div>
+          <div class="text-[12px] font-bold mb-1" style="color:#5B4FCF">🙋 ${r.roles.map(roleShortLabel).join('·')} 가능</div>
+          <div class="text-[11px] mb-1" style="color:#666666">📅 ${esc(r.days.join('·'))} / ${esc(r.times.join('·'))}</div>
+          <div class="text-[11px] mb-1.5" style="color:#666666">🗓️ ${esc(r.period)} ${dday ? `<b style="color:#D94040">${dday}</b>` : ''}</div>
+          ${r.note ? `<div class="text-[11px] mb-1.5" style="color:#888888">"${esc(r.note)}"</div>` : ''}
+          ${isMine ? '' : `
+            <div class="grid ${canCall ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
+              <button class="avail-chat-btn kko-btn-outline" data-mid="${esc(r.memberId)}" data-name="${esc(r.name)}">💬 채팅하기</button>
+              ${canCall ? `<a href="${telHref(r.phone)}" class="kko-btn-outline" style="text-decoration:none">📞 전화하기</a>` : ''}
+            </div>`}
+        </div>`;
+    }
+
+    function availSectionHtml() {
+      const c = home.avail;
+      const list = c.list;
+      const mine = list && list.rows.find(r => String(r.memberId) === String(memberId));
+      const soonExpiring = mine && (ddayLabel(mine.expiresAt) === 'D-day' || ddayLabel(mine.expiresAt) === 'D-1');
+      return `
+        <div class="card card-border bg-base-100 shadow-sm mx-4">
+          <div class="card-body p-4">
+            <button id="avail-toggle" class="flex items-center justify-between w-full text-left">
+              <span class="text-sm font-bold text-base-content">🙋 나 가능해요</span>
+              <span class="text-xs text-base-content/40">${c.open ? '접기 ▲' : '펼치기 ▼'}</span>
+            </button>
+
+            ${c.open ? `
+              <div class="mt-3 border-t border-base-200 pt-3">
+                ${soonExpiring ? `<div class="rounded-box px-3 py-2 mb-3 text-xs font-bold" style="background:#FEF3C7;color:#92400E">⏰ 이번 주 가용 신청이 곧 만료돼요. 다음 주도 가능하신가요? 아래에서 다시 등록해주세요.</div>` : ''}
+                <div class="border border-base-300 rounded-box p-3 mb-4">${availFormHtml()}</div>
+
+                <div class="text-xs font-bold text-base-content/50 mb-1.5">가용 피드</div>
+                ${c.listLoading ? `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`
+                  : !list ? ''
+                    : list.error ? `<div class="alert alert-error py-2 text-xs">⚠️ ${esc(list.error)}</div>`
+                      : list.rows.length === 0 ? `<div class="text-xs text-base-content/40 text-center py-6">등록된 가용 신청이 없습니다.</div>`
+                        : `<div class="flex flex-col gap-2">${list.rows.map(availCardHtml).join('')}</div>`}
+              </div>` : ''}
           </div>
         </div>
       `;
     }
 
-    function wireHistoryAndCoop() {
+    // ---------- 이벤트 바인딩 ----------
+
+    function wireHistoryAndCards() {
       const ht = document.getElementById('history-toggle');
       if (ht) ht.onclick = toggleHistory;
       document.querySelectorAll('.ai-fb-btn').forEach(btn => {
         btn.onclick = () => runActivityAiFeedback(btn.dataset.key);
       });
 
-      const c = home.coop;
-      const banner = document.getElementById('coop-inbox-banner');
-      if (banner) banner.onclick = () => { c.inboxOpen = !c.inboxOpen; renderHome(); };
-      document.querySelectorAll('.coop-respond').forEach(btn => {
-        btn.onclick = () => respondCoopRequest(btn.dataset.rid, btn.dataset.accept === '1');
-      });
+      // ── 내 명함 ──
+      const c = home.card;
+      const ct = document.getElementById('card-toggle');
+      if (ct) ct.onclick = toggleCardSection;
+      const shareBtn = document.getElementById('card-share');
+      if (shareBtn) shareBtn.onclick = shareMyCard;
 
-      const ct = document.getElementById('coop-toggle');
-      if (ct) ct.onclick = toggleCoopSection;
-
-      // 내 프로필 입력폼 — 텍스트류는 값만 저장(재렌더 안 해 포커스/한글조합 안 끊김), 저장/삭제 버튼만 서버 호출.
-      const pf = c.myProfileForm;
-      const bindProfileField = (id, key) => {
+      const pf = c.myForm;
+      const bindCardField = (id, key) => {
         const el = document.getElementById(id);
         if (el) el.oninput = e => { pf[key] = e.target.value; };
       };
-      bindProfileField('coop-profile-phone', 'phone');
-      bindProfileField('coop-profile-strengths', 'strengths');
-      bindProfileField('coop-profile-tools', 'tools');
-      bindProfileField('coop-profile-intro', 'intro');
-      const photoInput = document.getElementById('coop-profile-photo');
-      if (photoInput) photoInput.onchange = async e => {
+      bindCardField('card-career', 'career');
+      bindCardField('card-oneLiner', 'oneLiner');
+      bindCardField('card-tags', 'tags');
+      bindCardField('card-tools', 'tools');
+      bindCardField('card-bio', 'bio');
+      bindCardField('card-phone', 'phone');
+      const phonePublicEl = document.getElementById('card-phonePublic');
+      if (phonePublicEl) phonePublicEl.onchange = e => { pf.phonePublic = e.target.checked; };
+      const cardPhotoInput = document.getElementById('card-photo');
+      if (cardPhotoInput) cardPhotoInput.onchange = async e => {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
         try { pf.photoUrl = await fileToThumbnailDataUrl(file); renderHome(); }
         catch (err) { alert('사진을 불러오지 못했습니다: ' + err.message); }
       };
-      const photoClear = document.getElementById('coop-profile-photo-clear');
-      if (photoClear) photoClear.onclick = () => { pf.photoUrl = ''; renderHome(); };
-      const saveBtn = document.getElementById('coop-profile-save');
-      if (saveBtn) saveBtn.onclick = saveMyProfile;
-      const delBtn = document.getElementById('coop-profile-delete');
-      if (delBtn) delBtn.onclick = deleteMyProfile;
+      const cardPhotoClear = document.getElementById('card-photo-clear');
+      if (cardPhotoClear) cardPhotoClear.onclick = () => { pf.photoUrl = ''; renderHome(); };
+      const cardSaveBtn = document.getElementById('card-save');
+      if (cardSaveBtn) cardSaveBtn.onclick = saveMyCard;
+      const cardDelBtn = document.getElementById('card-delete');
+      if (cardDelBtn) cardDelBtn.onclick = deleteMyCard;
 
-      // 검색 필터 3종 — select는 즉시 재조회, 키워드 입력창은 Enter로 조회(매 타이핑마다 재조회 안 함).
-      const bindFilterSelect = (id, key) => {
-        const el = document.getElementById(id);
-        if (el) el.onchange = e => { c[key] = e.target.value; searchCoopTeachers(); };
-      };
-      bindFilterSelect('coop-f-role', 'filterRole');
-      bindFilterSelect('coop-f-region', 'filterRegion');
-      const kwEl = document.getElementById('coop-f-keyword');
-      if (kwEl) {
-        kwEl.oninput = e => { c.filterKeyword = e.target.value; };
-        kwEl.onkeydown = e => { if (e.key === 'Enter') searchCoopTeachers(); };
+      const scopeEl = document.getElementById('card-f-scope');
+      if (scopeEl) scopeEl.onchange = e => { c.filterScope = e.target.value; searchCardFeed(true); };
+      const deptEl = document.getElementById('card-f-dept');
+      if (deptEl) deptEl.onchange = e => { c.filterDept = e.target.value; searchCardFeed(true); };
+      const tagEl = document.getElementById('card-f-tag');
+      if (tagEl) {
+        tagEl.oninput = e => { c.filterTag = e.target.value; };
+        tagEl.onkeydown = e => { if (e.key === 'Enter') searchCardFeed(true); };
       }
-
-      document.querySelectorAll('.coop-req-btn').forEach(btn => {
-        btn.onclick = () => openCoopModal(btn.dataset.mid, btn.dataset.name);
+      const loadMoreBtn = document.getElementById('card-load-more');
+      if (loadMoreBtn) loadMoreBtn.onclick = () => searchCardFeed(false);
+      document.querySelectorAll('.card-chat-btn').forEach(btn => {
+        btn.onclick = () => openChatWith(btn.dataset.mid, btn.dataset.name);
       });
 
-      if (c.modalTarget) {
-        const t = document.getElementById('coop-modal-type');
-        if (t) t.onchange = e => { c.modalType = e.target.value; };
-        const m = document.getElementById('coop-modal-memo');
-        if (m) m.oninput = e => { c.modalMemo = e.target.value; };
-        const cancel = document.getElementById('coop-modal-cancel');
-        if (cancel) cancel.onclick = closeCoopModal;
-        const send = document.getElementById('coop-modal-send');
-        if (send) send.onclick = sendCoopRequest;
-      }
+      // ── 나 가능해요 ──
+      const ac = home.avail;
+      const at = document.getElementById('avail-toggle');
+      if (at) at.onclick = toggleAvailSection;
+      const af = ac.myForm;
+      document.querySelectorAll('.avail-role-cb').forEach(cb => {
+        cb.onchange = e => {
+          if (e.target.checked) af.roles.push(e.target.value);
+          else af.roles = af.roles.filter(v => v !== e.target.value);
+        };
+      });
+      document.querySelectorAll('.avail-day-cb').forEach(cb => {
+        cb.onchange = e => {
+          if (e.target.checked) af.days.push(e.target.value);
+          else af.days = af.days.filter(v => v !== e.target.value);
+        };
+      });
+      document.querySelectorAll('.avail-time-cb').forEach(cb => {
+        cb.onchange = e => {
+          if (e.target.checked) af.times.push(e.target.value);
+          else af.times = af.times.filter(v => v !== e.target.value);
+        };
+      });
+      document.querySelectorAll('.avail-period-radio').forEach(rb => {
+        rb.onchange = e => { af.period = e.target.value; };
+      });
+      document.querySelectorAll('.avail-regionScope-radio').forEach(rb => {
+        rb.onchange = e => { af.regionScope = e.target.value; };
+      });
+      const availNoteEl = document.getElementById('avail-note');
+      if (availNoteEl) availNoteEl.oninput = e => { af.note = e.target.value; };
+      const availSaveBtn = document.getElementById('avail-save');
+      if (availSaveBtn) availSaveBtn.onclick = saveMyAvailability;
+      const availCancelBtn = document.getElementById('avail-cancel');
+      if (availCancelBtn) availCancelBtn.onclick = cancelMyAvailability;
+      document.querySelectorAll('.avail-chat-btn').forEach(btn => {
+        btn.onclick = () => openChatWith(btn.dataset.mid, btn.dataset.name);
+      });
     }
 
     // ============ G. 리더 격려 메시지 배너 ============
@@ -1765,16 +1961,15 @@
       return `
         <div class="py-4 flex flex-col gap-5">
           ${encouragementBannerHtml()}
-          ${coopInboxBannerHtml()}
           ${coachReplyBannerHtml()}
           ${growthStagesHtml()}
           ${monthlyBoxesHtml()}
           ${activityFormHtml()}
           ${activityHistorySectionHtml()}
           ${targetsSectionHtml()}
-          ${coopSectionHtml()}
+          ${cardSectionHtml()}
+          ${availSectionHtml()}
         </div>
-        ${coopModalHtml()}
       `;
     }
 
@@ -1788,7 +1983,7 @@
       root.innerHTML = dashboardViewHtml();
       wireActivityForm();
       renderTargetsChart();
-      wireHistoryAndCoop();
+      wireHistoryAndCards();
       const bannerEl = document.getElementById('encourage-banner');
       if (bannerEl) bannerEl.onclick = openEncourageBannerModal;
     }
