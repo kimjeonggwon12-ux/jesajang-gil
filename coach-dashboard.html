@@ -11,15 +11,27 @@
   :root {
     --color-primary: #5B4FCF;
     --color-primary-light: #EDE9FF;
-    --color-bg: #F5F5F5;
+    --color-primary-dark: #3D34A5;
+    --color-surface: #FFFFFF;
     --color-card: #FFFFFF;
-    --color-text: #222222;
-    --color-text-sub: #888888;
-    --color-border: #EEEEEE;
+    --color-bg: #F5F5F5;
+    --color-text: #1A1A2E;
+    --color-text-sub: #666680;
+    --color-border: #E8E8F0;
+    --color-success: #2D9B6F;
+    --color-warning: #E8A020;
+    --color-error: #D94040;
+    --color-accent: #FF6B6B;
     --radius-card: 16px;
     --radius-btn: 12px;
+    --radius-input: 10px;
     --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
+    --height-btn: 52px;
+    --height-btn-sm: 44px;
+    --height-header: 56px;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px;
   }
+  .lucide-i { width:1em; height:1em; display:inline-block; vertical-align:-0.15em; flex-shrink:0; }
   .kko-card-in { animation: kkoCardIn .3s ease; }
   @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
   .kko-fade-in { animation: kkoFadeIn .2s ease; }
@@ -34,9 +46,9 @@
     --b1: 100% 0 0; --b2: 96.70% 0.0029 264.54; --b3: 92.76% 0.0058 264.53;
     --bc: 27.81% 0.0296 256.85;
     --in: 68.47% 0.1479 237.32; --inc: 100% 0 0;
-    --su: 69.59% 0.1491 162.48; --suc: 100% 0 0;
-    --wa: 76.86% 0.1647 70.08;  --wac: 0% 0 0;
-    --er: 57.71% 0.2152 27.33;  --erc: 100% 0 0;
+    --su: 61.67% 0.1191 162.14; --suc: 100% 0 0;
+    --wa: 75.76% 0.1525 74.86;  --wac: 0% 0 0;
+    --er: 59.56% 0.1901 25.05;  --erc: 100% 0 0;
     --rounded-box: 0.75rem; --rounded-btn: 0.5rem; --rounded-badge: 1rem;
   }
   html, body { margin:0; padding:0; }
@@ -68,6 +80,24 @@
 </div>
 
 <script>
+// Lucide 아이콘(눈에 잘 띄는 자리 위주로 이모지 대체) — inner markup만 보관, ic(name)이 <svg> 래핑.
+const ICONS = {
+  'lock': '<rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />',
+  'graduation-cap': '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /><path d="M22 10v6" /><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" />',
+  'map': '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" /><path d="M15 5.764v15" /><path d="M9 3.236v15" />',
+  'headphones': '<path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3" />',
+  'bar-chart-2': '<path d="M5 21v-6" /><path d="M12 21V3" /><path d="M19 21V9" />',
+  'compass': '<circle cx="12" cy="12" r="10" /><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />',
+  'bot': '<path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" />',
+  'check-circle-2': '<circle cx="12" cy="12" r="10" /><path d="m16 9-5.5 5.5L8 12" />',
+  'message-circle': '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />',
+  'search': '<path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" />',
+  'alert-triangle': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" />'
+};
+function ic(name) {
+  return `<svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`;
+}
+
 const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
 
 // 부서(조직) 버킷 — district-dashboard.html/edu-dashboard.html/백엔드 _orgBucket_ 과 동일 규칙:
@@ -155,7 +185,7 @@ function feedbackOverviewSectionHtml() {
     return `<div class="px-4 pt-2"><div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>피드백 현황 불러오는 중...</div></div>`;
   }
   if (feedbackRows.length === 0) {
-    return `<div class="px-4 pt-2">${sectionTitleBand('📊', '피드백 현황', '피드백 요청/응답 핵심 지표', '#E0F2FE')}<div class="text-sm text-base-content/40 text-center py-10">아직 피드백 데이터가 없습니다.</div></div>`;
+    return `<div class="px-4 pt-2">${sectionTitleBand(ic('bar-chart-2'), '피드백 현황', '피드백 요청/응답 핵심 지표', '#E0F2FE')}<div class="text-sm text-base-content/40 text-center py-10">아직 피드백 데이터가 없습니다.</div></div>`;
   }
 
   const overall = computeFeedbackStats(feedbackRows);
@@ -170,7 +200,7 @@ function feedbackOverviewSectionHtml() {
 
   return `
     <div class="px-4 pt-2">
-      ${sectionTitleBand('📊', '피드백 현황', '피드백 요청/응답 핵심 지표', '#E0F2FE')}
+      ${sectionTitleBand(ic('bar-chart-2'), '피드백 현황', '피드백 요청/응답 핵심 지표', '#E0F2FE')}
       <div class="stats stats-vertical sm:stats-horizontal shadow-sm border border-base-300 w-full mb-4">
         <div class="stat">
           <div class="stat-figure text-primary text-2xl">🗂️</div>
@@ -178,12 +208,12 @@ function feedbackOverviewSectionHtml() {
           <div class="stat-value text-primary text-2xl">${overall.total}</div>
         </div>
         <div class="stat">
-          <div class="stat-figure text-success text-2xl">🤖</div>
+          <div class="stat-figure text-success text-2xl">${ic('bot')}</div>
           <div class="stat-title">AI 단독 해결률</div>
           <div class="stat-value text-success text-2xl">${overall.aiPct}%</div>
         </div>
         <div class="stat">
-          <div class="stat-figure text-warning text-2xl">🚨</div>
+          <div class="stat-figure text-warning text-2xl">${ic('alert-triangle')}</div>
           <div class="stat-title">교관 에스컬레이션율</div>
           <div class="stat-value text-warning text-2xl">${overall.escPct}%</div>
         </div>
@@ -213,10 +243,10 @@ function feedbackOverviewSectionHtml() {
       </div>
       ${feedbackRoster.length === 0 ? `<div class="text-[11px] text-base-content/40 mb-4">교사명단(getRoster)을 불러오지 못해 부서별 집계를 할 수 없습니다.</div>` : ''}
 
-      ${sectionTitleBand('🧭', '피드백 분석', '유형별 분포 (데이터가 더 쌓이면 추이·반복 요청자 등 추가 예정)', '#E0F2FE')}
+      ${sectionTitleBand(ic('compass'), '피드백 분석', '유형별 분포 (데이터가 더 쌓이면 추이·반복 요청자 등 추가 예정)', '#E0F2FE')}
       <div class="card card-border bg-base-100 shadow-sm mb-4">
         <div class="card-body p-4">
-          <div class="text-sm font-medium text-base-content/70 mb-2">🧭 어려움 유형 분포</div>
+          <div class="text-sm font-medium text-base-content/70 mb-2">${ic('compass')} 어려움 유형 분포</div>
           <canvas id="feedback-cat-chart" height="200"></canvas>
         </div>
       </div>
@@ -246,10 +276,10 @@ function mainNavHtml(current) {
   };
   return `
     <div class="flex flex-wrap items-center gap-1.5 px-5 py-2 bg-base-200 border-b border-base-300">
-      <a href="admin-home.html" class="btn btn-xs btn-ghost">🔐 관리자 홈</a>
-      ${item('edu', 'edu-dashboard.html', '🎓', '통합')}
-      ${item('district', 'district-dashboard.html', '🗺️', '부서별')}
-      ${item('coach', 'coach-dashboard.html', '🎧', '피드백')}
+      <a href="admin-home.html" class="btn btn-xs btn-ghost">${ic('lock')} 관리자 홈</a>
+      ${item('edu', 'edu-dashboard.html', ic('graduation-cap'), '통합')}
+      ${item('district', 'district-dashboard.html', ic('map'), '부서별')}
+      ${item('coach', 'coach-dashboard.html', ic('headphones'), '피드백')}
       <a href="home.html" class="btn btn-xs btn-ghost ml-auto">🏃 교사 어플로 가기</a>
     </div>
   `;
@@ -444,7 +474,7 @@ function overviewSectionHtml() {
     <div class="p-4">
       <div class="text-xs text-base-content/50 mb-3">교역자/자문회/장년회/부녀회/청년회/기타 6개 조직 · "교관에게 요청"으로 올라온 피드백 처리 현황 · 카드 클릭 시 그 부서 상세로 이동</div>
       ${uncoveredRegions.length > 0 ? `
-        <div class="alert alert-warning py-2 text-sm mb-3"><div>⚠️ 요청이 있지만 담당 교관이 등록되지 않은 지역: ${uncoveredRegions.map(esc).join(', ')} — 위 "교관 등록 관리"에서 등록해 주세요.</div></div>
+        <div class="alert alert-warning py-2 text-sm mb-3"><div>${ic('alert-triangle')} 요청이 있지만 담당 교관이 등록되지 않은 지역: ${uncoveredRegions.map(esc).join(', ')} — 위 "교관 등록 관리"에서 등록해 주세요.</div></div>
       ` : ''}
       <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
         ${ORG_DEPTS.map(d => {
@@ -503,7 +533,7 @@ function deptDetailSectionHtml() {
 
   return `
     <div class="px-4 pt-3">
-      ${sectionTitleBand('🗺️', '지역별 처리 현황', '', '#EFF6FF')}
+      ${sectionTitleBand(ic('map'), '지역별 처리 현황', '', '#EFF6FF')}
       ${byRegion.length === 0
         ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center mb-3">이 부서에는 아직 "교관에게 요청"으로 올라온 피드백이 없습니다.</div>`
         : `<div class="overflow-x-auto border border-base-300 rounded-box mb-3">
@@ -513,7 +543,7 @@ function deptDetailSectionHtml() {
                 ${byRegion.map(r => `
                   <tr class="btn-region-row cursor-pointer hover:bg-base-200" data-region="${esc(r.region)}" title="클릭해서 이 지역만 보기">
                     <td class="font-medium">${esc(r.region)}</td>
-                    <td>${r.coachName ? esc(r.coachName) : `<span class="text-warning text-xs">⚠️ 미등록</span>`}</td>
+                    <td>${r.coachName ? esc(r.coachName) : `<span class="text-warning text-xs">${ic('alert-triangle')} 미등록</span>`}</td>
                     <td class="${r.pending ? 'text-warning font-bold' : ''}">${r.pending}건</td>
                     <td class="text-success">${r.answered}건</td>
                   </tr>`).join('')}
@@ -522,7 +552,7 @@ function deptDetailSectionHtml() {
           </div>`}
 
       <div class="flex items-center gap-2 mb-3">
-        <label class="font-bold text-base-content" style="font-size:15px">🔍 지역 필터</label>
+        <label class="font-bold text-base-content" style="font-size:15px">${ic('search')} 지역 필터</label>
         <select id="dept-region-select" class="select select-bordered select-xs w-40">
           <option value="" ${state.region === '' ? 'selected' : ''}>전체 (${regions.length}개 지역)</option>
           ${regions.map(r => `<option value="${esc(r)}" ${state.region === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
@@ -544,7 +574,7 @@ function deptDetailSectionHtml() {
                     ${statusBadge(r.status)}
                   </div>
                   <div class="text-[10px] text-base-content/30 mb-2">${esc(r.receiptNo)} · ${esc(r.submittedAt)}</div>
-                  <div class="text-sm text-base-content/80"><span class="font-medium">💬 요청 내용:</span> ${esc(summarize(r.situation, 60))}</div>
+                  <div class="text-sm text-base-content/80"><span class="font-medium">${ic('message-circle')} 요청 내용:</span> ${esc(summarize(r.situation, 60))}</div>
                   <div class="text-[11px] text-primary mt-1">눌러서 상세 보기 →</div>
                 </div>
               </div>`).join('')}
@@ -573,25 +603,25 @@ function requestDetailModalHtml() {
         <div class="text-[10px] text-base-content/30 mb-3">${esc(r.receiptNo)} · ${esc(r.submittedAt)}</div>
 
         <div class="text-sm bg-base-200 rounded-lg p-3 mb-3">
-          <div class="font-medium mb-1">💬 요청 전체 내용</div>
+          <div class="font-medium mb-1">${ic('message-circle')} 요청 전체 내용</div>
           <div class="text-base-content/80 whitespace-pre-wrap">${esc(r.situation)}</div>
         </div>
 
         ${r.aiCoachText ? `
         <div class="text-sm bg-info/10 border border-info/30 rounded-lg p-3 mb-3">
-          <div class="font-medium mb-1">🤖 AI 코칭 결과</div>
+          <div class="font-medium mb-1">${ic('bot')} AI 코칭 결과</div>
           <div class="text-base-content/70 whitespace-pre-wrap text-xs">${esc(r.aiCoachText)}</div>
         </div>` : ''}
 
         ${r.handlerAnswer ? `
         <div class="text-sm bg-success/10 border-l-4 border-success/40 rounded-lg p-3 mb-3">
-          <div class="font-medium mb-1">✅ 답변</div>
+          <div class="font-medium mb-1">${ic('check-circle-2')} 답변</div>
           <div class="text-base-content/70 whitespace-pre-wrap">${esc(r.handlerAnswer)}</div>
         </div>` : (canReply ? `
         <div class="mb-3">
           <label class="text-xs font-bold text-base-content/50 mb-1 block">답변 입력</label>
           <textarea id="reply-textarea" rows="4" class="textarea textarea-bordered w-full text-sm" placeholder="이 교사에게 보낼 답변을 입력하세요.">${esc(state.replyText)}</textarea>
-          <button id="btn-submit-reply" class="kko-btn-main mt-2" ${state.replySaving ? 'disabled' : ''}>${state.replySaving ? '등록 중...' : '✅ 답변 등록'}</button>
+          <button id="btn-submit-reply" class="kko-btn-main mt-2" ${state.replySaving ? 'disabled' : ''}>${state.replySaving ? '등록 중...' : ic('check-circle-2') + ' 답변 등록'}</button>
         </div>` : `<div class="text-xs text-base-content/30 mb-3">아직 담당 교관이 답변하지 않았습니다(교사 어플 "교관 모드"에서도 답변 등록 가능). 이 화면에서 직접 답변하려면 담당 교관 계정으로 접속해주세요(?memberId=&name=).</div>`)}
 
         <button id="btn-close-detail" class="kko-btn-outline">닫기</button>
@@ -627,7 +657,7 @@ function render() {
   root.innerHTML = `
     <div class="kko-header">
       <div class="flex-1 flex items-center gap-2">
-        <span class="text-xl leading-none">🎧</span>
+        <span class="text-xl leading-none">${ic('headphones')}</span>
         <div class="text-lg font-bold">피드백</div>
       </div>
     </div>
@@ -636,7 +666,7 @@ function render() {
     ${state.myCoach ? `
       <div class="px-4 pt-2">
         <div class="alert bg-primary/10 border border-primary/30 py-2 px-3 text-sm">
-          🎧 <b>${esc(state.myCoach.coachName)} 교관님</b> 담당 지역: <b>${state.myCoach.regions.map(esc).join(', ')}</b>
+          ${ic('headphones')} <b>${esc(state.myCoach.coachName)} 교관님</b> 담당 지역: <b>${state.myCoach.regions.map(esc).join(', ')}</b>
         </div>
       </div>` : ''}
 
@@ -651,7 +681,7 @@ function render() {
     ${state.loading
       ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
       : state.error
-        ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div></div>`
+        ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>${ic('alert-triangle')} ${esc(state.error)}</div></div></div>`
         : (isOverview ? overviewSectionHtml() + feedbackOverviewSectionHtml() : deptDetailSectionHtml())}
 
     ${requestDetailModalHtml()}

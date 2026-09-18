@@ -27,11 +27,11 @@
     --bc: 27.81% 0.0296 256.85;
     --in: 68.47% 0.1479 237.32;
     --inc: 100% 0 0;
-    --su: 69.59% 0.1491 162.48;
+    --su: 61.67% 0.1191 162.14;  /* success: #2D9B6F */
     --suc: 100% 0 0;
-    --wa: 76.86% 0.1647 70.08;
+    --wa: 75.76% 0.1525 74.86;   /* warning: #E8A020 */
     --wac: 0% 0 0;
-    --er: 57.71% 0.2152 27.33;
+    --er: 59.56% 0.1901 25.05;   /* error: #D94040 */
     --erc: 100% 0 0;
     /* 2026-09-17: 카드 라운드를 카카오톡 스타일 16px/버튼 12px 기준으로 통일(결산 5박스·섹션카드·표에 공용 적용) */
     --rounded-box: 1rem;
@@ -41,15 +41,27 @@
   :root {
     --color-primary: #5B4FCF;
     --color-primary-light: #EDE9FF;
-    --color-bg: #F5F5F5;
+    --color-primary-dark: #3D34A5;
+    --color-surface: #FFFFFF;
     --color-card: #FFFFFF;
-    --color-text: #222222;
-    --color-text-sub: #888888;
-    --color-border: #EEEEEE;
+    --color-bg: #F5F5F5;
+    --color-text: #1A1A2E;
+    --color-text-sub: #666680;
+    --color-border: #E8E8F0;
+    --color-success: #2D9B6F;
+    --color-warning: #E8A020;
+    --color-error: #D94040;
+    --color-accent: #FF6B6B;
     --radius-card: 16px;
     --radius-btn: 12px;
+    --radius-input: 10px;
     --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
+    --height-btn: 52px;
+    --height-btn-sm: 44px;
+    --height-header: 56px;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px;
   }
+  .lucide-i { width:1em; height:1em; display:inline-block; vertical-align:-0.15em; flex-shrink:0; }
   .kko-card-in { animation: kkoCardIn .3s ease; }
   @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
   .kko-fade-in { animation: kkoFadeIn .2s ease; }
@@ -89,6 +101,42 @@
 <script>
 const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
 
+// 2026-09-19: 디자인 시스템 확정 — 자주 노출되는 이모지 아이콘을 Lucide SVG로 교체(MIT 라이선스).
+// EMOJI_TO_ICON에 없는 이모지는 licon()이 원본 이모지를 그대로 반환한다(신규 SVG 제작 금지 — 지시서 기준).
+const LUCIDE_ICONS = {
+  'alert-triangle': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" />',
+  'bar-chart-2': '<path d="M5 21v-6" /><path d="M12 21V3" /><path d="M19 21V9" />',
+  'graduation-cap': '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" /><path d="M22 10v6" /><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" />',
+  'bot': '<path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" />',
+  'check-circle-2': '<circle cx="12" cy="12" r="10" /><path d="m16 9-5.5 5.5L8 12" />',
+  'users': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><path d="M16 3.128a4 4 0 0 1 0 7.744" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" />',
+  'clipboard-list': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M12 11h4" /><path d="M12 16h4" /><path d="M8 11h.01" /><path d="M8 16h.01" />',
+  'trophy': '<path d="M10 14.66V17a1 1 0 0 1-1 1 2 2 0 0 0-2 2v2" /><path d="M14 14.66V17a1 1 0 0 0 1 1 2 2 0 0 1 2 2v2" /><path d="M17.916 10H19.5A2.5 2.5 0 0 0 22 7.5V5a1 1 0 0 0-1-1h-3" /><path d="M4 22h16" /><path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z" /><path d="M6.084 10H4.5A2.5 2.5 0 0 1 2 7.5V5a1 1 0 0 1 1-1h3" />',
+  'target': '<circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />',
+  'search': '<path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" />',
+  'church': '<path d="M10 9h4" /><path d="M12 7v5" /><path d="M14 21v-3a2 2 0 0 0-4 0v3" /><path d="m18 9 3.52 2.147a1 1 0 0 1 .48.854V19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6.999a1 1 0 0 1 .48-.854L6 9" /><path d="M6 21V7a1 1 0 0 1 .376-.782l5-3.999a1 1 0 0 1 1.249.001l5 4A1 1 0 0 1 18 7v14" />',
+  'user': '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />',
+  'folder': '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />',
+  'hourglass': '<path d="M5 22h14" /><path d="M5 2h14" /><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" /><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />',
+  'book-open': '<path d="M12 5v16" /><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" />',
+  'star': '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" />',
+  'megaphone': '<path d="M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" /><path d="M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14" /><path d="M8 6v8" />',
+  'message-circle': '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />',
+  'compass': '<circle cx="12" cy="12" r="10" /><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />'
+};
+const EMOJI_TO_ICON = {
+  '⚠️': 'alert-triangle', '⚠': 'alert-triangle',
+  '📊': 'bar-chart-2', '🎓': 'graduation-cap', '🤖': 'bot', '✅': 'check-circle-2',
+  '👥': 'users', '📋': 'clipboard-list', '🏆': 'trophy', '🎯': 'target', '🔍': 'search',
+  '⛪': 'church', '👩': 'user', '📁': 'folder', '⏳': 'hourglass', '📖': 'book-open',
+  '🌟': 'star', '📣': 'megaphone', '💬': 'message-circle', '🧭': 'compass'
+};
+function licon(emoji) {
+  const name = EMOJI_TO_ICON[emoji];
+  if (!name || !LUCIDE_ICONS[name]) return emoji;
+  return `<svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${LUCIDE_ICONS[name]}</svg>`;
+}
+
 let rows = [];
 let roster = [];       // getRoster 캐시 (교사명단)
 let rosterTiers = [];  // 교사구분 참고 목록 (백엔드 TEACHER_TIERS)
@@ -107,7 +155,7 @@ function switchEduTab(tab) {
 // study-room.html에서 교사 본인이 체크하던 기능을 없애고, 등록 권한을 이 관리자 화면으로 옮겨옴.
 // 백엔드 REQUIRED_EDU_CATEGORIES와 동일 순서(study-room.html REQ_EDU_CATEGORIES_DEFAULT와도 동일).
 const REQ_EDU_CATEGORIES = ['복음방교사양성교육', '섭외전도교육', '상담교육', '복음방교재교육', '교사소양교육'];
-const REQ_EDU_ICON = { '복음방교사양성교육': '🌟', '섭외전도교육': '📣', '상담교육': '💬', '복음방교재교육': '📖', '교사소양교육': '🎓' };
+const REQ_EDU_ICON = { '복음방교사양성교육': licon('🌟'), '섭외전도교육': licon('📣'), '상담교육': licon('💬'), '복음방교재교육': licon('📖'), '교사소양교육': licon('🎓') };
 let reqEduForm = {
   orgFilter: '',       // '' = 전체, ORG_DEPTS 중 하나면 그 조직 소속 교사만 검색 결과에 노출
   query: '',           // 고유번호 또는 이름 검색어
@@ -411,7 +459,7 @@ function deptTopRegionsSectionHtml() {
     </div>
     ${loading ? `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>계산 중...</div>`
       : !data ? ''
-        : data.error ? `<div class="alert alert-error py-2 text-sm">⚠️ ${esc(data.error)}</div>`
+        : data.error ? `<div class="alert alert-error py-2 text-sm">${licon('⚠️')} ${esc(data.error)}</div>`
           : `
             <div class="overflow-x-auto border border-base-300 rounded-box">
               <table class="table table-sm">
@@ -468,7 +516,7 @@ function renderTopRegionsSection() {
       <div class="section-stripe" style="background:linear-gradient(90deg,#FDE68A,#F59E0B)"></div>
       <div class="p-5">
         <div class="rounded-lg px-3 py-2 mb-1" style="background:linear-gradient(90deg,#FDE68A,#FBBF24)">
-          <div style="font-size:24px;font-weight:900;color:#78350F">🏆 이번 달 교사 활동 우수 지역</div>
+          <div style="font-size:24px;font-weight:900;color:#78350F">${licon('🏆')} 이번 달 교사 활동 우수 지역</div>
         </div>
         <div class="text-xs text-base-content/50 mb-4 leading-relaxed whitespace-pre-line">이 항목은 인도자·교사·섬김이·협력교사 4가지 역할을 합산하여, 이번 달 가장 활발하게 활동한 지역을 자동으로 선정합니다.
 역할의 종류에 관계없이 교사들이 얼마나 많이, 얼마나 다양하게 활동했는지를 기준으로 순위를 매깁니다.
@@ -479,7 +527,7 @@ function renderTopRegionsSection() {
         <div class="text-xs text-base-content/50 mb-2">매월 말 자동 집계 · 시상 기준으로 활용 가능 · 1위·2위·3위 표기</div>
         ${churchLoading ? `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>계산 중...</div>`
           : !churchTopRegions ? ''
-            : churchTopRegions.error ? `<div class="alert alert-error py-2 text-sm">⚠️ ${esc(churchTopRegions.error)}</div>`
+            : churchTopRegions.error ? `<div class="alert alert-error py-2 text-sm">${licon('⚠️')} ${esc(churchTopRegions.error)}</div>`
               : `
                 <div class="overflow-x-auto border border-base-300 rounded-box mb-2">
                   <table class="table table-sm">
@@ -489,7 +537,7 @@ function renderTopRegionsSection() {
                 </div>
                 ${churchTopRegions.isSample ? `<div class="text-[11px] text-warning-content bg-warning/10 border border-warning/30 rounded px-2 py-1 mb-4">※ 샘플 데이터 기준</div>` : ''}
 
-                <div class="text-sm font-bold text-base-content mb-2 mt-4">📊 역할별 교사 활동 우수 지역</div>
+                <div class="text-sm font-bold text-base-content mb-2 mt-4">${licon('📊')} 역할별 교사 활동 우수 지역</div>
                 ${roleTopRegionsTableHtml(churchTopRegions.byRole)}
               `}
 
@@ -510,7 +558,7 @@ const INACT_LABEL = { warning: '주의 (2개월+)', danger: '경고 (3개월+)' 
 const ORG_MAIN_DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
 function orgBucket(dept) { return ORG_MAIN_DEPTS.includes(dept) ? dept : '기타'; }
 const ORG_DEPTS = ORG_MAIN_DEPTS.concat(['기타']);
-const DEPT_ICON = { '교역자': '⛪', '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓', '기타': '📁' };
+const DEPT_ICON = { '교역자': licon('⛪'), '자문회': licon('🧭'), '장년회': '👨‍👩‍👧', '부녀회': licon('👩'), '청년회': '🧑‍🎓', '기타': licon('📁') };
 
 // 2026-09-15: 지역 표기 "O지역" → "전주 OO회 OO지역"(district-dashboard.html과 동일 규칙)으로
 // 바꿨었으나, 2026-09-19 "전주를 붙이니 표 배열이 깨진다"는 사용자 지적으로 "전주 " 접두어 제거
@@ -543,7 +591,7 @@ function mainNavHtml(current) {
   return `
     <div class="flex flex-wrap items-center gap-1.5 px-5 py-2 bg-base-200 border-b border-base-300">
       <a href="admin-home.html" class="btn btn-xs btn-ghost">🔐 관리자 홈</a>
-      ${item('edu', 'edu-dashboard.html', '🎓', '통합')}
+      ${item('edu', 'edu-dashboard.html', licon('🎓'), '통합')}
       ${item('district', 'district-dashboard.html', '🗺️', '부서별')}
       ${item('coach', 'coach-dashboard.html', '🎧', '피드백')}
       <a href="home.html" class="btn btn-xs btn-ghost ml-auto">🏃 교사 어플로 가기</a>
@@ -558,7 +606,7 @@ function sectionCard(colorName, icon, title, subtitle, bodyHtml) {
       <div class="section-stripe bg-${colorName}"></div>
       <div class="p-5">
         <div class="flex items-start gap-3 mb-4">
-          <div class="w-9 h-9 rounded-lg bg-${colorName}/10 text-${colorName} flex items-center justify-center text-lg shrink-0">${icon}</div>
+          <div class="w-9 h-9 rounded-lg bg-${colorName}/10 text-${colorName} flex items-center justify-center text-lg shrink-0">${licon(icon)}</div>
           <div>
             <div class="text-base font-bold text-base-content">${title}</div>
             ${subtitle ? `<div class="text-xs text-base-content/40 mt-0.5">${subtitle}</div>` : ''}
@@ -680,7 +728,7 @@ function settlementBoxesHtml(s) {
     const active = settlementView === key;
     return `
       <button class="settlement-box flex-1 min-w-[100px] rounded-box border p-3 text-center transition ${active ? 'border-primary bg-primary/10' : 'border-base-300 bg-base-100 hover:bg-base-200'}" data-view="${key}">
-        <div class="box-icon">${icon}</div>
+        <div class="box-icon">${licon(icon)}</div>
         <div class="text-xl font-black ${colorCls}">${value}</div>
         <div class="text-[11px] text-base-content/50">${label}</div>
       </button>`;
@@ -761,7 +809,7 @@ function demoDetailHtml(s) {
 // 참고) — 여기서는 조회 전용이라 각 칸의 허가 여부만 배지로 보여준다. 실제 허가는 부서별 화면에서.
 function pendingDetailHtml(s) {
   const list = s.pendingApprovals || [];
-  if (!list.length) return `<div class="text-xs text-base-content/40">⏳ 허가 대기 없음</div>`;
+  if (!list.length) return `<div class="text-xs text-base-content/40">${licon('⏳')} 허가 대기 없음</div>`;
   return `
     <div class="overflow-x-auto border border-base-300 rounded-box">
       <table class="table table-zebra table-sm">
@@ -792,7 +840,7 @@ function leadsDetailHtml() {
   const monthOptions = leadsAvailableMonths();
   const filterHtml = `
     <div class="flex items-center gap-2 mb-3">
-      <label class="text-xs text-base-content/50">🔍 월별 검색</label>
+      <label class="text-xs text-base-content/50">${licon('🔍')} 월별 검색</label>
       <select id="leads-month-select" class="select select-bordered select-xs w-40" ${allLeadsLoading && !allLeads ? 'disabled' : ''}>
         <option value="" ${leadsMonthFilter === '' ? 'selected' : ''}>최근 6개월 랭킹</option>
         ${monthOptions.map(m => `<option value="${esc(m)}" ${leadsMonthFilter === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}
@@ -848,7 +896,7 @@ function leadsDetailHtml() {
     `;
   }
 
-  return `<div class="text-sm font-bold text-accent mb-2">🎯 센터 인도 실적 현황</div>
+  return `<div class="text-sm font-bold text-accent mb-2">${licon('🎯')} 센터 인도 실적 현황</div>
     <div class="text-[11px] text-base-content/40 mb-2">활동방 "센터 인도 등록"으로 집계 · ※ OO월 개강 기준(정확한 개강월 확정되면 문구 반영 예정) · 랭킹은 최근 6개월 기준(승급 판정에 사용)</div>
     ${filterHtml}${body}`;
 }
@@ -863,7 +911,7 @@ function renderSettlementSection() {
   if (!settlement) return '';
   if (settlement.error) {
     return sectionCard('primary', '📅', '이번 달 결산 현황', '', `
-      <div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(settlement.error)}</div></div>`);
+      <div class="alert alert-error py-2 text-sm"><div>${licon('⚠️')} ${esc(settlement.error)}</div></div>`);
   }
 
   const s = settlement;
@@ -882,7 +930,7 @@ function renderSettlementSection() {
 
 function inactiveDetailHtml(s) {
   const list = s.inactive || [];
-  if (!list.length) return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">✅ 2개월 이상 비활동 교사가 없습니다.</div>`;
+  if (!list.length) return `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">${licon('✅')} 2개월 이상 비활동 교사가 없습니다.</div>`;
   const listFiltered = inactiveFilter ? list.filter(r => r.inactivity === inactiveFilter) : list;
   return `
     <div class="flex items-center justify-between mb-3 gap-2">
@@ -982,7 +1030,7 @@ function renderRosterSection() {
       <div class="grid md:grid-cols-2 gap-4 mb-4">
         <div class="card card-border bg-base-100 shadow-sm">
           <div class="card-body p-4">
-            <div class="text-sm font-medium text-base-content/70 mb-2">📊 부서별 등록 교사 수</div>
+            <div class="text-sm font-medium text-base-content/70 mb-2">${licon('📊')} 부서별 등록 교사 수</div>
             <canvas id="deptCountChart" height="200"></canvas>
           </div>
         </div>
@@ -1047,7 +1095,7 @@ function render() {
   root.innerHTML = `
     <header class="kko-header px-5">
       <div class="flex-1 flex items-center gap-2">
-        <span class="text-xl leading-none">🎓</span>
+        <span class="text-xl leading-none">${licon('🎓')}</span>
         <div class="text-lg font-bold">통합</div>
       </div>
     </header>
@@ -1055,8 +1103,8 @@ function render() {
     ${mainNavHtml('edu')}
     <div class="p-5">
       <div class="tabs tabs-boxed mb-4 inline-flex">
-        <a class="tab tab-sm edu-tab ${eduTab === 'main' ? 'tab-active' : ''}" data-edutab="main">📊 전체 현황</a>
-        <a class="tab tab-sm edu-tab ${eduTab === 'reqEdu' ? 'tab-active' : ''}" data-edutab="reqEdu">📋 이수 관리</a>
+        <a class="tab tab-sm edu-tab ${eduTab === 'main' ? 'tab-active' : ''}" data-edutab="main">${licon('📊')} 전체 현황</a>
+        <a class="tab tab-sm edu-tab ${eduTab === 'reqEdu' ? 'tab-active' : ''}" data-edutab="reqEdu">${licon('📋')} 이수 관리</a>
       </div>
       <div id="content"></div>
     </div>
@@ -1189,10 +1237,10 @@ function renderAiAnalysisSection() {
   const a = aiAnalysis || {};
   const body = `
     <div class="flex items-center justify-end mb-2">
-      <button id="btn-org-ai-analysis" class="btn btn-xs btn-outline btn-primary" ${a.loading ? 'disabled' : ''}>${a.loading ? '분석 중...' : '🤖 전체 현황 AI 분석'}</button>
+      <button id="btn-org-ai-analysis" class="btn btn-xs btn-outline btn-primary" ${a.loading ? 'disabled' : ''}>${a.loading ? '분석 중...' : licon('🤖') + ' 전체 현황 AI 분석'}</button>
     </div>
-    ${a.loading ? `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>🤖 데이터 분석 중...</div>` : ''}
-    ${a.error ? `<div class="alert alert-warning py-2 text-sm"><div>⚠️ ${esc(a.error)}</div></div>` : ''}
+    ${a.loading ? `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>${licon('🤖')} 데이터 분석 중...</div>` : ''}
+    ${a.error ? `<div class="alert alert-warning py-2 text-sm"><div>${licon('⚠️')} ${esc(a.error)}</div></div>` : ''}
     ${a.text ? aiAnalysisResultHtml(a.text) : (!a.loading && !a.error ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">전체 등급분포·결산현황·부서별 피드백 지표를 AI가 요약·제안해드려요.</div>` : '')}
   `;
   return sectionCard('primary', '🤖', 'AI 분석', '6개 부서 통합 데이터 기반', body);

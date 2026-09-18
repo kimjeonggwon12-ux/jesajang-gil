@@ -11,15 +11,27 @@
   :root {
     --color-primary: #5B4FCF;
     --color-primary-light: #EDE9FF;
-    --color-bg: #F5F5F5;
+    --color-primary-dark: #3D34A5;
+    --color-surface: #FFFFFF;
     --color-card: #FFFFFF;
-    --color-text: #222222;
-    --color-text-sub: #888888;
-    --color-border: #EEEEEE;
+    --color-bg: #F5F5F5;
+    --color-text: #1A1A2E;
+    --color-text-sub: #666680;
+    --color-border: #E8E8F0;
+    --color-success: #2D9B6F;
+    --color-warning: #E8A020;
+    --color-error: #D94040;
+    --color-accent: #FF6B6B;
     --radius-card: 16px;
     --radius-btn: 12px;
+    --radius-input: 10px;
     --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
+    --height-btn: 52px;
+    --height-btn-sm: 44px;
+    --height-header: 56px;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px;
   }
+  .lucide-i { width:1em; height:1em; display:inline-block; vertical-align:-0.15em; flex-shrink:0; }
   .kko-card-in { animation: kkoCardIn .3s ease; }
   @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
   .kko-fade-in { animation: kkoFadeIn .2s ease; }
@@ -34,9 +46,9 @@
     --b1: 100% 0 0; --b2: 96.70% 0.0029 264.54; --b3: 92.76% 0.0058 264.53;
     --bc: 27.81% 0.0296 256.85;
     --in: 68.47% 0.1479 237.32; --inc: 100% 0 0;
-    --su: 69.59% 0.1491 162.48; --suc: 100% 0 0;
-    --wa: 76.86% 0.1647 70.08;  --wac: 0% 0 0;
-    --er: 57.71% 0.2152 27.33;  --erc: 100% 0 0;
+    --su: 61.67% 0.1191 162.14; --suc: 100% 0 0;
+    --wa: 75.76% 0.1525 74.86;  --wac: 0% 0 0;
+    --er: 59.56% 0.1901 25.05;  --erc: 100% 0 0;
     --rounded-box: 0.75rem; --rounded-btn: 0.5rem; --rounded-badge: 1rem;
   }
   html, body { margin:0; padding:0; }
@@ -67,6 +79,22 @@ const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp
 // 백엔드 ORG_DEPTS 와 순서 동일 — 교사명단 "부서" 컬럼에 없는 값은 전부 "기타"로 묶여서 옴.
 const DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회', '기타'];
 const DEPT_ICON = { '교역자': '⛪', '자문회': '🧭', '장년회': '👨‍👩‍👧', '부녀회': '👩', '청년회': '🧑‍🎓', '기타': '📁' };
+
+// Lucide SVG 아이콘 — 헤더/섹션 타이틀/필터/빈 상태 등 눈에 잘 띄는 자리 우선 교체용.
+// wrapper: <svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{inner}</svg>
+function lucide(inner) { return `<svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`; }
+const ICONS = {
+  map: lucide('<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" /><path d="M15 5.764v15" /><path d="M9 3.236v15" />'),
+  users: lucide('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><path d="M16 3.128a4 4 0 0 1 0 7.744" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><circle cx="9" cy="7" r="4" />'),
+  barChart2: lucide('<path d="M5 21v-6" /><path d="M12 21V3" /><path d="M19 21V9" />'),
+  alertTriangle: lucide('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" />'),
+  search: lucide('<path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" />'),
+  clipboardList: lucide('<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M12 11h4" /><path d="M12 16h4" /><path d="M8 11h.01" /><path d="M8 16h.01" />'),
+  checkCircle2: lucide('<circle cx="12" cy="12" r="10" /><path d="m16 9-5.5 5.5L8 12" />'),
+  mapPin: lucide('<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" /><circle cx="12" cy="10" r="3" />'),
+  zap: lucide('<path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z" />'),
+  lock: lucide('<rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />'),
+};
 
 // 2026-09-15: 사용자 요청 — "협력교사"는 표/카드/그래프 등 UI 라벨에는 짧게 "협력"으로만 표기.
 // 내부 값(ROLE_PARTS_DASH 원소, state.expandedRoleCol 키, getDistrictReport 응답 필드명)은
@@ -179,9 +207,9 @@ function mainNavHtml(current) {
   };
   return `
     <div class="flex flex-wrap items-center gap-1.5 px-5 py-2 bg-base-200 border-b border-base-300">
-      <a href="admin-home.html" class="btn btn-xs btn-ghost">🔐 관리자 홈</a>
+      <a href="admin-home.html" class="btn btn-xs btn-ghost">${ICONS.lock} 관리자 홈</a>
       ${item('edu', 'edu-dashboard.html', '🎓', '통합')}
-      ${item('district', 'district-dashboard.html', '🗺️', '부서별')}
+      ${item('district', 'district-dashboard.html', ICONS.map, '부서별')}
       ${item('coach', 'coach-dashboard.html', '🎧', '피드백')}
       <a href="home.html" class="btn btn-xs btn-ghost ml-auto">🏃 교사 어플로 가기</a>
     </div>
@@ -357,7 +385,7 @@ function teacherListSectionHtml() {
 
   return `
     <div class="px-4 pt-3">
-      ${sectionTitleBand('👥', '교사 명단', '전체 교사를 부서·지역·등급으로 찾아보고, 교관·지역장을 지정할 수 있습니다. 이름을 누르면 상세 정보가 열립니다.', '#F5F3FF')}
+      ${sectionTitleBand(ICONS.users, '교사 명단', '전체 교사를 부서·지역·등급으로 찾아보고, 교관·지역장을 지정할 수 있습니다. 이름을 누르면 상세 정보가 열립니다.', '#F5F3FF')}
     </div>
     ${teacherListFilterHtml()}
     <div class="px-4 pt-3 text-xs text-base-content/40">${rows.length}명</div>
@@ -535,7 +563,7 @@ function orgSummarySectionHtml() {
   }
   if (!orgSummary) return '';
   if (orgSummary.error) {
-    return `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(orgSummary.error)}</div></div></div>`;
+    return `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>${ICONS.alertTriangle} ${esc(orgSummary.error)}</div></div></div>`;
   }
   const orgs = orgSummary.orgs || [];
   return `
@@ -572,7 +600,7 @@ function summaryCardHtml(summary) {
     <div class="px-4 pt-4">
       <div class="card card-border bg-base-100 shadow-sm">
         <div class="card-body p-4">
-          ${sectionTitleBand('📊', '부서 전체 요약', '', '#EEF2FF')}
+          ${sectionTitleBand(ICONS.barChart2, '부서 전체 요약', '', '#EEF2FF')}
           <div class="flex flex-wrap items-end gap-x-7 gap-y-3">
             <div>
               <div class="text-xs text-base-content/50">총 교사 수</div>
@@ -606,11 +634,11 @@ function summaryCardHtml(summary) {
 // 지역별 상세 섹션 (표/그래프 토글) — 지역 필터와 무관하게 부서 내 전 지역을 항상 나열
 function byRegionSectionHtml(byRegion) {
   if (!byRegion || byRegion.length === 0) return '';
-  const toggleLabel = state.regionView === 'table' ? '📊 그래프로 보기' : '📋 표로 보기';
+  const toggleLabel = state.regionView === 'table' ? `${ICONS.barChart2} 그래프로 보기` : `${ICONS.clipboardList} 표로 보기`;
   return `
     <div class="px-4 pt-3">
       <div class="flex items-start justify-between gap-2">
-        <div class="flex-1">${sectionTitleBand('🗺️', '지역별 상세', '', '#EFF6FF')}</div>
+        <div class="flex-1">${sectionTitleBand(ICONS.map, '지역별 상세', '', '#EFF6FF')}</div>
         <button id="btn-region-view-toggle" class="btn btn-xs btn-outline shrink-0 mt-1">${toggleLabel}</button>
       </div>
       <div class="bg-info/10 border border-info/30 rounded-lg p-3 text-[11px] text-base-content/70 leading-relaxed mb-2">
@@ -659,7 +687,7 @@ function byRegionChartsHtml(byRegion) {
   return `
     <div class="card card-border bg-base-100 shadow-sm">
       <div class="card-body p-3">
-        <div class="text-xs font-medium text-base-content/60 mb-2">📊 지역별 교사 구분 비율 — 지역 한 세트당 휴교사·교사·활동교사·우수교사 4개 막대(색상 구분)</div>
+        <div class="text-xs font-medium text-base-content/60 mb-2">${ICONS.barChart2} 지역별 교사 구분 비율 — 지역 한 세트당 휴교사·교사·활동교사·우수교사 4개 막대(색상 구분)</div>
         <div class="bg-info/10 border border-info/30 rounded-lg p-3 text-[11px] text-base-content/70 leading-relaxed mb-3">
           ℹ️ 지역마다 교사 등급 분포를 막대 4개(휴교사·교사·활동교사·우수교사, 색깔로 구분)로 나란히
           비교할 수 있는 그래프입니다. 각 막대의 길이는 <b>그 지역 전체 교사 중 그 등급이 차지하는 비율(%)</b>을
@@ -853,7 +881,7 @@ function activityAnalysisChartsHtml(analysis) {
   return `
     <div class="card card-border bg-base-100 shadow-sm">
       <div class="card-body p-3">
-        <div style="font-size:20px;font-weight:900;color:#1F3864" class="mb-2">📊 지역별 활동 유형 비중 (이번 달, 지역 막대 100% 기준)</div>
+        <div style="font-size:20px;font-weight:900;color:#1F3864" class="mb-2">${ICONS.barChart2} 지역별 활동 유형 비중 (이번 달, 지역 막대 100% 기준)</div>
         <div style="height:${h}px"><canvas id="chart-activity-analysis"></canvas></div>
       </div>
     </div>
@@ -882,7 +910,7 @@ function renderActivityAnalysisChart(analysis) {
 }
 
 function activityAnalysisSectionHtml(analysis) {
-  const titleHtml = sectionTitleBand('📊', '지역별 활동 분석 (이번 달)', '각 지역 교사들이 이번 달 어떤 활동을 얼마나 했는지 한눈에 확인합니다.', '#EFF6FF');
+  const titleHtml = sectionTitleBand(ICONS.barChart2, '지역별 활동 분석 (이번 달)', '각 지역 교사들이 이번 달 어떤 활동을 얼마나 했는지 한눈에 확인합니다.', '#EFF6FF');
   if (allActivitiesLoading && !allActivities) {
     return `
       <div class="px-4 pt-3">
@@ -893,7 +921,7 @@ function activityAnalysisSectionHtml(analysis) {
       </div>`;
   }
   if (!analysis) return '';
-  const toggleLabel = state.activityView === 'table' ? '📊 그래프로 보기' : '📋 표로 보기';
+  const toggleLabel = state.activityView === 'table' ? `${ICONS.barChart2} 그래프로 보기` : `${ICONS.clipboardList} 표로 보기`;
   return `
     <div class="px-4 pt-3">
       <div class="flex items-start justify-between gap-2 mb-1">
@@ -1122,7 +1150,7 @@ function roleActivityBreakdownTableHtml(b) {
     </tr>`;
 
   return `
-    ${b.isSample ? `<div class="alert bg-warning/10 border border-warning/30 py-2 px-3 mb-2 text-[11px] text-warning-content">📊 지금 보고 계신 표/그래프는 <b>샘플(시연용) 데이터</b>입니다 — 실제 등록된 활동이 아닙니다.</div>` : ''}
+    ${b.isSample ? `<div class="alert bg-warning/10 border border-warning/30 py-2 px-3 mb-2 text-[11px] text-warning-content">${ICONS.barChart2} 지금 보고 계신 표/그래프는 <b>샘플(시연용) 데이터</b>입니다 — 실제 등록된 활동이 아닙니다.</div>` : ''}
     <div class="text-[10px] text-base-content/40 mb-1">💡 인도자·교사·섬김이·협력 열 헤더(합계)를 클릭하면 11개 세부 항목이 펼쳐집니다. 지역·총건수·강세항목 3열은 가로 스크롤해도 고정됩니다.</div>
     <div class="overflow-x-auto kko-table-card kko-card-in">
       <table class="table table-zebra table-xs">
@@ -1213,7 +1241,7 @@ function roleActivityBreakdownChartsHtml(b) {
     <div class="flex flex-col gap-3">
       <div class="card card-border bg-base-100 shadow-sm">
         <div class="card-body p-3">
-          <div class="text-xs font-medium text-base-content/60 mb-2">📊 지역별 4파트 활동 비교 (인도자·교사·섬김이·협력, 묶음 막대)</div>
+          <div class="text-xs font-medium text-base-content/60 mb-2">${ICONS.barChart2} 지역별 4파트 활동 비교 (인도자·교사·섬김이·협력, 묶음 막대)</div>
           <div style="height:${h}px"><canvas id="chart-role-parts"></canvas></div>
         </div>
       </div>
@@ -1225,7 +1253,7 @@ function roleActivityBreakdownChartsHtml(b) {
       </div>
       <div class="card card-border bg-base-100 shadow-sm">
         <div class="card-body p-3">
-          <div class="text-xs font-medium text-base-content/60 mb-2">📊 항목별 전체 비율 (전 지역·전 역할 합산)</div>
+          <div class="text-xs font-medium text-base-content/60 mb-2">${ICONS.barChart2} 항목별 전체 비율 (전 지역·전 역할 합산)</div>
           <div style="height:${chartHeight(ROLE_ACTIVITY_ITEMS_DASH.length)}px"><canvas id="chart-role-item-overall"></canvas></div>
         </div>
       </div>
@@ -1275,7 +1303,7 @@ function roleActivityBreakdownSectionHtml(b) {
       </div>`;
   }
   if (!b) return '';
-  const toggleLabel = state.roleActivityView === 'table' ? '📊 그래프로 보기' : '📋 표로 보기';
+  const toggleLabel = state.roleActivityView === 'table' ? `${ICONS.barChart2} 그래프로 보기` : `${ICONS.clipboardList} 표로 보기`;
   return `
     <div class="px-4 pt-3">
       <div class="flex items-start justify-between gap-2">
@@ -1369,7 +1397,7 @@ function aiAnalysisSectionHtml(b) {
         <button id="btn-ai-analysis" class="btn btn-xs btn-outline btn-primary shrink-0 mt-1" ${a.loading ? 'disabled' : ''}>${a.loading ? '분석 중...' : '🤖 AI 지역 분석'}</button>
       </div>
       ${a.loading ? `<div class="text-xs text-base-content/40 border border-base-300 rounded-box p-6 text-center"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>🤖 데이터 분석 중...</div>` : ''}
-      ${a.error ? `<div class="alert alert-warning py-2 text-sm"><div>⚠️ ${esc(a.error)}</div></div>` : ''}
+      ${a.error ? `<div class="alert alert-warning py-2 text-sm"><div>${ICONS.alertTriangle} ${esc(a.error)}</div></div>` : ''}
       ${a.text ? aiAnalysisResultHtml(a.text) : (!a.loading && !a.error ? `<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-4 text-center">위 데이터를 AI가 요약·제안해드려요. 버튼을 눌러보세요.</div>` : '')}
     </div>
   `;
@@ -1378,7 +1406,7 @@ function aiAnalysisSectionHtml(b) {
 function regionFilterHtml(regions, shownCount) {
   return `
     <div class="flex items-center gap-2 px-4 py-3 border-y border-base-300 bg-base-100">
-      <label class="font-bold text-base-content" style="font-size:15px">🔍 지역 필터</label>
+      <label class="font-bold text-base-content" style="font-size:15px">${ICONS.search} 지역 필터</label>
       <select id="region-select" class="select select-bordered select-sm w-40">
         <option value="" ${state.region === '' ? 'selected' : ''}>전체 (${regions.length}개 지역)</option>
         ${regions.map(r => `<option value="${esc(r)}" ${state.region === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
@@ -1410,7 +1438,7 @@ function suggestionCell(t) {
           ${state.approving[coachKey] ? '처리중...' : (s.coachApprover ? `🎧 교관 허가✓ (${esc(s.coachApprover)})` : '🎧 교관 허가')}
         </button>
         <button class="btn-approve-role btn btn-xs ${s.leaderApprover ? 'btn-success btn-outline' : 'btn-primary'}" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" data-role="leader" ${state.approving[leaderKey] ? 'disabled' : ''}>
-          ${state.approving[leaderKey] ? '처리중...' : (s.leaderApprover ? `🗺️ 지역장 허가✓ (${esc(s.leaderApprover)})` : '🗺️ 지역장 허가')}
+          ${state.approving[leaderKey] ? '처리중...' : (s.leaderApprover ? `${ICONS.map} 지역장 허가✓ (${esc(s.leaderApprover)})` : `${ICONS.map} 지역장 허가`)}
         </button>
         <button class="btn-tier-apply btn btn-outline btn-success btn-xs" data-mid="${esc(t.memberId)}" data-tier="${esc(s.suggestedTier)}" ${state.approving[instantKey] ? 'disabled' : ''} title="관리자 단독 즉시 반영 — 교관·지역장 허가 없이 바로 등급이 바뀝니다">
           ${state.approving[instantKey] ? '처리중...' : '⚡ 즉시 반영'}
@@ -1470,18 +1498,18 @@ function render() {
   root.innerHTML = `
     <div class="kko-header">
       <div class="flex-1 flex items-center gap-2">
-        <span class="text-xl leading-none">🗺️</span>
+        <span class="text-xl leading-none">${ICONS.map}</span>
         <div class="text-lg font-bold">부서별</div>
       </div>
-      ${isDeptDetail ? `<button id="btn-sample-toggle" class="btn btn-xs ${state.showSampleData ? 'btn-warning' : 'btn-ghost btn-outline'}">📊 샘플 데이터 ${state.showSampleData ? 'ON' : '보기'}</button>` : ''}
+      ${isDeptDetail ? `<button id="btn-sample-toggle" class="btn btn-xs ${state.showSampleData ? 'btn-warning' : 'btn-ghost btn-outline'}">${ICONS.barChart2} 샘플 데이터 ${state.showSampleData ? 'ON' : '보기'}</button>` : ''}
     </div>
     <div class="brand-accent-bar"></div>
     ${mainNavHtml('district')}
 
     <div class="flex flex-wrap items-center gap-1.5 px-4 py-2 border-b border-base-200">
-      <a class="tab-dept-btn btn btn-xs ${isOverview ? 'btn-primary' : 'btn-ghost'}" data-dept="">📋 전체 요약</a>
+      <a class="tab-dept-btn btn btn-xs ${isOverview ? 'btn-primary' : 'btn-ghost'}" data-dept="">${ICONS.clipboardList} 전체 요약</a>
       ${DEPTS.map(d => `<a class="tab-dept-btn btn btn-xs ${state.dept === d ? 'btn-primary' : 'btn-ghost'}" data-dept="${esc(d)}">${DEPT_ICON[d]||''} ${esc(d)}</a>`).join('')}
-      <a class="tab-dept-btn btn btn-xs ${isTeacherList ? 'btn-primary' : 'btn-ghost'}" data-dept="${TEACHER_LIST_TAB}">👥 교사 명단</a>
+      <a class="tab-dept-btn btn btn-xs ${isTeacherList ? 'btn-primary' : 'btn-ghost'}" data-dept="${TEACHER_LIST_TAB}">${ICONS.users} 교사 명단</a>
     </div>
 
     ${isDeptDetail ? `
@@ -1502,7 +1530,7 @@ function render() {
       : state.loading
         ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
         : state.error
-          ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>⚠️ ${esc(state.error)}</div></div></div>`
+          ? `<div class="p-4"><div class="alert alert-error py-2 text-sm"><div>${ICONS.alertTriangle} ${esc(state.error)}</div></div></div>`
           : `
             ${mvpCardHtml(allRows)}
             ${summaryCardHtml(report && report.summary)}
@@ -1515,7 +1543,7 @@ function render() {
             <details id="teacher-detail-details" class="mt-3 mx-4 border border-base-300 rounded-box bg-base-100 overflow-hidden" ${state.teacherDetailOpen ? 'open' : ''}>
               <summary class="cursor-pointer select-none px-4 py-3 flex items-center justify-between" style="background:#F5F3FF">
                 <div>
-                  <div style="font-size:24px;font-weight:900;color:#1F3864">👥 교사별 상세 ${tableRows.length}${state.pendingOnly ? `/${filteredRows.length}` : ''}명</div>
+                  <div style="font-size:24px;font-weight:900;color:#1F3864">${ICONS.users} 교사별 상세 ${tableRows.length}${state.pendingOnly ? `/${filteredRows.length}` : ''}명</div>
                   <div class="text-xs text-base-content/50 mt-1">각 교사의 역할(인도자·교사·섬김이·협력)과 이번 달 활동 현황을 확인하고 승급·강등 조건 근거를 검토하세요.</div>
                 </div>
                 <span class="text-base-content/30 text-[11px] font-normal shrink-0 ml-2">펼치기/접기</span>
@@ -1525,7 +1553,7 @@ function render() {
                 ${pendingCount > 0 ? `
                   <div class="p-4 pb-0">
                     <div class="alert alert-warning py-2 text-sm flex items-center justify-between gap-3">
-                      <div>📌 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 ✅ 승인(2인 합의) 또는 ⚡ 즉시 반영(관리자 단독)으로 처리하세요.</div>
+                      <div>${ICONS.mapPin} 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 ${ICONS.checkCircle2} 승인(2인 합의) 또는 ${ICONS.zap} 즉시 반영(관리자 단독)으로 처리하세요.</div>
                       <label class="flex items-center gap-1.5 text-xs whitespace-nowrap cursor-pointer">
                         <input type="checkbox" id="pending-only-checkbox" class="checkbox checkbox-xs" ${state.pendingOnly ? 'checked' : ''}>
                         제안 있는 교사만 보기

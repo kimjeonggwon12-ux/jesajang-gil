@@ -13,18 +13,27 @@
   :root {
     --color-primary: #5B4FCF;
     --color-primary-light: #EDE9FF;
-    --color-bg: #F5F5F5;
+    --color-primary-dark: #3D34A5;
+    --color-surface: #FFFFFF;
     --color-card: #FFFFFF;
-    --color-text: #222222;
-    --color-text-sub: #888888;
-    --color-border: #EEEEEE;
+    --color-bg: #F5F5F5;
+    --color-text: #1A1A2E;
+    --color-text-sub: #666680;
+    --color-border: #E8E8F0;
+    --color-success: #2D9B6F;
+    --color-warning: #E8A020;
+    --color-error: #D94040;
+    --color-accent: #FF6B6B;
     --radius-card: 16px;
     --radius-btn: 12px;
+    --radius-input: 10px;
     --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
     --height-btn: 52px;
     --height-btn-sm: 44px;
     --height-header: 56px;
+    --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px;
   }
+  .lucide-i { width:1em; height:1em; display:inline-block; vertical-align:-0.15em; flex-shrink:0; }
   .kko-header { height:var(--height-header); background:var(--color-primary); display:flex; align-items:center; gap:10px; padding:0 16px; flex-shrink:0; }
   .kko-header .kko-back { color:#fff; font-size:20px; line-height:1; text-decoration:none; }
   .kko-header .kko-title { color:#fff; font-weight:700; font-size:16px; }
@@ -43,7 +52,7 @@
     height:var(--height-btn-sm); min-height:var(--height-btn-sm); border-radius:var(--radius-btn);
     background:#fff; color:var(--color-primary); font-size:14px; font-weight:700; border:1.5px solid var(--color-primary); width:100%;
   }
-  .kko-input, textarea.kko-input { min-height:48px; border-radius:var(--radius-btn); border:1px solid var(--color-border); }
+  .kko-input, textarea.kko-input { min-height:48px; border-radius:var(--radius-input); border:1px solid var(--color-border); }
   .kko-input:focus { border-color:var(--color-primary); outline-color:var(--color-primary); }
 
   @keyframes kkoFadeIn { from { opacity:0; } to { opacity:1; } }
@@ -607,7 +616,7 @@ function render() {
       <button id="tab-studentCoach" class="kko-tab ${state.tab==='studentCoach' ? 'kko-tab-active' : ''}">내 수강생 코칭</button>
       <button id="tab-history" class="kko-tab ${state.tab==='history' ? 'kko-tab-active' : ''}">내 피드백 이력</button>
       <button id="tab-askCoach" class="kko-tab ${state.tab==='askCoach' ? 'kko-tab-active' : ''}">교관에게 요청</button>
-      ${state.coachInfo && state.coachInfo.isCoach ? `<button id="tab-coachMode" class="kko-tab ${state.tab==='coachMode' ? 'kko-tab-active' : ''}">교관 모드 🔑</button>` : ''}
+      ${state.coachInfo && state.coachInfo.isCoach ? `<button id="tab-coachMode" class="kko-tab ${state.tab==='coachMode' ? 'kko-tab-active' : ''}">교관 모드 <svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /><circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>` : ''}
     </div>
     <div id="body" class="p-4"></div>
   `;
@@ -796,8 +805,8 @@ function renderStudentCoachTab(body) {
 
     <div class="flex bg-gray-100/80 backdrop-blur-md rounded-full p-1.5 shadow-inner relative max-w-[320px] mx-auto border border-gray-200">
       <div class="absolute inset-y-1.5 rounded-full transition-all duration-300 ease-out shadow-[0_4px_15px_rgba(91,79,207,0.4)] bg-[var(--color-primary)]" style="width:calc(50% - 6px);left:${analyze ? '6px' : 'calc(50%)'}"></div>
-      <button id="sc-mode-analyze" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 ${analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}">🔍 심리 상담</button>
-      <button id="sc-mode-script" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 ${!analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}">📝 퍼스널 코칭</button>
+      <button id="sc-mode-analyze" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 flex items-center justify-center gap-1 ${analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" /></svg> 심리 상담</button>
+      <button id="sc-mode-script" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 flex items-center justify-center gap-1 ${!analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> 퍼스널 코칭</button>
     </div>
 
     <div class="kko-card kko-card-in space-y-3 relative z-30">
@@ -824,13 +833,13 @@ function renderStudentCoachTab(body) {
       <div class="grid grid-cols-2 gap-2.5">
         ${scSelect('sc-mbti', 'MBTI', sc.selMbti, mbtiOpts, '🧠')}
         ${scSelect('sc-enneagram', '에니어그램', sc.selEnneagram, ENNEAGRAM_OPTIONS, '🔆')}
-        ${scSelect('sc-disc', 'DISC', sc.selDisc, DISC_OPTIONS, '📊')}
+        ${scSelect('sc-disc', 'DISC', sc.selDisc, DISC_OPTIONS, '<svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21v-6" /><path d="M12 21V3" /><path d="M19 21V9" /></svg>')}
         ${scSelect('sc-sagunja', '매난국죽', sc.selSagunja, sagunjaOpts, '🎋')}
       </div>
     </div>
 
     <div class="kko-card kko-card-in space-y-3 relative z-10">
-      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5 tracking-tight"><span style="color:var(--color-primary)">💬</span> 현재 상황 및 고민</h3>
+      <h3 class="text-[13px] font-black text-gray-800 flex items-center gap-1.5 tracking-tight"><span style="color:var(--color-primary)"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" /></svg></span> 현재 상황 및 고민</h3>
       <textarea id="sc-situation" rows="5" placeholder="${analyze ? '멘티의 발언/고민을 있는 그대로 적어주세요.' : '멘티의 현재 상황과 고민을 입력해주세요.'}" class="kko-input w-full p-4 text-[13.5px] font-medium resize-none leading-relaxed">${esc(sc.situationText)}</textarea>
     </div>
 
@@ -890,27 +899,27 @@ function renderStudentCoachTab(body) {
       <div class="kko-card kko-card-in relative overflow-hidden mt-2">
         <div class="absolute top-0 inset-x-0 h-1.5" style="background:var(--color-primary)"></div>
         <div class="flex items-center justify-between mb-3 mt-1">
-          <h3 class="text-[15px] font-black flex items-center gap-2" style="color:var(--color-text)">${isAnalyze ? '✨ 심리 분석 리포트' : '📝 단계별 맞춤 대본'}</h3>
+          <h3 class="text-[15px] font-black flex items-center gap-2" style="color:var(--color-text)">${isAnalyze ? '<svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></svg> 심리 분석 리포트' : '<svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> 단계별 맞춤 대본'}</h3>
           ${isAnalyze && sc.linkedTypes.length ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="color:var(--color-primary);background:var(--color-primary-light);border:1px solid var(--color-primary)">유형 자동연동됨</span>` : ''}
         </div>
         <div class="text-[13.5px] leading-relaxed text-gray-700 bg-gray-50/80 rounded-2xl p-4 border border-gray-100/80">${renderCoachMarkdown(sc.resultText)}</div>
         <div class="mt-3 pt-3 flex flex-wrap justify-end gap-1.5 border-t border-gray-200/60">
-          ${actBtn('btn-sc-copy', '📋 복사', '✓ 복사됨', sc.copied)}
-          <button id="btn-sc-share" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 transition-colors shadow-sm">🔗 공유</button>
-          <button id="btn-sc-word" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm">📄 Word</button>
-          <button id="btn-sc-print" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors shadow-sm">🖨️ 인쇄/PDF</button>
+          ${actBtn('btn-sc-copy', '<svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M12 11h4" /><path d="M12 16h4" /><path d="M8 11h.01" /><path d="M8 16h.01" /></svg> 복사', '✓ 복사됨', sc.copied)}
+          <button id="btn-sc-share" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 transition-colors shadow-sm"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg> 공유</button>
+          <button id="btn-sc-word" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" /><path d="M14 2v5a1 1 0 0 0 1 1h5" /><path d="M10 9H8" /><path d="M16 13H8" /><path d="M16 17H8" /></svg> Word</button>
+          <button id="btn-sc-print" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors shadow-sm"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg> 인쇄/PDF</button>
         </div>
         <div class="text-[11px] text-gray-400 mt-2">접수번호: ${sc.receiptNo || '-'}</div>
       </div>
 
       ${sc.escalated
         ? `<div class="text-sm rounded-xl p-3 my-3" style="color:var(--color-primary);background:var(--color-primary-light);border:1px solid var(--color-primary)">교관님께 전달되었습니다. 답변이 오면 '내 피드백 이력'에서 확인하실 수 있습니다.</div>`
-        : `<button id="btn-sc-escalate" class="kko-btn-outline my-3 flex items-center justify-center gap-2">🚩 이 내용 그대로 교관님께도 전달하기</button>`
+        : `<button id="btn-sc-escalate" class="kko-btn-outline my-3 flex items-center justify-center gap-2"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528" /></svg> 이 내용 그대로 교관님께도 전달하기</button>`
       }
 
       <div class="kko-card kko-card-in mt-2">
         <h4 class="text-[13px] font-black mb-1 flex items-center gap-1.5" style="color:var(--color-primary)">
-          <span>💬</span> 추가 질문이 있으신가요?
+          <span><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" /></svg></span> 추가 질문이 있으신가요?
           <span class="bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-md tracking-wider shadow-sm">NEW</span>
         </h4>
         <p class="text-[11.5px] font-bold mb-3 pl-6 break-keep" style="color:var(--color-text-sub)">결과를 바탕으로 무한 맞춤 답변을 받아보세요.</p>
@@ -1171,7 +1180,7 @@ function renderAskCoachTab(body) {
     <div class="flex items-end gap-2 pt-2 border-t border-gray-100">
       <textarea id="ac-content" rows="1" placeholder="교관님께 전달할 내용을 입력하세요" class="flex-1 rounded-full px-4 py-2.5 text-sm resize-none" style="max-height:96px;border:1px solid var(--color-border)">${esc(ac.content)}</textarea>
       <button id="btn-ac-submit" class="shrink-0 w-11 h-11 rounded-full text-white flex items-center justify-center text-lg disabled:opacity-50" style="background:var(--color-primary)" ${ac.submitting ? 'disabled' : ''} title="전송">
-        ${ac.submitting ? '⏳' : '➤'}
+        ${ac.submitting ? '<svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14" /><path d="M5 2h14" /><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" /><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" /></svg>' : '➤'}
       </button>
     </div>
   `;
