@@ -662,11 +662,22 @@
     function growthStagesHtml() {
       const ts = home.tierStatus;
       const current = ts ? ts.tier : '';
+      // 2026-09-18: 사용자 피드백 — "4개 버튼이 다 똑같이 보여서 내 위치를 모르겠다". 현재 등급만
+      // 보라 배경+흰 글씨+강조 테두리로 확실히 구분하고, 나머지는 연회색+점선 테두리로 낮춤.
+      // "성장 나무" 컨셉에 맞춰 현재 등급 위에 열매(🍎) 하나, 아래엔 "현재 나의 위치" 캡션을 붙인다.
+      const fruitRow = GROWTH_STAGES.map(s =>
+        `<div class="flex-1 text-center" style="height:18px;line-height:18px;font-size:14px">${s === current ? '🍎' : ''}</div>`
+      ).join('');
       const pills = GROWTH_STAGES.map(s => {
         const active = s === current;
-        const style = active ? 'background:#5B4FCF;color:#fff' : 'background:#F0F0F0;color:#9CA3AF';
+        const style = active
+          ? 'background:#5B4FCF;color:#fff;border:2px solid #4338CA;box-shadow:0 2px 8px rgba(91,79,207,0.35)'
+          : 'background:#F5F5F5;color:#AAAAAA;border:1.5px dashed #CCCCCC';
         return `<div class="flex-1 flex items-center justify-center text-[11px] font-bold" style="height:44px;border-radius:22px;${style}">${esc(s)}</div>`;
       }).join('');
+      const captionRow = GROWTH_STAGES.map(s =>
+        `<div class="flex-1 text-center text-[9px] font-bold" style="color:#5B4FCF">${s === current ? '현재 나의 위치' : ''}</div>`
+      ).join('');
 
       let calloutHtml = '';
       if (ts && ts.nextTier && ts.leadGoal != null) {
@@ -687,10 +698,12 @@
         <div class="card card-border bg-base-100 shadow-sm mx-4">
           <div class="card-body p-5 cursor-pointer" onclick="openGrowthModal()">
             <div class="flex items-center justify-between mb-3">
-              <div class="text-sm font-bold text-base-content">내 성장 나무</div>
+              <div class="text-sm font-bold text-base-content">🌳 내 성장 나무</div>
               ${isMvpCandidate ? `<span class="badge badge-sm" style="background:#FBBF24;color:#78350F;border:none">이번 달 지역 MVP 후보 🏆</span>` : ''}
             </div>
+            <div class="flex items-stretch gap-1.5">${fruitRow}</div>
             <div class="flex items-stretch gap-1.5">${pills}</div>
+            <div class="flex items-stretch gap-1.5 mt-1">${captionRow}</div>
             ${calloutHtml}
           </div>
         </div>
