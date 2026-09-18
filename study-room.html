@@ -99,10 +99,10 @@ const REQ_EDU_ICONS = { '복음방교사양성교육': '🌟', '섭외전도교�
 // category 필드로 매핑해서 내려줌(Code.gs _studyCourseCategory_와 동일 결). "교사소양"/
 // "무신앙"은 아직 교재가 없어 목록이 비어있으면 "준비 중"으로 표시(에러 아님).
 const COURSE_TABS = [
-  { key: 'teacherQuality', category: '교사소양', icon: '🎓', label: '교사 소양' },
-  { key: 'counseling', category: '상담', icon: '💬', label: '상담' },
-  { key: 'noFaith', category: '무신앙', icon: '🌱', label: '무신앙' },
-  { key: 'gospelRoom', category: '복음방', icon: '📖', label: '복음방 교재' }
+  { key: 'teacherQuality', category: '교사소양', label: '교사소양' },
+  { key: 'counseling', category: '상담', label: '상담' },
+  { key: 'noFaith', category: '무신앙', label: '무신앙' },
+  { key: 'gospelRoom', category: '복음방', label: '복음방교재' }
 ];
 
 function esc(s) {
@@ -199,7 +199,7 @@ ${bodyHtml}
 }
 
 const TAB_DEFS = [
-  { key: 'reqEdu', icon: '✅', label: '내가 이수한 교육' },
+  { key: 'reqEdu', label: '이수교육' },
   ...COURSE_TABS
 ];
 
@@ -216,7 +216,7 @@ function render() {
         const style = active
           ? 'background:var(--color-primary); color:#fff; border:1.5px solid var(--color-primary);'
           : 'background:#fff; color:var(--color-primary); border:1.5px solid var(--color-primary);';
-        return `<button class="study-tab-btn shrink-0 whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold" style="${style}" data-tab="${t.key}">${t.icon} ${esc(t.label)}</button>`;
+        return `<button class="study-tab-btn shrink-0 whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold" style="${style}" data-tab="${t.key}">${esc(t.label)}</button>`;
       }).join('')}
     </div>
     <div id="body" class="p-5" style="background:var(--color-bg);"></div>

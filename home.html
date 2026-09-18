@@ -69,19 +69,24 @@
     .kko-form .input:focus, .kko-form .select:focus, .kko-form textarea:focus {
       border-color: #5B4FCF !important; outline-color: #5B4FCF !important;
     }
-    #bottomTabBar { display: flex; height: 60px; flex-shrink: 0; background: #fff; border-top: 1px solid #E5E7EB; }
+    /* 2026-09-18: 하단 탭바 전면 개선 — 아이콘 전용(SVG, 텍스트 없음) + 완전 고정(position:fixed).
+       appPanel(flex column, h-screen)의 마지막 flex 자식이었던 걸 fixed로 빼내면서, 남은 flex:1
+       콘텐츠(#homeContent/iframe#content)가 그 높이를 그대로 흡수해버리므로 아래에서 padding-bottom:
+       72px 로 다시 확보해준다(가려짐 방지). */
+    #bottomTabBar {
+      display: flex; height: 56px; flex-shrink: 0; background: #fff; border-top: 1px solid #EEEEEE;
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
     #bottomTabBar .tab {
-      flex: 1; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: center; justify-content: center;
-      gap: 2px; font-size: 10px; color: #9CA3AF; background: transparent !important; border: none !important;
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      color: #AAAAAA; background: transparent !important; border: none !important;
     }
     #bottomTabBar .tab:before, #bottomTabBar .tab:after { display: none !important; }
-    #bottomTabBar .tab .tab-icon { font-size: 20px; line-height: 1; }
+    #bottomTabBar .tab .tab-icon { display: flex; width: 24px; height: 24px; }
+    #bottomTabBar .tab .tab-icon svg { width: 24px; height: 24px; }
     #bottomTabBar .tab.tab-active { color: #5B4FCF; }
-    #bottomTabBar .bottom-tab-settings { flex: 1; display: flex; }
-    #bottomTabBar .bottom-tab-settings > button {
-      width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 2px; font-size: 10px; color: #9CA3AF; background: transparent; border: none; cursor: pointer;
-    }
+    #homeContent, #content { padding-bottom: 72px; }
     /* Phase 2: 대상자 단계 상승 축하 모달 — 위에서 뚝 떨어지는 효과 */
     @keyframes stageUpDrop {
       0%   { transform: translateY(-140px) scale(0.9); opacity: 0; }
@@ -95,7 +100,7 @@
     .kko-fade-in { animation: kkoFadeIn .2s ease; }
     @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
     .kko-card-in { animation: kkoCardIn .3s ease; }
-    .kko-btn-main, .kko-btn-outline, #bottomTabBar .tab, #bottomTabBar .bottom-tab-settings > button, .coop-req-btn {
+    .kko-btn-main, .kko-btn-outline, #bottomTabBar .tab, .coop-req-btn {
       transition: transform .1s ease;
     }
     .kko-btn-main:active, .kko-btn-outline:active, .coop-req-btn:active { transform: scale(0.97); }
@@ -160,15 +165,18 @@
     <div id="homeContent" class="flex-1 w-full overflow-y-auto" style="display:none;background:#F5F5F5"></div>
     <iframe id="content" class="flex-1 w-full border-0" style="display:none"></iframe>
     <nav id="bottomTabBar">
-      <button role="tab" class="tab tab-active" data-room="activity" onclick="switchTab('activity', this)"><span class="tab-icon">🙌</span><span>활동방</span></button>
-      <button role="tab" class="tab" data-room="feedback" onclick="switchTab('feedback', this)"><span class="tab-icon">💬</span><span>피드백방</span></button>
-      <button role="tab" class="tab" data-room="study" onclick="switchTab('study', this)"><span class="tab-icon">📚</span><span>공부방</span></button>
-      <div class="dropdown dropdown-top dropdown-end bottom-tab-settings">
-        <button tabindex="0"><span class="tab-icon">⚙️</span><span>설정</span></button>
-        <ul tabindex="0" class="dropdown-content menu menu-sm bg-base-100 rounded-box z-10 w-44 p-2 shadow-md border border-base-300 mb-2">
-          <li><a href="admin-home.html" target="_blank" rel="noopener">🔐 관리자 홈</a></li>
-        </ul>
-      </div>
+      <button role="tab" class="tab tab-active" data-room="activity" onclick="switchTab('activity', this)" title="활동방">
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></span>
+      </button>
+      <button role="tab" class="tab" data-room="feedback" onclick="switchTab('feedback', this)" title="피드백방">
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg></span>
+      </button>
+      <button role="tab" class="tab" data-room="study" onclick="switchTab('study', this)" title="공부방">
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg></span>
+      </button>
+      <button role="tab" class="tab" data-room="coach" onclick="onCoachTabClick(this)" title="교관">
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></span>
+      </button>
     </nav>
   </div>
 
@@ -218,7 +226,8 @@
     // 각 방 파일명(피드백방/공부방은 여전히 iframe) — 활동방은 이제 native(#homeContent)라 목록에 없음.
     const ROOM_FILES = {
       study: 'study-room.html',
-      feedback: 'feedback-room.html'
+      feedback: 'feedback-room.html',
+      coach: 'coach-dashboard.html'
     };
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
 
@@ -330,6 +339,31 @@
       iframeEl.src = `${file}?${params.toString()}`;
     }
 
+    // 2026-09-18: 하단 탭바 "교관" 진입 게이트 — 교관명단(coach 시트)에 등록된 고유번호만
+    // coach-dashboard.html 로 이동, 아니면 안내 메시지만 띄우고 탭 전환 안 함. 결과는
+    // home.coachAccess(null=미확인/true/false)에 캐시해 재클릭 시 재조회하지 않는다.
+    async function onCoachTabClick(btnEl) {
+      if (home.coachAccess === false) {
+        alert('교관으로 등록된 사용자만 접근할 수 있습니다');
+        return;
+      }
+      if (home.coachAccess === true) {
+        switchTab('coach', btnEl);
+        return;
+      }
+      try {
+        const res = await callApi({ action: 'getMyCoach', memberId });
+        home.coachAccess = !!(res && res.isCoach);
+      } catch (e) {
+        home.coachAccess = false;
+      }
+      if (home.coachAccess) {
+        switchTab('coach', btnEl);
+      } else {
+        alert('교관으로 등록된 사용자만 접근할 수 있습니다');
+      }
+    }
+
     // ============ 활동방(홈+활동방 통합) ============
 
     async function callApi(payload) {
@@ -384,8 +418,11 @@
     // '동행교사' 추가 항목을 받는 역할(Code.gs ROLES_WITH_EXTRA_ACTIVITY와 동일).
     const ROLES_WITH_EXTRA_ACTIVITY = ['교사', '협력교사'];
     // 2026-09-15: 사용자 요청 — "협력교사"는 UI 라벨(칩/타일 등)에는 짧게 "협력"으로만 표기.
-    // 내부 값(체크박스 value, 백엔드로 보내는 role 문자열)은 항상 '협력교사' 그대로 유지.
-    function roleShortLabel(role) { return role === '협력교사' ? '협력' : role; }
+    // 2026-09-18: 4역할 전체를 "인도/교사/섬김/협력"로 축약(사용자 요청) — 내부 값(체크박스
+    // value, 백엔드로 보내는/받는 role 문자열, roleCounts·roleItemCounts 조회 키)은 항상
+    // '인도자'/'교사'/'섬김이'/'협력교사' 그대로 유지, 화면 표시(esc(roleShortLabel(...)))에만 적용.
+    const ROLE_SHORT_LABEL = { '인도자': '인도', '교사': '교사', '섬김이': '섬김', '협력교사': '협력' };
+    function roleShortLabel(role) { return ROLE_SHORT_LABEL[role] || role; }
     // 상담1/상담2/복음방 선택 시 추가 입력하는 반응(Code.gs REACTION_OPTIONS와 동일).
     const REACTION_OPTIONS = ['긍정적', '중립', '부정적'];
     // 2026-09-15: 협력 교사 찾기 — Code.gs COOP_REQUEST_TYPES와 문구가 같아야 함.
@@ -451,6 +488,7 @@
       historyOpen: false,      // "내 활동 기록" 펼침 여부(기본 접힘)
       aiFeedback: {},          // 활동 행 키 -> { loading, text }
       coachReplyNotif: [],     // 2026-09-18: 아직 안 본 교관 답변 완료 배너용 (getHistory 필터 결과)
+      coachAccess: null,       // 2026-09-18: 하단 "교관" 탭 진입 가능 여부 캐시 — null=미확인, true/false=getMyCoach 결과
       // 2026-09-15: 협력 교사 찾기 (2026-09-19: 바쁨정도 선언→프로필 등록 기반으로 개편)
       coop: {
         open: false,           // 섹션 펼침 여부(기본 접힘 — 목록이 길어서)
@@ -1089,7 +1127,7 @@
           <div class="text-[11px] text-base-content/40 w-20 shrink-0 leading-tight">${esc(String(j.submittedAt || '').split(' ')[0])}</div>
           <div class="flex-1 text-sm">
             <div class="flex flex-wrap items-center gap-1 mb-1">
-              ${j.roles.map(r => `<span class="badge badge-ghost badge-xs">${esc(r)}</span>`).join('')}
+              ${j.roles.map(r => `<span class="badge badge-ghost badge-xs">${esc(roleShortLabel(r))}</span>`).join('')}
               <span class="font-bold text-xs">${esc(j.activityItem)}</span>
               <span class="text-[10px] text-base-content/40">· ${esc(j.writerName)}</span>
             </div>
