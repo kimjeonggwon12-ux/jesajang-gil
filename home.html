@@ -450,6 +450,7 @@
       // 2026-09-15: 활동 기록 목록(접이식) + 항목별 AI 피드백
       historyOpen: false,      // "내 활동 기록" 펼침 여부(기본 접힘)
       aiFeedback: {},          // 활동 행 키 -> { loading, text }
+      coachReplyNotif: [],     // 2026-09-18: 아직 안 본 교관 답변 완료 배너용 (getHistory 필터 결과)
       // 2026-09-15: 협력 교사 찾기 (2026-09-19: 바쁨정도 선언→프로필 등록 기반으로 개편)
       coop: {
         open: false,           // 섹션 펼침 여부(기본 접힘 — 목록이 길어서)
@@ -511,6 +512,8 @@
       renderHome();
       // 협력 요청 수신 배너용 — 메인 로드를 막지 않도록 뒤이어 별도로(실패해도 조용히 무시).
       loadCoopRequests();
+      // 2026-09-18: 교관 답변 완료 알림 배너용 — 마찬가지로 메인 로드를 막지 않음.
+      loadCoachReplyNotif();
     }
 
     async function loadCoopRequests() {
@@ -518,6 +521,48 @@
         const res = await callApi({ action: 'getMyCoopRequests', memberId });
         if (res && !res.error) { home.coop.requests = res; renderHome(); }
       } catch (e) { /* 배너는 부가 기능 — 실패해도 대시보드 동작에 영향 없음 */ }
+    }
+
+    // 2026-09-18: 교관이 "교관에게 요청"/"AI 코칭 후 교관님께 전달" 건에 답변을 달면
+    // 피드백방에 직접 들어가지 않아도 홈에서 바로 보이는 배너. feedback-room.html "내 피드백
+    // 이력" 탭과 동일한 getHistory 액션을 재사용(같은 시트, 같은 source 값 2종).
+    function _coachReplySeenKey_() { return `kko_seen_coach_replies_${memberId}`; }
+    function _coachReplySeenSet_() {
+      try { return new Set(JSON.parse(localStorage.getItem(_coachReplySeenKey_()) || '[]')); }
+      catch (e) { return new Set(); }
+    }
+    async function loadCoachReplyNotif() {
+      try {
+        const res = await callApi({ action: 'getHistory', memberId });
+        const rows = (res && !res.error && res.rows) || [];
+        const seen = _coachReplySeenSet_();
+        home.coachReplyNotif = rows.filter(r =>
+          (r.source === '교관요청' || r.source === '사람에스컬레이션') &&
+          r.status === '완료' && r.handlerAnswer && !seen.has(r.receiptNo)
+        );
+        renderHome();
+      } catch (e) { /* 배너는 부가 기능 — 실패해도 대시보드 동작에 영향 없음 */ }
+    }
+    function openCoachReplyBanner() {
+      try {
+        const seen = _coachReplySeenSet_();
+        home.coachReplyNotif.forEach(r => seen.add(r.receiptNo));
+        localStorage.setItem(_coachReplySeenKey_(), JSON.stringify([...seen]));
+      } catch (e) {}
+      home.coachReplyNotif = [];
+      switchTab('feedback', document.querySelector('.tab[data-room="feedback"]'), new URLSearchParams({ tab: 'history' }));
+    }
+    function coachReplyBannerHtml() {
+      const rows = home.coachReplyNotif || [];
+      if (!rows.length) return '';
+      return `
+        <div class="mx-4">
+          <div id="coach-reply-banner" onclick="openCoachReplyBanner()" class="rounded-box px-3 py-2.5 flex items-center gap-2 cursor-pointer" style="background:linear-gradient(90deg,#EDE9FF,#E0D9FF);border:1px solid #C4B5FD">
+            <span style="font-size:20px">💬</span>
+            <div class="flex-1 text-xs font-bold truncate" style="color:#4C1D95">교관님이 ${rows.length}건에 답변하셨습니다</div>
+            <span class="text-[10px] shrink-0" style="color:#5B4FCF">확인하기 →</span>
+          </div>
+        </div>`;
     }
 
     async function refreshAfterSubmit() {
@@ -1616,6 +1661,7 @@
         <div class="py-4 flex flex-col gap-5">
           ${encouragementBannerHtml()}
           ${coopInboxBannerHtml()}
+          ${coachReplyBannerHtml()}
           ${growthStagesHtml()}
           ${monthlyBoxesHtml()}
           ${activityFormHtml()}
