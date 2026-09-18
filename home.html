@@ -87,6 +87,9 @@
     #bottomTabBar .tab .tab-icon svg { width: 24px; height: 24px; }
     #bottomTabBar .tab.tab-active { color: #5B4FCF; }
     #homeContent, #content { padding-bottom: 72px; }
+    /* 2026-09-18: 내 성장 나무 — 현재 등급 pill 은 은은하게 숨쉬듯 pulse */
+    @keyframes growthPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
+    .growth-pulse { animation: growthPulse 2s ease-in-out infinite; }
     /* Phase 2: 대상자 단계 상승 축하 모달 — 위에서 뚝 떨어지는 효과 */
     @keyframes stageUpDrop {
       0%   { transform: translateY(-140px) scale(0.9); opacity: 0; }
@@ -659,40 +662,56 @@
       document.getElementById('growthModal').close();
     }
 
+    // 2026-09-18: 사용자 피드백 2차 — 활성/비활성 2단계 대비만으로는 부족, 4단계(현재/다음목표/
+    // 지나온 등급/아직 먼 등급)로 세분화. 각 단계별 색상·테두리·아이콘·캡션이 전부 다르다.
     function growthStagesHtml() {
       const ts = home.tierStatus;
       const current = ts ? ts.tier : '';
-      // 2026-09-18: 사용자 피드백 — "4개 버튼이 다 똑같이 보여서 내 위치를 모르겠다". 현재 등급만
-      // 보라 배경+흰 글씨+강조 테두리로 확실히 구분하고, 나머지는 연회색+점선 테두리로 낮춤.
-      // "성장 나무" 컨셉에 맞춰 현재 등급 위에 열매(🍎) 하나, 아래엔 "현재 나의 위치" 캡션을 붙인다.
-      const fruitRow = GROWTH_STAGES.map(s =>
-        `<div class="flex-1 text-center" style="height:18px;line-height:18px;font-size:14px">${s === current ? '🍎' : ''}</div>`
-      ).join('');
-      const pills = GROWTH_STAGES.map(s => {
-        const active = s === current;
-        const style = active
-          ? 'background:#5B4FCF;color:#fff;border:2px solid #4338CA;box-shadow:0 2px 8px rgba(91,79,207,0.35)'
-          : 'background:#F5F5F5;color:#AAAAAA;border:1.5px dashed #CCCCCC';
-        return `<div class="flex-1 flex items-center justify-center text-[11px] font-bold" style="height:44px;border-radius:22px;${style}">${esc(s)}</div>`;
-      }).join('');
-      const captionRow = GROWTH_STAGES.map(s =>
-        `<div class="flex-1 text-center text-[9px] font-bold" style="color:#5B4FCF">${s === current ? '현재 나의 위치' : ''}</div>`
-      ).join('');
+      const curIdx = GROWTH_STAGES.indexOf(current);
 
-      let calloutHtml = '';
-      if (ts && ts.nextTier && ts.leadGoal != null) {
-        const leadCount = ts.leadCount || 0;
-        const remaining = Math.max(0, ts.leadGoal - leadCount);
-        const headline = remaining > 0
-          ? `${esc(ts.nextTier)}까지 센터 인도 ${remaining}회 남았어요${remaining <= 1 ? ' · 거의 다 왔어요!' : ''}`
-          : `${esc(ts.nextTier)} 승급 조건을 채웠어요! 🎉`;
-        calloutHtml = `<div class="mt-3 text-xs text-info font-bold">${headline}</div>`;
+      const pills = GROWTH_STAGES.map((s, i) => {
+        let style, icon = '', cls = '';
+        if (i === curIdx) {
+          style = 'background:#5B4FCF;color:#fff;border:none;box-shadow:0 4px 12px rgba(91,79,207,0.4);transform:scale(1.05)';
+          cls = ' growth-pulse';
+        } else if (i === curIdx + 1) {
+          style = 'background:#EDE9FF;color:#5B4FCF;border:1px dashed #5B4FCF';
+        } else if (curIdx >= 0 && i < curIdx) {
+          style = 'background:#F0F0F0;color:#AAAAAA;border:none';
+          icon = '✓ ';
+        } else {
+          style = 'background:#fff;color:#CCCCCC;border:1px solid #EEEEEE';
+          icon = '🔒 ';
+        }
+        return `<div class="flex-1 flex items-center justify-center text-[11px] font-bold${cls}" style="height:44px;border-radius:22px;${style}">${icon}${esc(s)}</div>`;
+      }).join('');
+      const captionRow = GROWTH_STAGES.map((s, i) => {
+        let text = '', color = '#5B4FCF';
+        if (i === curIdx) { text = '📍 현재 나의 위치'; }
+        else if (i === curIdx + 1) { text = '다음 목표'; color = 'rgba(91,79,207,0.55)'; }
+        return `<div class="flex-1 text-center text-[10px] font-bold" style="color:${color}">${text}</div>`;
+      }).join('');
+
+      // 승급(또는 휴교사 복귀) 조건 한 줄 — 다음 등급이 센터인도 기준이면 leadGoal, 휴교사→교사
+      // 복귀처럼 활동건수 기준이면 monthlyGoal을 씀(getMyTierStatus_ 응답 필드 그대로 재사용).
+      let goalLine = '';
+      if (ts && ts.nextTier) {
+        if (ts.leadGoal != null) {
+          const remaining = Math.max(0, ts.leadGoal - (ts.leadCount || 0));
+          goalLine = remaining > 0 ? `센터 인도 ${remaining}명 더하면 ${ts.nextTier}!` : `${ts.nextTier} 승급 조건을 채웠어요! 🎉`;
+        } else if (ts.monthlyGoal != null) {
+          const remaining = Math.max(0, ts.monthlyGoal - (ts.monthlyCount || 0));
+          goalLine = remaining > 0 ? `이번 달 활동 ${remaining}건 더하면 ${ts.nextTier}!` : `${ts.nextTier} 복귀 조건을 채웠어요! 🎉`;
+        }
       } else if (ts && !ts.nextTier) {
-        calloutHtml = `<div class="mt-3 text-xs text-success font-bold">현재 최고 등급(우수교사)입니다 🎉</div>`;
+        goalLine = '현재 최고 등급이에요! 🎉';
       }
+      const calloutHtml = goalLine
+        ? `<div class="mt-3 text-center font-bold" style="color:#5B4FCF;font-size:12px">${esc(goalLine)}</div>`
+        : '';
 
       // Phase 2: 내 등급이 활동교사 이상이면 작은 MVP 후보 배지 표시(사용자 요청).
-      const isMvpCandidate = current && GROWTH_STAGES.indexOf(current) >= GROWTH_STAGES.indexOf('활동교사');
+      const isMvpCandidate = current && curIdx >= GROWTH_STAGES.indexOf('활동교사');
 
       return `
         <div class="card card-border bg-base-100 shadow-sm mx-4">
@@ -701,7 +720,6 @@
               <div class="text-sm font-bold text-base-content">🌳 내 성장 나무</div>
               ${isMvpCandidate ? `<span class="badge badge-sm" style="background:#FBBF24;color:#78350F;border:none">이번 달 지역 MVP 후보 🏆</span>` : ''}
             </div>
-            <div class="flex items-stretch gap-1.5">${fruitRow}</div>
             <div class="flex items-stretch gap-1.5">${pills}</div>
             <div class="flex items-stretch gap-1.5 mt-1">${captionRow}</div>
             ${calloutHtml}
