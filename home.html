@@ -197,7 +197,7 @@
     상단 tabs-boxed 탭바는 제거해 하단 고정 탭바(⚙️ 설정 포함)로 옮겼습니다.
   -->
   <div id="appPanel" class="flex flex-col h-screen" style="display:none">
-    <header class="flex items-center justify-between px-4 flex-shrink-0" style="height:56px;background:#5B4FCF">
+    <header id="appHeader" class="flex items-center justify-between px-4 flex-shrink-0" style="height:56px;background:#5B4FCF">
       <div class="text-white font-bold text-base">복음방 교사</div>
       <div class="flex items-center gap-3 text-white">
         <!-- 2026-09-20: 교사 상태 배지(휴교사 회색/교사 노랑/활동교사 초록/우수교사 보라) — 클릭 시 승급 조건 모달 -->
@@ -206,8 +206,8 @@
         <svg class="lucide-i" style="width:20px;height:20px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="내 프로필"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
       </div>
     </header>
-    <div class="px-4 flex-shrink-0" style="padding-top:16px;padding-bottom:16px;background:#fff">
-      <div style="font-size:20px;font-weight:700;color:#333333"><span id="greetName">-</span> 교사님의 실력을 나누어주세요.</div>
+    <div id="greetBar" class="px-4 flex-shrink-0" style="padding-top:16px;padding-bottom:16px;background:#fff">
+      <div style="font-size:20px;font-weight:700;color:#333333"><span id="greetName">-</span><span id="greetTail"> 교사님의 실력을 나누어주세요.</span></div>
     </div>
     <div id="homeContent" class="flex-1 w-full overflow-y-auto" style="display:none;background:#F5F5F5"></div>
     <iframe id="content" class="flex-1 w-full border-0" style="display:none"></iframe>
@@ -366,6 +366,15 @@
       const homeEl = document.getElementById('homeContent');
       const iframeEl = document.getElementById('content');
 
+      // 2026-09-20: 헤더 겹침 방지 — 피드백방/공부방/교관방은 각 방의 자체 헤더만 보이도록 앱 헤더+인사말을 숨긴다.
+      //   활동방: "OOO 교사님의 활동을 기록하여 관리하세요." / 연결방: "OOO 교사님의 실력을 나누어주세요."
+      const ownHeaderRoom = (room === 'feedback' || room === 'study' || room === 'coach');
+      const appHeaderEl = document.getElementById('appHeader'), greetBarEl = document.getElementById('greetBar');
+      if (appHeaderEl) appHeaderEl.style.display = ownHeaderRoom ? 'none' : '';
+      if (greetBarEl) greetBarEl.style.display = ownHeaderRoom ? 'none' : '';
+      const tailEl = document.getElementById('greetTail');
+      if (tailEl) tailEl.textContent = room === 'activity' ? ' 교사님의 활동을 기록하여 관리하세요.' : ' 교사님의 실력을 나누어주세요.';
+
       // 연결방 안에서는 점 숨김, 다른 방으로 이동하면 미읽 재확인.
       if (room === 'connect') { const d = document.getElementById('connectDot'); if (d) d.style.display = 'none'; }
       else refreshConnectDot();
@@ -413,25 +422,9 @@
     // coach-dashboard.html 로 이동, 아니면 안내 메시지만 띄우고 탭 전환 안 함. 결과는
     // home.coachAccess(null=미확인/true/false)에 캐시해 재클릭 시 재조회하지 않는다.
     async function onCoachTabClick(btnEl) {
-      if (home.coachAccess === false) {
-        alert('교관으로 등록된 사용자만 접근할 수 있습니다');
-        return;
-      }
-      if (home.coachAccess === true) {
-        switchTab('coach', btnEl);
-        return;
-      }
-      try {
-        const res = await callApi({ action: 'getMyCoach', memberId });
-        home.coachAccess = !!(res && res.isCoach);
-      } catch (e) {
-        home.coachAccess = false;
-      }
-      if (home.coachAccess) {
-        switchTab('coach', btnEl);
-      } else {
-        alert('교관으로 등록된 사용자만 접근할 수 있습니다');
-      }
+      // 2026-09-20: 수정 작업 중이라 교관 방을 누구나 열 수 있게 임시 개방(기존 getMyCoach 게이트 제거).
+      // 복구하려면 이 함수를 git 이력(커밋 9ecf665 이전 로직: getMyCoach → isCoach 확인 후 switchTab)으로 되돌리면 됨.
+      switchTab('coach', btnEl);
     }
 
     // ============ 활동방(홈+활동방 통합) ============
