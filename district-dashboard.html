@@ -141,6 +141,7 @@ let state = {
   tlFilterDept: '',
   tlFilterRegion: '',
   tlFilterTier: '',
+  tlFilterApply: '', // '' | 'yes' | 'no' — 활동 신청 여부 필터
   tlSelected: null, // 선택된 교사의 memberId
   tlAssigning: false // 교관/지역장 지정 API 호출 중
 };
@@ -156,6 +157,9 @@ let allActivitiesLoading = false;
 // 2026-09-16: "👥 교사 명단" 탭 전용 — 전체 교사 명단(getRoster) 1회만 로드해 캐시.
 let rosterAll = null;
 let rosterLoading = false;
+// 2026-09-20: 부서별 "교사별 상세"를 교사 명단으로 통합 — 전 교사 활동/제안/활동 신청 리포트(getTeacherListReport)를 명단 행에 합친다.
+let tlReport = null;
+let tlReportLoading = false;
 
 // 활동방(activity-room.html) ACTIVITY_OPTIONS 와 동일 목록 — 표/그래프의 열(항목) 표준 순서용.
 const ACTIVITY_OPTIONS = [
@@ -283,7 +287,42 @@ async function loadRosterAll(force) {
     rosterAll = [];
   }
   rosterLoading = false;
+  mergeTeacherReport();
   render();
+}
+
+// 전 교사 리포트(이번 달 활동·마지막 활동일·승급/강등 제안·활동 신청)를 1회 받아 명단 행에 합친다(느려서 명단이 먼저 뜨고 뒤이어 채워짐).
+async function loadTeacherReport(force) {
+  if (!force && (tlReport || tlReportLoading)) return;
+  tlReportLoading = true;
+  render();
+  try {
+    const res = await callApi({ action: 'getTeacherListReport' });
+    tlReport = (res && Array.isArray(res.rows)) ? res.rows : [];
+    if (res && res.error) tlReport = [];
+  } catch (e) {
+    tlReport = [];
+  }
+  tlReportLoading = false;
+  mergeTeacherReport();
+  render();
+}
+function mergeTeacherReport() {
+  if (!rosterAll || !tlReport) return;
+  const byId = {};
+  tlReport.forEach(r => { byId[String(r.memberId)] = r; });
+  rosterAll.forEach(t => {
+    const r = byId[String(t.memberId)];
+    if (!r) return;
+    t.monthlyCount = r.monthlyCount; t.lastActivityDate = r.lastActivityDate; t.conditionText = r.conditionText;
+    t.suggestion = r.suggestion; t.apply = r.apply; t.affilSel = r.affil; t.genderSel = r.gender; t._rep = true;
+  });
+}
+function applyText(a) {
+  if (!a) return '';
+  const sch = a.scheduleType === '언제나' ? '언제나 가능' : a.scheduleType === '상의' ? '상의 후 결정'
+    : [a.from && a.to ? a.from.slice(5).replace('-', '/') + '~' + a.to.slice(5).replace('-', '/') : '', (a.days || []).join(''), (a.times || []).join('·'), a.hours].filter(Boolean).join(' · ');
+  return (a.roles || []).join('·') + (sch ? ' (' + sch + ')' : '');
 }
 
 // dept가 null이면 "전체 요약" 화면, TEACHER_LIST_TAB이면 "교사 명단" 탭으로 전환 — 이미 받아왔으면 재요청 없이 그대로 보여줌.
@@ -292,7 +331,7 @@ function switchDept(dept) {
   state.region = ''; // 부서를 바꾸면 지역 필터는 초기화(그 부서에 없는 지역일 수 있어서)
   state.aiAnalysis = null; // 다른 부서의 AI 분석 결과가 남아있지 않도록 초기화
   if (dept === null) loadOrgSummary(false);
-  else if (dept === TEACHER_LIST_TAB) loadRosterAll(false);
+  else if (dept === TEACHER_LIST_TAB) { loadRosterAll(false); loadTeacherReport(false); }
   else { loadReport(false); loadAllActivities(false); }
 }
 
@@ -330,7 +369,7 @@ function teacherListFilterHtml() {
     ? [...new Set((rosterAll || []).filter(t => t.dept === state.tlFilterDept).map(t => t.region).filter(Boolean))].sort()
     : [];
   return `
-    <div class="grid grid-cols-3 gap-2 px-4 pt-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 pt-3">
       <select id="tl-filter-dept" class="select select-bordered select-sm w-full">
         <option value="">부서 전체</option>
         ${DEPTS.map(d => `<option value="${esc(d)}" ${state.tlFilterDept === d ? 'selected' : ''}>${DEPT_ICON[d]||''} ${esc(d)}</option>`).join('')}
@@ -343,12 +382,18 @@ function teacherListFilterHtml() {
         <option value="">등급 전체</option>
         ${TIER_ORDER.map(t => `<option value="${esc(t)}" ${state.tlFilterTier === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
       </select>
+      <select id="tl-filter-apply" class="select select-bordered select-sm w-full">
+        <option value="">활동 신청 전체</option>
+        <option value="yes" ${state.tlFilterApply === 'yes' ? 'selected' : ''}>신청 있음</option>
+        <option value="no" ${state.tlFilterApply === 'no' ? 'selected' : ''}>신청 없음</option>
+      </select>
     </div>
   `;
 }
 
 function teacherListDetailHtml(t) {
   if (!t) return '';
+  const loaded = !!t._rep;
   return `
     <div class="border-t border-base-300 bg-base-200/40 p-4">
       <div class="flex items-center justify-between mb-2">
@@ -362,11 +407,18 @@ function teacherListDetailHtml(t) {
         <div class="text-base-content/50">현재 직책</div><div class="font-medium">${t.position ? esc(t.position) : '(일반 교사)'}</div>
         <div class="text-base-content/50">소속</div><div class="font-medium">${esc(t.affiliation||'-')}</div>
         ${t.note ? `<div class="text-base-content/50">비고</div><div class="font-medium">${esc(t.note)}</div>` : ''}
+        <div class="text-base-content/50">이번 달 활동</div><div class="font-medium">${loaded ? esc(t.monthlyCount) + '건' : '불러오는 중…'}</div>
+        <div class="text-base-content/50">마지막 활동일</div><div class="font-medium">${loaded ? esc(t.lastActivityDate || '-') : '…'}</div>
+        <div class="text-base-content/50">승급·강등 조건 내역</div><div class="font-medium">${loaded ? esc(t.conditionText || '-') : '…'}</div>
+        <div class="text-base-content/50">활동 신청</div><div class="font-medium">${loaded ? (t.apply ? esc(applyText(t.apply)) : '없음') : '…'}</div>
+        ${loaded && t.apply ? `<div class="text-base-content/50">신청 소속·성별</div><div class="font-medium">${esc([t.affilSel, t.genderSel].filter(Boolean).join(' · ') || '-')}</div>` : ''}
       </div>
-      <div class="flex gap-2">
+      ${loaded && t.suggestion ? `<div class="mb-3"><div class="text-xs font-bold text-base-content/50 mb-1">승급·강등 제안</div>${suggestionCell(t)}</div>` : ''}
+      <div class="flex gap-2 mb-2">
         <button id="tl-btn-coach" class="btn btn-sm flex-1 ${t.position==='교관' ? 'btn-primary' : 'btn-outline btn-primary'}" ${state.tlAssigning ? 'disabled' : ''}>${t.position==='교관' ? '✓ 교관 지정됨 (해제)' : '🧭 교관 지정'}</button>
         <button id="tl-btn-leader" class="btn btn-sm flex-1 ${t.position==='지역장' ? 'btn-secondary' : 'btn-outline btn-secondary'}" ${state.tlAssigning ? 'disabled' : ''}>${t.position==='지역장' ? '✓ 지역장 지정됨 (해제)' : '🏳️ 지역장 지정'}</button>
       </div>
+      <button class="btn-encourage-trigger btn btn-sm btn-outline w-full" data-mid="${esc(t.memberId)}" data-name="${esc(t.name)}">💌 격려 메시지 보내기</button>
     </div>
   `;
 }
@@ -380,19 +432,26 @@ function teacherListSectionHtml() {
   if (state.tlFilterDept) rows = rows.filter(t => t.dept === state.tlFilterDept);
   if (state.tlFilterRegion) rows = rows.filter(t => t.region === state.tlFilterRegion);
   if (state.tlFilterTier) rows = rows.filter(t => t.tier === state.tlFilterTier);
+  if (state.tlFilterApply === 'yes') rows = rows.filter(t => t._rep && t.apply);
+  if (state.tlFilterApply === 'no') rows = rows.filter(t => t._rep && !t.apply);
+  if (state.pendingOnly) rows = rows.filter(t => t.suggestion);
   rows = [...rows].sort((a, b) => (a.dept+a.region+a.name).localeCompare(b.dept+b.region+b.name, 'ko'));
   const selected = state.tlSelected ? rosterAll.find(t => t.memberId === state.tlSelected) : null;
+  const pendingTotal = rosterAll.filter(t => t.suggestion).length;
 
   return `
     <div class="px-4 pt-3">
-      ${sectionTitleBand(ICONS.users, '교사 명단', '전체 교사를 부서·지역·등급으로 찾아보고, 교관·지역장을 지정할 수 있습니다. 이름을 누르면 상세 정보가 열립니다.', '#F5F3FF')}
+      ${sectionTitleBand(ICONS.users, '교사 명단', '전체 교사를 부서·지역·등급·활동 신청으로 찾아보고, 이번 달 활동과 승급·강등 제안을 확인하며, 교관·지역장을 지정할 수 있습니다. 이름을 누르면 상세 정보가 열립니다.', '#F5F3FF')}
     </div>
     ${teacherListFilterHtml()}
-    <div class="px-4 pt-3 text-xs text-base-content/40">${rows.length}명</div>
+    <div class="px-4 pt-3 flex items-center justify-between gap-3 text-xs text-base-content/40">
+      <span>${rows.length}명${tlReportLoading ? ' · 활동/제안/활동 신청 정보 불러오는 중… (20초 정도 걸릴 수 있어요)' : ''}</span>
+      ${pendingTotal > 0 ? `<label class="flex items-center gap-1.5 cursor-pointer whitespace-nowrap"><input type="checkbox" id="pending-only-checkbox" class="checkbox checkbox-xs" ${state.pendingOnly ? 'checked' : ''}>승급·강등 제안 ${pendingTotal}건만 보기</label>` : ''}
+    </div>
     <div class="px-4 pt-1 pb-4">
       <div class="overflow-x-auto kko-table-card kko-card-in">
         <table class="table table-zebra table-sm">
-          <thead class="sticky top-0 bg-base-100"><tr><th>이름</th><th>부서</th><th>지역</th><th>등급</th><th>직책</th></tr></thead>
+          <thead class="sticky top-0 bg-base-100"><tr><th>이름</th><th>부서</th><th>지역</th><th>등급</th><th>직책</th><th>이번 달 활동</th><th>승급·강등 제안</th><th>활동 신청</th></tr></thead>
           <tbody>
             ${rows.map(t => `
               <tr class="tl-row cursor-pointer ${state.tlSelected === t.memberId ? 'active' : ''}" data-mid="${esc(t.memberId)}">
@@ -401,8 +460,11 @@ function teacherListSectionHtml() {
                 <td>${esc(t.region||'-')}</td>
                 <td><span class="badge ${TIER_BADGE[t.tier]||'badge-ghost'} badge-xs">${esc(t.tier||'-')}</span></td>
                 <td>${t.position ? `<span class="badge badge-outline badge-xs">${esc(t.position)}</span>` : ''}</td>
+                <td class="text-center">${t._rep ? esc(t.monthlyCount) + '건' : '…'}</td>
+                <td>${!t._rep ? '…' : (t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier]||'badge-ghost'} badge-xs">→ ${esc(t.suggestion.suggestedTier)} (${t.suggestion.approvalCount}/2)</span>` : '<span class="text-base-content/30 text-xs">-</span>')}</td>
+                <td class="text-xs">${!t._rep ? '…' : (t.apply ? `<span class="font-medium" style="color:#5B4FCF">${esc(applyText(t.apply))}</span>` : '<span class="text-base-content/40">없음</span>')}</td>
               </tr>`).join('')}
-            ${rows.length === 0 ? `<tr><td colspan="5" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
+            ${rows.length === 0 ? `<tr><td colspan="8" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
           </tbody>
         </table>
       </div>
@@ -443,8 +505,8 @@ async function approveAs(t, role) {
       const otherLabel = role === 'coach' ? '지역장' : '교관';
       alert(`${roleLabel} 허가 접수 완료. ${otherLabel} 허가가 더 필요합니다.`);
     }
-    delete state.cache[state.dept];
-    await loadReport(true);
+    if (state.dept === TEACHER_LIST_TAB) { await loadTeacherReport(true); }
+    else { delete state.cache[state.dept]; await loadReport(true); }
   } catch (e) {
     alert('허가 중 오류가 발생했습니다: ' + e);
   }
@@ -545,6 +607,7 @@ async function applyTierChangeInstant(memberId, newTier) {
       const row = (rpt.rows || []).find(r => r.memberId === memberId);
       if (row) { row.tier = newTier; row.suggestion = null; }
     });
+    (rosterAll || []).forEach(t => { if (t.memberId === memberId) { t.tier = newTier; t.suggestion = null; } });
   } catch (e) {
     alert('반영 중 오류가 발생했습니다: ' + e.message);
   }
@@ -1540,29 +1603,6 @@ function render() {
             ${roleActivityBreakdownSectionHtml(roleBreakdown)}
             ${aiAnalysisSectionHtml(roleBreakdown)}
             ${activityAnalysisSectionHtml(analysis)}
-            <details id="teacher-detail-details" class="mt-3 mx-4 border border-base-300 rounded-box bg-base-100 overflow-hidden" ${state.teacherDetailOpen ? 'open' : ''}>
-              <summary class="cursor-pointer select-none px-4 py-3 flex items-center justify-between" style="background:#F5F3FF">
-                <div>
-                  <div style="font-size:24px;font-weight:900;color:#1F3864">${ICONS.users} 교사별 상세 ${tableRows.length}${state.pendingOnly ? `/${filteredRows.length}` : ''}명</div>
-                  <div class="text-xs text-base-content/50 mt-1">각 교사의 역할(인도자·교사·섬김이·협력)과 이번 달 활동 현황을 확인하고 승급·강등 조건 근거를 검토하세요.</div>
-                </div>
-                <span class="text-base-content/30 text-[11px] font-normal shrink-0 ml-2">펼치기/접기</span>
-              </summary>
-              <div class="border-t border-base-300">
-                ${regionFilterHtml((report && report.regions) || [], filteredRows.length)}
-                ${pendingCount > 0 ? `
-                  <div class="p-4 pb-0">
-                    <div class="alert alert-warning py-2 text-sm flex items-center justify-between gap-3">
-                      <div>${ICONS.mapPin} 등급변경 제안 ${pendingCount}건 — 표의 "승급·강등 제안" 열에서 ${ICONS.checkCircle2} 승인(2인 합의) 또는 ${ICONS.zap} 즉시 반영(관리자 단독)으로 처리하세요.</div>
-                      <label class="flex items-center gap-1.5 text-xs whitespace-nowrap cursor-pointer">
-                        <input type="checkbox" id="pending-only-checkbox" class="checkbox checkbox-xs" ${state.pendingOnly ? 'checked' : ''}>
-                        제안 있는 교사만 보기
-                      </label>
-                    </div>
-                  </div>` : ''}
-                <div class="p-4">${tableHtml(tableRows)}</div>
-              </div>
-            </details>
           `}
     ${encourageModalHtml()}
   `;
@@ -1580,6 +1620,8 @@ function render() {
     if (tlDeptSel) tlDeptSel.onchange = (e) => { state.tlFilterDept = e.target.value; state.tlFilterRegion = ''; render(); };
     const tlRegionSel = document.getElementById('tl-filter-region');
     if (tlRegionSel) tlRegionSel.onchange = (e) => { state.tlFilterRegion = e.target.value; render(); };
+    const tlApplySel = document.getElementById('tl-filter-apply');
+    if (tlApplySel) tlApplySel.onchange = (e) => { state.tlFilterApply = e.target.value; render(); };
     const tlTierSel = document.getElementById('tl-filter-tier');
     if (tlTierSel) tlTierSel.onchange = (e) => { state.tlFilterTier = e.target.value; render(); };
     document.querySelectorAll('.tl-row').forEach(row => {
@@ -1602,7 +1644,7 @@ function render() {
   if (regionSelect) regionSelect.onchange = (e) => switchRegion(e.target.value);
   document.querySelectorAll('.btn-approve-role').forEach(btn => {
     btn.onclick = () => {
-      const t = filteredRows.find(r => r.memberId === btn.dataset.mid && r.suggestion && r.suggestion.suggestedTier === btn.dataset.tier);
+      const t = (isTeacherList ? (rosterAll || []) : filteredRows).find(r => r.memberId === btn.dataset.mid && r.suggestion && r.suggestion.suggestedTier === btn.dataset.tier);
       if (t) approveAs(t, btn.dataset.role);
     };
   });
