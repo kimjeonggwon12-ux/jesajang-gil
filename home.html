@@ -198,6 +198,10 @@
     <div id="homeContent" class="flex-1 w-full overflow-y-auto" style="display:none;background:#F5F5F5"></div>
     <iframe id="content" class="flex-1 w-full border-0" style="display:none"></iframe>
     <nav id="bottomTabBar">
+      <!-- 2026-09-20: 연결방(내 명함/찾아보기/같이 해요) — 첫 번째 탭. 안 읽은 채팅·협력요청이 있으면 빨간 점. -->
+      <button role="tab" class="tab" data-room="connect" onclick="switchTab('connect', this)" title="연결방">
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3" /><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" /><path d="m21 3 1 11h-2" /><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" /><path d="M3 4h8" /></svg><span id="connectDot" style="display:none;position:absolute;top:-2px;right:-4px;width:9px;height:9px;border-radius:50%;background:#E5322D;border:1.5px solid #fff"></span></span>
+      </button>
       <button role="tab" class="tab tab-active" data-room="activity" onclick="switchTab('activity', this)" title="활동방">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></span>
       </button>
@@ -263,7 +267,8 @@
     const ROOM_FILES = {
       study: 'study-room.html',
       feedback: 'feedback-room.html',
-      coach: 'coach-dashboard.html'
+      coach: 'coach-dashboard.html',
+      connect: 'connect-room.html'
     };
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
 
@@ -347,6 +352,10 @@
       const homeEl = document.getElementById('homeContent');
       const iframeEl = document.getElementById('content');
 
+      // 연결방 안에서는 점 숨김, 다른 방으로 이동하면 미읽 재확인.
+      if (room === 'connect') { const d = document.getElementById('connectDot'); if (d) d.style.display = 'none'; }
+      else refreshConnectDot();
+
       // 2026-09-17: 탭 전환 페이드인 — 매번 클래스 제거 후 리플로우해서 재트리거.
       const retriggerFade = (el) => { el.classList.remove('kko-fade-in'); void el.offsetWidth; el.classList.add('kko-fade-in'); };
 
@@ -373,6 +382,17 @@
       if (!params.has('name')) params.set('name', name);
 
       iframeEl.src = `${file}?${params.toString()}`;
+    }
+
+    // 2026-09-20: 연결방 탭 빨간 점 — 안 읽은 채팅 + 대기 중 협력요청이 있으면 표시(가벼운 시트 스캔만 하는 getConnectUnread).
+    // 연결방을 열어 있는 동안엔 이미 화면에서 확인 중이므로 점을 숨기고, 다른 탭으로 나갈 때 다시 확인한다.
+    async function refreshConnectDot() {
+      const dot = document.getElementById('connectDot');
+      if (!dot) return;
+      try {
+        const res = await callApi({ action: 'getConnectUnread', memberId });
+        dot.style.display = (res && res.total > 0) ? 'block' : 'none';
+      } catch (e) { /* 알림 점은 부가 기능 — 실패해도 조용히 무시 */ }
     }
 
     // 2026-09-18: 하단 탭바 "교관" 진입 게이트 — 교관명단(coach 시트)에 등록된 고유번호만

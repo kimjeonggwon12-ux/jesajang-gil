@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>복음방 교사 - 연결방</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<!--
+  2026-09-20: 연결방 신설 — [내 명함][찾아보기][같이 해요] 3탭.
+  home.html 하단 탭바 "연결방"이 iframe 으로 이 파일을 불러온다(?memberId=&name=).
+  백엔드(Code.gs, PROXY_URL 공유): saveProfile/getProfile/searchProfiles/getActivityBadge/saveBoard/getBoardList/applyBoard.
+  채팅 = 기존 피드백방 "대화함"(?chatWith=) 재사용 — home.html 의 openChatWith() 를 부모에서 호출.
+-->
+<style>
+  :root {
+    --color-primary:#5B4FCF; --color-primary-light:#EDE9FF; --color-primary-dark:#3D34A5;
+    --color-surface:#FFFFFF; --color-bg:#F5F5F5; --color-card:#FFFFFF; --color-text:#1A1A2E; --color-text-sub:#666680;
+    --color-border:#E8E8F0; --color-success:#2D9B6F; --color-warning:#E8A020; --color-error:#D94040; --color-accent:#FF6B6B;
+    --radius-card:16px; --radius-btn:12px; --radius-input:10px; --shadow-card:0 2px 12px rgba(0,0,0,0.08);
+    --height-btn:52px; --height-btn-sm:44px;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--color-bg); color:var(--color-text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif; }
+  body { padding-bottom:96px; }
+  .kko-card { background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:20px; }
+  .kko-btn-main { display:flex; align-items:center; justify-content:center; height:var(--height-btn); border-radius:var(--radius-btn);
+    background:var(--color-primary); color:#fff; font-size:16px; font-weight:700; border:none; width:100%; cursor:pointer; }
+  .kko-btn-main:disabled { opacity:.5; }
+  .kko-btn-outline { display:inline-flex; align-items:center; justify-content:center; height:var(--height-btn-sm); border-radius:var(--radius-btn);
+    background:#fff; color:var(--color-primary); border:1.5px solid var(--color-primary); font-size:14px; font-weight:700; padding:0 14px; cursor:pointer; text-decoration:none; flex:1; }
+  .kko-btn-main:active, .kko-btn-outline:active { transform:scale(.97); }
+  .kko-input { width:100%; min-height:48px; border:1px solid var(--color-border); border-radius:var(--radius-input); padding:10px 12px; font-size:15px; background:#fff; color:var(--color-text); font-family:inherit; }
+  .kko-input:focus { outline:2px solid var(--color-primary); border-color:var(--color-primary); }
+  textarea.kko-input { min-height:84px; resize:none; }
+  .kko-tabs { display:flex; background:#fff; border-bottom:1px solid var(--color-border); position:sticky; top:0; z-index:20; }
+  .kko-tab { flex:1; height:48px; font-size:15px; font-weight:600; color:#999; background:none; border:none; border-bottom:3px solid transparent; cursor:pointer; }
+  .kko-tab.kko-tab-active { color:var(--color-primary); border-bottom-color:var(--color-primary); }
+  .sec-title { font-size:24px; font-weight:800; color:var(--color-primary); line-height:1.25; }
+  .sec-sub { font-size:14px; color:var(--color-text-sub); margin-top:4px; margin-bottom:18px; }
+  .req { color:var(--color-error); font-weight:700; }
+  .lbl { display:block; font-size:14px; font-weight:700; margin:16px 0 6px; }
+  .lbl small { font-weight:400; color:var(--color-text-sub); }
+  .pill { display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:600; padding:6px 12px; border-radius:999px; }
+  .pill-tag { background:var(--color-primary-light); color:var(--color-primary); }
+  .pill-tool { background:#EEEEEE; color:#666680; }
+  .pill button { border:none; background:none; color:inherit; font-size:15px; line-height:1; padding:0 0 0 2px; cursor:pointer; }
+  .role-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .role-btn { height:56px; border-radius:var(--radius-btn); font-size:17px; font-weight:700; background:#fff; color:#888; border:1.5px solid #D5D5E0; cursor:pointer; }
+  .role-btn.on { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
+  .radio-row { display:flex; align-items:center; gap:10px; min-height:52px; padding:10px 14px; border:1.5px solid var(--color-border); border-radius:var(--radius-btn); font-size:16px; font-weight:600; margin-bottom:8px; cursor:pointer; background:#fff; }
+  .radio-row.on { border-color:var(--color-primary); background:var(--color-primary-light); color:var(--color-primary); }
+  .radio-row input { width:20px; height:20px; accent-color:var(--color-primary); }
+  .chk-chip { display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 12px; border:1.5px solid var(--color-border); border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; background:#fff; }
+  .chk-chip.on { border-color:var(--color-primary); background:var(--color-primary-light); color:var(--color-primary); }
+  .chk-chip input { accent-color:var(--color-primary); width:16px; height:16px; }
+  .seg { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; }
+  .seg button { flex:0 0 auto; height:36px; padding:0 14px; border-radius:999px; font-size:14px; font-weight:600; border:1.5px solid var(--color-border); background:#fff; color:#666680; cursor:pointer; }
+  .seg button.on { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
+  .seg.small button { height:32px; font-size:13px; }
+  .avatar { width:52px; height:52px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+  .avatar-ph { width:52px; height:52px; border-radius:50%; background:var(--color-primary); color:#fff; font-weight:700; font-size:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .badge-hot { background:#FFF0E5; color:#E8590C; }
+  .badge-tier { background:#E6F6EF; color:var(--color-success); }
+  .badge { display:inline-flex; align-items:center; font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; }
+  .fab { position:fixed; right:16px; bottom:20px; height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:700; border:none; box-shadow:0 4px 14px rgba(91,79,207,.4); z-index:30; cursor:pointer; }
+  .sheet-back { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:50; display:flex; align-items:flex-end; justify-content:center; }
+  .sheet { background:#fff; width:100%; max-width:560px; max-height:92vh; overflow-y:auto; border-radius:20px 20px 0 0; padding:20px 16px 24px; }
+  .toast { position:fixed; left:50%; bottom:90px; transform:translateX(-50%); background:rgba(26,26,46,.92); color:#fff; padding:12px 18px; border-radius:12px; font-size:14px; z-index:80; max-width:88vw; text-align:center; }
+  .toast.err { background:var(--color-error); }
+  @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .kko-card-in { animation:kkoCardIn .3s ease; }
+  @keyframes kkoSpin { to { transform:rotate(360deg); } }
+  .kko-spinner { width:32px; height:32px; border-radius:50%; border:3px solid var(--color-primary-light); border-top-color:var(--color-primary); animation:kkoSpin .7s linear infinite; display:inline-block; }
+  .wrap { max-width:560px; margin:0 auto; padding:16px; }
+  .hint { font-size:12px; color:var(--color-text-sub); margin-top:4px; }
+</style>
+</head>
+<body>
+<nav class="kko-tabs" id="topTabs">
+  <button class="kko-tab kko-tab-active" data-tab="card">내 명함</button>
+  <button class="kko-tab" data-tab="find">찾아보기</button>
+  <button class="kko-tab" data-tab="board">같이 해요</button>
+</nav>
+<main id="view" class="wrap"></main>
+<div id="fabHost"></div>
+<div id="sheetHost"></div>
+<div id="toastHost"></div>
+
+<script>
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
+const urlParams = new URLSearchParams(window.location.search);
+// ?memberId=&name= (home.html 이 iframe 로드 시 전달). 없으면 다른 방들과 동일한 테스트 계정.
+const MEMBER_ID = urlParams.get('memberId') || 'TEST-0001';
+const MY_NAME = urlParams.get('name') || '테스트교사';
+const ROLES = ['교사', '섬김이', '동행교사', '협력'];
+const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+const TIMES = ['오전', '오후', '저녁'];
+const BOARD_TYPES = ['상담 동행', '복음방 동행', '섬김', '협력'];
+const AGE_OPTIONS = ['10대', '20대', '30대', '40대', '50대', '60대 이상'];
+const STAGE_OPTIONS = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개'];
+
+const S = {
+  tab: 'card',
+  card: { loaded: false, loading: true, exists: false, dept: '', region: '', tier: '', saving: false,
+    f: { photoUrl: '', oneLiner: '', career: '', bio: '', phone: '', phonePublic: false, tags: [], tools: [],
+      roles: [], scheduleType: '', from: '', to: '', days: [], times: [], hours: '', isPublic: true, available: false } },
+  find: { scope: 'all', role: '', rows: [], loading: false, loaded: false, error: '' },
+  board: { type: '', rows: [], loading: false, loaded: false, error: '', applying: {} }
+};
+
+// ---------- 공통 ----------
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function maskName(nm) {
+  const s = String(nm || '').trim();
+  if (s.length <= 1) return s;
+  if (s.length === 2) return s[0] + '*';
+  return s[0] + '*'.repeat(s.length - 2) + s[s.length - 1];
+}
+function toast(msg, isErr) {
+  const host = document.getElementById('toastHost');
+  host.innerHTML = `<div class="toast ${isErr ? 'err' : ''}">${esc(msg)}</div>`;
+  setTimeout(() => { host.innerHTML = ''; }, 2600);
+}
+async function callApi(payload) {
+  const res = await fetch(PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) throw new Error('서버 연결 오류. 잠시 후 다시 시도해주세요.');
+  return await res.json();
+}
+function todayStr() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function ddayLabel(deadline) {
+  if (!deadline) return '';
+  const end = new Date(deadline + 'T00:00:00'); const t = new Date(); t.setHours(0, 0, 0, 0);
+  const diff = Math.round((end - t) / 86400000);
+  return diff <= 0 ? 'D-day' : `D-${diff}`;
+}
+function photoHtml(url, name) {
+  if (url) return `<img class="avatar" src="${esc(url)}" alt="프로필 사진">`;
+  return `<div class="avatar-ph">${esc(String(name || '').trim().charAt(0) || '👤')}</div>`;
+}
+function fileToThumb(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('이미지를 읽지 못했습니다.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('이미지를 불러오지 못했습니다.'));
+      img.onload = () => {
+        const size = 128, c = document.createElement('canvas'); c.width = size; c.height = size;
+        const s = Math.min(img.width, img.height);
+        c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+        resolve(c.toDataURL('image/jpeg', 0.7));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+// 채팅 진입: home.html(부모)의 openChatWith 사용, 단독 실행이면 피드백방으로 직접 이동.
+function openChat(mid, nm) {
+  try {
+    if (window.top !== window.self && typeof window.top.openChatWith === 'function') { window.top.openChatWith(mid, nm || ''); return; }
+  } catch (e) {}
+  window.location.href = 'feedback-room.html?' + new URLSearchParams({ memberId: MEMBER_ID, name: MY_NAME, chatWith: mid, chatWithName: nm || '' }).toString();
+}
+
+// ---------- 탭 ----------
+function switchTab(tab) {
+  S.tab = tab;
+  document.querySelectorAll('.kko-tab').forEach(b => b.classList.toggle('kko-tab-active', b.dataset.tab === tab));
+  render();
+  if (tab === 'card' && !S.card.loaded) loadCard();
+  if (tab === 'find' && !S.find.loaded) loadFind();
+  if (tab === 'board' && !S.board.loaded) loadBoard();
+  window.scrollTo(0, 0);
+}
+document.getElementById('topTabs').addEventListener('click', e => {
+  const b = e.target.closest('.kko-tab'); if (b) switchTab(b.dataset.tab);
+});
+function render() {
+  const v = document.getElementById('view');
+  document.getElementById('fabHost').innerHTML = S.tab === 'board' ? '<button class="fab" id="fabAdd">+ 같이 해요 등록</button>' : '';
+  if (S.tab === 'card') { v.innerHTML = cardHtml(); bindCard(); }
+  else if (S.tab === 'find') { v.innerHTML = findHtml(); bindFind(); }
+  else { v.innerHTML = boardHtml(); bindBoard(); const fab = document.getElementById('fabAdd'); if (fab) fab.onclick = openBoardForm; }
+}
+const spinner = '<div style="text-align:center;padding:40px"><span class="kko-spinner"></span></div>';
+
+// ====================== 내 명함 ======================
+async function loadCard() {
+  S.card.loading = true; render();
+  try {
+    const res = await callApi({ action: 'getProfile', memberId: MEMBER_ID, viewerId: MEMBER_ID });
+    const c = S.card;
+    c.dept = res.dept || ''; c.region = res.region || ''; c.tier = res.tier || '';
+    if (res && !res.error) {
+      c.exists = true;
+      const splitTags = String(res.tags || '').split(/\s+/).map(t => t.trim()).filter(Boolean).map(t => t.replace(/^#/, ''));
+      Object.assign(c.f, {
+        photoUrl: res.photoUrl || '', oneLiner: res.oneLiner || '', career: res.career || '', bio: res.bio || '',
+        phone: res.phone || '', phonePublic: !!res.phonePublic, tags: splitTags,
+        tools: String(res.tools || '').split(/[,\/·]/).map(t => t.trim()).filter(Boolean),
+        roles: res.availRoles || [], scheduleType: res.scheduleType || '', from: res.availFrom || '', to: res.availTo || '',
+        days: res.availDays || [], times: res.availTimes || [], hours: res.availHours || '',
+        isPublic: res.isPublic !== false, available: !!res.available
+      });
+    }
+    c.loaded = true;
+  } catch (e) { toast(e.message, true); }
+  S.card.loading = false;
+  if (S.tab === 'card') render();
+}
+function tagChipsHtml(list, cls, kind) {
+  if (!list.length) return '<span class="hint">아직 없어요. 아래에서 추가해보세요.</span>';
+  return list.map((t, i) => `<span class="pill ${cls}">${kind === 'tag' ? '#' : ''}${esc(t)}<button type="button" data-del="${kind}" data-i="${i}" aria-label="삭제">×</button></span>`).join('');
+}
+function cardHtml() {
+  const c = S.card, f = c.f;
+  if (c.loading) return spinner;
+  const isOn = (arr, v) => arr.includes(v);
+  return `
+  <div class="kko-card kko-card-in" style="margin-bottom:16px">
+    <div class="sec-title">📌 내 명함</div>
+    <div class="sec-sub">나를 소개하고 찾아오게 해요</div>
+
+    <div style="display:flex;align-items:center;gap:14px">
+      <div id="photoPrev">${photoHtml(f.photoUrl, MY_NAME)}</div>
+      <div>
+        <label class="kko-btn-outline" style="flex:none;height:40px;font-size:13px">사진 선택<input type="file" id="photoInput" accept="image/*" hidden></label>
+        ${f.photoUrl ? '<button type="button" id="photoClear" class="hint" style="display:block;color:var(--color-error);background:none;border:none;padding:6px 0 0">사진 지우기</button>' : ''}
+        <div class="hint">없으면 보라 원+이니셜로 표시돼요</div>
+      </div>
+    </div>
+
+    <label class="lbl">한 줄 소개 <span class="req">*</span> <small>(최대 30자)</small></label>
+    <input class="kko-input" id="fOneLiner" maxlength="30" placeholder="예: 복음방 5년차 교사입니다" value="${esc(f.oneLiner)}">
+
+    <label class="lbl">교사 경력 <span class="req">*</span></label>
+    <div style="display:flex;align-items:center;gap:8px"><input class="kko-input" id="fCareer" type="number" inputmode="numeric" min="0" max="60" style="max-width:110px" value="${esc(f.career)}"><span style="font-weight:700">년차</span></div>
+
+    <label class="lbl">부서·지역 <small>(자동 연동)</small></label>
+    <div class="kko-input" style="background:#F5F5F8;display:flex;align-items:center;color:var(--color-text-sub)">${esc([c.dept, c.region].filter(Boolean).join(' ') || '명단에서 자동으로 채워져요')}</div>
+
+    <label class="lbl">나를 표현하는 태그 <small>(탭해서 삭제 · 개수 무제한)</small></label>
+    <div id="tagList" style="display:flex;flex-wrap:wrap;gap:6px">${tagChipsHtml(f.tags, 'pill-tag', 'tag')}</div>
+    <div style="display:flex;gap:8px;margin-top:8px"><input class="kko-input" id="tagInput" placeholder="#상담경험" style="flex:1"><button type="button" class="kko-btn-outline" id="tagAdd" style="flex:none;min-width:64px">추가</button></div>
+
+    <label class="lbl">전도 도구·자격증 <small>(개수 무제한)</small></label>
+    <div id="toolList" style="display:flex;flex-wrap:wrap;gap:6px">${tagChipsHtml(f.tools, 'pill-tool', 'tool')}</div>
+    <div style="display:flex;gap:8px;margin-top:8px"><input class="kko-input" id="toolInput" placeholder="예: HARTS수료, 상담사2급" style="flex:1"><button type="button" class="kko-btn-outline" id="toolAdd" style="flex:none;min-width:64px">추가</button></div>
+
+    <label class="lbl">한 마디 <small>(최대 100자)</small></label>
+    <textarea class="kko-input" id="fBio" maxlength="100" placeholder="나를 아우르는 한마디를 남겨주세요">${esc(f.bio)}</textarea>
+
+    <label class="lbl">연락처</label>
+    <input class="kko-input" id="fPhone" type="tel" inputmode="tel" placeholder="010-0000-0000" value="${esc(f.phone)}">
+    <div style="margin-top:8px">
+      <label class="radio-row ${f.phonePublic ? 'on' : ''}"><input type="radio" name="phonePub" value="1" ${f.phonePublic ? 'checked' : ''}>공개 <span class="hint" style="margin:0">(전화하기 버튼 표시)</span></label>
+      <label class="radio-row ${!f.phonePublic ? 'on' : ''}"><input type="radio" name="phonePub" value="0" ${!f.phonePublic ? 'checked' : ''}>비공개 <span class="hint" style="margin:0">(채팅으로만)</span></label>
+    </div>
+  </div>
+
+  <div class="kko-card kko-card-in" style="margin-bottom:16px">
+    <div class="sec-title">🙋 나 활동 가능해요</div>
+    <div class="sec-sub">협력 요청을 받을 수 있어요</div>
+
+    <label class="lbl" style="margin-top:0">가능 역할 <small>(복수 선택)</small></label>
+    <div class="role-grid">${ROLES.map(r => `<button type="button" class="role-btn ${isOn(f.roles, r) ? 'on' : ''}" data-role="${r}">${r}</button>`).join('')}</div>
+
+    <label class="lbl">가능 일정</label>
+    <label class="radio-row ${f.scheduleType === '언제나' ? 'on' : ''}"><input type="radio" name="sch" value="언제나" ${f.scheduleType === '언제나' ? 'checked' : ''}>언제나 가능</label>
+    <label class="radio-row ${f.scheduleType === '상의' ? 'on' : ''}"><input type="radio" name="sch" value="상의" ${f.scheduleType === '상의' ? 'checked' : ''}>상의 후 결정</label>
+    <label class="radio-row ${f.scheduleType === '직접' ? 'on' : ''}"><input type="radio" name="sch" value="직접" ${f.scheduleType === '직접' ? 'checked' : ''}>일정 직접 등록</label>
+    <div id="schDetail" style="display:${f.scheduleType === '직접' ? 'block' : 'none'};margin-left:10px;padding-left:12px;border-left:3px solid var(--color-primary-light)">
+      <div class="lbl" style="margin-top:6px">기간</div>
+      <div style="display:flex;align-items:center;gap:6px"><input class="kko-input" type="date" id="fFrom" value="${esc(f.from)}"><span>~</span><input class="kko-input" type="date" id="fTo" value="${esc(f.to)}"></div>
+      <div class="lbl">요일</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${DAYS.map(d => `<label class="chk-chip ${isOn(f.days, d) ? 'on' : ''}"><input type="checkbox" data-day="${d}" ${isOn(f.days, d) ? 'checked' : ''}>${d}</label>`).join('')}</div>
+      <div class="lbl">시간대</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${TIMES.map(t => `<label class="chk-chip ${isOn(f.times, t) ? 'on' : ''}"><input type="checkbox" data-time="${t}" ${isOn(f.times, t) ? 'checked' : ''}>${t}</label>`).join('')}</div>
+      <div class="lbl">가능 시간 <small>(선택)</small></div>
+      <input class="kko-input" id="fHours" maxlength="30" placeholder="예: 10:00~12:00" value="${esc(f.hours)}">
+    </div>
+  </div>
+
+  <div class="kko-card kko-card-in">
+    <div class="sec-title" style="font-size:20px">✅ 저장 &amp; 공개 설정</div>
+    <div style="margin-top:12px">
+      <label class="radio-row ${f.isPublic ? 'on' : ''}" style="margin-bottom:8px"><input type="checkbox" id="fPublic" ${f.isPublic ? 'checked' : ''}>내 프로필 공개 <span class="hint" style="margin:0">(검색 가능)</span></label>
+      <label class="radio-row ${f.available ? 'on' : ''}"><input type="checkbox" id="fAvail" ${f.available ? 'checked' : ''}>활동 가능 표시 <span class="hint" style="margin:0">(피드에 노출)</span></label>
+    </div>
+    <button type="button" class="kko-btn-main" id="cardSave" style="margin-top:12px" ${c.saving ? 'disabled' : ''}>${c.saving ? '저장 중…' : (c.exists ? '수정하기' : '등록하기')}</button>
+  </div>`;
+}
+function refreshChips() {
+  const f = S.card.f;
+  const tl = document.getElementById('tagList'), ol = document.getElementById('toolList');
+  if (tl) tl.innerHTML = tagChipsHtml(f.tags, 'pill-tag', 'tag');
+  if (ol) ol.innerHTML = tagChipsHtml(f.tools, 'pill-tool', 'tool');
+}
+function bindCard() {
+  const c = S.card; if (c.loading) return;
+  const f = c.f, $ = id => document.getElementById(id);
+  $('fOneLiner').oninput = e => { f.oneLiner = e.target.value; };
+  $('fCareer').oninput = e => { f.career = e.target.value; };
+  $('fBio').oninput = e => { f.bio = e.target.value; };
+  $('fPhone').oninput = e => { f.phone = e.target.value; };
+  $('fHours').oninput = e => { f.hours = e.target.value; };
+  $('fFrom').onchange = e => { f.from = e.target.value; };
+  $('fTo').onchange = e => { f.to = e.target.value; };
+  $('photoInput').onchange = async e => {
+    const file = e.target.files && e.target.files[0]; if (!file) return;
+    try { f.photoUrl = await fileToThumb(file); render(); } catch (err) { toast(err.message, true); }
+  };
+  const pc = $('photoClear'); if (pc) pc.onclick = () => { f.photoUrl = ''; render(); };
+
+  const addTag = () => {
+    const v = $('tagInput').value.trim().replace(/^#+/, '').replace(/\s+/g, '');
+    if (!v) return; if (!f.tags.includes(v)) f.tags.push(v);
+    $('tagInput').value = ''; refreshChips();
+  };
+  const addTool = () => {
+    const v = $('toolInput').value.split(/[,\/·]/).map(t => t.trim()).filter(Boolean);
+    v.forEach(t => { if (!f.tools.includes(t)) f.tools.push(t); });
+    $('toolInput').value = ''; refreshChips();
+  };
+  $('tagAdd').onclick = addTag; $('toolAdd').onclick = addTool;
+  $('tagInput').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addTag(); } };
+  $('toolInput').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addTool(); } };
+  $('view').onclick = e => {
+    const d = e.target.closest('[data-del]');
+    if (d) { const list = d.dataset.del === 'tag' ? f.tags : f.tools; list.splice(Number(d.dataset.i), 1); refreshChips(); return; }
+    const r = e.target.closest('[data-role]');
+    if (r) { const v = r.dataset.role; f.roles = f.roles.includes(v) ? f.roles.filter(x => x !== v) : f.roles.concat(v); r.classList.toggle('on'); }
+  };
+  document.querySelectorAll('input[name="phonePub"]').forEach(el => el.onchange = () => {
+    f.phonePublic = el.value === '1';
+    document.querySelectorAll('input[name="phonePub"]').forEach(x => x.closest('.radio-row').classList.toggle('on', x.checked));
+  });
+  document.querySelectorAll('input[name="sch"]').forEach(el => el.onchange = () => {
+    f.scheduleType = el.value; $('schDetail').style.display = el.value === '직접' ? 'block' : 'none';
+    document.querySelectorAll('input[name="sch"]').forEach(x => x.closest('.radio-row').classList.toggle('on', x.checked));
+  });
+  document.querySelectorAll('[data-day]').forEach(el => el.onchange = () => {
+    f.days = el.checked ? f.days.concat(el.dataset.day) : f.days.filter(x => x !== el.dataset.day); el.closest('.chk-chip').classList.toggle('on', el.checked);
+  });
+  document.querySelectorAll('[data-time]').forEach(el => el.onchange = () => {
+    f.times = el.checked ? f.times.concat(el.dataset.time) : f.times.filter(x => x !== el.dataset.time); el.closest('.chk-chip').classList.toggle('on', el.checked);
+  });
+  $('fPublic').onchange = e => { f.isPublic = e.target.checked; e.target.closest('.radio-row').classList.toggle('on', e.target.checked); };
+  $('fAvail').onchange = e => { f.available = e.target.checked; e.target.closest('.radio-row').classList.toggle('on', e.target.checked); };
+  $('cardSave').onclick = saveCard;
+}
+async function saveCard() {
+  const c = S.card, f = c.f;
+  // 입력 중 태그/도구 텍스트가 남아 있으면 같이 반영(추가 버튼을 안 눌러도 유실 방지).
+  const pendingTag = document.getElementById('tagInput').value.trim().replace(/^#+/, '').replace(/\s+/g, '');
+  if (pendingTag && !f.tags.includes(pendingTag)) f.tags.push(pendingTag);
+  document.getElementById('toolInput').value.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).forEach(t => { if (!f.tools.includes(t)) f.tools.push(t); });
+
+  if (!f.oneLiner.trim()) return toast('한 줄 소개를 입력해주세요.', true);
+  if (f.career === '' || isNaN(Number(f.career))) return toast('교사 경력(년차)을 입력해주세요.', true);
+  if (f.available && !f.roles.length) return toast('활동 가능 표시를 하려면 가능 역할을 골라주세요.', true);
+  if (f.available && !f.scheduleType) return toast('가능 일정을 선택해주세요.', true);
+  if (f.phonePublic && !f.phone.trim()) return toast('전화번호를 공개하려면 번호를 입력해주세요.', true);
+
+  c.saving = true; render();
+  try {
+    const res = await callApi({ action: 'saveProfile', memberId: MEMBER_ID, data: {
+      career: f.career, oneLiner: f.oneLiner.trim().slice(0, 30), bio: f.bio.slice(0, 100),
+      tags: f.tags.map(t => '#' + t).join(' '), tools: f.tools.join(', '),
+      phone: f.phone.trim(), phonePublic: f.phonePublic, photoUrl: f.photoUrl,
+      available: f.available, roles: f.roles, scheduleType: f.scheduleType, from: f.from, to: f.to,
+      days: f.days, times: f.times, hours: f.hours, isPublic: f.isPublic
+    } });
+    if (res && res.error) throw new Error(res.error);
+    c.exists = true; S.find.loaded = false;
+    toast('명함이 등록되었어요 🎉');
+  } catch (e) { toast(e.message, true); }
+  c.saving = false; render();
+}
+
+// ====================== 찾아보기 ======================
+async function loadFind() {
+  const st = S.find; st.loading = true; st.error = ''; render();
+  try {
+    const res = await callApi({ action: 'searchProfiles', memberId: MEMBER_ID, scope: st.scope, role: st.role, limit: 50 });
+    if (res && res.error) throw new Error(res.error);
+    st.rows = res.rows || [];
+  } catch (e) { st.error = e.message; st.rows = []; }
+  st.loading = false; st.loaded = true;
+  if (S.tab === 'find') render();
+}
+function scheduleText(r) {
+  if (!r.available) return '';
+  if (r.scheduleType === '언제나') return '언제나 가능';
+  if (r.scheduleType === '상의') return '상의 후 결정';
+  const md = s => s ? s.slice(5).replace('-', '/') : '';
+  return [r.availFrom && r.availTo ? `${md(r.availFrom)}~${md(r.availTo)}` : '', (r.availDays || []).join(''), (r.availTimes || []).join('·'), r.availHours].filter(Boolean).join(' · ');
+}
+function profileCardHtml(r) {
+  const tags = String(r.tags || '').split(/\s+/).filter(Boolean);
+  const tools = String(r.tools || '').split(/[,\/·]/).map(t => t.trim()).filter(Boolean);
+  const tierDot = { '활동교사': '🟢', '우수교사': '🟡', '교사': '⚪', '휴교사': '⚫' }[r.tier] || '⚪';
+  return `<div class="kko-card kko-card-in" style="margin-bottom:12px">
+    <div style="display:flex;gap:12px;align-items:center">
+      ${photoHtml(r.photoUrl, r.name)}
+      <div style="min-width:0">
+        <div style="font-weight:700;font-size:16px">${esc(maskName(r.name))} <span style="font-weight:400;font-size:13px;color:var(--color-text-sub)">${esc([r.dept, r.region].filter(Boolean).join(' '))}</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          ${r.hot ? '<span class="badge badge-hot">🔥 활동 중</span>' : ''}
+          ${r.tier ? `<span class="badge badge-tier">${tierDot} ${esc(r.tier)}</span>` : ''}
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:13px;color:var(--color-text-sub)">교사경력 ${esc(r.career || '-')}년</div>
+    ${r.oneLiner ? `<div style="margin-top:4px;font-size:15px;font-weight:600">"${esc(r.oneLiner)}"</div>` : ''}
+    ${tags.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${tags.map(t => `<span class="pill pill-tag" style="padding:4px 10px;font-size:12px">${esc(t.startsWith('#') ? t : '#' + t)}</span>`).join('')}</div>` : ''}
+    ${tools.length ? `<div style="margin-top:8px;font-size:13px;color:var(--color-text-sub)">${tools.map(esc).join(' · ')}</div>` : ''}
+    ${r.bio ? `<div style="margin-top:8px;font-size:14px">"${esc(r.bio)}"</div>` : ''}
+    ${r.available ? `<div style="margin-top:10px;font-size:14px;font-weight:600;color:var(--color-primary)">🙋 ${esc((r.availRoles || []).join('·'))} 가능</div>
+      <div style="margin-top:2px;font-size:13px;color:var(--color-text-sub)">📅 ${esc(scheduleText(r))}</div>` : ''}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button type="button" class="kko-btn-outline" data-chat="${esc(r.memberId)}" data-name="${esc(r.name)}">💬 채팅하기</button>
+      ${r.phone ? `<a class="kko-btn-outline" href="tel:${esc(String(r.phone).replace(/[^0-9+]/g, ''))}">📞 전화하기</a>` : ''}
+    </div>
+  </div>`;
+}
+function findHtml() {
+  const st = S.find;
+  const seg = (key, items) => `<div class="seg ${key === 'role' ? 'small' : ''}" style="margin-bottom:8px">${items.map(([v, l]) => `<button type="button" data-f="${key}" data-v="${v}" class="${st[key] === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  let body;
+  if (st.loading) body = spinner;
+  else if (st.error) body = `<div class="kko-card" style="text-align:center;color:var(--color-error)">${esc(st.error)}<button type="button" class="kko-btn-outline" id="findRetry" style="margin-top:12px;width:100%">다시 시도</button></div>`;
+  else if (!st.rows.length) body = `<div class="kko-card" style="text-align:center;padding:40px 20px"><div style="font-size:40px">🔍</div><div style="margin-top:8px;font-weight:700">조건에 맞는 교사가 없어요</div><div class="hint">필터를 바꾸거나 내 명함을 먼저 등록해 보세요.</div></div>`;
+  else body = st.rows.map(profileCardHtml).join('');
+  return `<div style="margin-bottom:12px">
+    ${seg('scope', [['all', '전체'], ['mine', '내 지역'], ['available', '활동 가능만']])}
+    ${seg('role', [['', '역할 전체'], ...ROLES.map(r => [r, r])])}
+  </div>${body}`;
+}
+function bindFind() {
+  const v = document.getElementById('view');
+  v.onclick = e => {
+    const fb = e.target.closest('[data-f]');
+    if (fb) { S.find[fb.dataset.f] = fb.dataset.v; loadFind(); return; }
+    if (e.target.closest('#findRetry')) { loadFind(); return; }
+    const ch = e.target.closest('[data-chat]');
+    if (ch) openChat(ch.dataset.chat, ch.dataset.name);
+  };
+}
+
+// ====================== 같이 해요 ======================
+async function loadBoard() {
+  const st = S.board; st.loading = true; st.error = ''; render();
+  try {
+    const res = await callApi({ action: 'getBoardList', memberId: MEMBER_ID, type: st.type });
+    if (res && res.error) throw new Error(res.error);
+    st.rows = res.rows || [];
+  } catch (e) { st.error = e.message; st.rows = []; }
+  st.loading = false; st.loaded = true;
+  if (S.tab === 'board') render();
+}
+function boardCardHtml(r) {
+  const summary = [r.ageGroup, r.stage].filter(Boolean).join(' ');
+  const action = r.isMine
+    ? `<span class="hint" style="margin:0;font-weight:600">내가 올린 글 · 지원 ${r.applicantCount}명</span>`
+    : (r.applied
+      ? `<button type="button" class="kko-btn-outline" data-chat="${esc(r.memberId)}" data-name="${esc(r.name)}" style="flex:none">💬 채팅 열기</button>`
+      : `<button type="button" class="kko-btn-main" data-apply="${esc(r.boardId)}" style="width:auto;height:44px;padding:0 22px;font-size:15px" ${S.board.applying[r.boardId] ? 'disabled' : ''}>지원하기</button>`);
+  return `<div class="kko-card kko-card-in" style="margin-bottom:12px">
+    <div style="display:flex;gap:12px;align-items:center">
+      ${photoHtml(r.photoUrl, r.name)}
+      <div style="font-weight:700;font-size:16px">${esc(maskName(r.name))} <span style="font-weight:400;font-size:13px;color:var(--color-text-sub)">${esc([r.dept, r.region].filter(Boolean).join(' '))}</span></div>
+    </div>
+    <div style="margin-top:10px;font-size:15px;font-weight:700"><span class="pill pill-tag" style="padding:3px 10px;font-size:13px">${esc(r.type)}</span> ${esc(summary)}</div>
+    <div style="margin-top:6px;font-size:14px;color:var(--color-text-sub)">📅 ${esc(r.when)}</div>
+    ${r.note ? `<div style="margin-top:6px;font-size:15px">"${esc(r.note)}"</div>` : ''}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+      <span style="font-weight:800;color:var(--color-accent);font-size:16px">${esc(ddayLabel(r.deadline))}</span>
+      ${action}
+    </div>
+  </div>`;
+}
+function boardHtml() {
+  const st = S.board;
+  const seg = `<div class="seg small" style="margin-bottom:12px">${[['', '전체'], ...BOARD_TYPES.map(t => [t, t])].map(([v, l]) => `<button type="button" data-t="${v}" class="${st.type === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  let body;
+  if (st.loading) body = spinner;
+  else if (st.error) body = `<div class="kko-card" style="text-align:center;color:var(--color-error)">${esc(st.error)}<button type="button" class="kko-btn-outline" id="boardRetry" style="margin-top:12px;width:100%">다시 시도</button></div>`;
+  else if (!st.rows.length) body = `<div class="kko-card" style="text-align:center;padding:40px 20px"><div style="font-size:40px">🤝</div><div style="margin-top:8px;font-weight:700">아직 올라온 글이 없어요</div><div class="hint">오른쪽 아래 버튼으로 첫 글을 올려보세요.</div></div>`;
+  else body = st.rows.map(boardCardHtml).join('');
+  return seg + body;
+}
+function bindBoard() {
+  document.getElementById('view').onclick = async e => {
+    const t = e.target.closest('[data-t]');
+    if (t) { S.board.type = t.dataset.t; loadBoard(); return; }
+    if (e.target.closest('#boardRetry')) { loadBoard(); return; }
+    const ch = e.target.closest('[data-chat]');
+    if (ch) { openChat(ch.dataset.chat, ch.dataset.name); return; }
+    const ap = e.target.closest('[data-apply]');
+    if (ap) applyPost(ap.dataset.apply);
+  };
+}
+async function applyPost(boardId) {
+  if (S.board.applying[boardId]) return;
+  S.board.applying[boardId] = true; render();
+  try {
+    const res = await callApi({ action: 'applyBoard', boardId, memberId: MEMBER_ID });
+    if (res && res.error) throw new Error(res.error);
+    toast(res.alreadyApplied ? '이미 지원한 글이에요. 채팅방으로 이동해요.' : '지원했어요! 채팅방으로 이동해요 💬');
+    const cw = res.chatWith || {};
+    setTimeout(() => openChat(cw.memberId, cw.name), 700);
+    S.board.loaded = false;
+  } catch (e) { toast(e.message, true); }
+  delete S.board.applying[boardId]; if (S.tab === 'board') render();
+}
+function openBoardForm() {
+  const today = todayStr();
+  const opt = (arr, ph) => `<option value="">${ph}</option>` + arr.map(a => `<option>${esc(a)}</option>`).join('');
+  document.getElementById('sheetHost').innerHTML = `<div class="sheet-back" id="sheetBack"><div class="sheet" role="dialog" aria-label="같이 해요 등록">
+    <div class="sec-title" style="font-size:22px">🤝 같이 해요 등록</div>
+    <label class="lbl">활동 유형 <span class="req">*</span></label>
+    <select class="kko-input" id="bType">${opt(BOARD_TYPES, '선택해주세요')}</select>
+    <label class="lbl">대상자 연령대 <small>(선택)</small></label>
+    <select class="kko-input" id="bAge">${opt(AGE_OPTIONS, '선택 안 함')}</select>
+    <label class="lbl">대상자 현재 단계 <small>(선택)</small></label>
+    <select class="kko-input" id="bStage">${opt(STAGE_OPTIONS, '선택 안 함')}</select>
+    <label class="lbl">일시 <span class="req">*</span></label>
+    <div style="display:flex;gap:8px"><input class="kko-input" type="date" id="bDate" min="${today}" style="flex:1.4"><select class="kko-input" id="bSlot" style="flex:1">${opt(TIMES, '시간대')}</select></div>
+    <label class="lbl">한 마디 <small>(최대 50자)</small></label>
+    <input class="kko-input" id="bNote" maxlength="50" placeholder="예: 경험 있는 분 함께해요!">
+    <label class="lbl">마감일 <span class="req">*</span></label>
+    <input class="kko-input" type="date" id="bDeadline" min="${today}">
+    <div style="display:flex;gap:8px;margin-top:20px"><button type="button" class="kko-btn-outline" id="bCancel" style="height:52px">취소</button><button type="button" class="kko-btn-main" id="bSave" style="flex:2">등록하기</button></div>
+  </div></div>`;
+  const close = () => { document.getElementById('sheetHost').innerHTML = ''; };
+  document.getElementById('bCancel').onclick = close;
+  document.getElementById('sheetBack').onclick = e => { if (e.target.id === 'sheetBack') close(); };
+  // 일시를 고르면 마감일 기본값을 같은 날로 채워준다(비어 있을 때만).
+  document.getElementById('bDate').onchange = e => { const d = document.getElementById('bDeadline'); if (!d.value) d.value = e.target.value; };
+  document.getElementById('bSave').onclick = async () => {
+    const g = id => document.getElementById(id).value;
+    const data = { type: g('bType'), ageGroup: g('bAge'), stage: g('bStage'), date: g('bDate'), timeSlot: g('bSlot'), note: g('bNote').trim().slice(0, 50), deadline: g('bDeadline') };
+    if (!data.type) return toast('활동 유형을 선택해주세요.', true);
+    if (!data.date) return toast('일시(날짜)를 선택해주세요.', true);
+    if (!data.deadline) return toast('마감일을 설정해주세요.', true);
+    const btn = document.getElementById('bSave'); btn.disabled = true; btn.textContent = '등록 중…';
+    try {
+      const res = await callApi({ action: 'saveBoard', memberId: MEMBER_ID, data });
+      if (res && res.error) throw new Error(res.error);
+      close(); toast('등록했어요!'); loadBoard();
+    } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = '등록하기'; }
+  };
+}
+
+switchTab('card');
+</script>
+</body>
+</html>
