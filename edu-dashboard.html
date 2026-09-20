@@ -593,7 +593,6 @@ function mainNavHtml(current) {
       <a href="admin-home.html" class="btn btn-xs btn-ghost">🔐 관리자 홈</a>
       ${item('edu', 'edu-dashboard.html', licon('🎓'), '통합')}
       ${item('district', 'district-dashboard.html', '🗺️', '부서별')}
-      ${item('coach', 'coach-dashboard.html', '🎧', '피드백')}
       <a href="home.html" class="btn btn-xs btn-ghost ml-auto">🏃 교사 어플로 가기</a>
     </div>
   `;
@@ -683,9 +682,85 @@ async function load() {
   loadAllLeads();
   loadTopRegionsForDept(topRegionsTab);
   loadChurchTopRegions();
+  loadConnectStats();
+  loadStageDist(stageRole);
+  loadKeyStage();
 }
 
 // 센터 인도 실적 원본 레코드 — "월별 검색"용, 실패해도 기존 "최근 6개월" 랭킹은 그대로 보이도록 degrade.
+// ============ 2026-09-20: 연결방 현황 / 전도 대상자 단계 분포 ============
+let connectStats = null, connectStatsLoading = false;
+let stageDist = {}, stageDistLoading = {}; // role('' = 전체) → getTargetStageDistribution 응답
+let stageRole = '';
+let keyStage = null;
+const STAGE_ROLE_TABS = [['', '전체'], ['인도자', '인도자'], ['교사', '교사'], ['섬김이', '섬김이'], ['협력교사', '협력']];
+const STAGE_BAR_COLOR = { '섭외': '#93C5FD', '친분': '#60A5FA', '만남1': '#38BDF8', '만남2': '#0EA5E9', '상담1': '#FB923C', '상담2': '#F97316', '복음방': '#EF4444', '센터소개': '#DC2626', '센터수강': '#991B1B' };
+
+async function loadConnectStats() {
+  connectStatsLoading = true; render();
+  try { const r = await callApi({ action: 'getConnectStats' }); connectStats = (r && !r.error) ? r : { error: (r && r.error) || '불러오기 실패' }; }
+  catch (e) { connectStats = { error: String(e) }; }
+  connectStatsLoading = false; render();
+}
+async function loadStageDist(role) {
+  if (stageDist[role] || stageDistLoading[role]) return;
+  stageDistLoading[role] = true; render();
+  try { const r = await callApi({ action: 'getTargetStageDistribution', role }); stageDist[role] = (r && !r.error) ? r : { error: (r && r.error) || '불러오기 실패' }; }
+  catch (e) { stageDist[role] = { error: String(e) }; }
+  stageDistLoading[role] = false; render();
+}
+async function loadKeyStage() {
+  try { const r = await callApi({ action: 'getKeyStageCount' }); keyStage = (r && !r.error) ? r : { error: (r && r.error) || '불러오기 실패' }; }
+  catch (e) { keyStage = { error: String(e) }; }
+  render();
+}
+function setStageRole(role) { stageRole = role; loadStageDist(role); render(); }
+
+function renderConnectStatsSection() {
+  const sub = '교사 커뮤니티 활성화 지표';
+  if (connectStatsLoading && !connectStats) return sectionCard('primary', '🤝', '연결방 현황', sub, '<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>');
+  if (!connectStats) return '';
+  if (connectStats.error) return sectionCard('primary', '🤝', '연결방 현황', sub, `<div class="alert alert-error py-2 text-sm">${esc(connectStats.error)}</div>`);
+  const card = (label, val, unit, note) => `<div class="rounded-box border border-base-300 p-4 text-center">
+      <div class="text-xs text-base-content/50">${label}</div>
+      <div class="text-3xl font-black mt-1" style="color:#5B4FCF">${Number(val).toLocaleString()}<span class="text-sm font-bold text-base-content/40 ml-0.5">${unit}</span></div>
+      ${note ? `<div class="text-[10px] text-base-content/40 mt-1">${note}</div>` : ''}</div>`;
+  return sectionCard('primary', '🤝', '연결방 현황', sub, `<div class="grid grid-cols-2 gap-3">
+    ${card('명함 등록', connectStats.cards, '명', '한 줄 소개까지 등록한 교사')}
+    ${card('활동 신청', connectStats.active, '명', '지금 활동 신청 중인 교사')}
+    ${card('도와주세요', connectStats.boardTotal, '건', `모집 중 ${connectStats.boardOpen}건`)}
+    ${card('협력 성사', connectStats.coopDone, '건', '도와주세요 지원 + 수락된 협력 요청')}
+  </div>`);
+}
+
+function renderStageDistributionSection() {
+  const title = '전도 대상자 단계 분포', sub = '전체 교사의 대상자가 어느 단계에 있는지';
+  const key = keyStage && !keyStage.error ? `
+    <div class="rounded-box p-4 mb-4" style="background:linear-gradient(135deg,#FEF2F2,#FFF7ED);border:1px solid #FECACA">
+      <div class="flex flex-col gap-1.5 text-sm font-bold" style="color:#991B1B">
+        <div>🎯 복음방 도달: ${keyStage.gospel}명</div>
+        <div>📍 센터소개 도달: ${keyStage.centerIntro}명</div>
+        <div>✅ 센터수강 확정: ${keyStage.centerAttend}명</div>
+      </div>
+    </div>` : '';
+  const tabs = `<div class="flex flex-wrap gap-1.5 mb-3">${STAGE_ROLE_TABS.map(([v, l]) => `<button type="button" class="stagerole-tab btn btn-xs ${stageRole === v ? 'btn-primary' : 'btn-ghost btn-outline'}" data-stagerole="${v}">${l}</button>`).join('')}</div>`;
+  const d = stageDist[stageRole];
+  let body;
+  if (!d) body = '<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>집계 중... (전 교사 대상자를 확인해 20초 정도 걸릴 수 있어요)</div>';
+  else if (d.error) body = `<div class="alert alert-error py-2 text-sm">${esc(d.error)}</div>`;
+  else {
+    const max = Math.max(1, ...d.stages.map(x => x.count));
+    body = `<div class="text-xs text-base-content/40 mb-2">${stageRole ? esc(roleShortLabel(stageRole)) + ' 기준 ' : ''}진행 중인 대상자 ${d.total}명</div>
+      <div class="flex flex-col gap-1.5">${d.stages.map(x => `
+        <div class="flex items-center gap-2">
+          <div class="text-xs font-bold shrink-0" style="width:56px">${esc(x.stage)}</div>
+          <div class="flex-1 rounded" style="background:#F3F4F6;height:16px"><div class="rounded" style="height:16px;width:${x.count ? Math.max(3, Math.round(x.count / max * 100)) : 0}%;background:${STAGE_BAR_COLOR[x.stage] || '#5B4FCF'}"></div></div>
+          <div class="text-xs font-bold text-right shrink-0" style="width:44px">${x.count}명</div>
+        </div>`).join('')}</div>`;
+  }
+  return sectionCard('accent', '📊', title, sub, key + tabs + body);
+}
+
 async function loadAllLeads() {
   allLeadsLoading = true;
   render();
@@ -1131,7 +1206,7 @@ function render() {
   const teacherSummaryHtml = renderTeacherSummarySection();
   const rosterHtml = renderRosterSection();
   const settlementHtml = renderSettlementSection();
-  const tierBundle = teacherSummaryHtml + rosterHtml + settlementHtml + renderTopRegionsSection();
+  const tierBundle = teacherSummaryHtml + rosterHtml + settlementHtml + renderTopRegionsSection() + renderConnectStatsSection() + renderStageDistributionSection();
 
   content.innerHTML = tierBundle + renderAiAnalysisSection() + (roster.length === 0
     ? `<div class="text-sm text-base-content/40 text-center py-16">아직 데이터가 없습니다.</div>` : '');
@@ -1259,6 +1334,7 @@ function wireSettlementFilters() {
   if (inactiveSel) inactiveSel.onchange = (e) => { inactiveFilter = e.target.value; render(); };
   const leadsMonthSel = document.getElementById('leads-month-select');
   if (leadsMonthSel) leadsMonthSel.onchange = (e) => { leadsMonthFilter = e.target.value; render(); };
+  document.querySelectorAll('.stagerole-tab').forEach(btn => { btn.onclick = () => setStageRole(btn.dataset.stagerole); });
   document.querySelectorAll('.topregion-tab').forEach(tab => {
     tab.onclick = () => switchTopRegionsTab(tab.dataset.topregionDept);
   });
