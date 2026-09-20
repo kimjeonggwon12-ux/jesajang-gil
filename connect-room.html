@@ -113,7 +113,7 @@ const S = {
   card: { loaded: false, loading: true, exists: false, dept: '', region: '', tier: '', saving: false,
     f: { photoUrl: '', oneLiner: '', career: '', bio: '', phone: '', phonePublic: false, tags: [], tools: [],
       roles: [], scheduleType: '', from: '', to: '', days: [], times: [], hours: '', isPublic: true, available: false, affil: '', gender: '' } },
-  find: { scope: 'all', role: '', keyword: '', rows: [], loading: false, loaded: false, error: '' },
+  find: { scope: 'all', role: '', affil: '', keyword: '', rows: [], loading: false, loaded: false, error: '' },
   board: { type: '', reqDept: '', rows: [], loading: false, loaded: false, error: '', applying: {} },
   chat: { list: [], listLoaded: false, listLoading: false, active: null, messages: [], input: '', sending: false, timer: null, lastKey: '' }
 };
@@ -424,7 +424,7 @@ async function saveCard() {
 async function loadFind() {
   const st = S.find; st.loading = true; st.error = ''; render();
   try {
-    const res = await callApi({ action: 'searchProfiles', memberId: MEMBER_ID, scope: 'available', role: st.role, keyword: st.keyword, limit: 50 });
+    const res = await callApi({ action: 'searchProfiles', memberId: MEMBER_ID, scope: 'available', role: st.role, affil: st.affil, keyword: st.keyword, limit: 50 });
     if (res && res.error) throw new Error(res.error);
     st.rows = res.rows || [];
   } catch (e) { st.error = e.message; st.rows = []; }
@@ -476,7 +476,7 @@ function findHtml() {
   else body = st.rows.map(profileCardHtml).join('');
   return `<div style="margin-bottom:12px">
     <div style="display:flex;gap:8px;margin-bottom:8px"><input class="kko-input" id="findKw" placeholder="태그·자격증·이름 검색" value="${esc(st.keyword)}" style="flex:1"><button type="button" class="kko-btn-outline" id="findKwBtn" style="flex:none;min-width:64px">검색</button></div>
-    ${seg('role', [['', '유형 전체'], ...ROLES.map(r => [r, r])])}
+    ${seg('affil', AFFILS.map(a => [a, a]))}
   </div>${body}`;
 }
 function bindFind() {
@@ -485,7 +485,7 @@ function bindFind() {
   if (kw) kw.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { S.find.keyword = kw.value.trim(); loadFind(); } };
   v.onclick = e => {
     const fb = e.target.closest('[data-f]');
-    if (fb) { S.find[fb.dataset.f] = fb.dataset.v; loadFind(); return; }
+    if (fb) { const k = fb.dataset.f; S.find[k] = (k === 'affil' && S.find[k] === fb.dataset.v) ? '' : fb.dataset.v; loadFind(); return; } // 소속 칩은 다시 누르면 해제
     if (e.target.closest('#findRetry')) { loadFind(); return; }
     if (e.target.closest('#findKwBtn')) { S.find.keyword = document.getElementById('findKw').value.trim(); loadFind(); return; }
     const ch = e.target.closest('[data-chat]');
