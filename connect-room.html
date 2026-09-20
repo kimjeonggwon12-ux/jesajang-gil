@@ -99,9 +99,11 @@ const BOARD_TYPES = ['상담 동행', '복음방 동행', '섬김', '협력'];
 const AGE_OPTIONS = ['10대', '20대', '30대', '40대', '50대', '60대 이상'];
 const STAGE_OPTIONS = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개'];
 
+const IDENTITY_ICON = { '인도자': '🔴', '교사': '🟢', '섬김이': '🔵', '협력': '🤝' };
+const identityBadge = v => v ? `<span class="badge" style="background:var(--color-primary-light);color:var(--color-primary)">${IDENTITY_ICON[v] || ''} ${esc(v)}형</span>` : '';
 const S = {
   tab: 'card',
-  card: { loaded: false, loading: true, exists: false, dept: '', region: '', tier: '', saving: false,
+  card: { identity: '', loaded: false, loading: true, exists: false, dept: '', region: '', tier: '', saving: false,
     f: { photoUrl: '', oneLiner: '', career: '', bio: '', phone: '', phonePublic: false, tags: [], tools: [],
       roles: [], scheduleType: '', from: '', to: '', days: [], times: [], hours: '', isPublic: true, available: false } },
   find: { scope: 'all', role: '', rows: [], loading: false, loaded: false, error: '' },
@@ -195,9 +197,10 @@ async function loadCard() {
   try {
     const res = await callApi({ action: 'getProfile', memberId: MEMBER_ID, viewerId: MEMBER_ID });
     const c = S.card;
-    c.dept = res.dept || ''; c.region = res.region || ''; c.tier = res.tier || '';
+    c.dept = res.dept || ''; c.region = res.region || ''; c.tier = res.tier || ''; c.identity = res.identity || '';
     if (res && !res.error) {
-      c.exists = true;
+      c.identity = res.identity || '';
+      c.exists = !!res.oneLiner; // 역할정체성만 저장된 빈 명함은 "미등록"으로 취급
       const splitTags = String(res.tags || '').split(/\s+/).map(t => t.trim()).filter(Boolean).map(t => t.replace(/^#/, ''));
       Object.assign(c.f, {
         photoUrl: res.photoUrl || '', oneLiner: res.oneLiner || '', career: res.career || '', bio: res.bio || '',
@@ -240,6 +243,9 @@ function cardHtml() {
 
     <label class="lbl">교사 경력 <span class="req">*</span></label>
     <div style="display:flex;align-items:center;gap:8px"><input class="kko-input" id="fCareer" type="number" inputmode="numeric" min="0" max="60" style="max-width:110px" value="${esc(f.career)}"><span style="font-weight:700">년차</span></div>
+
+    <label class="lbl">나는 OO형 <small>(활동방에서 선택)</small></label>
+    <div>${c.identity ? identityBadge(c.identity) : '<span class="hint">활동방의 "나는 어떤 교사인가요?"에서 선택하면 여기에 표시돼요</span>'}</div>
 
     <label class="lbl">부서·지역 <small>(자동 연동)</small></label>
     <div class="kko-input" style="background:#F5F5F8;display:flex;align-items:center;color:var(--color-text-sub)">${esc([c.dept, c.region].filter(Boolean).join(' ') || '명단에서 자동으로 채워져요')}</div>
@@ -412,6 +418,7 @@ function profileCardHtml(r) {
         <div style="font-weight:700;font-size:16px">${esc(maskName(r.name))} <span style="font-weight:400;font-size:13px;color:var(--color-text-sub)">${esc([r.dept, r.region].filter(Boolean).join(' '))}</span></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
           ${r.hot ? '<span class="badge badge-hot">🔥 활동 중</span>' : ''}
+          ${identityBadge(r.identity)}
           ${r.tier ? `<span class="badge badge-tier">${tierDot} ${esc(r.tier)}</span>` : ''}
         </div>
       </div>

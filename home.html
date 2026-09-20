@@ -118,8 +118,6 @@
     #bottomTabBar .tab.tab-active { color: #5B4FCF; }
     #homeContent, #content { padding-bottom: 72px; }
     /* 2026-09-18: 내 성장 나무 — 현재 등급 pill 은 은은하게 숨쉬듯 pulse */
-    @keyframes growthPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
-    .growth-pulse { animation: growthPulse 2s ease-in-out infinite; }
     /* Phase 2: 대상자 단계 상승 축하 모달 — 위에서 뚝 떨어지는 효과 */
     @keyframes stageUpDrop {
       0%   { transform: translateY(-140px) scale(0.9); opacity: 0; }
@@ -187,7 +185,9 @@
   <div id="appPanel" class="flex flex-col h-screen" style="display:none">
     <header class="flex items-center justify-between px-4 flex-shrink-0" style="height:56px;background:#5B4FCF">
       <div class="text-white font-bold text-base">복음방 교사</div>
-      <div class="flex items-center gap-4 text-white">
+      <div class="flex items-center gap-3 text-white">
+        <!-- 2026-09-20: 교사 상태 배지(휴교사 회색/교사 노랑/활동교사 초록/우수교사 보라) — 클릭 시 승급 조건 모달 -->
+        <button id="tierBadge" type="button" onclick="openGrowthModal()" style="display:none;height:26px;padding:0 10px;border-radius:13px;font-size:12px;font-weight:700;border:1px solid rgba(255,255,255,.55);white-space:nowrap"></button>
         <svg class="lucide-i" style="width:20px;height:20px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="알림"><path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>
         <svg class="lucide-i" style="width:20px;height:20px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="내 프로필"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
       </div>
@@ -466,7 +466,6 @@
     }
 
     // 교사 구분 4단계 표시(2026-09-15: "센터교사"는 실존하지 않는 단계라 삭제, 전부 실제 TEACHER_TIERS).
-    const GROWTH_STAGES = ['휴교사', '교사', '활동교사', '우수교사'];
 
     // 활동 기록 Step2/3 — Code.gs ROLE_OPTIONS/ROLE_ACTIVITY_OPTIONS 와 동일(둘 다 바뀌면 같이 고칠 것).
     // 2026-09-15: 3역할(인도자/섬김이/교사) → 4역할로 확장, 순서도 인도자/교사/섬김이/협력교사로 변경.
@@ -550,7 +549,9 @@
       targets: [],             // getMyTargets rows
       stages: TARGET_STAGES_FALLBACK,
       encouragements: [],      // getMyEncouragements rows(읽지 않은 격려 메시지만, 최신순)
-      expandedRolePart: null,  // '인도자'|'교사'|'섬김이'|'협력교사'|null — 이번 달 활동 "항목별 건수 펼쳐보기"
+      expandedRolePart: null,  // '인도자'|'교사'|'섬김이'|'협력교사'|null — 내 전도 활동 보기에서 펼친 역할
+      expandedStage: null,     // 펼친 역할 안에서 대상자 목록을 연 단계
+      roleIdentity: '',        // 나는 OO형(인도자/교사/섬김이/협력) — 교사프로필 U열
       view: 'dashboard',       // 'dashboard' | 'targetDetail'
       detailTargetId: null,
       detailJournal: null,     // getTargetJournal 응답
@@ -599,14 +600,16 @@
       home.loading = true; home.error = '';
       renderHome();
       try {
-        const [tierRes, actRes, gospelRes, centerRes, targetRes, encRes] = await Promise.all([
+        const [tierRes, actRes, gospelRes, centerRes, targetRes, encRes, identRes] = await Promise.all([
           callApi({ action: 'getMyTierStatus', memberId }),
           callApi({ action: 'getMyActivities', memberId }),
           callApi({ action: 'getMyGospelLeads', memberId }),
           callApi({ action: 'getMyCenterLeads', memberId }),
           callApi({ action: 'getMyTargets', memberId }),
-          callApi({ action: 'getMyEncouragements', memberId })
+          callApi({ action: 'getMyEncouragements', memberId }),
+          callApi({ action: 'getRoleIdentity', memberId }).catch(() => null)
         ]);
+        home.roleIdentity = (identRes && identRes.identity) || '';
         if (tierRes && !tierRes.error) home.tierStatus = tierRes;
         home.monthlyActRes = (actRes && !actRes.error) ? actRes : { rows: [], roleCounts: {}, roleItemCounts: {} };
         home.gospelLeads = (gospelRes && gospelRes.rows) || [];
@@ -722,126 +725,131 @@
       document.getElementById('growthModal').close();
     }
 
-    // 2026-09-18: 사용자 피드백 2차 — 활성/비활성 2단계 대비만으로는 부족, 4단계(현재/다음목표/
-    // 지나온 등급/아직 먼 등급)로 세분화. 각 단계별 색상·테두리·아이콘·캡션이 전부 다르다.
-    function growthStagesHtml() {
-      const ts = home.tierStatus;
-      const current = ts ? ts.tier : '';
-      const curIdx = GROWTH_STAGES.indexOf(current);
-
-      const pills = GROWTH_STAGES.map((s, i) => {
-        let style, icon = '', cls = '';
-        if (i === curIdx) {
-          style = 'background:#5B4FCF;color:#fff;border:none;box-shadow:0 4px 12px rgba(91,79,207,0.4);transform:scale(1.05)';
-          cls = ' growth-pulse';
-        } else if (i === curIdx + 1) {
-          style = 'background:#EDE9FF;color:#5B4FCF;border:1px dashed #5B4FCF';
-        } else if (curIdx >= 0 && i < curIdx) {
-          style = 'background:#F0F0F0;color:#AAAAAA;border:none';
-          icon = '✓ ';
-        } else {
-          style = 'background:#fff;color:#CCCCCC;border:1px solid #EEEEEE';
-          icon = '🔒 ';
-        }
-        return `<div class="flex-1 flex items-center justify-center text-[11px] font-bold${cls}" style="height:44px;border-radius:22px;${style}">${icon}${esc(s)}</div>`;
-      }).join('');
-      const captionRow = GROWTH_STAGES.map((s, i) => {
-        let text = '', color = '#5B4FCF';
-        if (i === curIdx) { text = '📍 현재 나의 위치'; }
-        else if (i === curIdx + 1) { text = '다음 목표'; color = 'rgba(91,79,207,0.55)'; }
-        return `<div class="flex-1 text-center text-[10px] font-bold" style="color:${color}">${text}</div>`;
-      }).join('');
-
-      // 승급(또는 휴교사 복귀) 조건 한 줄 — 다음 등급이 센터인도 기준이면 leadGoal, 휴교사→교사
-      // 복귀처럼 활동건수 기준이면 monthlyGoal을 씀(getMyTierStatus_ 응답 필드 그대로 재사용).
-      let goalLine = '';
-      if (ts && ts.nextTier) {
-        if (ts.leadGoal != null) {
-          const remaining = Math.max(0, ts.leadGoal - (ts.leadCount || 0));
-          goalLine = remaining > 0 ? `센터 인도 ${remaining}명 더하면 ${ts.nextTier}!` : `${ts.nextTier} 승급 조건을 채웠어요! 🎉`;
-        } else if (ts.monthlyGoal != null) {
-          const remaining = Math.max(0, ts.monthlyGoal - (ts.monthlyCount || 0));
-          goalLine = remaining > 0 ? `이번 달 활동 ${remaining}건 더하면 ${ts.nextTier}!` : `${ts.nextTier} 복귀 조건을 채웠어요! 🎉`;
-        }
-      } else if (ts && !ts.nextTier) {
-        goalLine = '현재 최고 등급이에요! 🎉';
-      }
-      const calloutHtml = goalLine
-        ? `<div class="mt-3 text-center font-bold" style="color:#5B4FCF;font-size:12px">${esc(goalLine)}</div>`
-        : '';
-
-      // Phase 2: 내 등급이 활동교사 이상이면 작은 MVP 후보 배지 표시(사용자 요청).
-      const isMvpCandidate = current && curIdx >= GROWTH_STAGES.indexOf('활동교사');
-
-      return `
-        <div class="card card-border bg-base-100 shadow-sm mx-4">
-          <div class="card-body p-5 cursor-pointer" onclick="openGrowthModal()">
-            <div class="flex items-center justify-between mb-3">
-              <div class="text-sm font-bold text-base-content">🌳 내 성장 나무</div>
-              ${isMvpCandidate ? `<span class="badge badge-sm" style="background:#FBBF24;color:#78350F;border:none">이번 달 지역 MVP 후보 🏆</span>` : ''}
-            </div>
-            <div class="flex items-stretch gap-1.5">${pills}</div>
-            <div class="flex items-stretch gap-1.5 mt-1">${captionRow}</div>
-            ${calloutHtml}
-          </div>
-        </div>
-      `;
+    // 2026-09-20: 헤더 교사 상태 배지 — 내 성장 나무 섹션을 대체(클릭 → openGrowthModal 승급 조건 모달).
+    const TIER_BADGE_STYLE = {
+      '휴교사':   { icon: '⚪', bg: '#E0E0E0', fg: '#555555' },
+      '교사':     { icon: '🟡', bg: '#FFE58A', fg: '#6B4E00' },
+      '활동교사': { icon: '🟢', bg: '#BFEBD3', fg: '#11623B' },
+      '우수교사': { icon: '🟣', bg: '#3D34A5', fg: '#FFFFFF' }
+    };
+    function updateTierBadge() {
+      const el = document.getElementById('tierBadge');
+      if (!el) return;
+      const tier = home.tierStatus && home.tierStatus.tier;
+      const st = TIER_BADGE_STYLE[tier];
+      if (!st) { el.style.display = 'none'; return; }
+      el.style.display = 'inline-flex'; el.style.alignItems = 'center';
+      el.style.background = st.bg; el.style.color = st.fg;
+      el.textContent = st.icon + ' ' + tier;
     }
 
-    // ============ C. 올해 활동 (좌: 전도부 입력 읽기전용 / 우: 역할별 내 활동 집계) ============
-    // 2026-09-15: "이번 달 활동"→"올해 활동"으로 명칭·집계기간 변경(사용자 요청).
-
-    function toggleRolePart(role) {
+    // ============ C. 내 전도 활동 보기 (2026-09-20: 기존 "올해 활동" 완전 대체) ============
+    // 역할별 "활동 중인 대상자 수" — 대상자(전도대상자 시트, home.targets)의 현재 단계 하나만 집계한다
+    // (단계가 올라가면 이전 단계 카운트는 자동으로 사라지고 새 단계로만 잡힘 = 대상자당 stage 1개라 자연스럽게 성립).
+    // 역할 판정: 담당인도자=인도자, 담당섬김이=섬김이 + 그 대상자에 대해 내가 기록한 활동실적의 역할(교사/협력교사 포함).
+    const MY_ACTIVITY_ROLES = ['인도자', '교사', '섬김이', '협력교사'];
+    function normIdClient(v) { const d = String(v == null ? '' : v).replace(/\D/g, '').replace(/^0+/, ''); return d || String(v || '').trim(); }
+    function targetsByRole() {
+      const me = normIdClient(memberId);
+      const rolesByName = {};
+      ((home.monthlyActRes && home.monthlyActRes.rows) || []).forEach(a => {
+        if (!a.targetName) return;
+        (rolesByName[a.targetName] = rolesByName[a.targetName] || new Set());
+        (a.roles || []).forEach(r => rolesByName[a.targetName].add(r));
+      });
+      const out = {}; MY_ACTIVITY_ROLES.forEach(r => { out[r] = []; });
+      home.targets.forEach(t => {
+        if (t.completed) return;
+        const set = new Set(rolesByName[t.targetName] || []);
+        if (t.leaderId && normIdClient(t.leaderId) === me) set.add('인도자');
+        if (t.helperId && normIdClient(t.helperId) === me) set.add('섬김이');
+        MY_ACTIVITY_ROLES.forEach(r => { if (set.has(r)) out[r].push(t); });
+      });
+      return out;
+    }
+    function toggleActivityRole(role) {
       home.expandedRolePart = (home.expandedRolePart === role) ? null : role;
+      home.expandedStage = null;
       renderHome();
     }
+    function toggleActivityStage(stage) {
+      home.expandedStage = (home.expandedStage === stage) ? null : stage;
+      renderHome();
+    }
+    function myActivityViewHtml() {
+      const byRole = targetsByRole();
+      const open = home.expandedRolePart;
+      const tiles = MY_ACTIVITY_ROLES.map(role => {
+        const on = open === role;
+        return `<button type="button" onclick="toggleActivityRole('${role}')" class="flex flex-col items-center justify-center" style="height:56px;border-radius:12px;background:${on ? '#EDE9FF' : '#fff'};border:1.5px solid ${on ? '#5B4FCF' : '#E8E8F0'};box-shadow:0 2px 12px rgba(0,0,0,0.08)">
+          <span style="font-size:20px;font-weight:800;color:#5B4FCF;line-height:1.1">${byRole[role].length}</span>
+          <span style="font-size:11px;color:#888">${esc(roleShortLabel(role))}</span>
+        </button>`;
+      }).join('');
 
-    function monthlyBoxesHtml() {
-      const gospelCount = home.gospelLeads.filter(r => isThisYear(r.date)).length;
-      const centerCount = home.centerLeads.filter(r => isThisYear(r.date)).length;
-      const rc = (home.monthlyActRes && home.monthlyActRes.roleCounts) || {};
-      const ric = (home.monthlyActRes && home.monthlyActRes.roleItemCounts) || {};
-
-      const roleTile = (role) => {
-        const expanded = home.expandedRolePart === role;
-        const items = ric[role] || {};
-        const itemKeys = Object.keys(items);
-        return `
-          <div class="border border-base-300 rounded-box p-2.5 cursor-pointer" onclick="toggleRolePart('${role}')">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-base-content/60">${esc(roleShortLabel(role))} 활동</span>
-              <span class="text-2xl font-black" style="color:#5B4FCF">${rc[role] || 0}<span class="text-xs font-normal text-base-content/40">건</span></span>
-            </div>
-            ${expanded ? (itemKeys.length
-              ? `<div class="mt-2 pt-2 border-t border-base-200 flex flex-wrap gap-1">${itemKeys.map(k => `<span class="badge badge-ghost badge-sm">${esc(k)} ${items[k]}건</span>`).join('')}</div>`
-              : `<div class="mt-2 pt-2 border-t border-base-200 text-[11px] text-base-content/30">올해 기록 없음</div>`) : ''}
+      let detail = '';
+      if (open) {
+        const list = byRole[open];
+        const stages = (home.stages && home.stages.length) ? home.stages : TARGET_STAGES_FALLBACK;
+        const rows = stages.map(st => {
+          const inStage = list.filter(t => t.stage === st);
+          const n = inStage.length, filled = Math.min(n, 3);
+          const dots = '●'.repeat(filled) + '○'.repeat(3 - filled);
+          const expanded = home.expandedStage === st && n > 0;
+          return `<div>
+            <button type="button" ${n ? `onclick="toggleActivityStage('${esc(st)}')"` : 'disabled'} class="w-full flex items-center" style="min-height:36px;padding:0 4px;text-align:left;opacity:${n ? 1 : .5}">
+              <span style="width:64px;font-size:14px;font-weight:600">${esc(st)}</span>
+              <span style="flex:1;color:#5B4FCF;letter-spacing:2px;font-size:14px">${dots}</span>
+              <span style="font-size:14px;font-weight:700">${n}명</span>
+            </button>
+            ${expanded ? `<div class="flex flex-wrap gap-1.5" style="padding:4px 4px 10px 64px">${inStage.map(t => `<button type="button" onclick="openTargetDetail('${esc(t.targetId)}')" class="badge badge-sm" style="background:#EDE9FF;color:#5B4FCF;border:none;height:26px;padding:0 10px">${esc(maskName(t.targetName))}</button>`).join('')}</div>` : ''}
           </div>`;
-      };
-
+        }).join('');
+        detail = `<div class="kko-card-in" style="margin-top:10px;background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);padding:12px 12px 6px">
+          <div style="font-size:12px;color:#888;margin-bottom:4px">${esc(roleShortLabel(open))} 대상자 단계별 분포 · 항목을 누르면 대상자 목록</div>${rows}</div>`;
+      }
       return `
         <div class="px-4">
-          <div class="text-sm font-bold text-base-content mb-3">올해 활동</div>
-          <div class="grid grid-cols-2 gap-3">
-            <div class="rounded-box p-3" style="background:#ecfdf5;border:1px solid #a7f3d0">
-              <div class="text-[11px] font-bold text-emerald-700 mb-2">전도부 등록 (읽기 전용)</div>
-              <div class="flex items-center justify-between mb-1.5">
-                <span class="text-xs text-emerald-800">복음방 인도</span>
-                <span class="text-base font-black text-emerald-700">${gospelCount}명</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-xs text-emerald-800">센터 인도</span>
-                <span class="text-base font-black text-emerald-700">${centerCount}명</span>
-              </div>
-            </div>
-            <div class="flex flex-col gap-2">
-              ${roleTile('인도자')}
-              ${roleTile('교사')}
-              ${roleTile('섬김이')}
-              ${roleTile('협력교사')}
-            </div>
-          </div>
-        </div>
-      `;
+          <div class="text-sm font-bold text-base-content mb-3">내 전도 활동 보기</div>
+          <div class="grid grid-cols-4 gap-2">${tiles}</div>
+          ${detail}
+        </div>`;
+    }
+
+    // ============ C-2. 나는 OO형 (역할 정체성) — 선택 즉시 저장, 연결방 내 명함에 자동 반영 ============
+    const IDENTITY_OPTIONS = [
+      { v: '인도자', icon: '🔴', label: '인도자', sub: '전도 중심' },
+      { v: '교사',   icon: '🟢', label: '교사',   sub: '역량 중심' },
+      { v: '섬김이', icon: '🔵', label: '섬김이', sub: '동행 중심' },
+      { v: '협력',   icon: '🤝', label: '협력',   sub: '지원 중심' }
+    ];
+    async function selectRoleIdentity(v) {
+      const prev = home.roleIdentity;
+      if (prev === v) return;
+      home.roleIdentity = v; renderHome();
+      try {
+        const res = await callApi({ action: 'saveRoleIdentity', memberId, identity: v });
+        if (res && res.error) throw new Error(res.error);
+      } catch (e) {
+        home.roleIdentity = prev; renderHome();
+        alert('저장하지 못했어요: ' + e.message);
+      }
+    }
+    function roleIdentityHtml() {
+      const cur = home.roleIdentity;
+      const cells = IDENTITY_OPTIONS.map(o => {
+        const on = cur === o.v;
+        return `<button type="button" onclick="selectRoleIdentity('${o.v}')" style="min-height:64px;border-radius:12px;padding:8px 10px;text-align:left;background:${on ? '#5B4FCF' : '#fff'};color:${on ? '#fff' : '#333'};border:1.5px solid ${on ? '#5B4FCF' : '#D5D5E0'}">
+          <div style="font-size:16px;font-weight:700">${o.icon} ${o.label}</div>
+          <div style="font-size:12px;opacity:${on ? .85 : .6}">${o.sub}</div>
+        </button>`;
+      }).join('');
+      return `
+        <div class="px-4">
+          <div class="text-sm font-bold text-base-content mb-1">나는 어떤 교사인가요?</div>
+          <div class="text-[11px] mb-3" style="color:#888">${cur ? `나는 ${esc(cur)}형 · 연결방 내 명함에 표시돼요` : '선택하면 바로 저장되고 연결방 내 명함에 표시돼요'}</div>
+          <div class="grid grid-cols-2 gap-3">${cells}</div>
+        </div>`;
     }
 
     // ============ D. 활동 기록 (항상 펼쳐진 상태, Step1~5) ============
@@ -2061,8 +2069,8 @@
         <div class="py-4 flex flex-col gap-5">
           ${encouragementBannerHtml()}
           ${coachReplyBannerHtml()}
-          ${growthStagesHtml()}
-          ${monthlyBoxesHtml()}
+          ${myActivityViewHtml()}
+          ${roleIdentityHtml()}
           ${activityFormHtml()}
           ${activityHistorySectionHtml()}
           ${targetsSectionHtml()}
@@ -2080,6 +2088,7 @@
         return;
       }
       root.innerHTML = dashboardViewHtml();
+      updateTierBadge();
       wireActivityForm();
       renderTargetsChart();
       wireHistoryAndCards();
