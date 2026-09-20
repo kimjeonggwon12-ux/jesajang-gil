@@ -237,7 +237,10 @@ async function loadReport(force) {
     // region은 항상 '전체'로 받아서 캐시 — 지역 드롭다운은 클라이언트에서만 필터링(재요청 없이 즉시 전환)
     const res = await callApi({ action: 'getDistrictReport', dept: state.dept, region: '' });
     if (res && res.error) { state.error = res.error; }
-    else { state.cache[key] = res; }
+    else {
+      if (Array.isArray(res.byRegion)) res.byRegion.sort((x, y) => String(x.region || '').localeCompare(String(y.region || ''), 'ko', { numeric: true })); // 1지역부터 순서대로
+      state.cache[key] = res;
+    }
   } catch (e) {
     state.error = '서버 연결에 실패했습니다: ' + e;
   }
@@ -314,8 +317,15 @@ function mergeTeacherReport() {
     const r = byId[String(t.memberId)];
     if (!r) return;
     t.monthlyCount = r.monthlyCount; t.lastActivityDate = r.lastActivityDate; t.conditionText = r.conditionText;
-    t.suggestion = r.suggestion; t.apply = r.apply; t.affilSel = r.affil; t.genderSel = r.gender; t._rep = true;
+    t.actTotal = r.actTotal || 0; t.actTypes = r.actTypes || {}; t.suggestion = r.suggestion; t.apply = r.apply; t.affilSel = r.affil; t.genderSel = r.gender; t._rep = true;
   });
+}
+// 앱에서 기록한 활동 요약 — "상담1 3 · 만남1 2" 형태(많은 순, 상위 3개 + 나머지 개수).
+function actSummaryText(t, max) {
+  const items = Object.entries(t.actTypes || {}).sort((a, b) => b[1] - a[1]);
+  if (!items.length) return '';
+  const shown = items.slice(0, max || 3).map(([k, v]) => k + ' ' + v).join(' · ');
+  return items.length > (max || 3) ? shown + ' 외 ' + (items.length - (max || 3)) + '종' : shown;
 }
 function applyText(a) {
   if (!a) return '';
@@ -409,6 +419,8 @@ function teacherListDetailHtml(t) {
         <div class="text-base-content/50">이번 달 활동</div><div class="font-medium">${loaded ? esc(t.monthlyCount) + '건' : '불러오는 중…'}</div>
         <div class="text-base-content/50">마지막 활동일</div><div class="font-medium">${loaded ? esc(t.lastActivityDate || '-') : '…'}</div>
         <div class="text-base-content/50">승급·강등 조건 내역</div><div class="font-medium">${loaded ? esc(t.conditionText || '-') : '…'}</div>
+        <div class="text-base-content/50">활동 현황</div><div class="font-medium">${loaded ? (t.actTotal > 0 ? '활동 중 (기록 ' + t.actTotal + '건)' : '없음') : '…'}</div>
+        ${loaded && t.actTotal > 0 ? `<div class="text-base-content/50">기록한 활동 요약</div><div class="font-medium">${esc(actSummaryText(t, 20))}</div>` : ''}
         <div class="text-base-content/50">활동 신청</div><div class="font-medium">${loaded ? (t.apply ? esc(applyText(t.apply)) : '없음') : '…'}</div>
         ${loaded && t.apply ? `<div class="text-base-content/50">신청 소속·성별</div><div class="font-medium">${esc([t.affilSel, t.genderSel].filter(Boolean).join(' · ') || '-')}</div>` : ''}
       </div>
@@ -450,7 +462,7 @@ function teacherListSectionHtml() {
     <div class="px-4 pt-1 pb-4">
       <div class="overflow-x-auto kko-table-card kko-card-in">
         <table class="table table-zebra table-sm">
-          <thead class="sticky top-0 bg-base-100"><tr><th>이름</th><th>부서</th><th>지역</th><th>등급</th><th>직책</th><th>이번 달 활동</th><th>승급·강등 제안</th><th>활동 신청</th></tr></thead>
+          <thead class="sticky top-0 bg-base-100"><tr><th>이름</th><th>부서</th><th>지역</th><th>등급</th><th>직책</th><th>이번 달 활동</th><th>활동 현황</th><th>승급·강등 제안</th><th>활동 신청</th></tr></thead>
           <tbody>
             ${rows.map(t => `
               <tr class="tl-row cursor-pointer ${state.tlSelected === t.memberId ? 'active' : ''}" data-mid="${esc(t.memberId)}">
@@ -460,10 +472,11 @@ function teacherListSectionHtml() {
                 <td><span class="badge ${TIER_BADGE[t.tier]||'badge-ghost'} badge-xs">${esc(t.tier||'-')}</span></td>
                 <td>${t.position ? `<span class="badge badge-outline badge-xs">${esc(t.position)}</span>` : ''}</td>
                 <td class="text-center">${t._rep ? esc(t.monthlyCount) + '건' : '…'}</td>
+                <td>${!t._rep ? '…' : (t.actTotal > 0 ? '<span class="badge badge-success badge-outline badge-xs">활동 중</span>' : '<span class="text-base-content/40 text-xs">없음</span>')}</td>
                 <td>${!t._rep ? '…' : (t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier]||'badge-ghost'} badge-xs">→ ${esc(t.suggestion.suggestedTier)} (${t.suggestion.approvalCount}/2)</span>` : '<span class="text-base-content/30 text-xs">-</span>')}</td>
-                <td class="text-xs">${!t._rep ? '…' : (t.apply ? `<span class="font-medium" style="color:#5B4FCF">${esc(applyText(t.apply))}</span>` : '<span class="text-base-content/40">없음</span>')}</td>
+                <td class="text-xs">${!t._rep ? '…' : (t.apply ? `<span class="font-medium" style="color:#5B4FCF">${esc(applyText(t.apply))}</span>` : '<span class="text-base-content/40">없음</span>')}${t._rep && t.actTotal > 0 ? `<div class="text-[10px] text-base-content/50 mt-0.5">기록: ${esc(actSummaryText(t, 3))}</div>` : ''}</td>
               </tr>`).join('')}
-            ${rows.length === 0 ? `<tr><td colspan="8" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
+            ${rows.length === 0 ? `<tr><td colspan="9" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
           </tbody>
         </table>
       </div>
@@ -712,6 +725,33 @@ function byRegionSectionHtml(byRegion) {
       ${state.regionView === 'table' ? byRegionTableHtml(byRegion) : byRegionChartsHtml(byRegion)}
     </div>
   `;
+}
+
+// 2026-09-20: 지역별 강세 항목 — 지역마다 활동 건수가 가장 많은 항목(+다음 2개)을 따로 보여준다(지역 번호순).
+function strongItemSectionHtml(b) {
+  if (!b || !b.allRegions || !b.allRegions.length) return '';
+  const regions = [...b.allRegions].sort((x, y) => String(x).localeCompare(String(y), 'ko', { numeric: true }));
+  const rows = regions.map(region => {
+    const items = ROLE_ACTIVITY_ITEMS_DASH
+      .map(item => [item, (b.regionItemTotal[region] && b.regionItemTotal[region][item]) || 0])
+      .filter(x => x[1] > 0).sort((p, q) => q[1] - p[1]);
+    return { region, items };
+  });
+  return `
+    <div class="px-4 pt-3">
+      ${sectionTitleBand('🏆', '지역별 강세 항목', '지역마다 활동 건수가 가장 많은 항목입니다 (이번 달 기준).', '#FFFBEB')}
+      <div class="kko-table-card kko-card-in"><div class="overflow-x-auto">
+        <table class="table table-zebra table-sm">
+          <thead class="sticky top-0 bg-base-100"><tr><th>지역</th><th>강세 항목</th><th>건수</th><th>이어서 많은 항목</th></tr></thead>
+          <tbody>${rows.map(r => `<tr>
+            <td class="font-medium">${esc(regionOnlyLabel(state.dept, r.region))}</td>
+            <td>${r.items.length ? `<span class="badge badge-warning badge-sm font-bold">${esc(r.items[0][0])}</span>` : '<span class="text-base-content/30">-</span>'}</td>
+            <td>${r.items.length ? r.items[0][1] + '건' : '-'}</td>
+            <td class="text-xs text-base-content/60">${r.items.slice(1, 3).map(x => esc(x[0]) + ' ' + x[1] + '건').join(' · ') || '-'}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div></div>
+    </div>`;
 }
 
 function byRegionTableHtml(byRegion) {
@@ -1331,6 +1371,7 @@ function render() {
             ${summaryCardHtml(report && report.summary)}
             ${targetStageSectionHtml(report && report.targetStageCounts)}
             ${byRegionSectionHtml(report && report.byRegion)}
+            ${strongItemSectionHtml(roleBreakdown)}
             ${aiAnalysisSectionHtml(roleBreakdown)}
             ${activityAnalysisSectionHtml(analysis)}
           `}
