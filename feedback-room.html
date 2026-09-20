@@ -80,6 +80,8 @@
   .hx-scroll::-webkit-scrollbar { width:5px; }
   .hx-scroll::-webkit-scrollbar-thumb { background:#5eead4; border-radius:9999px; }
 </style>
+<script>/* kko-embedded-hide: iframe(home.html 하단탭) 안에서는 "← 홈" 링크가 앱을 한 번 더 열어 화면이 겹치므로 숨긴다 */if (window.self !== window.top) document.documentElement.classList.add('kko-embedded');</script>
+<style>.kko-embedded a.kko-back { display:none !important; }</style>
 </head>
 <body>
 <div id="root" class="max-w-md mx-auto min-h-screen shadow flex flex-col" style="background:var(--color-bg)"></div>

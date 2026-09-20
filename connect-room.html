@@ -6,7 +6,7 @@
 <title>복음방 교사 - 연결방</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <!--
-  2026-09-20: 연결방 신설 — [내 명함][찾아보기][교사 구함][대화함] 탭.
+  2026-09-20: 연결방 신설 — [내 명함][활동 신청 교사][도와주세요][대화함] 탭.
   home.html 하단 탭바 "연결방"이 iframe 으로 이 파일을 불러온다(?memberId=&name=).
   백엔드(Code.gs, PROXY_URL 공유): saveProfile/getProfile/searchProfiles/getActivityBadge/saveBoard/getBoardList/applyBoard.
   채팅 = 이 파일 안 "대화함" 탭에서 직접 처리(기존 채팅 백엔드 재사용) — 피드백방으로 이동하지 않는다.
@@ -85,8 +85,8 @@
 <body>
 <nav class="kko-tabs" id="topTabs">
   <button class="kko-tab kko-tab-active" data-tab="card">내 명함</button>
-  <button class="kko-tab" data-tab="find">찾아보기</button>
-  <button class="kko-tab" data-tab="board">교사 구함</button>
+  <button class="kko-tab" data-tab="find">활동 신청 교사</button>
+  <button class="kko-tab" data-tab="board">도와주세요</button>
   <button class="kko-tab" data-tab="chat" style="flex:.8">대화함<span id="chatBadge" style="display:none;margin-left:4px;min-width:16px;height:16px;line-height:16px;font-size:10px;color:#fff;background:var(--color-error);border-radius:8px;padding:0 4px;vertical-align:middle"></span></button>
 </nav>
 <main id="view" class="wrap"></main>
@@ -100,13 +100,12 @@ const urlParams = new URLSearchParams(window.location.search);
 // ?memberId=&name= (home.html 이 iframe 로드 시 전달). 없으면 다른 방들과 동일한 테스트 계정.
 const MEMBER_ID = urlParams.get('memberId') || 'TEST-0001';
 const MY_NAME = urlParams.get('name') || '테스트교사';
-const ROLES = ['교사', '섬김이', '동행교사', '협력'];
+const ROLES = ['교사', '섬김', '협력', '동행 교사'];
 const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
-const TIMES = ['오전', '오후', '저녁'];
-const BOARD_TYPES = ['교사', '섬김이', '동행교사', '협력'];
+const TIMES = ['오전', '오후', '저녁', '상의 후 결정'];
+const BOARD_TYPES = ['교사', '섬김', '협력', '동행 교사'];
 const AGE_OPTIONS = ['10대', '20대', '30대', '40대', '50대', '60대 이상'];
 const CARD_TAG_PRESETS = ['상담경험', '복음방전문', '청년사역', '장년사역', '부녀사역', '자문사역', '신입교사멘토링', '동행교사경험', '가정심방전문', '섭외전문', '온라인복음방', '찬양인도'];
-const STAGE_OPTIONS = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개'];
 
 const S = {
   tab: 'card',
@@ -193,7 +192,7 @@ document.getElementById('topTabs').addEventListener('click', e => {
 });
 function render() {
   const v = document.getElementById('view');
-  document.getElementById('fabHost').innerHTML = S.tab === 'board' ? '<button class="fab" id="fabAdd">+ 교사 구함 등록</button>' : '';
+  document.getElementById('fabHost').innerHTML = S.tab === 'board' ? '<button class="fab" id="fabAdd">+ 도와주세요 등록</button>' : '';
   if (S.tab === 'card') { v.innerHTML = cardHtml(); bindCard(); }
   else if (S.tab === 'find') { v.innerHTML = findHtml(); bindFind(); }
   else if (S.tab === 'chat') { renderChat(v); }
@@ -277,10 +276,10 @@ function cardHtml() {
   </div>
 
   <div class="kko-card kko-card-in" style="margin-bottom:16px">
-    <div class="sec-title">🙋 나 활동 가능해요</div>
+    <div class="sec-title">🙋 활동 신청</div>
     <div class="sec-sub">협력 요청을 받을 수 있어요</div>
 
-    <label class="lbl" style="margin-top:0">가능 역할 <small>(복수 선택)</small></label>
+    <label class="lbl" style="margin-top:0">활동 가능 유형 <small>(복수 선택)</small></label>
     <div class="role-grid">${ROLES.map(r => `<button type="button" class="role-btn ${isOn(f.roles, r) ? 'on' : ''}" data-role="${r}">${r}</button>`).join('')}</div>
 
     <label class="lbl">가능 일정</label>
@@ -292,10 +291,10 @@ function cardHtml() {
       <div style="display:flex;align-items:center;gap:6px"><input class="kko-input" type="date" id="fFrom" value="${esc(f.from)}"><span>~</span><input class="kko-input" type="date" id="fTo" value="${esc(f.to)}"></div>
       <div class="lbl">요일</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${DAYS.map(d => `<label class="chk-chip ${isOn(f.days, d) ? 'on' : ''}"><input type="checkbox" data-day="${d}" ${isOn(f.days, d) ? 'checked' : ''}>${d}</label>`).join('')}</div>
-      <div class="lbl">시간대</div>
+      <div class="lbl">시간 <small>(선택)</small></div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">${TIMES.map(t => `<label class="chk-chip ${isOn(f.times, t) ? 'on' : ''}"><input type="checkbox" data-time="${t}" ${isOn(f.times, t) ? 'checked' : ''}>${t}</label>`).join('')}</div>
-      <div class="lbl">가능 시간 <small>(선택)</small></div>
-      <input class="kko-input" id="fHours" maxlength="30" placeholder="예: 10:00~12:00" value="${esc(f.hours)}">
+      <div class="lbl">정확한 시간 <small>(선택)</small></div>
+      <div style="display:flex;align-items:center;gap:6px"><input class="kko-input" type="time" id="fH1" value="${esc(String(f.hours).split('~')[0] || '')}"><span>~</span><input class="kko-input" type="time" id="fH2" value="${esc(String(f.hours).split('~')[1] || '')}"></div>
     </div>
   </div>
 
@@ -303,7 +302,7 @@ function cardHtml() {
     <div class="sec-title" style="font-size:20px">✅ 저장 &amp; 공개 설정</div>
     <div style="margin-top:12px">
       <label class="radio-row ${f.isPublic ? 'on' : ''}" style="margin-bottom:8px"><input type="checkbox" id="fPublic" ${f.isPublic ? 'checked' : ''}>내 프로필 공개 <span class="hint" style="margin:0">(검색 가능)</span></label>
-      <label class="radio-row ${f.available ? 'on' : ''}"><input type="checkbox" id="fAvail" ${f.available ? 'checked' : ''}>활동 가능 표시 <span class="hint" style="margin:0">(피드에 노출)</span></label>
+      <label class="radio-row ${f.available ? 'on' : ''}"><input type="checkbox" id="fAvail" ${f.available ? 'checked' : ''}>활동 신청 표시 <span class="hint" style="margin:0">(활동 신청 교사 목록에 노출)</span></label>
     </div>
     ${c.exists ? `<div style="display:flex;gap:8px;margin-top:12px"><button type="button" class="kko-btn-outline" id="cardShare">공유하기 ↗</button><button type="button" class="kko-btn-outline" id="cardShareTg" style="color:#229ED9;border-color:#229ED9">텔레그램 ↗</button></div>` : ''}
     <button type="button" class="kko-btn-main" id="cardSave" style="margin-top:12px" ${c.saving ? 'disabled' : ''}>${c.saving ? '저장 중…' : (c.exists ? '수정하기' : '등록하기')}</button>
@@ -324,7 +323,8 @@ function bindCard() {
   $('fCareer').oninput = e => { f.career = e.target.value; };
   $('fBio').oninput = e => { f.bio = e.target.value; };
   $('fPhone').oninput = e => { f.phone = e.target.value; };
-  $('fHours').oninput = e => { f.hours = e.target.value; };
+  const syncHours = () => { const a = $('fH1').value, b = $('fH2').value; f.hours = a ? (a + (b ? '~' + b : '')) : ''; };
+  $('fH1').onchange = syncHours; $('fH2').onchange = syncHours;
   $('fFrom').onchange = e => { f.from = e.target.value; };
   $('fTo').onchange = e => { f.to = e.target.value; };
   $('photoInput').onchange = async e => {
@@ -390,7 +390,7 @@ async function saveCard() {
 
   if (!f.oneLiner.trim()) return toast('한 줄 소개를 입력해주세요.', true);
   if (f.career === '' || isNaN(Number(f.career))) return toast('교사 경력(년차)을 입력해주세요.', true);
-  if (f.available && !f.roles.length) return toast('활동 가능 표시를 하려면 가능 역할을 골라주세요.', true);
+  if (f.available && !f.roles.length) return toast('활동 신청을 하려면 가능 역할을 골라주세요.', true);
   if (f.available && !f.scheduleType) return toast('가능 일정을 선택해주세요.', true);
   if (f.phonePublic && !f.phone.trim()) return toast('전화번호를 공개하려면 번호를 입력해주세요.', true);
 
@@ -410,7 +410,7 @@ async function saveCard() {
   c.saving = false; render();
 }
 
-// ====================== 찾아보기 ======================
+// ====================== 활동 신청 교사(구 찾아보기) ======================
 async function loadFind() {
   const st = S.find; st.loading = true; st.error = ''; render();
   try {
@@ -466,7 +466,7 @@ function findHtml() {
   else body = st.rows.map(profileCardHtml).join('');
   return `<div style="margin-bottom:12px">
     <div style="display:flex;gap:8px;margin-bottom:8px"><input class="kko-input" id="findKw" placeholder="태그·자격증·이름 검색" value="${esc(st.keyword)}" style="flex:1"><button type="button" class="kko-btn-outline" id="findKwBtn" style="flex:none;min-width:64px">검색</button></div>
-    ${seg('scope', [['all', '전체'], ['mine', '내 지역'], ['available', '활동 가능만']])}
+    ${seg('scope', [['all', '전체'], ['mine', '내 지역'], ['available', '활동 신청만']])}
     ${seg('role', [['', '역할 전체'], ...ROLES.map(r => [r, r])])}
   </div>${body}`;
 }
@@ -496,7 +496,7 @@ async function loadBoard() {
   if (S.tab === 'board') render();
 }
 function boardCardHtml(r) {
-  const summary = [r.ageGroup, r.stage].filter(Boolean).join(' ');
+  const summary = r.ageGroup || '';
   const action = r.isMine
     ? `<span class="hint" style="margin:0;font-weight:600">내가 올린 글 · 지원 ${r.applicantCount}명</span><button type="button" class="kko-btn-outline" data-close="${esc(r.boardId)}" style="flex:none;height:40px">모집 완료</button>`
     : (r.applied
@@ -507,10 +507,11 @@ function boardCardHtml(r) {
       ${photoHtml(r.photoUrl, r.name)}
       <div style="font-weight:700;font-size:16px">${esc(maskName(r.name))} <span style="font-weight:400;font-size:13px;color:var(--color-text-sub)">${esc([r.dept, r.region].filter(Boolean).join(' '))}</span></div>
     </div>
-    <div style="margin-top:10px;font-size:15px;font-weight:700"><span class="pill pill-tag" style="padding:3px 10px;font-size:13px">${esc(r.type)} 구함</span> ${esc(summary)}</div>
+    <div style="margin-top:10px;font-size:15px;font-weight:700"><span class="pill pill-tag" style="padding:3px 10px;font-size:13px">${esc(r.type)} 도움 요청</span> ${esc(summary)}</div>
     <div style="margin-top:6px;font-size:14px;color:var(--color-text-sub)">📅 언제부터: ${esc(r.when)}</div>
     ${r.note ? `<div style="margin-top:6px;font-size:15px">"${esc(r.note)}"</div>` : ''}
-    <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px">
+      <span style="font-weight:800;color:var(--color-accent);font-size:16px">${esc(ddayLabel(r.deadline))}</span>
       ${action}
     </div>
   </div>`;
@@ -521,7 +522,7 @@ function boardHtml() {
   let body;
   if (st.loading) body = spinner;
   else if (st.error) body = `<div class="kko-card" style="text-align:center;color:var(--color-error)">${esc(st.error)}<button type="button" class="kko-btn-outline" id="boardRetry" style="margin-top:12px;width:100%">다시 시도</button></div>`;
-  else if (!st.rows.length) body = `<div class="kko-card" style="text-align:center;padding:40px 20px"><div style="font-size:40px">🤝</div><div style="margin-top:8px;font-weight:700">아직 올라온 글이 없어요</div><div class="hint">오른쪽 아래 버튼으로 교사를 구해보세요.</div></div>`;
+  else if (!st.rows.length) body = `<div class="kko-card" style="text-align:center;padding:40px 20px"><div style="font-size:40px">🤝</div><div style="margin-top:8px;font-weight:700">아직 도와주세요 글이 없어요</div><div class="hint">오른쪽 아래 버튼으로 도움을 요청해보세요.</div></div>`;
   else body = st.rows.map(boardCardHtml).join('');
   return seg + body;
 }
@@ -562,21 +563,23 @@ async function closePost(boardId) {
 function openBoardForm() {
   const today = todayStr();
   const opt = (arr, ph) => `<option value="">${ph}</option>` + arr.map(a => `<option>${esc(a)}</option>`).join('');
-  document.getElementById('sheetHost').innerHTML = `<div class="sheet-back" id="sheetBack"><div class="sheet" role="dialog" aria-label="교사 구함 등록">
-    <div class="sec-title" style="font-size:22px">🙋 교사 구함 등록</div>
-    <label class="lbl">구하는 역할 <span class="req">*</span></label>
+  document.getElementById('sheetHost').innerHTML = `<div class="sheet-back" id="sheetBack"><div class="sheet" role="dialog" aria-label="도와주세요 등록">
+    <div class="sec-title" style="font-size:22px">🙋 도와주세요 등록</div>
+    <label class="lbl">도움 요청 유형 <span class="req">*</span></label>
     <select class="kko-input" id="bType">${opt(BOARD_TYPES, '선택해주세요')}</select>
     <label class="lbl">대상자 연령대 <small>(선택)</small></label>
     <select class="kko-input" id="bAge">${opt(AGE_OPTIONS, '선택 안 함')}</select>
-    <label class="lbl">대상자 현재 단계 <small>(선택)</small></label>
-    <select class="kko-input" id="bStage">${opt(STAGE_OPTIONS, '선택 안 함')}</select>
     <label class="lbl">언제부터 <span class="req">*</span></label>
     <input class="kko-input" type="date" id="bDate" min="${today}">
     <label class="lbl">시간 <small>(선택)</small></label>
     <div class="seg small" id="bTimeSeg" style="flex-wrap:wrap">${['오전', '오후', '저녁', '상의 후 결정', '정확한 시간'].map(t => `<button type="button" data-tm="${t}">${t}</button>`).join('')}</div>
     <div id="bExact" style="display:none;margin-top:8px"><div style="display:flex;align-items:center;gap:6px"><input class="kko-input" type="time" id="bT1"><span>~</span><input class="kko-input" type="time" id="bT2"></div><div class="hint">종료 시간은 비워도 돼요.</div></div>
-    <label class="lbl">한 마디 <small>(최대 50자)</small></label>
-    <input class="kko-input" id="bNote" maxlength="50" placeholder="예: 경험 있는 분 함께해요!">
+    <label class="lbl">한 마디 <span class="req">*</span> <small>(최대 50자)</small></label>
+    <input class="kko-input" id="bNote" maxlength="50" placeholder="어떤 대상자인지 소개해주세요. 예: 40대 여성, 만남 2회차">
+    <div class="hint">대상자를 소개하는 내용을 써야 등록돼요.</div>
+    <label class="lbl">마감일 <span class="req">*</span></label>
+    <input class="kko-input" type="date" id="bDeadline" min="${today}">
+    <div class="hint">지정한 마감일이 되면 이 글은 목록에서 사라져요.</div>
     <div style="display:flex;gap:8px;margin-top:20px"><button type="button" class="kko-btn-outline" id="bCancel" style="height:52px">취소</button><button type="button" class="kko-btn-main" id="bSave" style="flex:2">등록하기</button></div>
   </div></div>`;
   const close = () => { document.getElementById('sheetHost').innerHTML = ''; };
@@ -596,9 +599,12 @@ function openBoardForm() {
       if (!g('bT1')) return toast('시작 시간을 입력해주세요.', true);
       timeSlot = g('bT1') + (g('bT2') ? '~' + g('bT2') : '');
     }
-    const data = { type: g('bType'), ageGroup: g('bAge'), stage: g('bStage'), date: g('bDate'), timeSlot, note: g('bNote').trim().slice(0, 50) };
-    if (!data.type) return toast('구하는 역할을 선택해주세요.', true);
+    const data = { type: g('bType'), ageGroup: g('bAge'), date: g('bDate'), timeSlot, note: g('bNote').trim().slice(0, 50), deadline: g('bDeadline') };
+    if (!data.type) return toast('도움 요청 유형을 선택해주세요.', true);
     if (!data.date) return toast('언제부터인지 날짜를 선택해주세요.', true);
+    if (!data.note) return toast('어떤 대상자인지 한 마디로 소개해주세요.', true);
+    if (!data.deadline) return toast('마감일을 지정해주세요.', true);
+    if (data.deadline < todayStr()) return toast('마감일은 오늘 이후여야 해요.', true);
     const btn = document.getElementById('bSave'); btn.disabled = true; btn.textContent = '등록 중…';
     try {
       const res = await callApi({ action: 'saveBoard', memberId: MEMBER_ID, data });
@@ -634,7 +640,7 @@ async function loadChatList() {
 function chatListHtml() {
   const ch = S.chat;
   if (ch.listLoading && !ch.listLoaded) return spinner;
-  if (!ch.list.length) return `<div class="kko-card" style="text-align:center;padding:40px 20px"><div style="font-size:40px">💬</div><div style="margin-top:8px;font-weight:700">아직 대화가 없어요</div><div class="hint">찾아보기·교사 구함에서 [채팅하기]/[지원하기]로 대화를 시작해보세요.</div></div>`;
+  if (!ch.list.length) return `<div class="kko-card" style="text-align:center;padding:40px 20px"><div style="font-size:40px">💬</div><div style="margin-top:8px;font-weight:700">아직 대화가 없어요</div><div class="hint">활동 신청 교사·도와주세요에서 [채팅하기]/[지원하기]로 대화를 시작해보세요.</div></div>`;
   return ch.list.map(r => `<div class="kko-card kko-card-in" data-open-chat="${esc(r.otherId)}" data-name="${esc(r.otherName)}" style="padding:12px;margin-bottom:8px;display:flex;gap:12px;align-items:center;cursor:pointer">
     ${photoHtml(r.otherPhotoUrl, r.otherName)}
     <div style="flex:1;min-width:0"><div style="font-weight:700">${esc(r.otherName || '알 수 없음')}</div><div style="font-size:13px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.lastMessage)}</div></div>
