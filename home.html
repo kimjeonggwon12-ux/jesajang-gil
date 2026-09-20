@@ -1,6 +1,20 @@
 <!DOCTYPE html>
 <html lang="ko" data-theme="jesagil">
 <head>
+<script>
+  // 2026-09-20: 이중 화면 방지 — 각 방(iframe)의 "← 홈"/뒤로 링크가 home.html 을 iframe 안에 한 번 더 열면
+  // 앱(헤더+탭바)이 겹쳐 보인다. iframe 안에서 열렸으면 자기는 숨기고, 부모(진짜 앱)의 활동방 탭으로 전환만 한다.
+  window.__FRAMED__ = false;
+  if (window.self !== window.top) {
+    window.__FRAMED__ = true;
+    document.documentElement.style.display = 'none';
+    try {
+      window.top.switchTab('activity', window.top.document.querySelector('.tab[data-room="activity"]'));
+    } catch (e) {
+      try { window.top.location.replace(window.location.href); } catch (e2) {}
+    }
+  }
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>복음방 교사</title>
@@ -322,7 +336,7 @@
     function goHome() {
       switchTab('activity', document.querySelector('.tab[data-room="activity"]'));
     }
-    window.addEventListener('DOMContentLoaded', enterWithoutLogin);
+    if (!window.__FRAMED__) window.addEventListener('DOMContentLoaded', enterWithoutLogin);
 
     function startSession() {
       memberId = document.getElementById('memberId').value.trim();
@@ -492,11 +506,6 @@
     const AVAIL_TIMES = ['오전', '오후', '저녁'];
     const AVAIL_PERIODS = ['이번 주', '이번 달', '직접 지정'];
     const AVAIL_REGION_SCOPES = ['내 지역만', '인근 지역도 가능'];
-    // 2026-09-19(2차): "내 명함" 특기 태그 — 미리 고를 수 있는 유형 목록(직접 입력도 별도로 가능).
-    const CARD_TAG_PRESETS = [
-      '상담경험', '복음방전문', '청년사역', '장년사역', '부녀사역', '자문사역',
-      '신입교사멘토링', '동행교사경험', '가정심방전문', '섭외전문', '온라인복음방', '찬양인도'
-    ];
     const GENDER_OPTIONS = ['남', '여'];
     // 2026-09-15: "60대이상" 뭉뚱그림 → 60대/70대이상 분리(장년회/자문회 자동 배정에 필요, ageGenderToOrg 참고).
     const AGE_GROUP_OPTIONS = ['10대', '20대', '30대', '40대', '50대', '60대', '70대이상'];
@@ -551,7 +560,6 @@
       encouragements: [],      // getMyEncouragements rows(읽지 않은 격려 메시지만, 최신순)
       expandedRolePart: null,  // '인도자'|'교사'|'섬김이'|'협력교사'|null — 내 전도 활동 보기에서 펼친 역할
       expandedStage: null,     // 펼친 역할 안에서 대상자 목록을 연 단계
-      roleIdentity: '',        // 나는 OO형(인도자/교사/섬김이/협력) — 교사프로필 U열
       view: 'dashboard',       // 'dashboard' | 'targetDetail'
       detailTargetId: null,
       detailJournal: null,     // getTargetJournal 응답
@@ -561,27 +569,6 @@
       aiFeedback: {},          // 활동 행 키 -> { loading, text }
       coachReplyNotif: [],     // 2026-09-18: 아직 안 본 교관 답변 완료 배너용 (getHistory 필터 결과)
       coachAccess: null,       // 2026-09-18: 하단 "교관" 탭 진입 가능 여부 캐시 — null=미확인, true/false=getMyCoach 결과
-      // 2026-09-19: "협력 교사 찾기" 전면 개편 → "내 명함" + "나 가능해요"(신규) + 교사간 채팅.
-      card: {
-        open: false,            // 섹션 펼침 여부(기본 접힘)
-        my: null,               // getTeacherProfile(본인) 응답(없으면 null)
-        myLoading: false,
-        myForm: { career: '', oneLiner: '', tagPresets: [], tagsCustom: '', tools: '', bio: '', phone: '', phonePublic: false, photoUrl: '' },
-        saving: false,
-        note: '',
-        filterScope: 'mine', filterDept: '', filterTag: '', // filterScope: 'all'|'mine'|'dept'
-        feed: null,             // searchTeachers 응답 { myRegion, myDept, rows, total }
-        feedOffset: 0,
-        feedLoading: false
-      },
-      avail: {
-        open: false,
-        myForm: { roles: [], days: [], times: [], period: '이번 주', customStart: '', customEnd: '', regionScope: '내 지역만', note: '' },
-        saving: false,
-        note: '',
-        list: null,             // getAvailabilityList 응답 { myRegion, rows }
-        listLoading: false
-      },
       form: {
         date: todayStr(),
         roles: [],
@@ -600,16 +587,14 @@
       home.loading = true; home.error = '';
       renderHome();
       try {
-        const [tierRes, actRes, gospelRes, centerRes, targetRes, encRes, identRes] = await Promise.all([
+        const [tierRes, actRes, gospelRes, centerRes, targetRes, encRes] = await Promise.all([
           callApi({ action: 'getMyTierStatus', memberId }),
           callApi({ action: 'getMyActivities', memberId }),
           callApi({ action: 'getMyGospelLeads', memberId }),
           callApi({ action: 'getMyCenterLeads', memberId }),
           callApi({ action: 'getMyTargets', memberId }),
-          callApi({ action: 'getMyEncouragements', memberId }),
-          callApi({ action: 'getRoleIdentity', memberId }).catch(() => null)
+          callApi({ action: 'getMyEncouragements', memberId })
         ]);
-        home.roleIdentity = (identRes && identRes.identity) || '';
         if (tierRes && !tierRes.error) home.tierStatus = tierRes;
         home.monthlyActRes = (actRes && !actRes.error) ? actRes : { rows: [], roleCounts: {}, roleItemCounts: {} };
         home.gospelLeads = (gospelRes && gospelRes.rows) || [];
@@ -816,42 +801,6 @@
         </div>`;
     }
 
-    // ============ C-2. 나는 OO형 (역할 정체성) — 선택 즉시 저장, 연결방 내 명함에 자동 반영 ============
-    const IDENTITY_OPTIONS = [
-      { v: '인도자', icon: '🔴', label: '인도자', sub: '전도 중심' },
-      { v: '교사',   icon: '🟢', label: '교사',   sub: '역량 중심' },
-      { v: '섬김이', icon: '🔵', label: '섬김이', sub: '동행 중심' },
-      { v: '협력',   icon: '🤝', label: '협력',   sub: '지원 중심' }
-    ];
-    async function selectRoleIdentity(v) {
-      const prev = home.roleIdentity;
-      if (prev === v) return;
-      home.roleIdentity = v; renderHome();
-      try {
-        const res = await callApi({ action: 'saveRoleIdentity', memberId, identity: v });
-        if (res && res.error) throw new Error(res.error);
-      } catch (e) {
-        home.roleIdentity = prev; renderHome();
-        alert('저장하지 못했어요: ' + e.message);
-      }
-    }
-    function roleIdentityHtml() {
-      const cur = home.roleIdentity;
-      const cells = IDENTITY_OPTIONS.map(o => {
-        const on = cur === o.v;
-        return `<button type="button" onclick="selectRoleIdentity('${o.v}')" style="min-height:64px;border-radius:12px;padding:8px 10px;text-align:left;background:${on ? '#5B4FCF' : '#fff'};color:${on ? '#fff' : '#333'};border:1.5px solid ${on ? '#5B4FCF' : '#D5D5E0'}">
-          <div style="font-size:16px;font-weight:700">${o.icon} ${o.label}</div>
-          <div style="font-size:12px;opacity:${on ? .85 : .6}">${o.sub}</div>
-        </button>`;
-      }).join('');
-      return `
-        <div class="px-4">
-          <div class="text-sm font-bold text-base-content mb-1">나는 어떤 교사인가요?</div>
-          <div class="text-[11px] mb-3" style="color:#888">${cur ? `나는 ${esc(cur)}형 · 연결방 내 명함에 표시돼요` : '선택하면 바로 저장되고 연결방 내 명함에 표시돼요'}</div>
-          <div class="grid grid-cols-2 gap-3">${cells}</div>
-        </div>`;
-    }
-
     // ============ D. 활동 기록 (항상 펼쳐진 상태, Step1~5) ============
 
     function activityFormHtml() {
@@ -862,7 +811,6 @@
       const isConsult = f.activityItem === '상담1' || f.activityItem === '상담2';
       const isGospel = f.activityItem === '복음방';
       const extraTitleLabel = isConsult ? '상담 제목' : (isGospel ? '과목 제목' : '');
-      const temp = stageTemp(f.targetStage);
 
       return `
         <div class="card card-border bg-base-100 shadow-sm mx-4 kko-form">
@@ -910,11 +858,7 @@
 
             <div class="border-t border-base-200 pt-3">
               <div class="text-xs font-bold text-base-content/50 mb-2">④ 대상자 일지</div>
-              <div class="rounded-box p-3" style="background:${temp.bg};border:1px solid ${temp.border};transition:background .3s ease,border-color .3s ease">
-                <div class="flex items-center gap-1.5 mb-3">
-                  <span style="font-size:18px;line-height:1">🌡️</span>
-                  <span class="text-xs font-bold" style="color:${temp.text}">${f.targetStage ? `관계 온도: ${esc(f.targetStage)} (${esc(temp.label)})` : '관계 온도: 단계를 선택하면 표시돼요'}</span>
-                </div>
+              <div>
                 <div class="grid grid-cols-2 gap-2 mb-2">
                   <input type="text" id="af-tname" placeholder="이름" class="input input-bordered input-sm w-full col-span-2" value="${esc(f.targetName)}">
                   <select id="af-tgender" class="select select-bordered select-sm w-full">
@@ -983,9 +927,7 @@
       const bindChange = (id, key) => { const el = document.getElementById(id); if (el) el.onchange = e => { f[key] = e.target.value; }; };
       bindChange('af-tgender', 'targetGender');
       bindChange('af-tage', 'targetAgeGroup');
-      // af-tstage는 관계 온도계 카드 배경을 실시간으로 바꿔야 해서 다른 필드와 달리 renderHome() 호출.
-      const tstageEl = document.getElementById('af-tstage');
-      if (tstageEl) tstageEl.onchange = e => { f.targetStage = e.target.value; renderHome(); };
+      bindChange('af-tstage', 'targetStage');
 
       document.querySelectorAll('.af-reaction-radio').forEach(radio => {
         radio.onchange = e => { f.reaction = e.target.value; };
@@ -1467,444 +1409,6 @@
       return `<div class="${sizeCls} rounded-full flex items-center justify-center shrink-0 text-white font-bold" style="background:#5B4FCF;font-size:1.1em">${initial}</div>`;
     }
 
-    // ---------- 내 명함 ----------
-
-    // 저장된 tags 문자열("#상담경험 #나만의태그")을 프리셋 선택값/직접입력값으로 분리(수정 폼 채우기용).
-    function splitCardTags(tagsStr) {
-      const tokens = String(tagsStr || '').split(/\s+/).map(t => t.trim()).filter(Boolean);
-      const presets = [], customTokens = [];
-      tokens.forEach(t => {
-        const bare = t.startsWith('#') ? t.slice(1) : t;
-        if (CARD_TAG_PRESETS.includes(bare)) presets.push(bare);
-        else customTokens.push(t.startsWith('#') ? t : ('#' + t));
-      });
-      return { presets, custom: customTokens.join(' ') };
-    }
-    // 프리셋 선택값 + 직접입력값을 저장용 tags 문자열로 합침.
-    function joinCardTags(tagPresets, tagsCustom) {
-      const presetTags = (tagPresets || []).map(t => '#' + t);
-      const customTags = String(tagsCustom || '').split(/\s+/).map(t => t.trim()).filter(Boolean).map(t => t.startsWith('#') ? t : ('#' + t));
-      return presetTags.concat(customTags).join(' ');
-    }
-
-    async function loadMyCard() {
-      const c = home.card;
-      c.myLoading = true;
-      renderHome();
-      try {
-        const res = await callApi({ action: 'getTeacherProfile', memberId });
-        c.my = (res && !res.error) ? res : null;
-        if (c.my) {
-          const { presets, custom } = splitCardTags(c.my.tags || '');
-          c.myForm = {
-            career: c.my.career || '', oneLiner: c.my.oneLiner || '', tagPresets: presets, tagsCustom: custom,
-            tools: c.my.tools || '', bio: c.my.bio || '', phone: c.my.phone || '',
-            phonePublic: !!c.my.phonePublic, photoUrl: c.my.photoUrl || ''
-          };
-        }
-      } catch (e) { /* 실패해도 등록 폼은 빈 값으로 계속 쓸 수 있음 */ }
-      c.myLoading = false;
-      renderHome();
-    }
-
-    async function saveMyCard() {
-      const c = home.card;
-      const f = c.myForm;
-      if (!String(f.career).trim()) { c.note = '⚠️ 교사 경력(년차)은 필수입니다.'; renderHome(); return; }
-      if (!f.oneLiner.trim()) { c.note = '⚠️ 한 줄 소개는 필수입니다.'; renderHome(); return; }
-      c.saving = true; c.note = '';
-      renderHome();
-      try {
-        const tags = joinCardTags(f.tagPresets, f.tagsCustom);
-        const res = await callApi({ action: 'saveTeacherProfile', memberId, ...f, tags, oneLiner: f.oneLiner.trim().slice(0, 30), bio: f.bio.slice(0, 100) });
-        if (res && res.error) throw new Error(res.error);
-        c.my = res;
-        c.note = '✅ 명함이 저장되었습니다.';
-        searchCardFeed(true); // 피드에도 즉시 반영
-      } catch (e) {
-        c.note = '⚠️ 저장 실패: ' + (e.message || e);
-      }
-      c.saving = false;
-      renderHome();
-    }
-
-    async function deleteMyCard() {
-      if (!confirm('명함을 삭제할까요? 등록해둔 내용이 모두 지워집니다.')) return;
-      const c = home.card;
-      c.saving = true; c.note = '';
-      renderHome();
-      try {
-        const res = await callApi({ action: 'saveTeacherProfile', memberId, delete: true });
-        if (res && res.error) throw new Error(res.error);
-        c.my = null;
-        c.myForm = { career: '', oneLiner: '', tagPresets: [], tagsCustom: '', tools: '', bio: '', phone: '', phonePublic: false, photoUrl: '' };
-        c.note = '🗑️ 명함을 삭제했습니다.';
-        searchCardFeed(true);
-      } catch (e) {
-        c.note = '⚠️ 삭제 실패: ' + (e.message || e);
-      }
-      c.saving = false;
-      renderHome();
-    }
-
-    function buildMyCardShareText() {
-      const r = home.card.my;
-      if (!r) return '';
-      const lines = [
-        `[명함] ${name} 교사님`,
-        [r.dept, r.region].filter(Boolean).join(' '),
-        r.oneLiner ? `"${r.oneLiner}"` : '',
-        r.tags || '',
-        '하츠 앱에서 명함을 확인하고 채팅으로 연락해보세요!'
-      ].filter(Boolean);
-      return lines.join('\n');
-    }
-
-    async function shareMyCard() {
-      if (!home.card.my) { alert('먼저 명함을 등록해주세요.'); return; }
-      const text = buildMyCardShareText();
-      if (navigator.share) {
-        try { await navigator.share({ text }); return; } catch (e) { /* 취소해도 무시 */ }
-      }
-      try {
-        await navigator.clipboard.writeText(text);
-        alert('명함 공유 문구가 클립보드에 복사되었습니다. 카카오톡에 붙여넣어 보내보세요!');
-      } catch (e) { alert(text); }
-    }
-
-    // 텔레그램 공유 — 별도 봇/토큰 없이 텔레그램 공식 공유 인텐트(t.me/share/url)로 대화 상대를 직접 골라 전송.
-    function shareMyCardTelegram() {
-      if (!home.card.my) { alert('먼저 명함을 등록해주세요.'); return; }
-      const text = buildMyCardShareText();
-      const url = 'https://t.me/share/url?url=' + encodeURIComponent(location.href) + '&text=' + encodeURIComponent(text);
-      window.open(url, '_blank');
-    }
-
-    // reset=true: 필터 바뀜(처음부터 새로 조회) / reset=false: "더 보기"(이어 붙이기)
-    async function searchCardFeed(reset) {
-      const c = home.card;
-      if (reset) { c.feedOffset = 0; c.feed = null; }
-      c.feedLoading = true;
-      renderHome();
-      try {
-        const region = c.filterScope === 'mine' ? '__mine__' : '';
-        const dept = c.filterScope === 'dept' ? c.filterDept : '';
-        const res = await callApi({
-          action: 'searchTeachers', memberId,
-          region, dept, tag: c.filterTag.trim(), offset: c.feedOffset, limit: 20
-        });
-        if (res && !res.error) {
-          const rows = (c.feed && !reset) ? c.feed.rows.concat(res.rows) : res.rows;
-          c.feed = { ...res, rows };
-          c.feedOffset = rows.length;
-        } else {
-          c.feed = { rows: [], total: 0, error: (res && res.error) || '불러오기 실패' };
-        }
-      } catch (e) {
-        c.feed = { rows: [], total: 0, error: String(e.message || e) };
-      }
-      c.feedLoading = false;
-      renderHome();
-    }
-
-    function toggleCardSection() {
-      const c = home.card;
-      c.open = !c.open;
-      renderHome();
-      if (c.open && !c.my && !c.myLoading) loadMyCard(); // 처음 펼칠 때만 로드
-      if (c.open && !c.feed) searchCardFeed(true);
-    }
-
-    function myCardFormHtml() {
-      const c = home.card;
-      const f = c.myForm;
-      if (c.myLoading) return `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`;
-      return `
-        <div class="flex items-center gap-3 mb-3">
-          ${profilePhotoHtml(f.photoUrl, 'w-16 h-16', name)}
-          <div class="flex-1">
-            <input id="card-photo" type="file" accept="image/*" class="file-input file-input-bordered file-input-xs w-full">
-            ${f.photoUrl ? `<button id="card-photo-clear" class="text-[10px] text-error mt-1">사진 지우기</button>` : ''}
-          </div>
-        </div>
-        <div class="text-xs font-bold text-base-content/50 mb-1">교사 경력 <span class="text-error">*</span></div>
-        <div class="join w-full mb-2">
-          <input id="card-career" type="number" min="0" placeholder="예: 5" class="input input-bordered input-xs join-item w-full" value="${esc(f.career)}">
-          <span class="join-item flex items-center px-3 text-xs bg-base-200">년차</span>
-        </div>
-        <div class="text-xs font-bold text-base-content/50 mb-1">한 줄 소개 (최대 30자) <span class="text-error">*</span></div>
-        <input id="card-oneLiner" type="text" maxlength="30" placeholder="예: 함께 웃으며 섬기는 교사입니다" class="input input-bordered input-xs w-full mb-2" value="${esc(f.oneLiner)}">
-        <div class="text-xs font-bold text-base-content/50 mb-1">특기 태그 (선택, 유형을 골라주세요 — 복수 선택 가능)</div>
-        <div class="mb-1.5">${chipCheckboxGroupHtml('card-tag-preset-cb', CARD_TAG_PRESETS, f.tagPresets, t => '#' + t)}</div>
-        <input id="card-tags-custom" type="text" placeholder="목록에 없으면 직접 입력 (예: #나만의태그, 여러 개는 띄어쓰기)" class="input input-bordered input-xs w-full mb-2" value="${esc(f.tagsCustom)}">
-        <div class="text-xs font-bold text-base-content/50 mb-1">전도 도구·자격증 (선택)</div>
-        <input id="card-tools" type="text" placeholder="예: HARTS수료 / 상담사2급" class="input input-bordered input-xs w-full mb-2" value="${esc(f.tools)}">
-        <div class="text-xs font-bold text-base-content/50 mb-1">한 마디 더 (선택, 최대 100자)</div>
-        <textarea id="card-bio" rows="2" maxlength="100" placeholder="인스타 바이오처럼 짧게" class="textarea textarea-bordered textarea-xs w-full mb-2">${esc(f.bio)}</textarea>
-        <div class="text-xs font-bold text-base-content/50 mb-1">전화번호 (선택)</div>
-        <input id="card-phone" type="tel" placeholder="예: 010-1234-5678" class="input input-bordered input-xs w-full mb-1.5" value="${esc(f.phone)}">
-        <label class="flex items-center gap-1.5 text-[11px] text-base-content/60 mb-2 cursor-pointer">
-          <input id="card-phonePublic" type="checkbox" class="checkbox checkbox-xs" ${f.phonePublic ? 'checked' : ''}> 전화번호 공개 (끄면 채팅으로만 연락 가능)
-        </label>
-        <div class="flex gap-2">
-          <button id="card-save" class="btn btn-primary btn-xs flex-1" ${c.saving ? 'disabled' : ''}>${c.saving ? '저장 중...' : (c.my ? '수정 저장' : '명함 등록')}</button>
-          ${c.my ? `<button id="card-delete" class="btn btn-outline btn-error btn-xs" ${c.saving ? 'disabled' : ''}>삭제</button>` : ''}
-        </div>
-        ${c.note ? `<div class="text-[11px] mt-1.5 font-bold ${c.note.startsWith('⚠️') ? 'text-error' : 'text-success'}">${esc(c.note)}</div>` : ''}
-      `;
-    }
-
-    // 명함 한 장 — isMine이면 [수정하기] 미리보기 느낌(버튼 없이 미리보기), 아니면 채팅/전화 버튼.
-    function cardHtml(r, isMine) {
-      const canCall = !!(r.phonePublic && r.phone);
-      const metaBits = [
-        `교사경력 ${esc(r.career || '-')}년`,
-        r.lastActiveLabel ? `최근활동 ${esc(r.lastActiveLabel)}` : '',
-        r.leadCount ? `센터인도 ${r.leadCount}건` : ''
-      ].filter(Boolean).join(' · ');
-      return `
-        <div class="p-3 kko-card-in" style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
-          <div class="flex items-start gap-2.5 mb-2">
-            ${profilePhotoHtml(r.photoUrl, 'w-12 h-12', r.name || name)}
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-bold truncate" style="color:#222222">${esc(isMine ? name : maskName(r.name))}</div>
-              <div class="text-[11px] flex items-center gap-1 flex-wrap" style="color:#888888">
-                <span>${esc(r.dept || '-')} ${esc(r.region || '')}</span>
-                ${tierBadgeHtml(r.tier)}
-              </div>
-              ${metaBits ? `<div class="text-[10px] mt-0.5" style="color:#AAAAAA">${metaBits}</div>` : ''}
-            </div>
-          </div>
-          ${r.oneLiner ? `<div class="text-[12px] font-bold mb-1.5" style="color:#333333">"${esc(r.oneLiner)}"</div>` : ''}
-          ${tagPillsHtml(r.tags, '#EDE9FF', '#5B4FCF')}
-          ${r.tools ? `<div class="flex flex-wrap gap-1 mb-1.5">${r.tools.split(/[,\/·]/).map(t => t.trim()).filter(Boolean).map(t => `<span class="text-[10px] font-bold px-2 py-1 rounded-full" style="background:#EEEEEE;color:#888888">${esc(t)}</span>`).join('')}</div>` : ''}
-          ${r.bio ? `<div class="text-[11px] mb-1.5" style="color:#888888">"${esc(r.bio)}"</div>` : ''}
-          ${isMine ? '' : `
-            ${canCall ? `<div class="text-[10px] mb-1" style="color:#AAAAAA">${maskPhone(r.phone)}</div>` : ''}
-            <div class="grid ${canCall ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
-              <button class="card-chat-btn kko-btn-outline" data-mid="${esc(r.memberId)}" data-name="${esc(r.name)}">💬 채팅하기</button>
-              ${canCall ? `<a href="${telHref(r.phone)}" class="kko-btn-outline" style="text-decoration:none">📞 전화하기</a>` : ''}
-            </div>`}
-        </div>`;
-    }
-
-    function cardSectionHtml() {
-      const c = home.card;
-      const feed = c.feed;
-      return `
-        <div class="card card-border bg-base-100 shadow-sm mx-4">
-          <div class="card-body p-4">
-            <button id="card-toggle" class="flex items-center justify-between w-full text-left">
-              <span class="text-sm font-bold text-base-content">🪪 내 명함</span>
-              <span class="text-xs text-base-content/40">${c.open ? '접기 ▲' : '펼치기 ▼'}</span>
-            </button>
-
-            ${c.open ? `
-              <div class="mt-3 border-t border-base-200 pt-3">
-                <div class="flex items-center justify-between mb-1.5">
-                  <div class="text-xs font-bold text-base-content/50">내 명함 (등록해야 다른 교사가 나를 찾을 수 있어요)</div>
-                  ${c.my ? `<div class="flex gap-2 shrink-0">
-                    <button id="card-share" class="text-[11px] font-bold" style="color:#5B4FCF">공유하기 ↗</button>
-                    <button id="card-share-telegram" class="text-[11px] font-bold" style="color:#229ED9">텔레그램 ↗</button>
-                  </div>` : ''}
-                </div>
-                ${c.my ? `<div class="mb-3">${cardHtml(c.my, true)}</div>` : ''}
-                <div class="border border-base-300 rounded-box p-3 mb-4">${myCardFormHtml()}</div>
-
-                <div class="text-xs font-bold text-base-content/50 mb-1.5">명함 피드</div>
-                <div class="flex flex-wrap gap-2 mb-2">
-                  <select id="card-f-scope" class="select select-bordered select-xs">
-                    <option value="mine" ${c.filterScope === 'mine' ? 'selected' : ''}>내 지역</option>
-                    <option value="all" ${c.filterScope === 'all' ? 'selected' : ''}>전체</option>
-                    <option value="dept" ${c.filterScope === 'dept' ? 'selected' : ''}>부서별</option>
-                  </select>
-                  ${c.filterScope === 'dept' ? `
-                    <select id="card-f-dept" class="select select-bordered select-xs">
-                      ${DEPT_OPTIONS.map(d => `<option value="${esc(d)}" ${c.filterDept === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}
-                    </select>` : ''}
-                  <input id="card-f-tag" type="text" placeholder="태그 검색 (Enter)" class="input input-bordered input-xs flex-1 min-w-[100px]" value="${esc(c.filterTag)}">
-                </div>
-
-                ${c.feedLoading && (!feed || !feed.rows.length) ? `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`
-                  : !feed ? ''
-                    : feed.error ? `<div class="alert alert-error py-2 text-xs">⚠️ ${esc(feed.error)}</div>`
-                      : feed.rows.length === 0 ? `<div class="text-xs text-base-content/40 text-center py-6">명함을 등록한 교사가 아직 없거나, 조건에 맞는 교사가 없습니다.</div>`
-                        : `
-                          <div class="text-[10px] text-base-content/40 mb-2">${feed.total}명 중 ${feed.rows.length}명 표시 · 명함을 등록한 교사만 검색됩니다</div>
-                          <div class="flex flex-col gap-2">${feed.rows.map(r => cardHtml(r, false)).join('')}</div>
-                          ${feed.rows.length < feed.total ? `<button id="card-load-more" class="kko-btn-outline mt-2" ${c.feedLoading ? 'disabled' : ''}>${c.feedLoading ? '불러오는 중...' : '더 보기'}</button>` : ''}
-                        `}
-              </div>` : ''}
-          </div>
-        </div>
-      `;
-    }
-
-    // ---------- 나 가능해요 ----------
-
-    async function loadAvailList() {
-      const c = home.avail;
-      c.listLoading = true;
-      renderHome();
-      try {
-        const res = await callApi({ action: 'getAvailabilityList', memberId });
-        c.list = (res && !res.error) ? res : { rows: [], error: (res && res.error) || '불러오기 실패' };
-      } catch (e) {
-        c.list = { rows: [], error: String(e.message || e) };
-      }
-      c.listLoading = false;
-      renderHome();
-    }
-
-    async function saveMyAvailability() {
-      const c = home.avail;
-      const f = c.myForm;
-      if (!f.roles.length || !f.days.length || !f.period) {
-        c.note = '⚠️ 가능 역할·요일·기간은 1개 이상 선택해야 합니다.';
-        renderHome();
-        return;
-      }
-      if (f.period === '직접 지정' && (!f.customStart || !f.customEnd)) {
-        c.note = '⚠️ 시작일과 종료일을 모두 선택해주세요.';
-        renderHome();
-        return;
-      }
-      c.saving = true; c.note = '';
-      renderHome();
-      try {
-        const res = await callApi({ action: 'saveAvailability', memberId, ...f, note: f.note.trim().slice(0, 50) });
-        if (res && res.error) throw new Error(res.error);
-        c.note = '✅ 신청이 등록되었습니다.';
-        loadAvailList();
-      } catch (e) {
-        c.note = '⚠️ 등록 실패: ' + (e.message || e);
-      }
-      c.saving = false;
-      renderHome();
-    }
-
-    async function cancelMyAvailability() {
-      if (!confirm('신청을 취소할까요?')) return;
-      const c = home.avail;
-      c.saving = true; c.note = '';
-      renderHome();
-      try {
-        const res = await callApi({ action: 'cancelAvailability', memberId });
-        if (res && res.error) throw new Error(res.error);
-        c.note = '🗑️ 신청을 취소했습니다.';
-        loadAvailList();
-      } catch (e) {
-        c.note = '⚠️ 취소 실패: ' + (e.message || e);
-      }
-      c.saving = false;
-      renderHome();
-    }
-
-    function toggleAvailSection() {
-      const c = home.avail;
-      c.open = !c.open;
-      renderHome();
-      if (c.open && !c.list) loadAvailList();
-    }
-
-    function availFormHtml() {
-      const c = home.avail;
-      const f = c.myForm;
-      return `
-        <div class="text-xs font-bold text-base-content/50 mb-1">가능 역할 (복수 선택) <span class="text-error">*</span></div>
-        <div class="mb-2">${chipCheckboxGroupHtml('avail-role-cb', AVAIL_ROLES, f.roles)}</div>
-        <div class="text-xs font-bold text-base-content/50 mb-1">가능 요일 (복수 선택) <span class="text-error">*</span></div>
-        <div class="mb-2">${chipCheckboxGroupHtml('avail-day-cb', AVAIL_DAYS, f.days)}</div>
-        <div class="text-xs font-bold text-base-content/50 mb-1">가능 시간대 (복수 선택, 선택 사항)</div>
-        <div class="mb-2">${chipCheckboxGroupHtml('avail-time-cb', AVAIL_TIMES, f.times)}</div>
-        <div class="text-xs font-bold text-base-content/50 mb-1">기간 <span class="text-error">*</span></div>
-        <div class="mb-2">${radioGroupHtml('avail-period', AVAIL_PERIODS, f.period)}</div>
-        ${f.period === '직접 지정' ? `
-          <div class="grid grid-cols-2 gap-2 mb-2">
-            <div>
-              <div class="text-[10px] text-base-content/40 mb-0.5">시작일</div>
-              <input id="avail-customStart" type="date" class="input input-bordered input-xs w-full" value="${esc(f.customStart)}">
-            </div>
-            <div>
-              <div class="text-[10px] text-base-content/40 mb-0.5">종료일</div>
-              <input id="avail-customEnd" type="date" class="input input-bordered input-xs w-full" value="${esc(f.customEnd)}">
-            </div>
-          </div>` : ''}
-        <div class="text-xs font-bold text-base-content/50 mb-1">가능 지역 범위 (선택)</div>
-        <div class="mb-2">${radioGroupHtml('avail-regionScope', AVAIL_REGION_SCOPES, f.regionScope)}</div>
-        <div class="text-xs font-bold text-base-content/50 mb-1">한 마디 (선택, 최대 50자)</div>
-        <input id="avail-note" type="text" maxlength="50" placeholder="예: 복음방 동행 가능해요!" class="input input-bordered input-xs w-full mb-2" value="${esc(f.note)}">
-        <div class="flex gap-2">
-          <button id="avail-save" class="btn btn-primary btn-xs flex-1" ${c.saving ? 'disabled' : ''}>${c.saving ? '등록 중...' : '신청'}</button>
-          <button id="avail-cancel" class="btn btn-outline btn-error btn-xs" ${c.saving ? 'disabled' : ''}>신청 취소</button>
-        </div>
-        ${c.note ? `<div class="text-[11px] mt-1.5 font-bold ${c.note.startsWith('⚠️') ? 'text-error' : 'text-success'}">${esc(c.note)}</div>` : ''}
-      `;
-    }
-
-    function availCardHtml(r) {
-      const isMine = String(r.memberId) === String(memberId);
-      const canCall = !!(r.phonePublic && r.phone);
-      const dday = ddayLabel(r.expiresAt);
-      return `
-        <div class="p-3 kko-card-in" style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08)">
-          <div class="flex items-start gap-2.5 mb-2">
-            ${profilePhotoHtml(r.photoUrl, 'w-11 h-11', r.name)}
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-bold truncate" style="color:#222222">${esc(isMine ? name + ' (나)' : maskName(r.name))}</div>
-              <div class="text-[11px]" style="color:#888888">${esc(r.dept || '-')} ${esc(r.region || '')}</div>
-            </div>
-          </div>
-          <div class="text-[12px] font-bold mb-1" style="color:#5B4FCF">🙋 ${r.roles.map(roleShortLabel).join('·')} 가능</div>
-          <div class="text-[11px] mb-1" style="color:#666666">📅 ${esc(r.days.join('·'))}${r.times.length ? ' / ' + esc(r.times.join('·')) : ''}</div>
-          <div class="text-[11px] mb-1.5" style="color:#666666">🗓️ ${esc(r.period)} ${dday ? `<b style="color:#D94040">${dday}</b>` : ''}</div>
-          ${r.note ? `<div class="text-[11px] mb-1.5" style="color:#888888">"${esc(r.note)}"</div>` : ''}
-          ${isMine ? '' : `
-            <div class="grid ${canCall ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
-              <button class="avail-chat-btn kko-btn-outline" data-mid="${esc(r.memberId)}" data-name="${esc(r.name)}">💬 채팅하기</button>
-              ${canCall ? `<a href="${telHref(r.phone)}" class="kko-btn-outline" style="text-decoration:none">📞 전화하기</a>` : ''}
-            </div>`}
-        </div>`;
-    }
-
-    function availSectionHtml() {
-      const c = home.avail;
-      const list = c.list;
-      const mine = list && list.rows.find(r => String(r.memberId) === String(memberId));
-      const soonExpiring = mine && (ddayLabel(mine.expiresAt) === 'D-day' || ddayLabel(mine.expiresAt) === 'D-1');
-      return `
-        <div class="rounded-box shadow-sm mx-4" style="background:linear-gradient(135deg,#ECFDF5,#D1FAE5);border:1.5px solid #6EE7B7">
-          <div class="p-4">
-            <button id="avail-toggle" class="flex items-center justify-between w-full text-left gap-2">
-              <div class="flex items-center gap-2.5">
-                <span style="font-size:30px;line-height:1">🙋</span>
-                <div>
-                  <div class="text-base font-black" style="color:#065F46">나 가능해요</div>
-                  <div class="text-[11px] font-bold" style="color:#059669">지금 도와드릴 수 있는 시간을 알려주세요!</div>
-                </div>
-              </div>
-              <span class="text-xs font-bold shrink-0" style="color:#059669">${c.open ? '접기 ▲' : '펼치기 ▼'}</span>
-            </button>
-
-            ${c.open ? `
-              <div class="mt-3 pt-3" style="border-top:1px solid #A7F3D0">
-                ${soonExpiring ? `<div class="rounded-box px-3 py-2 mb-3 text-xs font-bold" style="background:#FEF3C7;color:#92400E">⏰ 신청이 곧 만료돼요. 계속 가능하신가요? 아래에서 다시 등록해주세요.</div>` : ''}
-                <div class="border border-base-300 rounded-box p-3 mb-4">${availFormHtml()}</div>
-
-                <div class="text-xs font-bold text-base-content/50 mb-1.5">가용 피드</div>
-                ${c.listLoading ? `<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>불러오는 중...</div>`
-                  : !list ? ''
-                    : list.error ? `<div class="alert alert-error py-2 text-xs">⚠️ ${esc(list.error)}</div>`
-                      : list.rows.length === 0 ? `<div class="text-xs text-base-content/40 text-center py-6">등록된 신청이 없습니다.</div>`
-                        : `<div class="flex flex-col gap-2">${list.rows.map(availCardHtml).join('')}</div>`}
-              </div>` : ''}
-          </div>
-        </div>
-      `;
-    }
-
-    // ---------- 이벤트 바인딩 ----------
-
     function wireHistoryAndCards() {
       const ht = document.getElementById('history-toggle');
       if (ht) ht.onclick = toggleHistory;
@@ -1912,107 +1416,6 @@
         btn.onclick = () => runActivityAiFeedback(btn.dataset.key);
       });
 
-      // ── 내 명함 ──
-      const c = home.card;
-      const ct = document.getElementById('card-toggle');
-      if (ct) ct.onclick = toggleCardSection;
-      const shareBtn = document.getElementById('card-share');
-      if (shareBtn) shareBtn.onclick = shareMyCard;
-      const shareTgBtn = document.getElementById('card-share-telegram');
-      if (shareTgBtn) shareTgBtn.onclick = shareMyCardTelegram;
-
-      const pf = c.myForm;
-      const bindCardField = (id, key) => {
-        const el = document.getElementById(id);
-        if (el) el.oninput = e => { pf[key] = e.target.value; };
-      };
-      bindCardField('card-career', 'career');
-      bindCardField('card-oneLiner', 'oneLiner');
-      document.querySelectorAll('.card-tag-preset-cb').forEach(cb => {
-        cb.onchange = e => {
-          const v = e.target.value;
-          if (e.target.checked) pf.tagPresets.push(v);
-          else pf.tagPresets = pf.tagPresets.filter(t => t !== v);
-        };
-      });
-      bindCardField('card-tags-custom', 'tagsCustom');
-      bindCardField('card-tools', 'tools');
-      bindCardField('card-bio', 'bio');
-      bindCardField('card-phone', 'phone');
-      const phonePublicEl = document.getElementById('card-phonePublic');
-      if (phonePublicEl) phonePublicEl.onchange = e => { pf.phonePublic = e.target.checked; };
-      const cardPhotoInput = document.getElementById('card-photo');
-      if (cardPhotoInput) cardPhotoInput.onchange = async e => {
-        const file = e.target.files && e.target.files[0];
-        if (!file) return;
-        try { pf.photoUrl = await fileToThumbnailDataUrl(file); renderHome(); }
-        catch (err) { alert('사진을 불러오지 못했습니다: ' + err.message); }
-      };
-      const cardPhotoClear = document.getElementById('card-photo-clear');
-      if (cardPhotoClear) cardPhotoClear.onclick = () => { pf.photoUrl = ''; renderHome(); };
-      const cardSaveBtn = document.getElementById('card-save');
-      if (cardSaveBtn) cardSaveBtn.onclick = saveMyCard;
-      const cardDelBtn = document.getElementById('card-delete');
-      if (cardDelBtn) cardDelBtn.onclick = deleteMyCard;
-
-      const scopeEl = document.getElementById('card-f-scope');
-      if (scopeEl) scopeEl.onchange = e => { c.filterScope = e.target.value; searchCardFeed(true); };
-      const deptEl = document.getElementById('card-f-dept');
-      if (deptEl) deptEl.onchange = e => { c.filterDept = e.target.value; searchCardFeed(true); };
-      const tagEl = document.getElementById('card-f-tag');
-      if (tagEl) {
-        tagEl.oninput = e => { c.filterTag = e.target.value; };
-        tagEl.onkeydown = e => { if (e.key === 'Enter') searchCardFeed(true); };
-      }
-      const loadMoreBtn = document.getElementById('card-load-more');
-      if (loadMoreBtn) loadMoreBtn.onclick = () => searchCardFeed(false);
-      document.querySelectorAll('.card-chat-btn').forEach(btn => {
-        btn.onclick = () => openChatWith(btn.dataset.mid, btn.dataset.name);
-      });
-
-      // ── 나 가능해요 ──
-      const ac = home.avail;
-      const at = document.getElementById('avail-toggle');
-      if (at) at.onclick = toggleAvailSection;
-      const af = ac.myForm;
-      document.querySelectorAll('.avail-role-cb').forEach(cb => {
-        cb.onchange = e => {
-          if (e.target.checked) af.roles.push(e.target.value);
-          else af.roles = af.roles.filter(v => v !== e.target.value);
-        };
-      });
-      document.querySelectorAll('.avail-day-cb').forEach(cb => {
-        cb.onchange = e => {
-          if (e.target.checked) af.days.push(e.target.value);
-          else af.days = af.days.filter(v => v !== e.target.value);
-        };
-      });
-      document.querySelectorAll('.avail-time-cb').forEach(cb => {
-        cb.onchange = e => {
-          if (e.target.checked) af.times.push(e.target.value);
-          else af.times = af.times.filter(v => v !== e.target.value);
-        };
-      });
-      document.querySelectorAll('.avail-period-radio').forEach(rb => {
-        // 기간을 "직접 지정"으로 바꾸면 날짜 입력칸이 나타나야 해서 다시 그림(다른 선택지는 굳이 안 그려도 되지만 통일).
-        rb.onchange = e => { af.period = e.target.value; renderHome(); };
-      });
-      const csEl = document.getElementById('avail-customStart');
-      if (csEl) csEl.oninput = e => { af.customStart = e.target.value; };
-      const ceEl = document.getElementById('avail-customEnd');
-      if (ceEl) ceEl.oninput = e => { af.customEnd = e.target.value; };
-      document.querySelectorAll('.avail-regionScope-radio').forEach(rb => {
-        rb.onchange = e => { af.regionScope = e.target.value; };
-      });
-      const availNoteEl = document.getElementById('avail-note');
-      if (availNoteEl) availNoteEl.oninput = e => { af.note = e.target.value; };
-      const availSaveBtn = document.getElementById('avail-save');
-      if (availSaveBtn) availSaveBtn.onclick = saveMyAvailability;
-      const availCancelBtn = document.getElementById('avail-cancel');
-      if (availCancelBtn) availCancelBtn.onclick = cancelMyAvailability;
-      document.querySelectorAll('.avail-chat-btn').forEach(btn => {
-        btn.onclick = () => openChatWith(btn.dataset.mid, btn.dataset.name);
-      });
     }
 
     // ============ G. 리더 격려 메시지 배너 ============
@@ -2070,12 +1473,9 @@
           ${encouragementBannerHtml()}
           ${coachReplyBannerHtml()}
           ${myActivityViewHtml()}
-          ${roleIdentityHtml()}
           ${activityFormHtml()}
           ${activityHistorySectionHtml()}
           ${targetsSectionHtml()}
-          ${cardSectionHtml()}
-          ${availSectionHtml()}
         </div>
       `;
     }
