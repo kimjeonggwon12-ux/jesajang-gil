@@ -60,7 +60,7 @@
   .chk-chip { display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 12px; border:1.5px solid var(--color-border); border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; background:#fff; }
   .chk-chip.on { border-color:var(--color-primary); background:var(--color-primary-light); color:var(--color-primary); }
   .chk-chip input { accent-color:var(--color-primary); width:16px; height:16px; }
-  .seg { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; }
+  .seg { display:flex; flex-wrap:wrap; gap:6px; padding-bottom:2px; } /* 스크롤 없이 줄바꿈 — 끝 칩이 가려지지 않게 */
   .seg button { flex:0 0 auto; height:36px; padding:0 14px; border-radius:999px; font-size:14px; font-weight:600; border:1.5px solid var(--color-border); background:#fff; color:#666680; cursor:pointer; }
   .seg button.on { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
   .seg.small button { height:32px; font-size:13px; }
@@ -530,7 +530,7 @@ function boardCardHtml(r) {
 function boardHtml() {
   const st = S.board;
   const seg = `<div class="seg small" style="margin-bottom:8px">${[['', '유형 전체'], ...BOARD_TYPES.map(t => [t, t])].map(([v, l]) => `<button type="button" data-t="${v}" class="${st.type === v ? 'on' : ''}">${l}</button>`).join('')}</div>
-    <div class="seg small" style="margin-bottom:12px">${[['', '요청 부서 전체'], ...AFFILS.map(t => [t, t])].map(([v, l]) => `<button type="button" data-rd="${v}" class="${st.reqDept === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    <div class="seg small" style="margin-bottom:12px">${AFFILS.map(t => [t, t]).map(([v, l]) => `<button type="button" data-rd="${v}" class="${st.reqDept === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   let body;
   if (st.loading) body = spinner;
   else if (st.error) body = `<div class="kko-card" style="text-align:center;color:var(--color-error)">${esc(st.error)}<button type="button" class="kko-btn-outline" id="boardRetry" style="margin-top:12px;width:100%">다시 시도</button></div>`;
@@ -543,7 +543,7 @@ function bindBoard() {
     const t = e.target.closest('[data-t]');
     if (t) { S.board.type = t.dataset.t; loadBoard(); return; }
     const rd = e.target.closest('[data-rd]');
-    if (rd) { S.board.reqDept = rd.dataset.rd; loadBoard(); return; }
+    if (rd) { S.board.reqDept = (S.board.reqDept === rd.dataset.rd) ? '' : rd.dataset.rd; loadBoard(); return; }
     if (e.target.closest('#boardRetry')) { loadBoard(); return; }
     const ch = e.target.closest('[data-chat]');
     if (ch) { openChat(ch.dataset.chat, ch.dataset.name); return; }
