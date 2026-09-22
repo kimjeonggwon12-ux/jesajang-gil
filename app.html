@@ -357,22 +357,36 @@
     #sec-connect .kko-btn-main { display:flex; align-items:center; justify-content:center; height:var(--height-btn); border-radius:var(--radius-btn); background:var(--color-primary); color:#fff; font-size:16px; font-weight:700; border:none; width:100%; cursor:pointer; }
     #sec-connect .kko-btn-main:disabled { opacity:.5; }
     #sec-connect a.kko-btn-outline, #sec-connect .kko-btn-outline { display:inline-flex; align-items:center; justify-content:center; height:var(--height-btn-sm); border-radius:var(--radius-btn); background:#fff; color:var(--color-primary); border:1.5px solid var(--color-primary); font-size:14px; font-weight:700; padding:0 14px; cursor:pointer; text-decoration:none; flex:1; }
-    #sec-connect .kko-input { width:100%; min-height:48px; border:1px solid var(--color-border); border-radius:var(--radius-input); padding:10px 12px; font-size:15px; background:#fff; color:var(--color-text); font-family:inherit; }
+    #sec-connect .kko-input { width:100%; min-height:50px; border:1px solid var(--color-border); border-radius:var(--radius-input); padding:12px 14px; font-size:15.5px; background:#fff; color:var(--color-text); font-family:inherit; }
     #sec-connect .kko-input:focus { outline:2px solid var(--color-primary); border-color:var(--color-primary); }
     #sec-connect textarea.kko-input { min-height:84px; resize:none; }
     #sec-connect .kko-spinner { width:32px; height:32px; border-radius:50%; border:3px solid var(--color-primary-light); border-top-color:var(--color-primary); animation:kkoSpin .7s linear infinite; display:inline-block; }
-    #sec-connect .kko-tabs { display:flex; background:#fff; border-bottom:1px solid var(--color-border); position:sticky; top:0; z-index:20; }
-    #sec-connect .kko-tab { flex:1; height:48px; font-size:15px; font-weight:600; color:#999; background:none; border:none; border-bottom:3px solid transparent; cursor:pointer; }
-    #sec-connect .kko-tab.kko-tab-active { color:var(--color-primary); border-bottom-color:var(--color-primary); }
-    #sec-connect .cn-sec-title { font-size:24px; font-weight:800; color:var(--color-primary); line-height:1.25; }
-    #sec-connect .cn-sec-sub { font-size:14px; color:var(--color-text-sub); margin-top:4px; margin-bottom:18px; }
+    /* 2026-09-22: 연결 탭을 당근 스타일로 — 흰 배경 위 굵은 검은 글씨, 활성 탭만 브랜드 보라
+       밑줄. 글자도 전반적으로 키움(작다는 지적). */
+    #sec-connect .kko-tabs { display:flex; background:#fff; border-bottom:1px solid var(--dg-line); position:sticky; top:0; z-index:20; }
+    #sec-connect .kko-tab {
+      flex:1; height:52px; font-size:16px; font-weight:700; letter-spacing:-0.02em;
+      color:var(--dg-text-sub); background:none; border:none; border-bottom:2.5px solid transparent;
+      cursor:pointer; transition:color .15s ease;
+    }
+    #sec-connect .kko-tab.kko-tab-active { color:var(--dg-text); border-bottom-color:var(--color-primary); font-weight:800; }
+    /* 제목은 보라 대신 당근처럼 진한 검정 + 큼직하게 */
+    #sec-connect .cn-sec-title { font-size:24px; font-weight:800; color:var(--dg-text); line-height:1.3; letter-spacing:-0.03em; }
+    #sec-connect .cn-sec-sub { font-size:14.5px; color:var(--dg-text-sub); margin-top:5px; margin-bottom:18px; line-height:1.5; }
     #sec-connect .cn-req { color:var(--color-error); font-weight:700; }
-    #sec-connect .cn-lbl { display:block; font-size:14px; font-weight:700; margin:16px 0 6px; }
+    #sec-connect .cn-lbl { display:block; font-size:15px; font-weight:700; margin:18px 0 7px; letter-spacing:-0.02em; }
     #sec-connect .cn-lbl small { font-weight:400; color:var(--color-text-sub); }
-    #sec-connect .cn-pill { display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:600; padding:6px 12px; border-radius:999px; }
+    #sec-connect .cn-pill { display:inline-flex; align-items:center; gap:4px; font-size:13.5px; font-weight:600; padding:7px 13px; border-radius:999px; }
     #sec-connect .cn-pill-tag { background:var(--color-primary-light); color:var(--color-primary); }
     #sec-connect .cn-pill-tool { background:#EEEEEE; color:#666680; }
     #sec-connect .cn-pill button { border:none; background:none; color:inherit; font-size:15px; line-height:1; padding:0 0 0 2px; cursor:pointer; }
+    /* 2026-09-22: 폰에서 카드/폼이 좌우로 삐져나오지 않도록 여백·줄바꿈 정리 */
+    @media (max-width: 640px) {
+      #sec-connect .kko-card { padding:16px; }
+      #sec-connect .cn-seg { gap:7px; }
+      #sec-connect .cn-sec-title { font-size:22px; }
+      #sec-connect .kko-tab { font-size:15px; }
+    }
     #sec-connect .cn-role-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     #sec-connect .cn-role-btn { height:56px; border-radius:var(--radius-btn); font-size:17px; font-weight:700; background:#fff; color:#888; border:1.5px solid #D5D5E0; cursor:pointer; }
     #sec-connect .cn-role-btn.on { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
@@ -383,9 +397,9 @@
     #sec-connect .cn-chk-chip.on { border-color:var(--color-primary); background:var(--color-primary-light); color:var(--color-primary); }
     #sec-connect .cn-chk-chip input { accent-color:var(--color-primary); width:16px; height:16px; }
     #sec-connect .cn-seg { display:flex; flex-wrap:wrap; gap:6px; padding-bottom:2px; }
-    #sec-connect .cn-seg button { flex:0 0 auto; height:36px; padding:0 14px; border-radius:999px; font-size:14px; font-weight:600; border:1.5px solid var(--color-border); background:#fff; color:#666680; cursor:pointer; }
+    #sec-connect .cn-seg button { flex:0 0 auto; height:40px; padding:0 15px; border-radius:999px; font-size:15px; font-weight:600; border:1.5px solid var(--color-border); background:#fff; color:#5E636B; cursor:pointer; }
     #sec-connect .cn-seg button.on { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
-    #sec-connect .cn-seg.small button { height:32px; font-size:13px; }
+    #sec-connect .cn-seg.small button { height:36px; font-size:14px; }
     #sec-connect .cn-avatar { width:52px; height:52px; border-radius:50%; object-fit:cover; flex-shrink:0; }
     #sec-connect .cn-avatar-ph { width:52px; height:52px; border-radius:50%; background:var(--color-primary); color:#fff; font-weight:700; font-size:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
     /* daisyUI 전역 .badge 와 충돌 방지를 위해 cn- 접두사로 격리 */
@@ -393,7 +407,7 @@
     .cn-badge-tier { background:#E6F6EF; color:var(--color-success); }
     .cn-badge { display:inline-flex; align-items:center; font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; }
     #sec-connect .cn-fab { position:fixed; right:16px; bottom:76px; height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:700; border:none; box-shadow:0 4px 14px rgba(91,79,207,.4); z-index:30; cursor:pointer; }
-    #sec-connect .cn-hint { font-size:12px; color:var(--color-text-sub); margin-top:4px; }
+    #sec-connect .cn-hint { font-size:13px; color:var(--dg-text-sub); margin-top:5px; line-height:1.5; }
     .cn-lightbox { position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:9995; display:flex; align-items:center; justify-content:center; }
     .cn-lightbox img { max-width:94vw; max-height:90vh; border-radius:8px; }
     img.zoomable { cursor:zoom-in; }
