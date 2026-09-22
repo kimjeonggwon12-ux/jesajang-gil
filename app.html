@@ -6009,12 +6009,12 @@ let cnAdmData = null, cnAdmTab = 'cards';
 function cnAdmStatsHtml(s) {
   return `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
     <div class="stat-tile"><b>${s.cardCount}</b><span>등록된 명함</span></div>
-    <div class="stat-tile"><b>${s.helpOpen}</b><span>진행 중인 도와주세요 (전체 ${s.helpCount})</span></div>
+    <div class="stat-tile"><b>${s.helpOpen}</b><span>진행 중인 도움 신청 (전체 ${s.helpCount})</span></div>
     <div class="stat-tile"><b>${s.matchCount}</b><span>채팅 매칭 요청</span></div>
     <div class="stat-tile"><b>${s.matchDone}</b><span>성사 표시됨</span></div>
   </div>
   <div class="kko-card mt-3">
-    <div class="text-sm font-bold mb-2">도와주세요 유형별</div>
+    <div class="text-sm font-bold mb-2">도움 신청 유형별</div>
     <div class="flex flex-wrap gap-2 text-xs">${Object.entries(s.helpByType).map(([k,v]) => `<span class="badge2 req">${esc(k)} ${v}</span>`).join('')}</div>
   </div>`;
 }
@@ -6044,7 +6044,7 @@ function cnAdmRender() {
     ${cnAdmStatsHtml(cnAdmData.stats)}
     <div class="tabs2">
       <button data-t="cards" class="${cnAdmTab==='cards'?'on':''}">활동 신청 교사 (${cnAdmData.cards.length})</button>
-      <button data-t="helps" class="${cnAdmTab==='helps'?'on':''}">도와주세요 (${cnAdmData.helps.length})</button>
+      <button data-t="helps" class="${cnAdmTab==='helps'?'on':''}">도움 신청 (${cnAdmData.helps.length})</button>
       <button data-t="matches" class="${cnAdmTab==='matches'?'on':''}">매칭 (${cnAdmData.matches.length})</button>
     </div>
     ${cnAdmTab==='cards' ? cnAdmCardsTable(cnAdmData.cards) : cnAdmTab==='helps' ? cnAdmHelpsTable(cnAdmData.helps) : cnAdmMatchesTable(cnAdmData.matches)}
