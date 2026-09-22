@@ -214,6 +214,11 @@
     <iframe id="content" class="flex-1 w-full border-0" style="display:none"></iframe>
     <nav id="bottomTabBar">
       <!-- 2026-09-20: 탭 명칭·아이콘 변경 — 연결/내활동/AI/교재/관리 (인라인 SVG, Lucide 계열). 연결 탭은 미읽 알림 빨간 점. -->
+      <!-- 2026-09-22: "캘린더" 탭 신규(맨 앞) — 개강일·행사일 확인 + 스탭/참석자 신청 + 전도부 광고. -->
+      <button role="tab" class="tab" data-room="calendar" onclick="switchTab('calendar', this)" title="캘린더">
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /></svg></span>
+        <span class="tab-label">캘린더</span>
+      </button>
       <button role="tab" class="tab" data-room="connect" onclick="switchTab('connect', this)" title="연결">
         <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3" /><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" /><path d="m21 3 1 11h-2" /><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" /><path d="M3 4h8" /></svg><span id="connectDot" style="display:none;position:absolute;top:-2px;right:-4px;width:9px;height:9px;border-radius:50%;background:#E5322D;border:1.5px solid #fff"></span></span>
         <span class="tab-label">연결</span>
@@ -222,9 +227,10 @@
         <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg></span>
         <span class="tab-label">내활동</span>
       </button>
-      <button role="tab" class="tab" data-room="feedback" onclick="switchTab('feedback', this)" title="AI">
+      <button role="tab" class="tab" data-room="feedback" onclick="switchTab('feedback', this)" title="AI상담">
         <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" /><path d="M20 3v4" /><path d="M22 5h-4" /><path d="M4 17v2" /><path d="M5 18H3" /></svg></span>
-        <span class="tab-label">AI</span>
+        <!-- 2026-09-22: 탭 명칭 "AI"→"AI상담"(사용자 지시서). 파일/액션명은 그대로, 표시 라벨만 변경. -->
+        <span class="tab-label">AI상담</span>
       </button>
       <button role="tab" class="tab" data-room="study" onclick="switchTab('study', this)" title="교재">
         <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></svg></span>
@@ -279,13 +285,29 @@
     <form method="dialog" class="modal-backdrop"><button>닫기</button></form>
   </dialog>
 
+  <!-- 2026-09-22: 교관 선택 모달 — 활동 기록의 "교관에게 피드백 요청" 버튼에서 사용.
+       고른 교관과 연결 탭 "대화함"에 채팅방을 열고, 대상자 전도 단계 정보를 자동 전송한다. -->
+  <dialog id="coachPickModal" class="modal">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-1">🧑‍🏫 교관님께 피드백 요청</h3>
+      <div class="text-xs text-base-content/50 mb-3">교관을 선택하면 채팅방이 열리고, 아래 정보가 자동 전달돼요.</div>
+      <div id="coachPickInfo" class="text-xs bg-base-200 rounded-box p-2 mb-3 leading-relaxed"></div>
+      <div id="coachPickList" class="flex flex-col gap-2 max-h-72 overflow-y-auto"></div>
+      <div class="modal-action">
+        <button class="btn btn-ghost btn-sm" onclick="closeCoachPickModal()">닫기</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>닫기</button></form>
+  </dialog>
+
   <script>
     // 각 방 파일명(피드백방/공부방은 여전히 iframe) — 활동방은 이제 native(#homeContent)라 목록에 없음.
     const ROOM_FILES = {
       study: 'study-room.html',
       feedback: 'feedback-room.html',
       coach: 'admin-home.html', // 하단 "관리" 탭 — 피드백 교관 화면(coach-dashboard) 제거 후 관리자 홈으로 연결
-      connect: 'connect-room.html'
+      connect: 'connect-room.html',
+      calendar: 'calendar-room.html' // 2026-09-22 신규
     };
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
 
@@ -376,7 +398,9 @@
       if (appHeaderEl) appHeaderEl.style.display = ownHeaderRoom ? 'none' : '';
       if (greetBarEl) greetBarEl.style.display = ownHeaderRoom ? 'none' : '';
       const tailEl = document.getElementById('greetTail');
-      if (tailEl) tailEl.textContent = room === 'activity' ? ' 교사님의 활동을 기록하여 관리하세요.' : ' 교사님의 실력을 나누어주세요.';
+      if (tailEl) tailEl.textContent = room === 'activity' ? ' 교사님의 활동을 기록하여 관리하세요.'
+        : room === 'calendar' ? ' 교사님의 일정을 확인하세요.'
+        : ' 교사님의 실력을 나누어주세요.';
 
       // 연결방 안에서는 점 숨김, 다른 방으로 이동하면 미읽 재확인.
       if (room === 'connect') { const d = document.getElementById('connectDot'); if (d) d.style.display = 'none'; }
@@ -428,6 +452,48 @@
       // 2026-09-20: 수정 작업 중이라 교관 방을 누구나 열 수 있게 임시 개방(기존 getMyCoach 게이트 제거).
       // 복구하려면 이 함수를 git 이력(커밋 9ecf665 이전 로직: getMyCoach → isCoach 확인 후 switchTab)으로 되돌리면 됨.
       switchTab('coach', btnEl);
+    }
+
+    // ============ 교관에게 피드백 요청(2026-09-22 신규) ============
+    // 활동 기록(대상자 상세/일지) 항목마다 붙는 버튼 — 교관을 고르면 연결 탭 "대화함"에
+    // 채팅방을 열고, 대상자 전도 단계 정보를 첫 메시지로 자동 전송한다(연결방 코드 참고).
+    let coachPickCache = null;
+    async function openCoachPickModal(infoText) {
+      document.getElementById('coachPickInfo').textContent = infoText;
+      const listEl = document.getElementById('coachPickList');
+      listEl.innerHTML = '<div class="text-center py-6"><span class="loading loading-spinner loading-sm"></span></div>';
+      document.getElementById('coachPickModal').showModal();
+      try {
+        if (!coachPickCache) {
+          const res = await callApi({ action: 'getCoachList', memberId });
+          coachPickCache = (res && res.rows) || [];
+        }
+        if (!coachPickCache.length) {
+          listEl.innerHTML = '<div class="text-xs text-base-content/40 text-center py-6">등록된 교관이 없습니다.</div>';
+          return;
+        }
+        listEl.innerHTML = coachPickCache.map((c, i) => `
+          <button type="button" class="btn btn-sm justify-start" onclick="pickCoach(${i})">
+            <span class="badge badge-ghost badge-xs mr-1">${esc(c.dept)}${c.region ? ' ' + esc(c.region) : ''}</span>${esc(c.name)}
+          </button>`).join('');
+      } catch (e) {
+        listEl.innerHTML = `<div class="text-xs text-error text-center py-6">${esc(e.message)}</div>`;
+      }
+    }
+    function closeCoachPickModal() {
+      const d = document.getElementById('coachPickModal');
+      if (d && d.open) d.close();
+    }
+    function pickCoach(i) {
+      const c = coachPickCache && coachPickCache[i];
+      if (!c) return;
+      const infoText = document.getElementById('coachPickInfo').textContent;
+      closeCoachPickModal();
+      const params = new URLSearchParams();
+      params.set('memberId', memberId); params.set('name', name);
+      params.set('chatWith', c.coachId); params.set('chatWithName', c.name);
+      params.set('autoMsg', infoText);
+      switchTab('connect', document.querySelector('.tab[data-room="connect"]'), params);
     }
 
     // ============ 활동방(홈+활동방 통합) ============
@@ -1161,7 +1227,7 @@
       renderHome();
     }
 
-    function journalRowHtml(j) {
+    function journalRowHtml(j, idx) {
       return `
         <div class="flex gap-3 pb-3 mb-3 border-b border-base-200 last:border-0 last:pb-0 last:mb-0">
           <div class="text-[11px] text-base-content/40 w-20 shrink-0 leading-tight">${esc(String(j.submittedAt || '').split(' ')[0])}</div>
@@ -1169,13 +1235,25 @@
             <div class="flex flex-wrap items-center gap-1 mb-1">
               ${j.roles.map(r => `<span class="badge badge-ghost badge-xs">${esc(roleShortLabel(r))}</span>`).join('')}
               <span class="font-bold text-xs">${esc(j.activityItem)}</span>
+              ${j.stage ? `<span class="badge badge-ghost badge-xs">${esc(j.stage)}</span>` : ''}
               <span class="text-[10px] text-base-content/40">· ${esc(j.writerName)}</span>
             </div>
             ${j.note ? `<div class="text-xs text-base-content/60">특이사항: ${esc(j.note)}</div>` : ''}
             ${j.todayWork ? `<div class="text-xs text-base-content/60">오늘: ${esc(j.todayWork)}</div>` : ''}
             ${j.nextWork ? `<div class="text-xs text-base-content/60">다음: ${esc(j.nextWork)}</div>` : ''}
+            <!-- 2026-09-22: "교관에게 피드백 요청" — 전도 단계별 활동 기록 항목마다(사용자 지시서 ③번). -->
+            <button type="button" class="text-[11px] font-bold mt-1.5" style="color:#5B4FCF" onclick="requestCoachForJournal(${idx})">🧑‍🏫 교관에게 피드백 요청</button>
           </div>
         </div>`;
+    }
+    function requestCoachForJournal(idx) {
+      const dj = home.detailJournal; if (!dj) return;
+      const j = (dj.journal || [])[idx]; if (!j) return;
+      const parts = [`대상자: ${maskName(dj.target.targetName)}`];
+      if (j.stage) parts.push(`단계: ${j.stage}`);
+      if (j.todayWork) parts.push(`오늘 한 일: ${j.todayWork}`);
+      if (j.nextWork) parts.push(`다음 할 일: ${j.nextWork}`);
+      openCoachPickModal(parts.join(' / '));
     }
 
     function targetDetailViewHtml() {
@@ -1223,7 +1301,7 @@
               <div class="text-sm font-bold mb-3">날짜별 활동 히스토리</div>
               ${journal.length === 0
                 ? `<div class="text-xs text-base-content/40 text-center py-4">기록이 없습니다.</div>`
-                : journal.map(journalRowHtml).join('')}
+                : journal.map((j, i) => journalRowHtml(j, i)).join('')}
             </div>
           </div>
         </div>

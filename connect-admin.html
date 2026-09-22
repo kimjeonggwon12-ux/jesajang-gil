@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="jesagil">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제사장의 길 - 연결 현황 관리</title>
+<!-- 2026-09-22 신설: 관리자 탭 D."연결 현황 관리" — 활동 신청 교사 현황 / 도와주세요 현황 / 매칭 건수 관리.
+     백엔드: V2Backend.gs getConnectAdminOverview / setMatchDone. -->
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  [data-theme="jesagil"] {
+    --p: 51.06% 0.2301 276.97; --pc: 100% 0 0; --s: 66.58% 0.1574 58.32; --sc: 100% 0 0;
+    --a: 59.60% 0.1274 163.23; --ac: 100% 0 0; --n: 27.95% 0.0368 260.03; --nc: 96.70% 0.0029 264.54;
+    --b1: 100% 0 0; --b2: 96.70% 0.0029 264.54; --b3: 92.76% 0.0058 264.53; --bc: 27.81% 0.0296 256.85;
+    --in: 68.47% 0.1479 237.32; --inc: 100% 0 0; --su: 61.67% 0.1191 162.14; --suc: 100% 0 0;
+    --wa: 75.76% 0.1525 74.86; --wac: 0% 0 0; --er: 59.56% 0.1901 25.05; --erc: 100% 0 0;
+    --rounded-box: 0.75rem; --rounded-btn: 0.5rem; --rounded-badge: 1rem;
+  }
+  html, body { margin:0; padding:0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; background:#F5F5F5; }
+  :root { --color-primary:#5B4FCF; --color-primary-light:#EDE9FF; --color-text-sub:#666680; --color-border:#E8E8F0; --shadow-card:0 2px 12px rgba(0,0,0,.08); }
+  .kko-header { height:56px; background:var(--color-primary); display:flex; align-items:center; gap:10px; padding:0 16px; }
+  .kko-header a { color:#fff; text-decoration:none; }
+  .kko-title { color:#fff; font-weight:700; font-size:16px; }
+  .kko-card { background:#fff; border-radius:16px; box-shadow:var(--shadow-card); padding:16px; }
+  .stat-tile { background:#fff; border-radius:12px; box-shadow:var(--shadow-card); padding:14px; text-align:center; }
+  .stat-tile b { font-size:22px; color:var(--color-primary); display:block; }
+  .stat-tile span { font-size:12px; color:var(--color-text-sub); }
+  .tabs2 { display:flex; gap:8px; margin:14px 0 10px; }
+  .tabs2 button { flex:1; height:38px; border-radius:10px; border:1.5px solid var(--color-border); background:#fff; font-weight:700; font-size:13px; cursor:pointer; }
+  .tabs2 button.on { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:8px 6px; border-bottom:1px solid var(--color-border); text-align:left; white-space:nowrap; }
+  th { color:var(--color-text-sub); font-weight:700; font-size:12px; }
+  .wrap-table { overflow-x:auto; }
+  .badge2 { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .badge2.open { background:#E6F6EF; color:#2D9B6F; } .badge2.closed { background:#F1F1F5; color:#888; }
+  .badge2.req { background:#FFF3E0; color:#E8A020; } .badge2.done { background:#E6F6EF; color:#2D9B6F; }
+  button.mini { height:28px; padding:0 10px; border-radius:8px; border:1px solid var(--color-primary); background:#fff; color:var(--color-primary); font-size:12px; font-weight:700; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="max-w-3xl mx-auto min-h-screen" style="background:#F5F5F5">
+  <div class="kko-header"><a href="admin-home.html">‹</a><span class="kko-title">연결 현황 관리</span></div>
+  <div class="p-4" id="root"><div class="text-center py-16"><span class="loading loading-spinner"></span></div></div>
+</div>
+<script>
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+async function callApi(payload) {
+  const res = await fetch(PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+  return await res.json();
+}
+let data = null, tab = 'cards';
+function statsHtml(s) {
+  return `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div class="stat-tile"><b>${s.cardCount}</b><span>등록된 명함</span></div>
+    <div class="stat-tile"><b>${s.helpOpen}</b><span>진행 중인 도와주세요 (전체 ${s.helpCount})</span></div>
+    <div class="stat-tile"><b>${s.matchCount}</b><span>채팅 매칭 요청</span></div>
+    <div class="stat-tile"><b>${s.matchDone}</b><span>성사 표시됨</span></div>
+  </div>
+  <div class="kko-card mt-3">
+    <div class="text-sm font-bold mb-2">도와주세요 유형별</div>
+    <div class="flex flex-wrap gap-2 text-xs">${Object.entries(s.helpByType).map(([k,v]) => `<span class="badge2 req">${esc(k)} ${v}</span>`).join('')}</div>
+  </div>`;
+}
+function cardsTable(rows) {
+  if (!rows.length) return '<div class="kko-card text-center text-sm" style="color:var(--color-text-sub)">등록된 명함이 없습니다.</div>';
+  return `<div class="kko-card wrap-table"><table><thead><tr><th>이름</th><th>부서</th><th>지역</th><th>가능역할</th><th>일정</th><th>수정일</th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${esc(r.region)}</td><td>${esc((r.roles||[]).join(', '))}</td><td>${esc(r.schedType)}${r.expired ? ' (만료)' : ''}</td><td>${esc(String(r.updatedAt).slice(0,16))}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function helpsTable(rows) {
+  if (!rows.length) return '<div class="kko-card text-center text-sm" style="color:var(--color-text-sub)">등록된 글이 없습니다.</div>';
+  return `<div class="kko-card wrap-table"><table><thead><tr><th>상태</th><th>유형</th><th>부서</th><th>한마디</th><th>등록자</th><th>기간</th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td><span class="badge2 ${r.status==='진행' && !r.expired ? 'open':'closed'}">${r.status==='진행' && !r.expired ? '진행':'마감'}</span></td><td>${esc(r.type)}</td><td>${esc(r.dept)}</td><td>${esc(r.oneLiner)}</td><td>${esc(r.name)}</td><td>${esc(r.startDate)}~${esc(r.endDate)}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function matchesTable(rows) {
+  if (!rows.length) return '<div class="kko-card text-center text-sm" style="color:var(--color-text-sub)">매칭 기록이 없습니다.</div>';
+  return `<div class="kko-card wrap-table"><table><thead><tr><th>유형</th><th>요청자</th><th>상대</th><th>상태</th><th>일시</th><th></th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${esc(r.kind)}</td><td>${esc(r.fromName)}</td><td>${esc(r.toName)}</td><td><span class="badge2 ${r.status==='성사'?'done':'req'}">${esc(r.status)}</span></td><td>${esc(String(r.at).slice(0,16))}</td>
+      <td>${r.status !== '성사' ? `<button class="mini" data-done="${esc(r.matchId)}">성사 표시</button>` : ''}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function render() {
+  const root = document.getElementById('root');
+  if (!data) return;
+  root.innerHTML = `
+    ${statsHtml(data.stats)}
+    <div class="tabs2">
+      <button data-t="cards" class="${tab==='cards'?'on':''}">활동 신청 교사 (${data.cards.length})</button>
+      <button data-t="helps" class="${tab==='helps'?'on':''}">도와주세요 (${data.helps.length})</button>
+      <button data-t="matches" class="${tab==='matches'?'on':''}">매칭 (${data.matches.length})</button>
+    </div>
+    ${tab==='cards' ? cardsTable(data.cards) : tab==='helps' ? helpsTable(data.helps) : matchesTable(data.matches)}
+  `;
+  root.querySelectorAll('.tabs2 button').forEach(b => { b.onclick = () => { tab = b.dataset.t; render(); }; });
+  root.querySelectorAll('[data-done]').forEach(b => { b.onclick = async () => {
+    b.disabled = true;
+    try { await callApi({ action: 'setMatchDone', matchId: b.dataset.done, status: '성사' }); await load(); }
+    catch (e) { alert(e.message); b.disabled = false; }
+  }; });
+}
+async function load() {
+  try { data = await callApi({ action: 'getConnectAdminOverview' }); render(); }
+  catch (e) { document.getElementById('root').innerHTML = `<div class="kko-card" style="color:#D94040">${esc(e.message)}</div>`; }
+}
+load();
+</script>
+</body>
+</html>

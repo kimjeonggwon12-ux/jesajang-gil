@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="jesagil">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제사장의 길 - 캘린더 관리</title>
+<!--
+  2026-09-22 신설: 관리자 탭 D."캘린더 관리"(전도부 기능 분리).
+  - 전도 행사(개강일/행사일) 등록·수정·삭제, 전도부 광고 등록·수정·삭제
+  - 행사 스탭·기능자 신청 현황 조회, 세미나 참석자 집계(부서별·역할별, 섭외자 전도단계 분포), CSV 내보내기
+  백엔드: V2Backend.gs — getCalendarEvents/saveCalendarEvent/deleteCalendarEvent/getCalendarReport/
+          getCalendarAds/saveCalendarAd/deleteCalendarAd
+-->
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  [data-theme="jesagil"] {
+    --p: 51.06% 0.2301 276.97; --pc: 100% 0 0; --s: 66.58% 0.1574 58.32; --sc: 100% 0 0;
+    --a: 59.60% 0.1274 163.23; --ac: 100% 0 0; --n: 27.95% 0.0368 260.03; --nc: 96.70% 0.0029 264.54;
+    --b1: 100% 0 0; --b2: 96.70% 0.0029 264.54; --b3: 92.76% 0.0058 264.53; --bc: 27.81% 0.0296 256.85;
+    --in: 68.47% 0.1479 237.32; --inc: 100% 0 0; --su: 61.67% 0.1191 162.14; --suc: 100% 0 0;
+    --wa: 75.76% 0.1525 74.86; --wac: 0% 0 0; --er: 59.56% 0.1901 25.05; --erc: 100% 0 0;
+    --rounded-box: 0.75rem; --rounded-btn: 0.5rem; --rounded-badge: 1rem;
+  }
+  html, body { margin:0; padding:0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; background:#F5F5F5; }
+  :root { --color-primary:#5B4FCF; --color-primary-light:#EDE9FF; --color-text-sub:#666680; --color-border:#E8E8F0; --color-error:#D94040; --shadow-card:0 2px 12px rgba(0,0,0,.08); }
+  .kko-header { height:56px; background:var(--color-primary); display:flex; align-items:center; gap:10px; padding:0 16px; }
+  .kko-header a { color:#fff; text-decoration:none; font-size:18px; }
+  .kko-title { color:#fff; font-weight:700; font-size:16px; }
+  .kko-card { background:#fff; border-radius:16px; box-shadow:var(--shadow-card); padding:16px; margin-bottom:14px; }
+  .tabs2 { display:flex; gap:8px; margin:14px 16px 0; }
+  .tabs2 button { flex:1; height:38px; border-radius:10px; border:1.5px solid var(--color-border); background:#fff; font-weight:700; font-size:13px; cursor:pointer; }
+  .tabs2 button.on { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
+  .stat-tile { background:#fff; border-radius:12px; box-shadow:var(--shadow-card); padding:12px; text-align:center; }
+  .stat-tile b { font-size:20px; color:var(--color-primary); display:block; } .stat-tile span { font-size:11px; color:var(--color-text-sub); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:7px 6px; border-bottom:1px solid var(--color-border); text-align:left; white-space:nowrap; }
+  th { color:var(--color-text-sub); font-weight:700; font-size:12px; }
+  .wrap-table { overflow-x:auto; }
+  .inp { width:100%; min-height:40px; border:1px solid var(--color-border); border-radius:8px; padding:6px 10px; font-size:14px; font-family:inherit; }
+  .lbl { display:block; font-size:12px; font-weight:700; margin:10px 0 4px; color:var(--color-text-sub); }
+  .btn { height:40px; padding:0 16px; border-radius:10px; background:var(--color-primary); color:#fff; font-weight:700; border:none; cursor:pointer; }
+  .btn.out { background:#fff; color:var(--color-primary); border:1.5px solid var(--color-primary); }
+  .btn.danger { background:#fff; color:var(--color-error); border:1.5px solid var(--color-error); }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; color:#fff; }
+  .pill.open { background:#2D9B6F; } .pill.event { background:#E8590C; }
+  .ev-row { display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--color-border); border-radius:10px; margin-bottom:8px; }
+  .ev-row .grow { flex:1; min-width:0; }
+</style>
+</head>
+<body>
+<div class="max-w-3xl mx-auto min-h-screen" style="background:#F5F5F5">
+  <div class="kko-header"><a href="admin-home.html">‹</a><span class="kko-title">캘린더 관리</span></div>
+  <div class="tabs2">
+    <button data-t="events" class="on">행사 등록·관리</button>
+    <button data-t="report">스탭·참석자 집계</button>
+    <button data-t="ads">전도부 광고</button>
+  </div>
+  <div class="p-4" id="root"><div class="text-center py-16"><span class="loading loading-spinner"></span></div></div>
+</div>
+<script>
+const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
+const qs = new URLSearchParams(location.search);
+const ADMIN_NAME = qs.get('name') || '관리자';
+const DEPTS5 = ['교', '자', '장', '부', '청'];
+const ATT_ROLES = ['인', '교', '섬', '협'];
+const STAGES = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+async function callApi(payload) {
+  const res = await fetch(PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+  return await res.json();
+}
+let tab = 'events', events = [], ads = [], report = null, reportEventId = '';
+document.querySelectorAll('.tabs2 button').forEach(b => { b.onclick = () => { tab = b.dataset.t; document.querySelectorAll('.tabs2 button').forEach(x => x.classList.toggle('on', x === b)); render(); }; });
+
+// ---------------- 행사 등록·관리 ----------------
+async function loadEvents() {
+  const res = await callApi({ action: 'getCalendarEvents' });
+  events = (res && res.rows) || [];
+}
+function eventFormHtml(ev) {
+  const e = ev || { eventId: '', type: '행사', title: '', startDate: '', endDate: '', dept: '', place: '', desc: '' };
+  return `
+    <div class="kko-card" id="evForm">
+      <div class="font-bold mb-2">${ev ? '행사 수정' : '새 행사 등록'}</div>
+      <label class="lbl">유형</label>
+      <select class="inp" id="efType"><option value="개강" ${e.type==='개강'?'selected':''}>개강일</option><option value="행사" ${e.type==='행사'?'selected':''}>행사일</option></select>
+      <label class="lbl">제목 *</label><input class="inp" id="efTitle" value="${esc(e.title)}" maxlength="80">
+      <div style="display:flex;gap:8px"><div style="flex:1"><label class="lbl">시작일 *</label><input type="date" class="inp" id="efStart" value="${esc(e.startDate)}"></div><div style="flex:1"><label class="lbl">종료일</label><input type="date" class="inp" id="efEnd" value="${esc(e.endDate)}"></div></div>
+      <label class="lbl">장소</label><input class="inp" id="efPlace" value="${esc(e.place)}" maxlength="60">
+      <label class="lbl">담당 부서(선택)</label><input class="inp" id="efDept" value="${esc(e.dept)}" maxlength="10" placeholder="예: 전도부">
+      <label class="lbl">설명</label><textarea class="inp" id="efDesc" maxlength="1000">${esc(e.desc)}</textarea>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn out" id="efCancel">취소</button>
+        <button class="btn" id="efSave">${ev ? '수정 저장' : '등록'}</button>
+        ${ev ? '<button class="btn danger" id="efDelete">삭제</button>' : ''}
+      </div>
+    </div>`;
+}
+function eventsHtml() {
+  return `
+    <div class="kko-card"><button class="btn" id="newEventBtn">+ 새 행사 등록</button></div>
+    <div id="evFormHost"></div>
+    <div class="kko-card">
+      <div class="font-bold mb-2">등록된 행사 (${events.length})</div>
+      ${events.length === 0 ? `<div class="text-sm" style="color:var(--color-text-sub)">등록된 행사가 없습니다.</div>` : events.map(e => `
+        <div class="ev-row" data-ev="${esc(e.eventId)}">
+          <span class="pill ${e.type==='개강'?'open':'event'}">${esc(e.type)}</span>
+          <div class="grow"><b>${esc(e.title)}</b><div class="text-xs" style="color:var(--color-text-sub)">${esc(e.startDate)}${e.endDate && e.endDate!==e.startDate ? ' ~ '+esc(e.endDate) : ''}${e.place ? ' · '+esc(e.place) : ''}${e.type==='행사' ? ` · 스탭 ${e.staffCount}명 · 참석 ${e.attendeeCount}명` : ''}</div></div>
+          <button class="btn out" style="height:32px;padding:0 10px;font-size:12px" data-edit="${esc(e.eventId)}">수정</button>
+        </div>`).join('')}
+    </div>`;
+}
+function bindEvents() {
+  document.getElementById('newEventBtn').onclick = () => { document.getElementById('evFormHost').innerHTML = eventFormHtml(null); bindEventForm(null); };
+  document.querySelectorAll('[data-edit]').forEach(b => { b.onclick = () => {
+    const ev = events.find(x => x.eventId === b.dataset.edit);
+    document.getElementById('evFormHost').innerHTML = eventFormHtml(ev);
+    bindEventForm(ev);
+    document.getElementById('evFormHost').scrollIntoView({ behavior: 'smooth' });
+  }; });
+}
+function bindEventForm(ev) {
+  document.getElementById('efCancel').onclick = () => { document.getElementById('evFormHost').innerHTML = ''; };
+  document.getElementById('efSave').onclick = async () => {
+    const body = {
+      eventId: ev ? ev.eventId : '', type: document.getElementById('efType').value, title: document.getElementById('efTitle').value.trim(),
+      startDate: document.getElementById('efStart').value, endDate: document.getElementById('efEnd').value || document.getElementById('efStart').value,
+      place: document.getElementById('efPlace').value.trim(), dept: document.getElementById('efDept').value.trim(), desc: document.getElementById('efDesc').value.trim()
+    };
+    const btn = document.getElementById('efSave'); btn.disabled = true;
+    try {
+      const res = await callApi({ action: 'saveCalendarEvent', event: body, by: ADMIN_NAME });
+      if (res && res.error) throw new Error(res.error);
+      await loadEvents(); document.getElementById('evFormHost').innerHTML = ''; render();
+    } catch (e) { alert(e.message); btn.disabled = false; }
+  };
+  const del = document.getElementById('efDelete');
+  if (del) del.onclick = async () => {
+    if (!confirm('이 행사를 삭제할까요? 신청 내역도 함께 삭제됩니다.')) return;
+    try { await callApi({ action: 'deleteCalendarEvent', eventId: ev.eventId }); await loadEvents(); document.getElementById('evFormHost').innerHTML = ''; render(); }
+    catch (e) { alert(e.message); }
+  };
+}
+
+// ---------------- 스탭·참석자 집계 ----------------
+async function loadReport() {
+  report = await callApi({ action: 'getCalendarReport', eventId: reportEventId });
+}
+function countRow(label, counts) {
+  return `<div class="stat-tile"><b>${counts}</b><span>${esc(label)}</span></div>`;
+}
+function reportHtml() {
+  if (!report) return '<div class="text-center py-10"><span class="loading loading-spinner"></span></div>';
+  const evOpts = events.filter(e => e.type === '행사');
+  return `
+    <div class="kko-card">
+      <label class="lbl">행사 선택</label>
+      <select class="inp" id="repEvent"><option value="">전체 행사 합산</option>${evOpts.map(e => `<option value="${esc(e.eventId)}" ${e.eventId===reportEventId?'selected':''}>${esc(e.title)} (${esc(e.startDate)})</option>`).join('')}</select>
+    </div>
+    <div class="kko-card">
+      <div class="font-bold mb-2">참석 신청 총 ${report.total}명</div>
+      <div class="text-xs mb-1" style="color:var(--color-text-sub)">신청자 부서별</div>
+      <div class="grid grid-cols-5 gap-2 mb-3">${DEPTS5.map(d => countRow(d, report.byApplicantDept[d]||0)).join('')}</div>
+      <div class="text-xs mb-1" style="color:var(--color-text-sub)">신청자 역할별(인/교/섬/협)</div>
+      <div class="grid grid-cols-4 gap-2 mb-3">${ATT_ROLES.map(r => countRow(r, report.byApplicantRole[r]||0)).join('')}</div>
+      <div class="text-xs mb-1" style="color:var(--color-text-sub)">섭외자 부서별</div>
+      <div class="grid grid-cols-5 gap-2 mb-3">${DEPTS5.map(d => countRow(d, report.byGuestDept[d]||0)).join('')}</div>
+      <div class="text-xs mb-1" style="color:var(--color-text-sub)">섭외자 전도단계별</div>
+      <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">${STAGES.map(s => countRow(s, report.byStage[s]||0)).join('')}</div>
+    </div>
+    <div class="kko-card">
+      <div class="flex items-center justify-between mb-2"><div class="font-bold">스탭·기능자 신청 (${report.staff.length}명)</div>
+        <div class="grid grid-cols-5 gap-1" style="max-width:260px">${DEPTS5.map(d => `<span class="text-xs text-center">${d} ${report.staffByDept[d]||0}</span>`).join('')}</div></div>
+      <div class="wrap-table"><table><thead><tr><th>이름</th><th>부서</th><th>메모</th><th>행사</th></tr></thead><tbody>
+        ${report.staff.map(s => `<tr><td>${esc(s.name)}</td><td>${esc(s.dept)}</td><td>${esc(s.note)}</td><td>${esc(s.eventTitle)}</td></tr>`).join('') || '<tr><td colspan="4" style="color:var(--color-text-sub)">신청자가 없습니다.</td></tr>'}
+      </tbody></table></div>
+    </div>
+    <div class="kko-card">
+      <div class="flex items-center justify-between mb-2"><div class="font-bold">참석자(섭외자) 명단</div><button class="btn out" id="csvBtn" style="height:32px;font-size:12px">CSV 내보내기</button></div>
+      <div class="wrap-table"><table><thead><tr><th>신청자</th><th>부서/역할</th><th>섭외자</th><th>부서</th><th>나이</th><th>단계</th><th>행사</th></tr></thead><tbody>
+        ${report.attendees.map(a => `<tr><td>${esc(a.applicantName)}</td><td>${esc(a.applicantDept)}/${esc(a.applicantRole)}</td><td>${esc(a.guestName)}</td><td>${esc(a.guestDept)}</td><td>${esc(a.guestAge)}</td><td>${esc(a.guestStage)}</td><td>${esc(a.eventTitle)}</td></tr>`).join('') || '<tr><td colspan="7" style="color:var(--color-text-sub)">참석 신청이 없습니다.</td></tr>'}
+      </tbody></table></div>
+    </div>`;
+}
+function bindReport() {
+  document.getElementById('repEvent').onchange = async e => { reportEventId = e.target.value; await loadReport(); render(); };
+  const csv = document.getElementById('csvBtn');
+  if (csv) csv.onclick = () => {
+    const header = ['신청자', '신청자부서', '신청자역할', '섭외자', '섭외자부서', '나이', '전도단계', '행사'];
+    const lines = [header.join(',')].concat(report.attendees.map(a => [a.applicantName, a.applicantDept, a.applicantRole, a.guestName, a.guestDept, a.guestAge, a.guestStage, a.eventTitle].map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')));
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '세미나_참석자_집계.csv'; a.click();
+  };
+}
+
+// ---------------- 전도부 광고 ----------------
+async function loadAds() {
+  const res = await callApi({ action: 'getCalendarAds' });
+  ads = (res && res.rows) || [];
+}
+function adsHtml() {
+  return `
+    <div class="kko-card">
+      <div class="font-bold mb-2">새 광고 등록</div>
+      <label class="lbl">제목 *</label><input class="inp" id="adTitle" maxlength="60">
+      <label class="lbl">내용</label><textarea class="inp" id="adBody" maxlength="600"></textarea>
+      <button class="btn mt-2" id="adSave">등록</button>
+    </div>
+    <div class="kko-card">
+      <div class="font-bold mb-2">등록된 광고 (${ads.length})</div>
+      ${ads.length === 0 ? `<div class="text-sm" style="color:var(--color-text-sub)">등록된 광고가 없습니다.</div>` : ads.map(a => `
+        <div class="ev-row" data-ad="${esc(a.adId)}">
+          <div class="grow"><b>${esc(a.title)}</b><div class="text-xs" style="color:var(--color-text-sub)">${esc(a.body).slice(0,60)}</div></div>
+          <button class="btn danger" style="height:32px;padding:0 10px;font-size:12px" data-del-ad="${esc(a.adId)}">삭제</button>
+        </div>`).join('')}
+    </div>`;
+}
+function bindAds() {
+  document.getElementById('adSave').onclick = async () => {
+    const title = document.getElementById('adTitle').value.trim();
+    if (!title) return alert('제목을 입력해주세요.');
+    const btn = document.getElementById('adSave'); btn.disabled = true;
+    try {
+      await callApi({ action: 'saveCalendarAd', ad: { title, body: document.getElementById('adBody').value.trim() } });
+      await loadAds(); render();
+    } catch (e) { alert(e.message); btn.disabled = false; }
+  };
+  document.querySelectorAll('[data-del-ad]').forEach(b => { b.onclick = async () => {
+    if (!confirm('이 광고를 삭제할까요?')) return;
+    try { await callApi({ action: 'deleteCalendarAd', adId: b.dataset.delAd }); await loadAds(); render(); }
+    catch (e) { alert(e.message); }
+  }; });
+}
+
+function render() {
+  const root = document.getElementById('root');
+  if (tab === 'events') { root.innerHTML = eventsHtml(); bindEvents(); }
+  else if (tab === 'report') { root.innerHTML = reportHtml(); if (report) bindReport(); }
+  else { root.innerHTML = adsHtml(); bindAds(); }
+}
+(async function init() {
+  await loadEvents();
+  await Promise.all([loadAds(), loadReport()]);
+  render();
+})();
+</script>
+</body>
+</html>
