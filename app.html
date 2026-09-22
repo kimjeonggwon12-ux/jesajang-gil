@@ -601,7 +601,7 @@
       <section id="sec-connect" class="app-section">
         <nav class="kko-tabs" id="topTabs">
           <button class="kko-tab kko-tab-active" data-tab="card">활동 신청</button>
-          <button class="kko-tab" data-tab="find">교사 찾기</button>
+          <button class="kko-tab" data-tab="find">활동자 찾기</button>
           <button class="kko-tab" data-tab="board">도움 신청</button>
         </nav>
         <main id="cnView" class="cn-wrap"></main>
@@ -2093,9 +2093,9 @@
           ${actHeroHtml()}
           ${myActivityViewHtml()}
           <div class="act-divider"></div>
-          ${activityHistorySectionHtml()}
-          <div class="act-divider"></div>
           ${targetsSectionHtml()}
+          <div class="act-divider"></div>
+          ${activityHistorySectionHtml()}
         </div>
         <button type="button" id="act-fab" class="act-fab" title="활동 기록 남기기" aria-label="활동 기록 남기기">
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -2135,11 +2135,19 @@
     // ════════════════════════════════════════════════════════════════
     const CN_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
     const CN_TIMES = ['오전', '오후', '저녁'];
-    const CARD_ROLES = ['피드백·상담', '만남·소개', '동행·코칭', '복음방 진행', '센터 인도', '기타'];
+    // 2026-09-22: 명함·활동자 찾기·도움 신청의 역할 체계를 활동 기록과 동일한 "4역할 11항목"으로 통일.
+    // (전에는 '피드백·상담'/'동행·코칭'/'센터 인도' 같은 연결 전용 6종이라 활동 기록과 호환이 안 됐음)
+    // ⚠️ '센터인도'는 전도 '단계' 이름이고 역할·기능으로는 '센터수강'이 맞다(사용자 확정) —
+    //    아래 11항목에는 센터소개/센터수강만 있고 센터인도는 없다.
+    const CN_ROLE_PARTS = ROLE_OPTIONS;   // 인도자·교사·섬김이·협력교사 (활동 기록과 같은 배열 재사용)
+    const CN_ROLE_ITEMS = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '동행교사', '센터소개', '센터수강'];
+    // 명함의 roles 배열에는 역할·항목을 함께 담는다(백엔드 컬럼 추가 없이 호환 유지).
+    const CARD_ROLES = CN_ROLE_PARTS.concat(CN_ROLE_ITEMS);
     const CARD_LANGS = ['영어', '일본어', '중국어', '그 외'];
     const CARD_TARGETS = ['청년 대상', '장년 대상', '부녀 대상', '자문 대상', '전 연령'];
     const CARD_FIELDS = ['인문학', '노방 대상자 전문', '사주·타로', '애니어그램', '사군자', '디스크', '온라인 강의', '이단 시비 전문', '은사 전문', '찬양·음악', '운동'];
     // 2026-09-22: "도와주세요" → "도움 신청"으로 명칭 변경(사용자 지시서 항목3②).
+    // HELP_TYPES(구 4종 요청유형)는 2026-09-22 4역할 11항목 통일로 미사용 — 옛 글 표시 호환용으로만 남김.
     const HELP_TYPES = ['동행 교사 필요', '복음방 진행자 필요', '상담 도움 필요', '기타'];
     const SCHEDULES = [['언제나', '✨ 언제나 가능'], ['상의', '💬 상의 후 결정'], ['등록', '📅 일정 등록']];
     // 2026-09-22: 교사 등급 뱃지(카드 목록/상세 공통) — home.html에 있던 TIER_BADGE와 동일 배색이나,
@@ -2251,8 +2259,10 @@
       return '';
     }
     function telHref(p) { return 'tel:' + String(p || '').replace(/[^0-9+]/g, ''); }
-    function multiHtml(key, options, selected) {
-      return `<div class="cn-seg small" data-multi="${key}">${options.map(o => `<button type="button" data-val="${esc(o)}" class="${selected.includes(o) ? 'on' : ''}">${esc(o)}</button>`).join('')}</div>`;
+    // prefix: 화면 표시용 접두사(예: '#'). 저장되는 값(data-val)에는 붙지 않는다.
+    function multiHtml(key, options, selected, prefix) {
+      const p = prefix || '';
+      return `<div class="cn-seg small" data-multi="${key}">${options.map(o => `<button type="button" data-val="${esc(o)}" class="${selected.includes(o) ? 'on' : ''}">${p}${esc(o)}</button>`).join('')}</div>`;
     }
     function bindMulti(root, target) {
       root.querySelectorAll('[data-multi]').forEach(box => {
@@ -2286,7 +2296,7 @@
       if (c.loading) return cnSpinner;
       return `
       <div class="cn-sec-title">${c.exists ? '내 명함' : '내 명함 만들기'}</div>
-      <div class="cn-sec-sub">저장하면 바로 <b>교사 찾기</b>에 노출돼요. 전화번호는 항상 공개됩니다.</div>
+      <div class="cn-sec-sub">저장하면 바로 <b>활동자 찾기</b>에 노출돼요. 전화번호는 항상 공개됩니다.</div>
       <div class="kko-card">
         <div style="display:flex;gap:14px;align-items:flex-end">
           <div id="photoBox" style="width:90px;height:120px;border-radius:10px;overflow:hidden;background:var(--color-primary-light);display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -2311,8 +2321,8 @@
         <label class="cn-lbl">소개</label>
         <textarea class="kko-input" data-f="intro" maxlength="800" placeholder="자유롭게 나를 소개해주세요">${esc(f.intro)}</textarea>
 
-        <label class="cn-lbl">경력</label>
-        <textarea class="kko-input" data-f="career" maxlength="800" placeholder="교사 경력, 관련 활동 등">${esc(f.career)}</textarea>
+        <!-- 2026-09-22: "경력" 입력칸 삭제(사용자 요청). f.career 값 자체는 저장 구조에
+             남겨둬서 기존에 적어둔 내용이 날아가지는 않음(화면에서만 감춤). -->
 
         <label class="cn-lbl">전공</label>
         <div class="cn-seg small" id="majorSeg">
@@ -2327,16 +2337,23 @@
 
       <div class="kko-card" style="margin-top:14px">
         <div style="font-size:17px;font-weight:800">나를 표현하는 태그 <small style="font-weight:400;color:var(--color-text-sub)">(복수 선택)</small></div>
-        <label class="cn-lbl">가능 역할</label>${multiHtml('roles', CARD_ROLES, f.roles)}
+
+        <label class="cn-lbl">가능 역할 <small>(인·교·섬·협)</small></label>
+        ${multiHtml('roles', CN_ROLE_PARTS, f.roles)}
+        <label class="cn-lbl">가능 항목 <small>(역할 아래 단계 — 활동 기록과 같은 11항목)</small></label>
+        ${multiHtml('roles', CN_ROLE_ITEMS, f.roles)}
+
         <label class="cn-lbl">가능 외국어</label>${multiHtml('langs', CARD_LANGS, f.langs)}
-        <label class="cn-lbl">대상</label>${multiHtml('targets', CARD_TARGETS, f.targets)}
-        <label class="cn-lbl">전문 분야</label>${multiHtml('fields', CARD_FIELDS, f.fields)}
-        <label class="cn-lbl">전도 도구 <small>(자유 입력)</small></label>
+        <label class="cn-lbl">가능 대상</label>${multiHtml('targets', CARD_TARGETS, f.targets)}
+
+        <label class="cn-lbl">전문 분야 · 전도 기능</label>
+        ${multiHtml('fields', CARD_FIELDS, f.fields, '#')}
+        <label class="cn-lbl" style="margin-top:8px">추가 기록 <small>(목록에 없는 것을 직접 적어주세요)</small></label>
         <input class="kko-input" data-f="tools" value="${esc(f.tools)}" maxlength="100" placeholder="예: 사군자, 보드게임, 캘리그라피">
       </div>
 
       <div class="kko-card" style="margin-top:14px">
-        <div style="font-size:17px;font-weight:800">가능 일정 <span class="cn-req">*</span></div>
+        <div style="font-size:17px;font-weight:800">활동 가능 일정 <span class="cn-req">*</span></div>
         <div style="margin-top:10px">${SCHEDULES.map(([v, l]) => `<label class="cn-radio-row ${f.schedType === v ? 'on' : ''}"><input type="radio" name="sched" value="${v}" ${f.schedType === v ? 'checked' : ''}>${l}</label>`).join('')}</div>
         ${f.schedType === '등록' ? `
           <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
@@ -2370,24 +2387,24 @@
       const c = S.card, f = c.f;
       if (!f.name.trim()) return toast('이름을 입력해주세요.', true);
       if (!f.phone.trim()) return toast('전화번호를 입력해주세요.', true);
-      if (!f.schedType) return toast('가능 일정을 선택해주세요.', true);
+      if (!f.schedType) return toast('활동 가능 일정을 선택해주세요.', true);
       if (f.schedType === '등록' && (!f.from || !f.to)) return toast('가능 기간(시작일~종료일)을 입력해주세요.', true);
       c.saving = true; cnRender();
       try {
         const res = await callApi({ action: 'saveConnectCard', memberId: MEMBER_ID, data: f });
         if (res && res.error) throw new Error(res.error);
         c.exists = true; c.f = Object.assign(emptyCard(), res.card); S.find.loaded = false;
-        toast('저장했어요! 이제 교사 찾기에 노출돼요.');
+        toast('저장했어요! 이제 활동자 찾기에 노출돼요.');
       } catch (e) { toast(e.message, true); }
       c.saving = false; cnRender();
     }
     async function deleteCard() {
-      if (!confirm('내 명함을 내릴까요? 교사 찾기에서 더 이상 보이지 않아요.')) return;
+      if (!confirm('내 명함을 내릴까요? 활동자 찾기에서 더 이상 보이지 않아요.')) return;
       try { await callApi({ action: 'deleteConnectCard', memberId: MEMBER_ID }); S.find.loaded = false; await loadCard(); toast('명함을 내렸어요.'); }
       catch (e) { toast(e.message, true); }
     }
 
-    // ====================== 교사 찾기 (검색) ======================
+    // ====================== 활동자 찾기 (검색) ======================
     async function loadFind() {
       const q = S.find; q.loading = true; q.error = ''; if (S.tab === 'find') cnRender();
       try {
@@ -2405,10 +2422,11 @@
       const q = S.find;
       const tagOpts = [].concat(CARD_TARGETS, CARD_FIELDS, CARD_LANGS);
       return `
-      <div class="cn-sec-title">교사 찾기</div>
+      <div class="cn-sec-title">활동자 찾기</div>
       <div class="cn-sec-sub">역할·지역·태그·일정으로 함께할 교사를 찾아보세요.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        ${cnSelHtml('fRole', '역할 전체', CARD_ROLES, q.role)}
+        <!-- 2026-09-22: 역할 드롭다운을 명함과 같은 4역할 11항목으로(호환·검색 가능). -->
+        ${cnSelHtml('fRole', '역할·항목 전체', CARD_ROLES, q.role)}
         ${cnSelHtml('fRegion', '지역 전체', q.regions, q.region)}
         ${cnSelHtml('fTag', '태그 전체', tagOpts, q.tag)}
         ${cnSelHtml('fSched', '일정 전체', ['언제나', '상의', '등록'], q.schedule).replace('>언제나<', '>✨ 언제나 가능<').replace('>상의<', '>💬 상의 후 결정<').replace('>등록<', '>📅 일정 등록<')}
@@ -2456,11 +2474,11 @@
             ${r.oneLiner ? `<div style="margin-top:6px;font-size:15px;font-weight:600;color:var(--color-primary)">“${esc(r.oneLiner)}”</div>` : ''}
           </div>
         </div>
-        ${cnDetailRow('소개', r.intro)}${cnDetailRow('경력', r.career)}
+        ${cnDetailRow('소개', r.intro)}
         ${cnDetailRow('전공', r.hasMajor ? (r.majorName || '있음') : '')}${cnDetailRow('자격증', r.cert)}
         ${allTags(r).length ? `<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:5px">${chips(allTags(r))}</div>` : ''}
         ${cnDetailRow('전도 도구', r.tools)}
-        <div style="margin-top:12px"><div class="cn-hint" style="margin:0">가능 일정</div><div style="font-size:15px">${esc(scheduleText(r))}</div></div>
+        <div style="margin-top:12px"><div class="cn-hint" style="margin:0">활동 가능 일정</div><div style="font-size:15px">${esc(scheduleText(r))}</div></div>
         <div style="margin-top:12px"><div class="cn-hint" style="margin:0">전화번호</div><div style="font-size:16px;font-weight:700">${esc(r.phone)}</div></div>
         <div style="display:flex;gap:10px;margin-top:18px">
           ${r.isMine ? '<div class="cn-hint" style="flex:1;text-align:center">내 명함입니다.</div>' : `
@@ -2479,9 +2497,13 @@
     async function loadBoard() {
       const b = S.board; b.loading = true; b.error = ''; if (S.tab === 'board') cnRender();
       try {
-        const res = await callApi({ action: 'getHelpPosts', memberId: MEMBER_ID, type: b.type, dept: b.dept });
+        // 2026-09-22: 요청 유형이 "교사 · 상담1"처럼 역할+항목 조합 문자열이 되어서,
+        // 백엔드 정확일치 필터로는 역할만으로 못 거른다. 유형은 전체로 받아와 아래에서
+        // 부분일치로 거른다(옛 글 '동행 교사 필요' 같은 것도 '교사'로 같이 걸림).
+        const res = await callApi({ action: 'getHelpPosts', memberId: MEMBER_ID, type: '', dept: b.dept });
         if (res && res.error) throw new Error(res.error);
-        b.rows = res.rows || [];
+        const all = res.rows || [];
+        b.rows = b.type ? all.filter(h => String(h.type || '').includes(b.type)) : all;
       } catch (e) { b.error = e.message; }
       b.loading = false; b.loaded = true;
       if (S.tab === 'board') cnRender();
@@ -2502,7 +2524,7 @@
       return `
       <div class="cn-sec-title">도움 신청</div>
       <div class="cn-sec-sub">도움이 필요한 전도 활동을 올리고, 도와줄 교사를 만나보세요.</div>
-      <div class="cn-seg small" id="hType"><button type="button" data-v="" class="${!b.type ? 'on' : ''}">전체</button>${HELP_TYPES.map(t => `<button type="button" data-v="${esc(t)}" class="${b.type === t ? 'on' : ''}">${esc(t)}</button>`).join('')}</div>
+      <div class="cn-seg small" id="hType"><button type="button" data-v="" class="${!b.type ? 'on' : ''}">전체</button>${CN_ROLE_PARTS.map(t => `<button type="button" data-v="${esc(t)}" class="${b.type === t ? 'on' : ''}">${esc(t)}</button>`).join('')}</div>
       <div class="cn-seg small" id="hDept" style="margin-top:6px"><button type="button" data-v="" class="${!b.dept ? 'on' : ''}">부서 전체</button>${DEPTS5.map(d => `<button type="button" data-v="${d}" class="${b.dept === d ? 'on' : ''}">${d}</button>`).join('')}</div>
       <div style="margin-top:14px">
       ${b.error ? `<div class="kko-card" style="color:var(--color-error)">${esc(b.error)}</div>` : ''}
@@ -2540,11 +2562,15 @@
       };
     }
     function openBoardForm() {
-      const f = { type: '', dept: '', startDate: todayStr(), endDate: '', oneLiner: '', desc: '' };
+      // 2026-09-22: 요청 유형을 명함·활동 기록과 같은 4역할 11항목으로 통일(사용자 요청).
+      // 저장은 기존처럼 문자열 f.type 하나("교사 · 상담1") — 백엔드 컬럼 변경 없음.
+      const f = { role: '', item: '', type: '', dept: '', startDate: todayStr(), endDate: '', oneLiner: '', desc: '' };
       openSheet(`
         <div style="font-size:20px;font-weight:800">도움 신청 등록</div>
-        <label class="cn-lbl">요청 유형 <span class="cn-req">*</span></label>
-        <div id="bfType">${HELP_TYPES.map(t => `<label class="cn-radio-row"><input type="radio" name="bft" value="${esc(t)}">${esc(t)}</label>`).join('')}</div>
+        <label class="cn-lbl">어떤 역할이 필요한가요? <span class="cn-req">*</span> <small>(인·교·섬·협)</small></label>
+        <div class="cn-seg small" id="bfRole">${CN_ROLE_PARTS.map(t => `<button type="button" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+        <label class="cn-lbl">어떤 항목인가요? <span class="cn-req">*</span></label>
+        <div class="cn-seg small" id="bfItem">${CN_ROLE_ITEMS.map(t => `<button type="button" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>
         <label class="cn-lbl">부서 <span class="cn-req">*</span></label>
         <div class="cn-seg" id="bfDept">${DEPTS5.map(d => `<button type="button" data-v="${d}">${d}</button>`).join('')}</div>
         <label class="cn-lbl">언제부터 <span class="cn-req">*</span></label><input type="date" id="bfStart" class="kko-input" value="${f.startDate}">
@@ -2552,12 +2578,24 @@
         <label class="cn-lbl">대상자 소개 한 마디 <span class="cn-req">*</span></label><input id="bfOne" class="kko-input" maxlength="80" placeholder="예: 30대 직장인 여성, 상담 후 복음방 연결 희망">
         <label class="cn-lbl">상세 설명 <small>(선택)</small></label><textarea id="bfDesc" class="kko-input" maxlength="1000"></textarea>
         <div style="display:flex;gap:10px;margin-top:16px"><button class="kko-btn-outline" onclick="closeSheet()">취소</button><button class="kko-btn-main" style="flex:2" id="bfSave">등록</button></div>`);
-      document.querySelectorAll('input[name=bft]').forEach(r => { r.onchange = () => { f.type = r.value; document.querySelectorAll('#bfType .cn-radio-row').forEach(l => l.classList.toggle('on', l.contains(r) && r.checked)); }; });
+      const pickOne = (boxId, key) => {
+        const box = document.getElementById(boxId);
+        if (!box) return;
+        box.onclick = e => {
+          const b = e.target.closest('button'); if (!b) return;
+          f[key] = b.dataset.v;
+          box.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+          f.type = [f.role, f.item].filter(Boolean).join(' · ');
+        };
+      };
+      pickOne('bfRole', 'role');
+      pickOne('bfItem', 'item');
       document.getElementById('bfDept').onclick = e => { const b = e.target.closest('button'); if (!b) return; f.dept = b.dataset.v; document.querySelectorAll('#bfDept button').forEach(x => x.classList.toggle('on', x === b)); };
       document.getElementById('bfSave').onclick = async () => {
         f.startDate = document.getElementById('bfStart').value; f.endDate = document.getElementById('bfEnd').value;
         f.oneLiner = document.getElementById('bfOne').value.trim(); f.desc = document.getElementById('bfDesc').value.trim();
-        if (!f.type) return toast('요청 유형을 선택해주세요.', true);
+        if (!f.role) return toast('필요한 역할을 선택해주세요.', true);
+        if (!f.item) return toast('필요한 항목을 선택해주세요.', true);
         if (!f.dept) return toast('부서를 선택해주세요.', true);
         if (!f.startDate || !f.endDate) return toast('날짜를 선택해주세요.', true);
         if (!f.oneLiner) return toast('대상자 소개 한 마디를 입력해주세요.', true);
