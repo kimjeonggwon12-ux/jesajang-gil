@@ -149,8 +149,13 @@
     .app-toast.err { background: var(--color-error); }
     /* [SHARED] 공용 바텀시트(연결/캘린더 등 여러 섹션이 쓰던 거의 동일한 openSheet()/#sheetHost를
        1개로 통합 — calendar-room.html과 connect-room.html의 .sheet/.sheet-back가 byte-단위로 동일했음). */
-    .sheet-back { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9990; display: flex; align-items: flex-end; justify-content: center; }
-    .sheet { background: #fff; width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 20px 16px 24px; }
+    .sheet-back { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9990; display: flex; align-items: flex-end; justify-content: center; animation: sheetFadeIn .2s ease-out; }
+    .sheet { background: #fff; width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 20px 16px 24px; animation: sheetSlideUp .25s cubic-bezier(0.16,1,0.3,1); }
+    /* 2026-09-22: 당근 스타일 바텀시트 등장 애니메이션 — openSheet()는 매번 새 DOM을 만들어 넣으므로
+       transition이 아니라 삽입 시 자동 재생되는 animation으로(캘린더/연결 등 이 시트를 쓰는 모든
+       섹션에 공용 적용, 새 함정 없음 — 순수 시각 효과 추가라 기존 동작 안 건드림). */
+    @keyframes sheetFadeIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes sheetSlideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }
 
     /* ===== SECTION CSS: calendar =====
        원본 calendar-room.html에서 daisyUI 전역 클래스와 겹치는 .card/.btn은 공유 kko-card/
@@ -229,6 +234,8 @@
     /* 공유 .sheet가 이미 padding:20px 16px 24px 를 주므로 여기선 폰트/타이포만(중복 패딩 방지) */
     .act-sheet-form { display:flex; flex-direction:column; gap:18px; }
     .act-sheet-form .act-step-label { font-size:12px; font-weight:800; color:#9CA3AF; margin-bottom:8px; }
+    /* 2026-09-22: "모듈화된 폼" — 입력 요소를 연한 회색 박스로 묶어서 시각적 피로도 감소 */
+    .act-form-group { background:#F9FAFB; border-radius:14px; padding:14px; }
     /* 가로 스크롤 칩 버튼 그룹 — select 대체. 바텀시트 안에서만 쓰이므로 전역. */
     .act-chip-scroll { display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
     .act-chip-scroll::-webkit-scrollbar { display:none; }
@@ -1358,54 +1365,57 @@
       const existingTargets = home.targets.filter(t => !t.completed);
 
       return `
-        <div class="text-lg font-extrabold" style="color:#1A1A2E">오늘 활동, 기록해볼까요?</div>
-
         <div>
-          <div class="act-step-label">① 날짜</div>
-          <input type="date" id="af-date" class="input input-bordered input-sm w-full" value="${esc(f.date)}" max="${esc(todayStr())}">
+          <div class="text-lg font-extrabold" style="color:#1A1A2E">오늘 활동, 기록해볼까요?</div>
+          <div class="text-xs text-base-content/40 mt-0.5">가볍게 남겨도 괜찮아요. 나중에 언제든 다시 볼 수 있어요.</div>
         </div>
 
-        <div>
-          <div class="act-step-label">② 역할 (여러 개 골라도 돼요)</div>
+        <div class="act-form-group">
+          <div class="act-step-label">① 날짜</div>
+          <input type="date" id="af-date" class="input input-bordered input-sm w-full bg-white" value="${esc(f.date)}" max="${esc(todayStr())}">
+        </div>
+
+        <div class="act-form-group">
+          <div class="act-step-label">② 오늘은 어떤 역할이었나요? (여러 개 골라도 돼요)</div>
           <div class="flex flex-wrap gap-2">
             ${ROLE_OPTIONS.map(r => `
-              <label class="flex items-center gap-1.5 border border-base-300 rounded-box px-2 py-2 text-xs cursor-pointer flex-1 justify-center ${f.roles.includes(r) ? 'bg-primary/10 border-primary text-primary font-bold' : ''}">
+              <label class="flex items-center gap-1.5 border border-base-300 rounded-box px-2 py-2 text-xs cursor-pointer flex-1 justify-center bg-white ${f.roles.includes(r) ? 'bg-primary/10 border-primary text-primary font-bold' : ''}">
                 <input type="checkbox" class="checkbox checkbox-xs af-role-cb" value="${esc(r)}" ${f.roles.includes(r) ? 'checked' : ''}> ${esc(roleShortLabel(r))}
               </label>`).join('')}
           </div>
         </div>
 
-        <div>
-          <div class="act-step-label">③ 어떤 활동이었나요?</div>
+        <div class="act-form-group">
+          <div class="act-step-label">③ 어떤 활동을 하셨나요?</div>
           ${f.roles.length
             ? `<div class="act-chip-scroll">${itemOptions.map(o => `<button type="button" class="act-chip-btn af-item-chip ${f.activityItem === o ? 'on' : ''}" data-item="${esc(o)}">${esc(o)}</button>`).join('')}</div>`
-            : `<div class="text-xs text-base-content/40">역할을 먼저 선택해주세요</div>`}
+            : `<div class="text-xs text-base-content/40">역할을 먼저 골라주세요</div>`}
         </div>
 
         ${(isConsult || isGospel) ? `
-        <div class="border-t border-base-200 pt-3">
+        <div class="act-form-group">
           <div class="act-step-label">${isConsult ? '상담 상세' : '복음방 상세'}</div>
-          <input type="text" id="af-extra-title" placeholder="${esc(extraTitleLabel)}" class="input input-bordered input-sm w-full mb-2" value="${esc(f.extraTitle)}">
-          <div class="text-xs text-base-content/50 mb-1.5">반응</div>
+          <input type="text" id="af-extra-title" placeholder="${esc(extraTitleLabel)}" class="input input-bordered input-sm w-full bg-white mb-2" value="${esc(f.extraTitle)}">
+          <div class="text-xs text-base-content/50 mb-1.5">반응이 어땠나요?</div>
           <div class="flex gap-3 mb-2">
             ${REACTION_OPTIONS.map(r => `
               <label class="flex items-center gap-1 text-xs cursor-pointer">
                 <input type="radio" name="af-reaction" class="radio radio-xs af-reaction-radio" value="${esc(r)}" ${f.reaction === r ? 'checked' : ''}> ${esc(r)}
               </label>`).join('')}
           </div>
-          <input type="text" id="af-reaction-note" placeholder="반응 메모 (선택)" class="input input-bordered input-sm w-full" value="${esc(f.reactionNote)}">
+          <input type="text" id="af-reaction-note" placeholder="반응 메모 (선택)" class="input input-bordered input-sm w-full bg-white" value="${esc(f.reactionNote)}">
         </div>
         ` : ''}
 
-        <div class="border-t border-base-200 pt-3">
+        <div class="act-form-group">
           <div class="act-step-label">④ 대상자 일지</div>
           <div class="flex flex-col gap-2">
             ${existingTargets.length ? `
-            <select id="af-existing" class="select select-bordered select-sm w-full">
+            <select id="af-existing" class="select select-bordered select-sm w-full bg-white">
               <option value="">기존 섭외자 선택 (또는 아래에 새로 입력)</option>
               ${existingTargets.map(t => `<option value="${esc(t.targetId)}" ${f.existingTargetId === t.targetId ? 'selected' : ''}>${esc(maskName(t.targetName))} · ${esc(t.stage || '-')}</option>`).join('')}
             </select>` : ''}
-            <input type="text" id="af-tname" placeholder="이름" class="input input-bordered input-sm w-full" value="${esc(f.targetName)}">
+            <input type="text" id="af-tname" placeholder="이름" class="input input-bordered input-sm w-full bg-white" value="${esc(f.targetName)}">
             <div>
               <div class="text-[11px] text-base-content/40 mb-1">성별</div>
               <div class="act-chip-scroll">${GENDER_OPTIONS.map(g => `<button type="button" class="act-chip-btn af-gender-chip ${f.targetGender === g ? 'on' : ''}" data-gender="${esc(g)}">${esc(g)}</button>`).join('')}</div>
@@ -1418,8 +1428,8 @@
               <div class="text-[11px] text-base-content/40 mb-1">현재 단계</div>
               <div class="act-chip-scroll">${stageOptions.map(s => `<button type="button" class="act-chip-btn af-stage-chip ${f.targetStage === s ? 'on' : ''}" data-stage="${esc(s)}">${esc(s)}</button>`).join('')}</div>
             </div>
-            <textarea id="af-today" rows="2" placeholder="오늘 한 일" class="textarea textarea-bordered textarea-sm w-full">${esc(f.todayWork)}</textarea>
-            <textarea id="af-next" rows="2" placeholder="다음 할 일" class="textarea textarea-bordered textarea-sm w-full">${esc(f.nextWork)}</textarea>
+            <textarea id="af-today" rows="2" placeholder="오늘 어떤 이야기를 나누셨나요?" class="textarea textarea-bordered textarea-sm w-full bg-white">${esc(f.todayWork)}</textarea>
+            <textarea id="af-next" rows="2" placeholder="다음엔 어떤 이야기를 나눠볼까요?" class="textarea textarea-bordered textarea-sm w-full bg-white">${esc(f.nextWork)}</textarea>
             <div class="text-[10px] text-base-content/40">이름 가운데 글자는 목록/현황 화면에 자동으로 * 표시돼요 (예: 홍*동)</div>
           </div>
         </div>
@@ -1829,7 +1839,9 @@
             <span class="act-feed-title">내 활동 기록 <span class="text-xs font-normal text-base-content/40">(${rows.length}건)</span></span>
             <span class="text-xs text-base-content/40">${home.historyOpen ? '접기 ▲' : '펼치기 ▼'}</span>
           </button>
-          ${home.historyOpen ? (rows.length === 0 ? `<div class="act-feed-empty">아직 등록한 활동이 없어요. 우측 하단 + 버튼으로 첫 기록을 남겨보세요.</div>` : rows.map(activityHistoryRowHtml).join('')) : ''}
+          ${home.historyOpen ? (rows.length === 0
+            ? `<div class="act-feed-empty">아직 등록한 활동이 없어요. 우측 하단 + 버튼으로 첫 기록을 남겨보세요.</div>`
+            : rows.map(activityHistoryRowHtml).join('') + `<div class="act-feed-empty" style="padding:16px">여기까지예요 👋</div>`) : ''}
         </div>
       `;
     }
