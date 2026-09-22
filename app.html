@@ -3114,7 +3114,7 @@ DISC: ${selDisc || '선택안함'}
           <button id="tab-askCoach" class="kko-tab ${aiState.tab==='askCoach' ? 'kko-tab-active' : ''}">교관에게 요청</button>
           ${aiState.coachInfo && aiState.coachInfo.isCoach ? `<button id="tab-coachMode" class="kko-tab ${aiState.tab==='coachMode' ? 'kko-tab-active' : ''}">교관 모드 <svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /><circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>` : ''}
         </div>
-        <div id="body" class="p-4"></div>
+        <div id="aiBody" class="p-4"></div>
       `;
       document.getElementById('tab-coach').onclick = () => { aiState.tab = 'coach'; aiRender(); };
       document.getElementById('tab-studentCoach').onclick = () => { aiState.tab = 'studentCoach'; aiRender(); };
@@ -3123,7 +3123,10 @@ DISC: ${selDisc || '선택안함'}
       const tabCoachModeBtn = document.getElementById('tab-coachMode');
       if (tabCoachModeBtn) tabCoachModeBtn.onclick = () => { aiState.tab = 'coachMode'; aiRender(); aiLoadCoachFeedbacks(); };
 
-      const body = document.getElementById('body');
+      // 2026-09-22: 원래 id가 'body'였는데 교재 섹션도 같은 id를 써서, 두 섹션이 한 문서에
+      // 공존하는 SPA에서 getElementById('body')가 문서 순서상 앞선 AI 것만 잡았다(교재 화면이
+      // 통째로 빈 화면이 됨). 섹션별 고유 id로 분리.
+      const body = document.getElementById('aiBody');
       if (aiState.tab === 'coach') aiRenderCoachTab(body);
       else if (aiState.tab === 'studentCoach') aiRenderStudentCoachTab(body);
       else if (aiState.tab === 'history') aiRenderHistoryTab(body);
@@ -3774,13 +3777,14 @@ function tbRender() {
         return `<button class="study-tab-btn shrink-0 whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold" style="${style}" data-tab="${t.key}">${esc(t.label)}</button>`;
       }).join('')}
     </div>
-    <div id="body" class="p-5" style="background:var(--color-bg);"></div>
+    <div id="tbBody" class="p-5" style="background:var(--color-bg);"></div>
   `;
   document.querySelectorAll('.study-tab-btn').forEach(btn => {
     btn.onclick = () => { tbState.tab = btn.dataset.tab; tbRender(); };
   });
 
-  const body = document.getElementById('body');
+  // 2026-09-22: 원래 id가 'body'라 AI 섹션의 같은 id와 충돌했다(위 aiBody 주석 참고).
+  const body = document.getElementById('tbBody');
 
   if (tbState.tab === 'reqEdu') {
     renderRequiredEduTab(body);
