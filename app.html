@@ -461,6 +461,26 @@
     #sec-admin .settlement-box .box-icon { font-size: 26px; line-height: 1; }
     #sec-admin .kko-table-card { background: var(--color-card); border-radius: var(--radius-card); box-shadow: var(--shadow-card); border: none; }
     #sec-admin .table tbody tr:hover, #sec-admin .table tbody tr:hover td { background: var(--color-primary-light) !important; }
+
+    /* ── 2026-09-22: "글자가 너무 작다"는 지적 반영 — 관리자 표·요약 숫자 전반 확대 ── */
+    #sec-admin .table { font-size: 14px; }
+    #sec-admin .table th { font-size: 13px; }
+    #sec-admin .tl-count { font-size: 13px; color: var(--dg-text-sub); }
+    #sec-admin .tl-limit-seg button { font-size: 13px; }
+    /* 총 교사 수 / 부서별 교사 현황 카드의 숫자·라벨 */
+    #sec-admin .section-card .text-xs { font-size: 13px; }
+    #sec-admin .section-card .text-\[11px\] { font-size: 12.5px; }
+    #sec-admin .section-card .text-2xl { font-size: 30px; }
+    #sec-admin .section-card .text-lg { font-size: 19px; }
+
+    /* 교사 명단 — 폰에서는 이름·지역·등급까지만 보이고 나머지는 행을 눌러 상세로 */
+    #sec-admin .tl-phone-hint { display: none; }
+    @media (max-width: 640px) {
+      #sec-admin .tl-more { display: none; }
+      #sec-admin .tl-phone-hint { display: block; }
+      #sec-admin .table { font-size: 15px; }
+      #sec-admin .table th, #sec-admin .table td { padding-left: 6px; padding-right: 6px; }
+    }
     /* 관리자 4개 서브탭(1️⃣2️⃣3️⃣4️⃣) 전환 바 — connect 섹션의 kko-tabs 패턴 재사용 */
     #admin-subtabs { display:flex; gap:6px; overflow-x:auto; padding:10px 12px; background:#fff; border-bottom:1px solid var(--color-border); }
     #admin-subtabs .kko-tab {
@@ -5060,7 +5080,7 @@ function renderRosterSection() {
         <div class="card card-border bg-base-100 shadow-sm">
           <div class="card-body p-4">
             <div class="text-sm font-medium text-base-content/70 mb-2">${licon('📊')} 부서별 등록 교사 수</div>
-            <canvas id="deptCountChart" height="140"></canvas>
+            <canvas id="deptCountChart" height="210"></canvas>
           </div>
         </div>
       </div>
@@ -5086,10 +5106,11 @@ function renderRosterCharts() {
     },
     plugins: [ChartDataLabels],
     options: {
+      // 2026-09-22: "부서명·숫자가 너무 작다"는 지적 — 축/범례/막대 라벨 글자 전부 키움.
       plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 14, weight: 'bold' } } },
         datalabels: {
-          color: '#fff', font: { size: 10, weight: 'bold' },
+          color: '#fff', font: { size: 13, weight: 'bold' },
           formatter: (value, ctx) => {
             if (!value) return '';
             const deptLabel = ctx.chart.data.labels[ctx.dataIndex];
@@ -5098,7 +5119,10 @@ function renderRosterCharts() {
           }
         }
       },
-      scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
+      scales: {
+        x: { stacked: true, ticks: { font: { size: 15, weight: 'bold' } } },
+        y: { stacked: true, beginAtZero: true, ticks: { font: { size: 13 } } }
+      }
     }
   });
 }
@@ -5335,7 +5359,9 @@ let state = {
   tlFilterTier: '',
   tlFilterApply: '', // '' | 'yes' | 'no' — 활동 신청 여부 필터
   tlSelected: null, // 선택된 교사의 memberId
-  tlAssigning: false // 교관/지역장 지정 API 호출 중
+  tlAssigning: false, // 교관/지역장 지정 API 호출 중
+  tlLimit: 20,       // 2026-09-22: 교사 명단을 20/50명씩 끊어 보기(0 = 전체)
+  tlPosOpen: false   // 2026-09-22: "지역장·교관 등록" 아코디언 펼침 여부(기본 접힘)
 };
 
 // 전체 조직별 요약 (getOrgSummary) — "전체 요약" 화면 전용, 부서 상세와 별도로 캐시.
@@ -5569,16 +5595,25 @@ function positionPanelHtml() {
   const chip = t => `<span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${t.position === '지역장' ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary'}">
       ${t.position === '지역장' ? '🏳️' : '🧭'} ${esc(t.position)} · ${esc(t.name)}${t.region ? ` (${esc(t.region)})` : ''}
       <button type="button" class="tl-pos-clear" data-mid="${esc(t.memberId)}" data-pos="${esc(t.position)}" title="해제" style="font-size:14px;line-height:1">×</button></span>`;
+  // 2026-09-22: 자리를 많이 차지해서 아코디언으로 — 기본은 접힘(등록된 사람 수만 보임).
+  const open = !!state.tlPosOpen;
   return `
     <div class="px-4 pt-3">
-      <div class="rounded-box border border-base-300 bg-base-100 p-4" style="box-shadow:var(--shadow-card)">
-        <div class="text-sm font-black mb-1">${DIST_DEPT_ICON[dept] || ''} ${esc(dept)} 지역장 · 교관 등록</div>
-        <div class="text-[11px] text-base-content/50 mb-2">등록된 지역장·교관은 등급 승인 권한이 없고, 담당 지역 교사 현황을 살피는 역할입니다. 등급 승인은 교육부·전도부만 할 수 있어요.</div>
-        <div class="flex flex-wrap gap-1.5 mb-3">${holders.length ? holders.map(chip).join('') : '<span class="text-xs text-base-content/40">아직 등록된 지역장·교관이 없어요.</span>'}</div>
-        <div class="flex gap-2">
-          <input id="tl-pos-q" type="text" class="input input-bordered input-sm flex-1" placeholder="${esc(dept)} 교사 이름으로 검색" value="${esc(state.tlPosQuery || '')}">
-        </div>
-        <div id="tl-pos-results" class="mt-2">${positionResultsHtml()}</div>
+      <div class="rounded-box border border-base-300 bg-base-100" style="box-shadow:var(--shadow-card);overflow:hidden">
+        <button type="button" id="tl-pos-toggle" class="w-full flex items-center gap-2 p-4 text-left">
+          <span class="text-sm font-black flex-1">${DIST_DEPT_ICON[dept] || ''} ${esc(dept)} 지역장 · 교관 등록
+            <span class="font-normal text-base-content/40">(${holders.length}명 등록됨)</span></span>
+          <span class="text-base-content/40" style="font-size:13px">${open ? '접기 ▲' : '펼치기 ▼'}</span>
+        </button>
+        ${open ? `
+        <div class="px-4 pb-4">
+          <div class="text-[11px] text-base-content/50 mb-2">등록된 지역장·교관은 등급 승인 권한이 없고, 담당 지역 교사 현황을 살피는 역할입니다. 등급 승인은 교육부·전도부만 할 수 있어요.</div>
+          <div class="flex flex-wrap gap-1.5 mb-3">${holders.length ? holders.map(chip).join('') : '<span class="text-xs text-base-content/40">아직 등록된 지역장·교관이 없어요.</span>'}</div>
+          <div class="flex gap-2">
+            <input id="tl-pos-q" type="text" class="input input-bordered input-sm flex-1" placeholder="${esc(dept)} 교사 이름으로 검색" value="${esc(state.tlPosQuery || '')}">
+          </div>
+          <div id="tl-pos-results" class="mt-2">${positionResultsHtml()}</div>
+        </div>` : ''}
       </div>
     </div>`;
 }
@@ -5687,7 +5722,10 @@ function teacherListSectionHtml() {
     return `<div class="p-6 text-center text-sm text-base-content/40"><span class="loading loading-spinner loading-md align-middle mr-2"></span>교사 명단 불러오는 중...</div>`;
   }
   if (!rosterAll) return '';
-  const rows = teacherListRowsFiltered();
+  const allRowsFiltered = teacherListRowsFiltered();
+  // 20/50명씩 끊어 보기(0이면 전체). 체크박스 "보이는 N명 전체 선택"도 이 잘린 목록 기준.
+  const rows = state.tlLimit > 0 ? allRowsFiltered.slice(0, state.tlLimit) : allRowsFiltered;
+  const hiddenCount = allRowsFiltered.length - rows.length;
   const selected = state.tlSelected ? rosterAll.find(t => t.memberId === state.tlSelected) : null;
   const pendingTotal = rosterAll.filter(t => t.suggestion && (!state.tlFilterDept || deptBucket(t.dept) === state.tlFilterDept)).length;
   const allChecked = rows.length > 0 && rows.every(t => state.tlChecked.has(t.memberId));
@@ -5700,33 +5738,48 @@ function teacherListSectionHtml() {
     ${positionPanelHtml()}
     ${bulkBarHtml(rows)}
     ${teacherListFilterHtml()}
-    <div class="px-4 pt-3 flex items-center justify-between gap-3 text-xs text-base-content/40">
-      <span>${rows.length}명${tlReportLoading ? ' · 활동/센터 등록/제안 정보 불러오는 중… (20초 정도 걸릴 수 있어요)' : ''}</span>
-      ${pendingTotal > 0 ? `<label class="flex items-center gap-1.5 cursor-pointer whitespace-nowrap"><input type="checkbox" id="pending-only-checkbox" class="checkbox checkbox-xs" ${state.pendingOnly ? 'checked' : ''}>등급 제안 ${pendingTotal}건만 보기</label>` : ''}
+    <div class="px-4 pt-3 flex items-center justify-between gap-3 flex-wrap">
+      <span class="tl-count">${hiddenCount > 0 ? `${rows.length}명 표시 <span class="text-base-content/40">/ 전체 ${allRowsFiltered.length}명</span>` : `${rows.length}명`}${tlReportLoading ? ' · 활동/센터 등록/제안 정보 불러오는 중… (20초 정도 걸릴 수 있어요)' : ''}</span>
+      <div class="flex items-center gap-3 flex-wrap">
+        ${pendingTotal > 0 ? `<label class="flex items-center gap-1.5 cursor-pointer whitespace-nowrap text-xs text-base-content/50"><input type="checkbox" id="pending-only-checkbox" class="checkbox checkbox-xs" ${state.pendingOnly ? 'checked' : ''}>등급 제안 ${pendingTotal}건만 보기</label>` : ''}
+        <!-- 2026-09-22: 부서별로 20/50명씩 끊어 보기(전체 2,300명을 한 번에 그리면 폰에서 버벅임) -->
+        <div class="cn-seg small tl-limit-seg" id="tl-limit">
+          ${[20, 50, 0].map(n => `<button type="button" data-n="${n}" class="${state.tlLimit === n ? 'on' : ''}">${n === 0 ? '전체' : n + '명'}</button>`).join('')}
+        </div>
+      </div>
     </div>
     <div class="px-4 pt-1 pb-4">
       <div class="overflow-x-auto kko-table-card kko-card-in">
-        <table class="table table-zebra table-sm">
-          <thead class="sticky top-0 bg-base-100"><tr><th><input type="checkbox" id="tl-check-head" class="checkbox checkbox-xs" ${allChecked ? 'checked' : ''}></th><th>이름</th><th>부서</th><th>지역</th><th>등급</th><th>직책</th><th>최근 1년 센터 등록</th><th>이번 달 활동</th><th>활동 현황</th><th>등급 제안</th><th>활동 신청</th></tr></thead>
+        <table class="table table-zebra table-sm tl-table">
+          <!-- 2026-09-22 열 개편: 부서 열 삭제(부서를 이미 위에서 고르므로 중복) → 이름 옆이 지역.
+               순서: 이름·지역·등급 / 등급제안·직책·센등·이번달활동·활동신청.
+               폰(640px 이하)에서는 .tl-more 열을 감추고, 행을 누르면 아래 상세에서 전부 볼 수 있다. -->
+          <thead class="sticky top-0 bg-base-100"><tr>
+            <th><input type="checkbox" id="tl-check-head" class="checkbox checkbox-xs" ${allChecked ? 'checked' : ''}></th>
+            <th>이름</th><th>지역</th><th>등급</th>
+            <th class="tl-more">등급 제안</th><th class="tl-more">직책</th>
+            <th class="tl-more" title="최근 1년 센터 등록">센등</th>
+            <th class="tl-more">이번 달 활동</th><th class="tl-more">활동 신청</th>
+          </tr></thead>
           <tbody>
             ${rows.map(t => `
               <tr class="tl-row cursor-pointer ${state.tlSelected === t.memberId ? 'active' : ''}" data-mid="${esc(t.memberId)}">
                 <td><input type="checkbox" class="tl-check checkbox checkbox-xs" data-mid="${esc(t.memberId)}" ${state.tlChecked.has(t.memberId) ? 'checked' : ''}></td>
                 <td class="font-medium">${esc(t.name)}</td>
-                <td>${DIST_DEPT_ICON[t.dept] || ''} ${esc(t.dept || '-')}</td>
                 <td>${esc(t.region || '-')}</td>
-                <td><span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'} badge-xs">${esc(t.tier || '-')}</span></td>
-                <td>${t.position ? `<span class="badge badge-outline badge-xs">${esc(t.position)}</span>` : ''}</td>
-                <td class="text-center font-bold" style="color:#5B4FCF">${t._rep ? esc(t.leads1y || 0) + '건' : '…'}</td>
-                <td class="text-center">${t._rep ? esc(t.monthlyCount) + '건' : '…'}</td>
-                <td>${!t._rep ? '…' : (t.actTotal > 0 ? '<span class="badge badge-success badge-outline badge-xs">활동 중</span>' : '<span class="text-base-content/40 text-xs">없음</span>')}</td>
-                <td>${!t._rep ? '…' : (t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'} badge-xs">→ ${esc(t.suggestion.suggestedTier)}</span>` : '<span class="text-base-content/30 text-xs">-</span>')}</td>
-                <td class="text-xs">${!t._rep ? '…' : (t.apply ? `<span class="font-medium" style="color:#5B4FCF">${esc(applyText(t.apply))}</span>` : '<span class="text-base-content/40">없음</span>')}${t._rep && t.actTotal > 0 ? `<div class="text-[10px] text-base-content/50 mt-0.5">기록: ${esc(actSummaryText(t, 3))}</div>` : ''}</td>
+                <td><span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'} badge-sm">${esc(t.tier || '-')}</span></td>
+                <td class="tl-more">${!t._rep ? '…' : (t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'} badge-sm">→ ${esc(t.suggestion.suggestedTier)}</span>` : '<span class="text-base-content/30">-</span>')}</td>
+                <td class="tl-more">${t.position ? `<span class="badge badge-outline badge-sm">${esc(t.position)}</span>` : ''}</td>
+                <td class="tl-more text-center font-bold" style="color:#5B4FCF">${t._rep ? esc(t.leads1y || 0) : '…'}</td>
+                <td class="tl-more text-center">${t._rep ? esc(t.monthlyCount) + '건' : '…'}</td>
+                <td class="tl-more">${!t._rep ? '…' : (t.apply ? `<span class="font-medium" style="color:#5B4FCF">${esc(applyText(t.apply))}</span>` : '<span class="text-base-content/40">없음</span>')}</td>
               </tr>`).join('')}
-            ${rows.length === 0 ? `<tr><td colspan="11" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
+            ${rows.length === 0 ? `<tr><td colspan="9" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
           </tbody>
         </table>
       </div>
+      ${hiddenCount > 0 ? `<button type="button" id="tl-more-btn" class="w-full mt-2 py-3 rounded-box border border-base-300 bg-base-100 text-sm font-bold" style="color:var(--color-primary)">${hiddenCount}명 더 보기 ›</button>` : ''}
+      <div class="text-[11px] text-base-content/40 mt-2 tl-phone-hint">행을 누르면 직책·센터 등록·이번 달 활동 등 나머지 정보를 볼 수 있어요.</div>
       ${selected ? teacherListDetailHtml(selected) : ''}
     </div>`;
 }
@@ -5780,6 +5833,16 @@ function wireTeacherList() {
   bind('bulk-approver-dept', e => { state.bulkApproverDept = e.target.value; });
   bind('bulk-tier', e => { state.bulkTier = e.target.value; });
   const nm = $('bulk-approver-name'); if (nm) nm.oninput = e => { state.bulkApproverName = e.target.value; };
+  // 2026-09-22: 지역장·교관 등록 아코디언 / 20·50명 끊어보기 / 더 보기
+  const posT = $('tl-pos-toggle');
+  if (posT) posT.onclick = () => { state.tlPosOpen = !state.tlPosOpen; eduRender(); };
+  const limitBox = $('tl-limit');
+  if (limitBox) limitBox.onclick = e => {
+    const b = e.target.closest('button[data-n]'); if (!b) return;
+    state.tlLimit = Number(b.dataset.n); eduRender();
+  };
+  const moreBtn = $('tl-more-btn');
+  if (moreBtn) moreBtn.onclick = () => { state.tlLimit = state.tlLimit === 20 ? 50 : 0; eduRender(); };
   const q = $('tl-pos-q');
   if (q) q.oninput = e => { state.tlPosQuery = e.target.value; const box = $('tl-pos-results'); if (box) { box.innerHTML = positionResultsHtml(); wirePosButtons(); } };
   wirePosButtons();
