@@ -17,6 +17,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <!-- edu-dashboard.html(관리자 1️⃣교사현황)의 부서별 교사현황 차트(stacked bar)가 사용하는 라벨 플러그인 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+  <!-- 2026-09-22: 활동 섹션 당근마켓 스타일 리디자인용 Pretendard — #sec-activity에만 스코프해서 적용(다른 섹션 폰트는 그대로). -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
   <style>
     /* ════════════════════════════════════════════════════════════════
        [SHARED] 제사장의 길 공통 디자인 시스템 — 병합 전 11개 파일이 각자
@@ -191,7 +193,51 @@
     .cal-ev-row { display:flex; gap:10px; align-items:center; padding:12px; border:1px solid var(--color-border); border-radius:12px; margin-bottom:8px; cursor:pointer; }
     .cal-guest { display:flex; align-items:center; gap:8px; padding:8px 10px; background:#F7F7FB; border-radius:10px; margin-top:6px; font-size:13px; }
     .cal-guest button { margin-left:auto; border:none; background:none; color:var(--color-error); font-size:12px; cursor:pointer; }
-    /* ===== SECTION CSS: activity (2단계에서 채움) ===== */
+    /* ===== SECTION CSS: activity =====
+       2026-09-22 당근마켓(Daangn) 스타일 리디자인 — 박스형 카드 대신 얇은 border-b 구분선 피드,
+       우측 하단 FAB(.act-fab)+바텀시트(공유 openSheet/closeSheet 재사용, 새로 안 만듦),
+       select 대신 가로 스크롤 칩(.act-chip-btn). 브랜드 컬러(#5B4FCF)는 그대로 유지.
+       ⚠️ 바텀시트는 #sec-activity 밖의 공유 #appSheetHost에 렌더되므로(다른 섹션들과 동일한
+       기존 함정 — #sec-XXX 스코프가 안 먹음), 시트 안에서 쓰는 클래스(.act-sheet-form/
+       .act-step-label/.act-chip-scroll/.act-chip-btn, Pretendard 폰트 포함)는 전역으로 두되
+       .act- 접두사로 다른 섹션과 충돌만 피한다. 대시보드 화면 안(#sec-activity 자식)에서만
+       쓰는 것(.act-feed-*/.act-fab)만 #sec-activity로 스코프. */
+    #sec-activity, .act-sheet-form {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      letter-spacing: -0.01em;
+    }
+    /* 피드 리스트 — 카드 박스 제거, 얇은 구분선만(당근 "동네생활" 목록 스타일). #sec-activity 안에서만 쓰임. */
+    #sec-activity .act-feed-list { background:#fff; }
+    #sec-activity .act-feed-row { display:flex; gap:10px; padding:14px 16px; border-bottom:1px solid #F1F1F1; }
+    #sec-activity .act-feed-row:last-child { border-bottom:none; }
+    #sec-activity .act-feed-empty { padding:32px 16px; text-align:center; color:#9CA3AF; font-size:13px; }
+    #sec-activity .act-feed-header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px 6px; }
+    #sec-activity .act-feed-title { font-size:16px; font-weight:800; color:#1A1A2E; }
+    /* 태그(Chip) — 당근 스타일 옅은 회색 배경 + 진한 회색 글자, 완전히 둥근 모서리.
+       대시보드(피드)와 바텀시트(폼 안 뱃지) 양쪽에서 다 쓰므로 전역으로 둠. */
+    .act-chip { display:inline-flex; align-items:center; height:22px; padding:0 9px; border-radius:999px; background:#F3F4F6; color:#4B5563; font-size:12px; font-weight:600; white-space:nowrap; font-family:'Pretendard',inherit; }
+    .act-chip.act-chip-stage { background:#EDE9FF; color:#5B4FCF; }
+    /* 플로팅 액션 버튼(FAB) — 연결 섹션의 .cn-fab과 같은 좌표계, 원형으로만 차별화. #sec-activity 자식(대시보드)에만 등장. */
+    #sec-activity .act-fab {
+      position:fixed; right:18px; bottom:78px; width:56px; height:56px; border-radius:50%;
+      background:#5B4FCF; color:#fff; border:none; font-size:28px; line-height:1;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 4px 14px rgba(91,79,207,.4); z-index:30; cursor:pointer;
+    }
+    #sec-activity .act-fab:active { transform:scale(0.94); }
+    /* 바텀시트 안 작성 폼 — #appSheetHost에 렌더되므로 전역 클래스(카드 chrome 제거, 시트 자체가 이미 그 역할) */
+    /* 공유 .sheet가 이미 padding:20px 16px 24px 를 주므로 여기선 폰트/타이포만(중복 패딩 방지) */
+    .act-sheet-form { display:flex; flex-direction:column; gap:18px; }
+    .act-sheet-form .act-step-label { font-size:12px; font-weight:800; color:#9CA3AF; margin-bottom:8px; }
+    /* 가로 스크롤 칩 버튼 그룹 — select 대체. 바텀시트 안에서만 쓰이므로 전역. */
+    .act-chip-scroll { display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
+    .act-chip-scroll::-webkit-scrollbar { display:none; }
+    .act-chip-btn {
+      flex-shrink:0; height:38px; padding:0 16px; border-radius:999px; border:1.5px solid #E5E7EB;
+      background:#fff; color:#6B7280; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;
+      font-family:'Pretendard',inherit;
+    }
+    .act-chip-btn.on { background:#5B4FCF; border-color:#5B4FCF; color:#fff; font-weight:800; }
     /* ===== SECTION CSS: connect =====
        원본 connect-room.html에서 .kko-card/.kko-btn-main/.kko-btn-outline/.kko-input/.kko-spinner/
        .kko-card-in 은 공유 shell과 겹치는 이름이지만가벼운 값 차이(cursor, flex:1 등)가 실사용
@@ -1312,83 +1358,75 @@
       const existingTargets = home.targets.filter(t => !t.completed);
 
       return `
-        <div class="card card-border bg-base-100 shadow-sm mx-4 kko-form">
-          <div class="card-body p-4 gap-4">
-            <div class="text-sm font-bold text-base-content">활동 기록</div>
+        <div class="text-lg font-extrabold" style="color:#1A1A2E">오늘 활동, 기록해볼까요?</div>
 
-            <div>
-              <div class="text-xs font-bold text-base-content/50 mb-1">① 날짜</div>
-              <input type="date" id="af-date" class="input input-bordered input-sm w-full" value="${esc(f.date)}" max="${esc(todayStr())}">
-            </div>
+        <div>
+          <div class="act-step-label">① 날짜</div>
+          <input type="date" id="af-date" class="input input-bordered input-sm w-full" value="${esc(f.date)}" max="${esc(todayStr())}">
+        </div>
 
-            <div>
-              <div class="text-xs font-bold text-base-content/50 mb-1">② 역할 (복수 선택 가능)</div>
-              <div class="flex flex-wrap gap-2">
-                ${ROLE_OPTIONS.map(r => `
-                  <label class="flex items-center gap-1.5 border border-base-300 rounded-box px-2 py-2 text-xs cursor-pointer flex-1 justify-center ${f.roles.includes(r) ? 'bg-primary/10 border-primary text-primary font-bold' : ''}">
-                    <input type="checkbox" class="checkbox checkbox-xs af-role-cb" value="${esc(r)}" ${f.roles.includes(r) ? 'checked' : ''}> ${esc(roleShortLabel(r))}
-                  </label>`).join('')}
-              </div>
-            </div>
-
-            <div>
-              <div class="text-xs font-bold text-base-content/50 mb-1">③ 활동 항목</div>
-              <select id="af-item" class="select select-bordered select-sm w-full" ${f.roles.length ? '' : 'disabled'}>
-                ${f.roles.length
-                  ? itemOptions.map(o => `<option value="${esc(o)}" ${f.activityItem === o ? 'selected' : ''}>${esc(o)}</option>`).join('')
-                  : '<option>역할을 먼저 선택하세요</option>'}
-              </select>
-            </div>
-
-            ${(isConsult || isGospel) ? `
-            <div class="border-t border-base-200 pt-3">
-              <div class="text-xs font-bold text-base-content/50 mb-2">${isConsult ? '상담 상세' : '복음방 상세'}</div>
-              <input type="text" id="af-extra-title" placeholder="${esc(extraTitleLabel)}" class="input input-bordered input-sm w-full mb-2" value="${esc(f.extraTitle)}">
-              <div class="text-xs text-base-content/50 mb-1.5">반응</div>
-              <div class="flex gap-3 mb-2">
-                ${REACTION_OPTIONS.map(r => `
-                  <label class="flex items-center gap-1 text-xs cursor-pointer">
-                    <input type="radio" name="af-reaction" class="radio radio-xs af-reaction-radio" value="${esc(r)}" ${f.reaction === r ? 'checked' : ''}> ${esc(r)}
-                  </label>`).join('')}
-              </div>
-              <input type="text" id="af-reaction-note" placeholder="반응 메모 (선택)" class="input input-bordered input-sm w-full" value="${esc(f.reactionNote)}">
-            </div>
-            ` : ''}
-
-            <div class="border-t border-base-200 pt-3">
-              <div class="text-xs font-bold text-base-content/50 mb-2">④ 대상자 일지</div>
-              <div>
-                ${existingTargets.length ? `
-                <select id="af-existing" class="select select-bordered select-sm w-full mb-2">
-                  <option value="">기존 섭외자 선택 (또는 아래에 새로 입력)</option>
-                  ${existingTargets.map(t => `<option value="${esc(t.targetId)}" ${f.existingTargetId === t.targetId ? 'selected' : ''}>${esc(maskName(t.targetName))} · ${esc(t.stage || '-')}</option>`).join('')}
-                </select>` : ''}
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                  <input type="text" id="af-tname" placeholder="이름" class="input input-bordered input-sm w-full col-span-2" value="${esc(f.targetName)}">
-                  <select id="af-tgender" class="select select-bordered select-sm w-full">
-                    <option value="">성별</option>
-                    ${GENDER_OPTIONS.map(g => `<option value="${esc(g)}" ${f.targetGender === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}
-                  </select>
-                  <select id="af-tage" class="select select-bordered select-sm w-full">
-                    <option value="">연령대</option>
-                    ${AGE_GROUP_OPTIONS.map(a => `<option value="${esc(a)}" ${f.targetAgeGroup === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}
-                  </select>
-                  <select id="af-tstage" class="select select-bordered select-sm w-full col-span-2">
-                    <option value="">현재 단계</option>
-                    ${stageOptions.map(s => `<option value="${esc(s)}" ${f.targetStage === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}
-                  </select>
-                </div>
-                <textarea id="af-today" rows="2" placeholder="오늘 한 일" class="textarea textarea-bordered textarea-sm w-full mb-2">${esc(f.todayWork)}</textarea>
-                <textarea id="af-next" rows="2" placeholder="다음 할 일" class="textarea textarea-bordered textarea-sm w-full">${esc(f.nextWork)}</textarea>
-                <div class="text-[10px] text-base-content/40 mt-1">이름 가운데 글자는 목록/현황 화면에 자동으로 * 표시돼요 (예: 홍*동)</div>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-              <button id="af-submit" class="kko-btn-main" ${f.loading ? 'disabled' : ''}>${f.loading ? '등록 중...' : '등록'}</button>
-              <button id="af-aicoach" class="kko-btn-outline">AI코칭 바로가기 →</button>
-            </div>
+        <div>
+          <div class="act-step-label">② 역할 (여러 개 골라도 돼요)</div>
+          <div class="flex flex-wrap gap-2">
+            ${ROLE_OPTIONS.map(r => `
+              <label class="flex items-center gap-1.5 border border-base-300 rounded-box px-2 py-2 text-xs cursor-pointer flex-1 justify-center ${f.roles.includes(r) ? 'bg-primary/10 border-primary text-primary font-bold' : ''}">
+                <input type="checkbox" class="checkbox checkbox-xs af-role-cb" value="${esc(r)}" ${f.roles.includes(r) ? 'checked' : ''}> ${esc(roleShortLabel(r))}
+              </label>`).join('')}
           </div>
+        </div>
+
+        <div>
+          <div class="act-step-label">③ 어떤 활동이었나요?</div>
+          ${f.roles.length
+            ? `<div class="act-chip-scroll">${itemOptions.map(o => `<button type="button" class="act-chip-btn af-item-chip ${f.activityItem === o ? 'on' : ''}" data-item="${esc(o)}">${esc(o)}</button>`).join('')}</div>`
+            : `<div class="text-xs text-base-content/40">역할을 먼저 선택해주세요</div>`}
+        </div>
+
+        ${(isConsult || isGospel) ? `
+        <div class="border-t border-base-200 pt-3">
+          <div class="act-step-label">${isConsult ? '상담 상세' : '복음방 상세'}</div>
+          <input type="text" id="af-extra-title" placeholder="${esc(extraTitleLabel)}" class="input input-bordered input-sm w-full mb-2" value="${esc(f.extraTitle)}">
+          <div class="text-xs text-base-content/50 mb-1.5">반응</div>
+          <div class="flex gap-3 mb-2">
+            ${REACTION_OPTIONS.map(r => `
+              <label class="flex items-center gap-1 text-xs cursor-pointer">
+                <input type="radio" name="af-reaction" class="radio radio-xs af-reaction-radio" value="${esc(r)}" ${f.reaction === r ? 'checked' : ''}> ${esc(r)}
+              </label>`).join('')}
+          </div>
+          <input type="text" id="af-reaction-note" placeholder="반응 메모 (선택)" class="input input-bordered input-sm w-full" value="${esc(f.reactionNote)}">
+        </div>
+        ` : ''}
+
+        <div class="border-t border-base-200 pt-3">
+          <div class="act-step-label">④ 대상자 일지</div>
+          <div class="flex flex-col gap-2">
+            ${existingTargets.length ? `
+            <select id="af-existing" class="select select-bordered select-sm w-full">
+              <option value="">기존 섭외자 선택 (또는 아래에 새로 입력)</option>
+              ${existingTargets.map(t => `<option value="${esc(t.targetId)}" ${f.existingTargetId === t.targetId ? 'selected' : ''}>${esc(maskName(t.targetName))} · ${esc(t.stage || '-')}</option>`).join('')}
+            </select>` : ''}
+            <input type="text" id="af-tname" placeholder="이름" class="input input-bordered input-sm w-full" value="${esc(f.targetName)}">
+            <div>
+              <div class="text-[11px] text-base-content/40 mb-1">성별</div>
+              <div class="act-chip-scroll">${GENDER_OPTIONS.map(g => `<button type="button" class="act-chip-btn af-gender-chip ${f.targetGender === g ? 'on' : ''}" data-gender="${esc(g)}">${esc(g)}</button>`).join('')}</div>
+            </div>
+            <div>
+              <div class="text-[11px] text-base-content/40 mb-1">연령대</div>
+              <div class="act-chip-scroll">${AGE_GROUP_OPTIONS.map(a => `<button type="button" class="act-chip-btn af-age-chip ${f.targetAgeGroup === a ? 'on' : ''}" data-age="${esc(a)}">${esc(a)}</button>`).join('')}</div>
+            </div>
+            <div>
+              <div class="text-[11px] text-base-content/40 mb-1">현재 단계</div>
+              <div class="act-chip-scroll">${stageOptions.map(s => `<button type="button" class="act-chip-btn af-stage-chip ${f.targetStage === s ? 'on' : ''}" data-stage="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+            </div>
+            <textarea id="af-today" rows="2" placeholder="오늘 한 일" class="textarea textarea-bordered textarea-sm w-full">${esc(f.todayWork)}</textarea>
+            <textarea id="af-next" rows="2" placeholder="다음 할 일" class="textarea textarea-bordered textarea-sm w-full">${esc(f.nextWork)}</textarea>
+            <div class="text-[10px] text-base-content/40">이름 가운데 글자는 목록/현황 화면에 자동으로 * 표시돼요 (예: 홍*동)</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button id="af-submit" class="kko-btn-main" ${f.loading ? 'disabled' : ''}>${f.loading ? '기록하는 중...' : '기록 남기기'}</button>
+          <button id="af-aicoach" class="kko-btn-outline">AI코칭 바로가기 →</button>
         </div>
       `;
     }
@@ -1407,18 +1445,29 @@
           const hasTeacherExtra = f.roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r));
           const opts = hasTeacherExtra ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS;
           if (!opts.includes(f.activityItem)) f.activityItem = f.roles.length ? opts[0] : '';
-          renderHome();
+          renderActivityFormSheet();
         };
       });
 
-      const itemEl = document.getElementById('af-item');
-      if (itemEl) itemEl.onchange = e => {
-        f.activityItem = e.target.value;
-        const mapped = ACTIVITY_TO_STAGE[f.activityItem];
-        if (mapped) f.targetStage = mapped;
-        f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
-        renderHome();
-      };
+      // 2026-09-22: select → 가로 스크롤 칩(당근 스타일). 값 반영 위치(home.form.*)는 그대로.
+      document.querySelectorAll('.af-item-chip').forEach(btn => {
+        btn.onclick = () => {
+          f.activityItem = btn.dataset.item;
+          const mapped = ACTIVITY_TO_STAGE[f.activityItem];
+          if (mapped) f.targetStage = mapped;
+          f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
+          renderActivityFormSheet();
+        };
+      });
+      document.querySelectorAll('.af-gender-chip').forEach(btn => {
+        btn.onclick = () => { f.targetGender = (f.targetGender === btn.dataset.gender) ? '' : btn.dataset.gender; renderActivityFormSheet(); };
+      });
+      document.querySelectorAll('.af-age-chip').forEach(btn => {
+        btn.onclick = () => { f.targetAgeGroup = (f.targetAgeGroup === btn.dataset.age) ? '' : btn.dataset.age; renderActivityFormSheet(); };
+      });
+      document.querySelectorAll('.af-stage-chip').forEach(btn => {
+        btn.onclick = () => { f.targetStage = (f.targetStage === btn.dataset.stage) ? '' : btn.dataset.stage; renderActivityFormSheet(); };
+      });
 
       // 2026-09-22 신규: 기존 섭외자 선택 → 이름/성별/연령대/현재단계 자동 채움(오늘의 활동만 추가 입력).
       const existingEl = document.getElementById('af-existing');
@@ -1426,7 +1475,7 @@
         f.existingTargetId = e.target.value;
         const t = home.targets.find(x => x.targetId === f.existingTargetId);
         if (t) { f.targetName = t.targetName || ''; f.targetGender = t.gender || ''; f.targetAgeGroup = t.ageGroup || ''; f.targetStage = t.stage || ''; }
-        renderHome();
+        renderActivityFormSheet();
       };
 
       const bindInput = (id, key) => { const el = document.getElementById(id); if (el) el.oninput = e => { f[key] = e.target.value; }; };
@@ -1435,11 +1484,6 @@
       bindInput('af-next', 'nextWork');
       bindInput('af-extra-title', 'extraTitle');
       bindInput('af-reaction-note', 'reactionNote');
-
-      const bindChange = (id, key) => { const el = document.getElementById(id); if (el) el.onchange = e => { f[key] = e.target.value; }; };
-      bindChange('af-tgender', 'targetGender');
-      bindChange('af-tage', 'targetAgeGroup');
-      bindChange('af-tstage', 'targetStage');
 
       document.querySelectorAll('.af-reaction-radio').forEach(radio => { radio.onchange = e => { f.reaction = e.target.value; }; });
 
@@ -1464,7 +1508,7 @@
       const newStageIdx = stageIndex(newStage);
 
       f.loading = true;
-      renderHome();
+      renderActivityFormSheet();
       try {
         const res = await callApi({
           action: 'submitActivity', memberId, name,
@@ -1482,15 +1526,19 @@
         f.targetName = ''; f.targetGender = ''; f.targetAgeGroup = ''; f.targetStage = ''; f.existingTargetId = '';
         f.todayWork = ''; f.nextWork = '';
         f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
+        f.loading = false;
+        // 당근 스타일: 등록 성공하면 바텀시트를 닫고 피드(대시보드)로 돌아가 새 기록을 바로 보여줌.
+        closeSheet();
         await refreshAfterSubmit();
+        renderHome();
         if (targetNameTrimmed && prevTarget && newStageIdx >= 0 && newStageIdx > prevStageIdx) {
           openStageUpModal(targetNameTrimmed, prevTarget.stage, newStage);
         }
       } catch (e) {
         alert('등록 중 오류가 발생했습니다: ' + e.message);
+        f.loading = false;
+        renderActivityFormSheet(); // 실패 시엔 시트를 유지해서 바로 재시도할 수 있게
       }
-      f.loading = false;
-      renderHome();
     }
 
     let stageUpAutoCloseTimer = null;
@@ -1580,15 +1628,11 @@
       const chartWidth = Math.max(320, home.targets.length * 56 + 60);
       return `
         <div class="px-4">
-          <div class="text-sm font-bold text-base-content mb-1">내 전도 대상자 현황</div>
+          <div class="act-feed-title mb-1">내 전도 대상자 현황</div>
           <div class="text-[10px] text-base-content/40 mb-2">Y축 = 진행 단계(아래 섭외 → 위 센터수강) · 막대 하나 = 대상자 한 명 · 눌러서 상세보기</div>
-          <div class="card card-border bg-base-100 shadow-sm">
-            <div class="card-body p-3">
-              <div class="overflow-x-auto pb-1">
-                <div style="width:${chartWidth}px;height:260px">
-                  <canvas id="targetsChart"></canvas>
-                </div>
-              </div>
+          <div class="overflow-x-auto pb-1">
+            <div style="width:${chartWidth}px;height:260px">
+              <canvas id="targetsChart"></canvas>
             </div>
           </div>
         </div>
@@ -1759,37 +1803,33 @@
       const item = a.activityItem || (a.activities && a.activities[0]) || '';
       const temp = stageTemp(a.targetStage);
       return `
-        <div class="border-b border-base-200 last:border-0 py-3">
-          <div class="flex items-start gap-2">
-            <div class="text-[11px] text-base-content/40 w-[70px] shrink-0 leading-tight">${esc(String(a.submittedAt || '').split(' ')[0])}</div>
-            <div class="flex-1 min-w-0">
-              <div class="flex flex-wrap items-center gap-1 mb-1">
-                ${(a.roles || []).map(r => `<span class="badge badge-ghost badge-xs">${esc(roleShortLabel(r))}</span>`).join('')}
-                <span class="font-bold text-xs">${esc(item)}</span>
-                ${a.targetStage ? `<span class="badge badge-xs" style="background:${temp.bg};color:${temp.text};border:1px solid ${temp.border}">${esc(a.targetStage)}</span>` : ''}
-              </div>
-              ${a.targetName ? `<div class="text-xs text-base-content/60">대상자: ${esc(maskName(a.targetName))}</div>` : ''}
-              ${a.todayWork ? `<div class="text-xs text-base-content/60">오늘: ${esc(a.todayWork)}</div>` : ''}
-              ${a.nextWork ? `<div class="text-xs text-base-content/60">다음: ${esc(a.nextWork)}</div>` : ''}
-              <button class="ai-fb-btn btn btn-xs btn-outline btn-secondary mt-2" data-key="${esc(key)}" ${fb && fb.loading ? 'disabled' : ''}>
-                ${fb && fb.loading ? '<span class="loading loading-spinner loading-xs"></span> AI 분석 중...' : ICON_BOT + ' AI 피드백'}
-              </button>
-              ${fb && !fb.loading && fb.text ? `<div class="mt-2 rounded-box bg-secondary/5 border border-secondary/20 p-3 text-xs leading-relaxed whitespace-pre-wrap">${esc(fb.text)}</div>` : ''}
+        <div class="act-feed-row">
+          <div class="text-[11px] text-base-content/40 w-[70px] shrink-0 leading-tight">${esc(String(a.submittedAt || '').split(' ')[0])}</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-1.5 mb-1">
+              ${(a.roles || []).map(r => `<span class="act-chip">${esc(roleShortLabel(r))}</span>`).join('')}
+              <span class="font-bold text-xs">${esc(item)}</span>
+              ${a.targetStage ? `<span class="act-chip act-chip-stage">${esc(a.targetStage)}</span>` : ''}
             </div>
+            ${a.targetName ? `<div class="text-xs text-base-content/60">대상자: ${esc(maskName(a.targetName))}</div>` : ''}
+            ${a.todayWork ? `<div class="text-xs text-base-content/60">오늘: ${esc(a.todayWork)}</div>` : ''}
+            ${a.nextWork ? `<div class="text-xs text-base-content/60">다음: ${esc(a.nextWork)}</div>` : ''}
+            <button class="ai-fb-btn btn btn-xs btn-outline btn-secondary mt-2" data-key="${esc(key)}" ${fb && fb.loading ? 'disabled' : ''}>
+              ${fb && fb.loading ? '<span class="loading loading-spinner loading-xs"></span> AI 분석 중...' : ICON_BOT + ' AI 피드백'}
+            </button>
+            ${fb && !fb.loading && fb.text ? `<div class="mt-2 rounded-box bg-secondary/5 border border-secondary/20 p-3 text-xs leading-relaxed whitespace-pre-wrap">${esc(fb.text)}</div>` : ''}
           </div>
         </div>`;
     }
     function activityHistorySectionHtml() {
       const rows = (home.monthlyActRes && home.monthlyActRes.rows) || [];
       return `
-        <div class="card card-border bg-base-100 shadow-sm mx-4">
-          <div class="card-body p-4">
-            <button id="history-toggle" class="flex items-center justify-between w-full text-left">
-              <span class="text-sm font-bold text-base-content">내 활동 기록 <span class="text-xs font-normal text-base-content/40">(${rows.length}건)</span></span>
-              <span class="text-xs text-base-content/40">${home.historyOpen ? '접기 ▲' : '펼치기 ▼'}</span>
-            </button>
-            ${home.historyOpen ? (rows.length === 0 ? `<div class="text-xs text-base-content/40 text-center py-6">아직 등록한 활동이 없습니다.</div>` : `<div class="mt-2">${rows.map(activityHistoryRowHtml).join('')}</div>`) : ''}
-          </div>
+        <div class="act-feed-list">
+          <button id="history-toggle" class="act-feed-header w-full text-left">
+            <span class="act-feed-title">내 활동 기록 <span class="text-xs font-normal text-base-content/40">(${rows.length}건)</span></span>
+            <span class="text-xs text-base-content/40">${home.historyOpen ? '접기 ▲' : '펼치기 ▼'}</span>
+          </button>
+          ${home.historyOpen ? (rows.length === 0 ? `<div class="act-feed-empty">아직 등록한 활동이 없어요. 우측 하단 + 버튼으로 첫 기록을 남겨보세요.</div>` : rows.map(activityHistoryRowHtml).join('')) : ''}
         </div>
       `;
     }
@@ -1841,11 +1881,17 @@
           ${encouragementBannerHtml()}
           ${coachReplyBannerHtml()}
           ${myActivityViewHtml()}
-          ${activityFormHtml()}
           ${activityHistorySectionHtml()}
           ${targetsSectionHtml()}
         </div>
+        <button type="button" id="act-fab" class="act-fab" title="활동 기록 남기기">+</button>
       `;
+    }
+    // 당근마켓 스타일: 작성 폼은 화면에 항상 펼쳐두지 않고 FAB→바텀시트로. openSheet()가 항상
+    // #appSheetHost 전체를 새로 그리므로 "열기"와 "폼 상태 변경 후 다시 그리기"가 같은 함수로 충분.
+    function renderActivityFormSheet() {
+      openSheet(`<div class="act-sheet-form">${activityFormHtml()}</div>`);
+      wireActivityForm();
     }
     function renderHome() {
       const root = document.getElementById('homeContent');
@@ -1856,11 +1902,12 @@
       }
       root.innerHTML = dashboardViewHtml();
       updateTierBadge();
-      wireActivityForm();
       renderTargetsChart();
       wireHistoryAndCards();
       const bannerEl = document.getElementById('encourage-banner');
       if (bannerEl) bannerEl.onclick = openEncourageBannerModal;
+      const fabEl = document.getElementById('act-fab');
+      if (fabEl) fabEl.onclick = renderActivityFormSheet;
     }
     window.Sections.activity = { mount() { loadHomeDashboard(); } };
 
