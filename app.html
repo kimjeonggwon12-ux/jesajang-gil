@@ -3711,7 +3711,8 @@ let inactiveFilter = '';
 // 1행으로 보여주고, 박스를 눌러야 그 상세가 펼쳐지는 방식으로 변경.
 // null | 'promo' | 'demo' | 'pending' | 'inactive' | 'leads'
 let settlementView = null;
-function setSettlementView(v) { settlementView = (settlementView === v) ? null : v; eduRender(); }
+// 2026-09-22: edu(1️⃣ 교사현황)에서 dist(2️⃣ 부서별 활동 관리, "[전체] 결산")로 이동 — 재렌더는 distRender.
+function setSettlementView(v) { settlementView = (settlementView === v) ? null : v; distRender(); }
 
 // ============ 2026-09-17: "이번 달 교사 활동 우수 지역" ============
 // 백엔드 getTopRegions(dept)/getChurchTopRegions() 신규 액션 재사용 — 4역할 11항목 활동 데이터
@@ -3977,14 +3978,10 @@ async function load() {
   loading = false;
   eduRender();
 
-  // 결산 현황은 무거운 계산(전 교사 스캔)이라 메인 렌더 후 별도로 로드
-  loadSettlement();
-  loadAllLeads();
-  loadTopRegionsForDept(topRegionsTab);
-  loadChurchTopRegions();
-  loadConnectStats();
-  loadStageDist(stageRole);
-  loadKeyStage();
+  // 2026-09-22: 결산/우수지역/연결방현황/단계분포는 "2️⃣ 부서별 활동 관리"로 이동(adminSwitchSubTab의
+  // 'dist' 분기에서 로드) — 여기서는 "교사 개별 정보"(구 district "교사 명단")만 이어서 로드.
+  loadRosterAll(false);
+  loadTeacherReport(false);
 }
 
 // 센터 인도 실적 원본 레코드 — "월별 검색"용, 실패해도 기존 "최근 6개월" 랭킹은 그대로 보이도록 degrade.
@@ -4002,19 +3999,20 @@ async function loadConnectStats() {
   catch (e) { connectStats = { error: String(e) }; }
   connectStatsLoading = false; eduRender();
 }
+// 2026-09-22: edu(1️⃣ 교사현황)에서 dist(2️⃣ 부서별 활동 관리, "[전체] MVP·단계분포")로 이동 — 재렌더는 distRender.
 async function loadStageDist(role) {
   if (stageDist[role] || stageDistLoading[role]) return;
-  stageDistLoading[role] = true; eduRender();
+  stageDistLoading[role] = true; distRender();
   try { const r = await callApi({ action: 'getTargetStageDistribution', role }); stageDist[role] = (r && !r.error) ? r : { error: (r && r.error) || '불러오기 실패' }; }
   catch (e) { stageDist[role] = { error: String(e) }; }
-  stageDistLoading[role] = false; eduRender();
+  stageDistLoading[role] = false; distRender();
 }
 async function loadKeyStage() {
   try { const r = await callApi({ action: 'getKeyStageCount' }); keyStage = (r && !r.error) ? r : { error: (r && r.error) || '불러오기 실패' }; }
   catch (e) { keyStage = { error: String(e) }; }
-  eduRender();
+  distRender();
 }
-function setStageRole(role) { stageRole = role; loadStageDist(role); eduRender(); }
+function setStageRole(role) { stageRole = role; loadStageDist(role); distRender(); }
 
 function renderConnectStatsSection() {
   const sub = '교사 커뮤니티 활성화 지표';
@@ -4063,7 +4061,7 @@ function renderStageDistributionSection() {
 
 async function loadAllLeads() {
   allLeadsLoading = true;
-  eduRender();
+  distRender();
   try {
     const res = await callApi({ action: 'getAllCenterLeads' });
     allLeads = (res && Array.isArray(res.rows)) ? res.rows : [];
@@ -4071,14 +4069,15 @@ async function loadAllLeads() {
     allLeads = [];
   }
   allLeadsLoading = false;
-  eduRender();
+  distRender();
 }
 
 // ============ 월별 결산 현황 (getSettlementReport) ============
+// 2026-09-22: edu(1️⃣ 교사현황)에서 dist(2️⃣ 부서별 활동 관리, "[전체] 결산")로 이동 — 재렌더는 distRender.
 
 async function loadSettlement() {
   settlementLoading = true;
-  eduRender();
+  distRender();
   try {
     const res = await callApi({ action: 'getSettlementReport' });
     settlement = (res && !res.error) ? res : { error: (res && res.error) || '불러오기 실패' };
@@ -4086,7 +4085,7 @@ async function loadSettlement() {
     settlement = { error: String(e) };
   }
   settlementLoading = false;
-  eduRender();
+  distRender();
 }
 
 function tierChangeBadge(cur, sug) {
@@ -4401,18 +4400,14 @@ function buildRosterStats() {
 
 function renderRosterSection() {
   if (roster.length === 0) return '';
+  // 2026-09-22: 원형(도넛) 그래프 제거 요청 — "교사구분별 분포"는 위 총 교사 수 섹션의
+  // 등급별 인원·비율로 이미 확인 가능해 중복이라 판단, 부서별 막대그래프만 남김(전체 폭으로 확장).
   const body = `
-      <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div class="grid gap-4 mb-4">
         <div class="card card-border bg-base-100 shadow-sm">
           <div class="card-body p-4">
             <div class="text-sm font-medium text-base-content/70 mb-2">${licon('📊')} 부서별 등록 교사 수</div>
-            <canvas id="deptCountChart" height="200"></canvas>
-          </div>
-        </div>
-        <div class="card card-border bg-base-100 shadow-sm">
-          <div class="card-body p-4">
-            <div class="text-sm font-medium text-base-content/70 mb-2">🍩 교사구분(등급)별 분포</div>
-            <canvas id="tierChart" height="200"></canvas>
+            <canvas id="deptCountChart" height="140"></canvas>
           </div>
         </div>
       </div>
@@ -4423,7 +4418,6 @@ function renderRosterSection() {
 function renderRosterCharts() {
   if (roster.length === 0) return;
   const s = buildRosterStats();
-  const TIER_COLORS = ['#94a3b8', '#4f46e5', '#0ea5e9', '#059669', '#d97706', '#dc2626'];
 
   // "부서별 등록 교사 수" — 부서(교역자/자문회/장년회/부녀회/청년회/기타)별 한 막대에
   // 휴교사·교사·활동교사·우수교사 4개 구간을 색으로 누적 표시, 구간마다 인원+비율 라벨 표기.
@@ -4454,15 +4448,6 @@ function renderRosterCharts() {
       scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
     }
   });
-
-  new Chart(document.getElementById('tierChart'), {
-    type: 'doughnut',
-    data: {
-      labels: s.tierLabels,
-      datasets: [{ data: s.tierLabels.map(t => s.tierCounts[t] || 0), backgroundColor: s.tierLabels.map((_, i) => TIER_COLORS[i % TIER_COLORS.length]) }]
-    },
-    options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
-  });
 }
 
 function eduRender() {
@@ -4471,7 +4456,7 @@ function eduRender() {
     <header class="kko-header px-5">
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">${licon('🎓')}</span>
-        <div class="text-lg font-bold">통합</div>
+        <div class="text-lg font-bold">교사 현황</div>
       </div>
     </header>
     <div class="brand-accent-bar"></div>
@@ -4500,18 +4485,32 @@ function eduRender() {
     return;
   }
 
-  // 총 교사 수 → 부서별 교사 현황(바로 아래로 이동) → 월별 결산 현황 → 주별 추이 → 우수 지역.
-  // 피드백 현황/분석 섹션은 coach-dashboard.html로 이동(2026-09-19) — 이 파일에서는 더 이상 렌더링하지 않음.
+  // 2026-09-22 관리자 재구성: "1️⃣ 교사 현황" = 총 교사 수·등급별(원형 그래프 제거) → 지역장·교관
+  // 등록 + 교사 개별 정보(구 district의 "교사 명단", teacherListSectionHtml 그대로 재사용 — 함수
+  // 자체는 안 옮기고 여기서 호출만 함) → 이수 관리(별도 탭) → AI 전체 현황 분석.
+  // 결산/MVP·단계분포/역할활동/지역별 4역할11항목은 "2️⃣ 부서별 활동 관리"로 이동(distRender 참고).
   const teacherSummaryHtml = renderTeacherSummarySection();
   const rosterHtml = renderRosterSection();
-  const settlementHtml = renderSettlementSection();
-  const tierBundle = teacherSummaryHtml + rosterHtml + settlementHtml + renderTopRegionsSection() + renderConnectStatsSection() + renderStageDistributionSection();
+  const teacherListHtml = teacherListSectionHtml();
 
-  content.innerHTML = tierBundle + renderAiAnalysisSection() + (roster.length === 0
-    ? `<div class="text-sm text-base-content/40 text-center py-16">아직 데이터가 없습니다.</div>` : '');
+  content.innerHTML = teacherSummaryHtml + rosterHtml + teacherListHtml + renderAiAnalysisSection() + (roster.length === 0
+    ? `<div class="text-sm text-base-content/40 text-center py-16">아직 데이터가 없습니다.</div>` : '') + encourageModalHtml();
 
-  wireSettlementFilters();
   wireAiAnalysisButton();
+  wireTeacherList();
+  document.querySelectorAll('.btn-encourage-trigger').forEach(btn => {
+    btn.onclick = () => openEncourageModal(btn.dataset.mid, btn.dataset.name);
+  });
+  if (state.encourageTarget) {
+    const fromEl = document.getElementById('enc-from');
+    if (fromEl) fromEl.oninput = e => { state.encourageFromName = e.target.value; };
+    const msgEl = document.getElementById('enc-message');
+    if (msgEl) msgEl.oninput = e => { state.encourageText = e.target.value; };
+    const cancelBtn = document.getElementById('btn-encourage-cancel');
+    if (cancelBtn) cancelBtn.onclick = closeEncourageModal;
+    const sendBtn = document.getElementById('btn-encourage-send');
+    if (sendBtn) sendBtn.onclick = sendEncourageMessage;
+  }
   renderRosterCharts();
 }
 
@@ -4600,13 +4599,13 @@ function wireSettlementFilters() {
     btn.onclick = () => setSettlementView(btn.dataset.view);
   });
   const promoSel = document.getElementById('promo-filter-select');
-  if (promoSel) promoSel.onchange = (e) => { promoFilter = e.target.value; eduRender(); };
+  if (promoSel) promoSel.onchange = (e) => { promoFilter = e.target.value; distRender(); };
   const demoSel = document.getElementById('demo-filter-select');
-  if (demoSel) demoSel.onchange = (e) => { demoFilter = e.target.value; eduRender(); };
+  if (demoSel) demoSel.onchange = (e) => { demoFilter = e.target.value; distRender(); };
   const inactiveSel = document.getElementById('inactive-filter-select');
-  if (inactiveSel) inactiveSel.onchange = (e) => { inactiveFilter = e.target.value; eduRender(); };
+  if (inactiveSel) inactiveSel.onchange = (e) => { inactiveFilter = e.target.value; distRender(); };
   const leadsMonthSel = document.getElementById('leads-month-select');
-  if (leadsMonthSel) leadsMonthSel.onchange = (e) => { leadsMonthFilter = e.target.value; eduRender(); };
+  if (leadsMonthSel) leadsMonthSel.onchange = (e) => { leadsMonthFilter = e.target.value; distRender(); };
   document.querySelectorAll('.stagerole-tab').forEach(btn => { btn.onclick = () => setStageRole(btn.dataset.stagerole); });
   document.querySelectorAll('.topregion-tab').forEach(tab => {
     tab.onclick = () => switchTopRegionsTab(tab.dataset.topregionDept);
@@ -4662,6 +4661,7 @@ let state = {
   regionView: 'table',   // 'table' | 'chart' — 지역별 상세 섹션 표시 방식
   activityView: 'table', // 'table' | 'chart' — 지역별 활동 분석 섹션 표시 방식
   roleActivityView: 'table', // 'table' | 'chart' — 지역별 인섬교(인도자·교사·섬김이·협력) 활동 섹션 표시 방식
+  roleTab: '인도자', // 2026-09-22 신설 "[지역별] 4역할 활동" 섹션 — 탭으로 고른 역할 1개만 지역×11항목 표로 보여줌
   teacherDetailOpen: false, // 교사별 상세(지역 필터+표) 접기/펼치기 — 기본 접힘
   pendingOnly: false, // true면 교사별 상세 표를 "승급·강등 제안 있는 교사만"으로 좁혀서 보여줌
   showSampleData: false, // 2026-09-16: 브리핑용 샘플 데이터 토글 — ON이면 "지역별 인섬교 활동" 표/그래프/AI분석이 실제 데이터 대신 고정 샘플을 사용
@@ -4784,11 +4784,12 @@ async function loadAllActivities(force) {
   distRender();
 }
 
-// "👥 교사 명단" 탭 전용 — 전체 교사 명단을 1회만 받아 캐시(부서 무관, 탭 전환해도 재요청 없음).
+// "교사 개별 정보"(1️⃣ 교사 현황 안) 전용 — 전체 교사 명단을 1회만 받아 캐시(탭 재방문해도 재요청 없음).
+// 2026-09-22: district에서 edu(1️⃣ 교사 현황)로 이동 — 재렌더는 distRender가 아닌 eduRender.
 async function loadRosterAll(force) {
   if (!force && (rosterAll || rosterLoading)) return;
   rosterLoading = true;
-  distRender();
+  eduRender();
   try {
     const res = await callApi({ action: 'getRoster' });
     rosterAll = (res && Array.isArray(res.rows)) ? res.rows : [];
@@ -4797,14 +4798,14 @@ async function loadRosterAll(force) {
   }
   rosterLoading = false;
   mergeTeacherReport();
-  distRender();
+  eduRender();
 }
 
 // 전 교사 리포트(이번 달 활동·마지막 활동일·승급/강등 제안·활동 신청)를 1회 받아 명단 행에 합친다(느려서 명단이 먼저 뜨고 뒤이어 채워짐).
 async function loadTeacherReport(force) {
   if (!force && (tlReport || tlReportLoading)) return;
   tlReportLoading = true;
-  distRender();
+  eduRender();
   try {
     const res = await callApi({ action: 'getTeacherListReport' });
     tlReport = (res && Array.isArray(res.rows)) ? res.rows : [];
@@ -4814,7 +4815,7 @@ async function loadTeacherReport(force) {
   }
   tlReportLoading = false;
   mergeTeacherReport();
-  distRender();
+  eduRender();
 }
 function mergeTeacherReport() {
   if (!rosterAll || !tlReport) return;
@@ -4865,7 +4866,7 @@ async function assignPosition(t, position) {
   const verb = nextPosition ? '지정' : '해제';
   if (!confirm(`${maskName(t.name)} 교사를 ${label}(으)로 ${verb}하시겠습니까?`)) return;
   state.tlAssigning = true;
-  distRender();
+  eduRender();
   try {
     const res = await callApi({
       action: 'upsertRosterLeader',
@@ -4877,7 +4878,7 @@ async function assignPosition(t, position) {
     alert(`${label} ${verb} 중 오류가 발생했습니다: ` + e.message);
   }
   state.tlAssigning = false;
-  distRender();
+  eduRender();
 }
 
 // 2026-09-20: 교사 명단(별도 화면, ?view=teachers) — ① 부서 선택 ② 그 부서의 지역장·교관 등록 ③ 교사 현황 표(최근 1년 센터 등록 실적)
@@ -5088,14 +5089,14 @@ async function runBulkApprove(useSuggested) {
     if (newTier && newTier !== t.tier) items.push({ memberId: id, newTier, prevTier: t.tier, reason: useSuggested ? (t.suggestion && t.suggestion.reason) || '' : '최근 1년 센터 등록·활동 실적 기준 일괄 승인' });
   });
   state.bulkNote = '';
-  if (!state.bulkApproverDept) { state.bulkNote = '⚠️ 승인 주체(교육부/전도부)를 선택해주세요.'; distRender(); return; }
-  if (!state.bulkApproverName.trim()) { state.bulkNote = '⚠️ 승인자 성함을 입력해주세요.'; distRender(); return; }
-  if (!useSuggested && !state.bulkTier) { state.bulkNote = '⚠️ 변경할 등급을 선택해주세요.'; distRender(); return; }
-  if (!items.length) { state.bulkNote = '⚠️ 변경할 대상이 없어요. (이미 그 등급이거나, 제안이 없는 분만 선택됐어요)'; distRender(); return; }
+  if (!state.bulkApproverDept) { state.bulkNote = '⚠️ 승인 주체(교육부/전도부)를 선택해주세요.'; eduRender(); return; }
+  if (!state.bulkApproverName.trim()) { state.bulkNote = '⚠️ 승인자 성함을 입력해주세요.'; eduRender(); return; }
+  if (!useSuggested && !state.bulkTier) { state.bulkNote = '⚠️ 변경할 등급을 선택해주세요.'; eduRender(); return; }
+  if (!items.length) { state.bulkNote = '⚠️ 변경할 대상이 없어요. (이미 그 등급이거나, 제안이 없는 분만 선택됐어요)'; eduRender(); return; }
   const summary = {}; items.forEach(i => { summary[i.newTier] = (summary[i.newTier] || 0) + 1; });
   const sumText = Object.entries(summary).map(([k, v]) => `${k} ${v}명`).join(', ');
   if (!confirm(`${state.bulkApproverDept} ${state.bulkApproverName.trim()}님 승인으로 ${items.length}명의 등급을 변경합니다.\n(${sumText})\n진행할까요?`)) return;
-  state.bulkBusy = true; distRender();
+  state.bulkBusy = true; eduRender();
   try {
     const res = await callApi({ action: 'bulkChangeTier', items, approverDept: state.bulkApproverDept, approverName: state.bulkApproverName.trim() });
     if (res && res.error) throw new Error(res.error);
@@ -5109,19 +5110,20 @@ async function runBulkApprove(useSuggested) {
   } catch (e) {
     state.bulkNote = '⚠️ 승인 실패: ' + e.message;
   }
-  state.bulkBusy = false; distRender();
+  state.bulkBusy = false; eduRender();
 }
 
+// 2026-09-22: district에서 edu(1️⃣ 교사 현황)로 이동 — 재렌더는 distRender가 아닌 eduRender.
 function wireTeacherList() {
   const $ = id => document.getElementById(id);
   document.querySelectorAll('.tl-dept-tab').forEach(b => {
-    b.onclick = () => { state.tlFilterDept = b.dataset.dept; state.tlFilterRegion = ''; state.tlPosQuery = ''; distRender(); };
+    b.onclick = () => { state.tlFilterDept = b.dataset.dept; state.tlFilterRegion = ''; state.tlPosQuery = ''; eduRender(); };
   });
   const bind = (id, fn) => { const el = $(id); if (el) el.onchange = fn; };
-  bind('tl-filter-region', e => { state.tlFilterRegion = e.target.value; distRender(); });
-  bind('tl-filter-tier', e => { state.tlFilterTier = e.target.value; distRender(); });
-  bind('tl-filter-apply', e => { state.tlFilterApply = e.target.value; distRender(); });
-  bind('tl-min-leads', e => { state.tlMinLeads = Math.max(0, Number(e.target.value) || 0); distRender(); });
+  bind('tl-filter-region', e => { state.tlFilterRegion = e.target.value; eduRender(); });
+  bind('tl-filter-tier', e => { state.tlFilterTier = e.target.value; eduRender(); });
+  bind('tl-filter-apply', e => { state.tlFilterApply = e.target.value; eduRender(); });
+  bind('tl-min-leads', e => { state.tlMinLeads = Math.max(0, Number(e.target.value) || 0); eduRender(); });
   bind('bulk-approver-dept', e => { state.bulkApproverDept = e.target.value; });
   bind('bulk-tier', e => { state.bulkTier = e.target.value; });
   const nm = $('bulk-approver-name'); if (nm) nm.oninput = e => { state.bulkApproverName = e.target.value; };
@@ -5130,19 +5132,19 @@ function wireTeacherList() {
   wirePosButtons();
   document.querySelectorAll('.tl-check').forEach(cb => {
     cb.onclick = e => e.stopPropagation();
-    cb.onchange = () => { if (cb.checked) state.tlChecked.add(cb.dataset.mid); else state.tlChecked.delete(cb.dataset.mid); distRender(); };
+    cb.onchange = () => { if (cb.checked) state.tlChecked.add(cb.dataset.mid); else state.tlChecked.delete(cb.dataset.mid); eduRender(); };
   });
   const head = $('tl-check-head');
-  if (head) head.onchange = () => { const rows = teacherListRowsFiltered(); rows.forEach(t => head.checked ? state.tlChecked.add(t.memberId) : state.tlChecked.delete(t.memberId)); distRender(); };
-  const ca = $('tl-check-all'); if (ca) ca.onclick = () => { teacherListRowsFiltered().forEach(t => state.tlChecked.add(t.memberId)); distRender(); };
-  const cs = $('tl-check-sug'); if (cs) cs.onclick = () => { teacherListRowsFiltered().filter(t => t.suggestion).forEach(t => state.tlChecked.add(t.memberId)); distRender(); };
-  const cn = $('tl-check-none'); if (cn) cn.onclick = () => { state.tlChecked.clear(); distRender(); };
+  if (head) head.onchange = () => { const rows = teacherListRowsFiltered(); rows.forEach(t => head.checked ? state.tlChecked.add(t.memberId) : state.tlChecked.delete(t.memberId)); eduRender(); };
+  const ca = $('tl-check-all'); if (ca) ca.onclick = () => { teacherListRowsFiltered().forEach(t => state.tlChecked.add(t.memberId)); eduRender(); };
+  const cs = $('tl-check-sug'); if (cs) cs.onclick = () => { teacherListRowsFiltered().filter(t => t.suggestion).forEach(t => state.tlChecked.add(t.memberId)); eduRender(); };
+  const cn = $('tl-check-none'); if (cn) cn.onclick = () => { state.tlChecked.clear(); eduRender(); };
   const ba = $('bulk-apply'); if (ba) ba.onclick = () => runBulkApprove(false);
   const bs = $('bulk-apply-sug'); if (bs) bs.onclick = () => runBulkApprove(true);
   document.querySelectorAll('.tl-row').forEach(row => {
-    row.onclick = () => { state.tlSelected = state.tlSelected === row.dataset.mid ? null : row.dataset.mid; distRender(); };
+    row.onclick = () => { state.tlSelected = state.tlSelected === row.dataset.mid ? null : row.dataset.mid; eduRender(); };
   });
-  const dc = $('tl-detail-close'); if (dc) dc.onclick = () => { state.tlSelected = null; distRender(); };
+  const dc = $('tl-detail-close'); if (dc) dc.onclick = () => { state.tlSelected = null; eduRender(); };
 }
 function wirePosButtons() {
   document.querySelectorAll('.tl-pos-set').forEach(b => {
@@ -5157,17 +5159,18 @@ function wirePosButtons() {
 // 교사별 상세 표의 이름 클릭 → 메시지 팝업 → sendEncouragement → home.html 상단 배너로 수신.
 // 이 화면은 로그인이 없는 관리자 도구라 approveAs()의 prompt() 방식과 달리, 발신자 성함은
 // 팝업 안 입력란으로 받고 세션 동안 state.encourageFromName에 기억해둔다(연속 발송 편의).
+// 2026-09-22: district에서 edu(1️⃣ 교사 현황)로 이동 — 재렌더는 distRender가 아닌 eduRender.
 function openEncourageModal(memberId, name) {
   state.encourageTarget = { memberId, name };
   state.encourageText = '';
   state.encourageSentNote = '';
-  distRender();
+  eduRender();
   const el = document.getElementById('enc-message');
   if (el) el.focus();
 }
 function closeEncourageModal() {
   state.encourageTarget = null;
-  distRender();
+  eduRender();
 }
 async function sendEncourageMessage() {
   const t = state.encourageTarget;
@@ -5177,7 +5180,7 @@ async function sendEncourageMessage() {
   if (!fromName) { alert('보내는 분 성함을 입력해주세요.'); return; }
   if (!message) { alert('메시지를 입력해주세요.'); return; }
   state.encourageSending = true;
-  distRender();
+  eduRender();
   try {
     const res = await callApi({ action: 'sendEncouragement', fromId: '', fromName, toId: t.memberId, message });
     if (res && res.error) throw new Error(res.error);
@@ -5187,7 +5190,7 @@ async function sendEncourageMessage() {
     state.encourageSentNote = '오류가 발생했습니다: ' + e.message;
   }
   state.encourageSending = false;
-  distRender();
+  eduRender();
 }
 
 function encourageModalHtml() {
@@ -5326,6 +5329,45 @@ function byRegionSectionHtml(byRegion) {
       ${state.regionView === 'table' ? byRegionTableHtml(byRegion) : byRegionChartsHtml(byRegion)}
     </div>
   `;
+}
+
+// 2026-09-22 신설: "[지역별] 4역할 활동" — 4역할 탭(인도자/교사/섬김이/협력교사)을 누르면 그 역할만
+// 지역×11항목 표로 전환해서 보여준다(buildRoleActivityBreakdown의 counts[region][role][item] 재사용,
+// 새 데이터 집계 없음 — 기존 strongItemSectionHtml/aiAnalysisSectionHtml과 같은 b 객체를 그대로 씀).
+function roleRegionSectionHtml(b) {
+  if (!b || !b.allRegions || !b.allRegions.length) return '';
+  const regions = [...b.allRegions].sort((x, y) => String(x).localeCompare(String(y), 'ko', { numeric: true }));
+  const role = ROLE_PARTS_DASH.includes(state.roleTab) ? state.roleTab : ROLE_PARTS_DASH[0];
+  const tabs = ROLE_PARTS_DASH.map(r => `<button type="button" class="role-region-tab btn btn-xs ${role === r ? 'btn-primary' : 'btn-ghost btn-outline'}" data-role="${esc(r)}">${esc(r)}</button>`).join('');
+  const rowTotal = region => ROLE_ACTIVITY_ITEMS_DASH.reduce((s, item) => s + (((b.counts[region] || {})[role] || {})[item] || 0), 0);
+  return `
+    <div class="px-4 pt-3">
+      ${sectionTitleBand('🧭', '지역별 4역할 활동', '역할 탭을 누르면 그 역할만 지역별 11항목 활동 건수로 전환됩니다 (강세·약세 파악용).', '#F5F3FF')}
+      <div class="flex flex-wrap gap-1.5 mb-2">${tabs}</div>
+      <div class="kko-table-card kko-card-in"><div class="overflow-x-auto">
+        <table class="table table-zebra table-sm">
+          <thead class="sticky top-0 bg-base-100"><tr>
+            <th>지역</th>
+            ${ROLE_ACTIVITY_ITEMS_DASH.map(item => `<th class="whitespace-nowrap">${esc(item)}</th>`).join('')}
+            <th>합계</th>
+          </tr></thead>
+          <tbody>
+            ${regions.map(region => {
+              const total = rowTotal(region);
+              return `<tr>
+                <td class="font-medium">${esc(regionOnlyLabel(state.dept, region))}</td>
+                ${ROLE_ACTIVITY_ITEMS_DASH.map(item => {
+                  const c = ((b.counts[region] || {})[role] || {})[item] || 0;
+                  return `<td class="text-xs text-center ${c ? 'font-bold' : 'text-base-content/30'}">${c || '-'}</td>`;
+                }).join('')}
+                <td class="font-bold text-primary">${total}</td>
+              </tr>`;
+            }).join('')}
+            ${regions.every(region => rowTotal(region) === 0) ? `<tr><td colspan="${ROLE_ACTIVITY_ITEMS_DASH.length + 2}" class="text-center text-base-content/40 py-4">이번 달 ${esc(role)} 활동 기록이 없습니다.</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div></div>
+    </div>`;
 }
 
 // 2026-09-20: 지역별 강세 항목 — 지역마다 활동 건수가 가장 많은 항목(+다음 2개)을 따로 보여준다(지역 번호순).
@@ -5828,8 +5870,7 @@ function regionFilterHtml(regions, shownCount) {
 function distRender() {
   const root = document.getElementById('distRoot');
   const isOverview = state.dept === null;
-  const isTeacherList = state.dept === TEACHER_LIST_TAB;
-  const isDeptDetail = !isOverview && !isTeacherList;
+  const isDeptDetail = !isOverview;
   const report = isDeptDetail ? state.cache[state.dept] : null;
   const allRows = report ? report.rows : [];
   const filteredRows = state.region ? allRows.filter(r => r.region === state.region) : allRows;
@@ -5844,17 +5885,16 @@ function distRender() {
     <div class="kko-header">
       <div class="flex-1 flex items-center gap-2">
         <span class="text-xl leading-none">${ICONS.map}</span>
-        <div class="text-lg font-bold">${isTeacherList ? '교사 명단' : '부서별'}</div>
+        <div class="text-lg font-bold">부서별 활동 관리</div>
       </div>
       ${isDeptDetail ? `<button id="btn-sample-toggle" class="btn btn-xs ${state.showSampleData ? 'btn-warning' : 'btn-ghost btn-outline'}">${ICONS.barChart2} 샘플 데이터 ${state.showSampleData ? 'ON' : '보기'}</button>` : ''}
     </div>
     <div class="brand-accent-bar"></div>
 
-    ${TEACHER_VIEW ? '' : `<div class="flex flex-wrap items-center gap-1.5 px-4 py-2 border-b border-base-200">
+    <div class="flex flex-wrap items-center gap-1.5 px-4 py-2 border-b border-base-200">
       <a class="tab-dept-btn btn btn-xs ${isOverview ? 'btn-primary' : 'btn-ghost'}" data-dept="">${ICONS.clipboardList} 전체 요약</a>
       ${DEPTS.map(d => `<a class="tab-dept-btn btn btn-xs ${state.dept === d ? 'btn-primary' : 'btn-ghost'}" data-dept="${esc(d)}">${DIST_DEPT_ICON[d]||''} ${esc(d)}</a>`).join('')}
-      <a class="tab-dept-btn btn btn-xs ${isTeacherList ? 'btn-primary' : 'btn-ghost'}" data-dept="__teacherList__">👥 교사 명단</a>
-    </div>`}
+    </div>
 
     ${isDeptDetail ? `
       <div class="px-4 pt-3 flex items-center justify-between">
@@ -5868,9 +5908,7 @@ function distRender() {
       </div>` : ''}
 
     ${isOverview
-      ? orgSummarySectionHtml()
-      : isTeacherList
-      ? teacherListSectionHtml()
+      ? `<div class="px-4 pt-3">${renderSettlementSection()}${renderStageDistributionSection()}</div>${orgSummarySectionHtml()}`
       : state.loading
         ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
         : state.error
@@ -5880,11 +5918,11 @@ function distRender() {
             ${summaryCardHtml(report && report.summary)}
             ${targetStageSectionHtml(report && report.targetStageCounts)}
             ${byRegionSectionHtml(report && report.byRegion)}
+            ${roleRegionSectionHtml(roleBreakdown)}
             ${strongItemSectionHtml(roleBreakdown)}
             ${aiAnalysisSectionHtml(roleBreakdown)}
             ${activityAnalysisSectionHtml(analysis)}
           `}
-    ${encourageModalHtml()}
   `;
 
   document.querySelectorAll('.btn-org-card').forEach(btn => {
@@ -5895,22 +5933,10 @@ function distRender() {
   });
   const backBtn = document.getElementById('btn-back-overview');
   if (backBtn) backBtn.onclick = () => switchDept(null);
-  if (isTeacherList) wireTeacherList();
+  // 2026-09-22: "교사 명단"(teacherListSectionHtml)·격려 메시지 모달은 1️⃣ 교사 현황(eduRender)으로
+  // 이동해서 여기선 더 이상 안 씀 — wireTeacherList()/격려모달 wiring도 eduRender 쪽에서 처리.
   const regionSelect = document.getElementById('region-select');
   if (regionSelect) regionSelect.onchange = (e) => switchRegion(e.target.value);
-  document.querySelectorAll('.btn-encourage-trigger').forEach(btn => {
-    btn.onclick = () => openEncourageModal(btn.dataset.mid, btn.dataset.name);
-  });
-  if (state.encourageTarget) {
-    const fromEl = document.getElementById('enc-from');
-    if (fromEl) fromEl.oninput = e => { state.encourageFromName = e.target.value; };
-    const msgEl = document.getElementById('enc-message');
-    if (msgEl) msgEl.oninput = e => { state.encourageText = e.target.value; };
-    const cancelBtn = document.getElementById('btn-encourage-cancel');
-    if (cancelBtn) cancelBtn.onclick = closeEncourageModal;
-    const sendBtn = document.getElementById('btn-encourage-send');
-    if (sendBtn) sendBtn.onclick = sendEncourageMessage;
-  }
   const detailsEl = document.getElementById('teacher-detail-details');
   if (detailsEl) detailsEl.ontoggle = () => { state.teacherDetailOpen = detailsEl.open; };
   const pendingOnlyCb = document.getElementById('pending-only-checkbox');
@@ -5934,6 +5960,10 @@ function distRender() {
   };
   const aiBtn = document.getElementById('btn-ai-analysis');
   if (aiBtn) aiBtn.onclick = () => runAiAnalysis(state.dept, state.region || '전체', roleBreakdown);
+  document.querySelectorAll('.role-region-tab').forEach(b => {
+    b.onclick = () => { state.roleTab = b.dataset.role; distRender(); };
+  });
+  if (isOverview) wireSettlementFilters(); // "[전체] 결산"/"[전체] MVP·단계분포"는 이제 여기서만 렌더됨
 
   destroyRegionCharts();
   if (isDeptDetail && report && !state.loading && !state.error) {
@@ -5959,7 +5989,14 @@ function distRender() {
       if (!adminMounted[tab]) {
         adminMounted[tab] = true;
         if (tab === 'edu') load();
-        else if (tab === 'dist') loadOrgSummary(false);
+        else if (tab === 'dist') {
+          loadOrgSummary(false);
+          // 2026-09-22: 결산/MVP·단계분포가 edu에서 여기로 이동 — "전체 요약" 화면 진입 시 함께 로드.
+          loadSettlement();
+          loadAllLeads();
+          loadStageDist(stageRole);
+          loadKeyStage();
+        }
         else if (tab === 'connectAdmin') cnAdmLoad();
         else if (tab === 'calAdmin') calAdmInit();
       }
