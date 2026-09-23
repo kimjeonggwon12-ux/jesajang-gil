@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>포도원 — 표지</title>
+  <!--
+    포도원 목업 ① 표지(스플래시 + 로그인)
+    ─────────────────────────────────────────────────────────────────
+    2026-09-23. 사용자가 준 표지 디자인을 그대로 두고, 목업 세트끼리
+    이동만 연결했습니다. 시범 사용 중인 app.html과는 완전히 분리돼 있고
+    백엔드를 호출하지 않습니다.
+
+    ※ 로그인은 "표지만 보여주고 자동 입장 유지"로 확정 — 입력값을 검증하지
+      않고 그냥 통과시킵니다. 실제 검증을 켤 자리는 handleLogin() 안에 표시해뒀습니다.
+  -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <style>
+    :root {
+      --brand-primary: #7E22CE; /* 깊고 풍부한 포도색 */
+      --brand-light: #F3E8FF;
+      --brand-leaf: #22C55E;    /* 산뜻한 잎사귀 색 */
+      --app-max-width: 480px;
+      --app-outer-bg: #E9EAEE;
+    }
+    body {
+      font-family: 'Pretendard', -apple-system, sans-serif;
+      margin: 0;
+      overflow: hidden;
+      background-color: #ffffff;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 흩어져 있던 포도알들이 중앙으로 모이며 한 송이가 되는 애니메이션 */
+    @keyframes gatherDot1 { 0% { transform: translate(-50px, -50px) scale(0); opacity: 0; } 100% { transform: translate(0, 0) scale(1); opacity: 1; } }
+    @keyframes gatherDot2 { 0% { transform: translate(0, -60px) scale(0); opacity: 0; } 100% { transform: translate(0, 0) scale(1); opacity: 1; } }
+    @keyframes gatherDot3 { 0% { transform: translate(50px, -50px) scale(0); opacity: 0; } 100% { transform: translate(0, 0) scale(1); opacity: 1; } }
+    @keyframes gatherDot4 { 0% { transform: translate(-40px, 30px) scale(0); opacity: 0; } 100% { transform: translate(0, 0) scale(1); opacity: 1; } }
+    @keyframes gatherDot5 { 0% { transform: translate(40px, 30px) scale(0); opacity: 0; } 100% { transform: translate(0, 0) scale(1); opacity: 1; } }
+    @keyframes gatherDot6 { 0% { transform: translate(0, 60px) scale(0); opacity: 0; } 100% { transform: translate(0, 0) scale(1); opacity: 1; } }
+    @keyframes leafGrow { 0% { transform: scale(0) rotate(-20deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+
+    .podo-dot {
+      width: 20px; height: 20px; border-radius: 50%;
+      background-color: #ffffff; position: absolute;
+      box-shadow: inset -3px -3px 6px rgba(0,0,0,0.1);
+    }
+    .podo-leaf {
+      width: 24px; height: 16px; background-color: var(--brand-leaf);
+      border-radius: 20px 0 20px 0; position: absolute;
+      top: -12px; right: 14px; transform-origin: bottom left;
+      animation: leafGrow 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      animation-delay: 1s; opacity: 0;
+    }
+
+    /* 포도송이 위치 설정 */
+    .dot-1 { top: 0; left: 0; animation: gatherDot1 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .dot-2 { top: 0; left: 22px; animation: gatherDot2 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.1s; opacity: 0; }
+    .dot-3 { top: 0; left: 44px; animation: gatherDot3 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.2s; opacity: 0; }
+    .dot-4 { top: 20px; left: 11px; animation: gatherDot4 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.3s; opacity: 0; }
+    .dot-5 { top: 20px; left: 33px; animation: gatherDot5 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.4s; opacity: 0; }
+    .dot-6 { top: 40px; left: 22px; animation: gatherDot6 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.5s; opacity: 0; }
+
+    @keyframes fadeUp { 0% { opacity: 0; transform: translateY(15px); } 100% { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp 0.8s ease-out forwards; opacity: 0; }
+    .delay-1 { animation-delay: 1.2s; }
+    .delay-2 { animation-delay: 1.4s; }
+
+    /* 화면 전환용 클래스 */
+    .screen { position: absolute; inset: 0; display: flex; flex-direction: column; transition: opacity 0.6s ease-in-out; }
+    .hidden-screen { opacity: 0; pointer-events: none; z-index: -1; }
+
+    #splashScreen { background: linear-gradient(135deg, #9333EA, var(--brand-primary)); z-index: 20; }
+    #loginScreen { background-color: #ffffff; z-index: 10; justify-content: center; padding: 0 28px; }
+
+    /* 당근 스타일의 부드러운 입력 폼 */
+    .modern-input {
+      background-color: #F3F4F6; border: 1.5px solid transparent; border-radius: 14px;
+      font-size: 16px; padding: 16px 20px; width: 100%; color: #111827;
+      transition: all 0.2s ease; outline: none;
+    }
+    .modern-input::placeholder { color: #9CA3AF; font-weight: 500; }
+    .modern-input:focus {
+      background-color: #ffffff; border-color: var(--brand-primary);
+      box-shadow: 0 0 0 4px var(--brand-light);
+    }
+
+    /* PC: 앱을 화면 가운데 480px 컬럼으로(다른 목업 페이지와 같은 기준) */
+    @media (min-width: 769px) {
+      html { background: var(--app-outer-bg); }
+    }
+  </style>
+</head>
+<body class="relative h-screen mx-auto shadow-2xl overflow-hidden" style="max-width:var(--app-max-width)">
+
+  <!-- 1. 스플래시 화면 -->
+  <div id="splashScreen" class="screen items-center justify-center">
+
+    <!-- 연결을 상징하는 포도송이 애니메이션 -->
+    <div class="relative w-[64px] h-[64px] mb-6">
+      <div class="podo-leaf"></div>
+      <div class="podo-dot dot-1"></div>
+      <div class="podo-dot dot-2"></div>
+      <div class="podo-dot dot-3"></div>
+      <div class="podo-dot dot-4"></div>
+      <div class="podo-dot dot-5"></div>
+      <div class="podo-dot dot-6"></div>
+    </div>
+
+    <h1 class="fade-up delay-1 text-[42px] font-black text-white tracking-tighter mb-1">포도원</h1>
+    <p class="fade-up delay-2 text-[15px] font-medium text-white/90 tracking-wide mb-8">알알이 맺히는 따뜻한 동행</p>
+
+    <!-- 흩어진 점들이 선으로 연결되는 시각적 은유 -->
+    <div class="absolute bottom-12 flex gap-2 fade-up delay-2 opacity-50">
+      <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+      <div class="w-8 h-1.5 rounded-full bg-white"></div>
+      <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+    </div>
+  </div>
+
+  <!-- 2. 로그인 화면 -->
+  <div id="loginScreen" class="screen hidden-screen">
+
+    <div class="transform translate-y-[-20px] transition-transform duration-700 ease-out" id="loginContent">
+      <!-- 미니 포도 로고 -->
+      <div class="w-14 h-14 bg-[#F3E8FF] rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-[#E9D5FF]">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="var(--brand-primary)">
+          <path d="M15 3C15 3 17 2 19 4C21 6 20 8 20 8C20 8 18 9 16 7C14 5 15 3 15 3Z" fill="var(--brand-leaf)"/>
+          <circle cx="8" cy="10" r="3.5" />
+          <circle cx="16" cy="10" r="3.5" />
+          <circle cx="12" cy="12" r="3.5" />
+          <circle cx="9" cy="15" r="3.5" />
+          <circle cx="15" cy="15" r="3.5" />
+          <circle cx="12" cy="18" r="3.5" />
+        </svg>
+      </div>
+
+      <!-- 연결을 강조하는 환영 인사 -->
+      <h1 class="text-[26px] font-extrabold text-gray-900 leading-snug tracking-tight mb-2">
+        반가워요~ 👋<br>
+        우리가 연결될 때, 더 많은 열매를 맺어요.
+      </h1>
+      <p class="text-[14px] text-gray-500 font-medium tracking-tight mb-10">
+        복음방교사 커뮤니티, <span class="text-[var(--brand-primary)] font-bold">포도원</span>에 오신 것을 환영해요.
+      </p>
+
+      <!-- 입력 폼 -->
+      <div class="space-y-4">
+        <div>
+          <label class="block text-[13px] font-bold text-gray-600 mb-2 ml-1">고유번호</label>
+          <input type="tel" id="memberId" placeholder="13자리 (- 생략)" class="modern-input" autocomplete="off" onkeypress="handleEnter(event)" />
+        </div>
+        <div>
+          <label class="block text-[13px] font-bold text-gray-600 mb-2 ml-1">이름</label>
+          <input type="text" id="name" placeholder="이름을 입력하고 Enter를 누르세요" class="modern-input" autocomplete="off" onkeypress="handleEnter(event)" />
+        </div>
+      </div>
+
+      <!-- 입장 버튼 대체 (로딩 영역) -->
+      <div id="loadingArea" class="mt-8 h-14 flex justify-center items-center opacity-0 transition-opacity duration-300">
+        <span class="w-6 h-6 border-2 border-gray-300 border-t-[var(--brand-primary)] rounded-full animate-spin mr-2"></span>
+        <span id="loadingText" class="text-[15px] font-bold text-[var(--brand-primary)]">입장 중...</span>
+      </div>
+
+      <!-- 하단 안내 -->
+      <div class="mt-2 text-center">
+        <p class="text-[13px] text-gray-400 font-medium mb-3">
+          처음 오셨나요? <a href="#" class="text-[var(--brand-primary)] font-bold underline underline-offset-2">교사 등록 안내</a>
+        </p>
+        <!-- 목업 전용: 입력 없이 서브 페이지로 바로 들어가는 통로 -->
+        <button onclick="enterApp()" class="text-[13px] text-gray-400 font-semibold underline underline-offset-2">
+          입력 없이 둘러보기 →
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const NEXT_PAGE = 'podo-home.html';
+
+    function handleEnter(event) {
+      if (event.key === 'Enter') handleLogin();
+    }
+
+    // 2.8초 후 스플래시를 숨기고 로그인 화면으로 자연스럽게 전환
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const splash = document.getElementById('splashScreen');
+        const login = document.getElementById('loginScreen');
+        const loginContent = document.getElementById('loginContent');
+
+        splash.classList.add('opacity-0');
+
+        setTimeout(() => {
+          splash.style.display = 'none';
+          login.classList.remove('hidden-screen');
+          setTimeout(() => {
+            loginContent.classList.remove('translate-y-[-20px]');
+            loginContent.classList.add('translate-y-0');
+          }, 50);
+        }, 600); // fade transition 시간과 맞춤
+      }, 2800);
+    });
+
+    function enterApp() {
+      const loadingArea = document.getElementById('loadingArea');
+      const loadingText = document.getElementById('loadingText');
+      loadingArea.classList.remove('opacity-0');
+      setTimeout(() => {
+        loadingText.innerHTML = '나의 교실로 이동합니다!';
+        setTimeout(() => { window.location.href = NEXT_PAGE; }, 450);
+      }, 700);
+    }
+
+    function handleLogin() {
+      const idInput = document.getElementById('memberId');
+      const nameInput = document.getElementById('name');
+
+      // ⚠️ 지금은 "자동 입장 유지" — 입력값을 검증하지 않고 통과시킵니다.
+      //    실제 검증을 켤 때는 이 자리에서 고유번호+이름을 교사명단과 대조하세요.
+      //    (빈칸일 때 시각 피드백만 남겨둠 — 어떤 느낌인지 보이도록)
+      if (!idInput.value.trim() && !nameInput.value.trim()) {
+        nameInput.classList.add('border-red-400', 'bg-red-50');
+        setTimeout(() => nameInput.classList.remove('border-red-400', 'bg-red-50'), 800);
+        return;
+      }
+
+      idInput.disabled = true;
+      nameInput.disabled = true;
+      enterApp();
+    }
+  </script>
+</body>
+</html>

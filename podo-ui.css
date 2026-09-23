@@ -1,0 +1,169 @@
+/* ═══════════════════════════════════════════════════════════════════
+   포도원(podo) 디자인 시스템 — 목업 전용 공용 스타일
+   ───────────────────────────────────────────────────────────────────
+   2026-09-23 신설. 사용자가 준 "포도원 스플래시+로그인" 표지 디자인을
+   기준으로 서브 페이지까지 같은 톤으로 확장한 목업 세트의 공용 CSS.
+
+   ⚠️ 이 파일과 podo-*.html은 전부 "목업"입니다. 시범 사용 중인 app.html과
+      완전히 분리돼 있고, 백엔드도 호출하지 않습니다(전부 가짜 표본 데이터).
+      실명·실제 고유번호는 한 건도 들어있지 않습니다 — 공개 Pages에 올라가므로.
+
+   ⚠️ 색을 바꾸려면 아래 :root 토큰 한 곳만 고치면 4개 페이지에 전부 반영됩니다.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* 표지에서 그대로 가져온 브랜드 3색 */
+  --brand-primary: #7E22CE;  /* 깊고 풍부한 포도색 */
+  --brand-deep:    #6B21A8;
+  --brand-light:   #F3E8FF;
+  --brand-line:    #E9D5FF;
+  --brand-leaf:    #22C55E;  /* 산뜻한 잎사귀 색 */
+
+  --ink:      #111827;
+  --ink-sub:  #6B7280;
+  --ink-mute: #9CA3AF;
+  --line:     #F3F4F6;
+  --line-2:   #E5E7EB;
+  --surface:  #FFFFFF;
+  --soft:     #F9FAFB;
+
+  --r-lg: 20px;
+  --r-md: 14px;
+  --r-sm: 10px;
+  --shadow-soft: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
+  --shadow-fab:  0 6px 20px rgba(126,34,206,.42);
+
+  /* PC에서 앱을 가운데 480px 컬럼으로 띄우는 값(app.html과 동일한 기준) */
+  --app-max-width: 480px;
+  --app-outer-bg:  #E9EAEE;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.02em;
+}
+
+/* ── 앱 셸 ─────────────────────────────────────────────────────── */
+.podo-app { display: flex; flex-direction: column; min-height: 100vh; background: var(--surface); }
+.podo-body { flex: 1; overflow-y: auto; padding-bottom: 78px; background: var(--soft); }
+
+.podo-appbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px; padding: 0 20px;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.podo-appbar h1 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -0.04em; }
+.podo-appbar .acts { display: flex; align-items: center; gap: 14px; color: var(--ink-sub); }
+.podo-appbar .acts svg { width: 21px; height: 21px; }
+
+/* ── 포도 로고(작은 버전) ────────────────────────────────────────── */
+.podo-mark { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-light);
+  border: 1px solid var(--brand-line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.podo-mark svg { width: 24px; height: 24px; }
+
+/* ── 카드 / 섹션 ───────────────────────────────────────────────── */
+.podo-sec { background: var(--surface); margin-bottom: 10px; padding: 20px; }
+.podo-sec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+.podo-sec-title { font-size: 17px; font-weight: 800; letter-spacing: -0.03em; }
+.podo-sec-sub { font-size: 13px; color: var(--ink-sub); font-weight: 500; }
+.podo-sec-more { font-size: 13px; color: var(--ink-mute); font-weight: 600; text-decoration: none; }
+
+.podo-card { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-md); padding: 16px; }
+
+/* ── 칩 ────────────────────────────────────────────────────────── */
+.podo-chip { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px;
+  border-radius: 999px; background: var(--line); color: #4B5563; font-size: 12.5px; font-weight: 700; }
+.podo-chip.on   { background: var(--brand-light); color: var(--brand-primary); }
+.podo-chip.leaf { background: #DCFCE7; color: #15803D; }
+.podo-chip.warn { background: #FEF3C7; color: #B45309; }
+
+/* ── 버튼 ──────────────────────────────────────────────────────── */
+.podo-btn { display: flex; align-items: center; justify-content: center; width: 100%;
+  height: 52px; border: none; border-radius: var(--r-md);
+  background: var(--brand-primary); color: #fff; font-size: 16px; font-weight: 700;
+  font-family: inherit; cursor: pointer; transition: transform .1s ease; }
+.podo-btn:active { transform: scale(.97); }
+.podo-btn.out { background: var(--surface); color: var(--brand-primary); border: 1.5px solid var(--brand-primary); height: 46px; font-size: 15px; }
+
+/* ── 입력 (표지의 modern-input 그대로) ──────────────────────────── */
+.podo-input {
+  background: var(--line); border: 1.5px solid transparent; border-radius: var(--r-md);
+  font-size: 16px; padding: 16px 20px; width: 100%; color: var(--ink);
+  font-family: inherit; transition: all .2s ease; outline: none;
+}
+.podo-input::placeholder { color: var(--ink-mute); font-weight: 500; }
+.podo-input:focus { background: var(--surface); border-color: var(--brand-primary); box-shadow: 0 0 0 4px var(--brand-light); }
+
+/* ── 세그먼트 탭 ───────────────────────────────────────────────── */
+.podo-seg { display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px; background: var(--surface);
+  border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.podo-seg::-webkit-scrollbar { display: none; }
+.podo-seg button { flex: 0 0 auto; height: 38px; padding: 0 16px; border-radius: 999px;
+  border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink-sub);
+  font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; }
+.podo-seg button.on { background: var(--brand-primary); border-color: var(--brand-primary); color: #fff; }
+
+/* ── FAB ───────────────────────────────────────────────────────── */
+.podo-fab { position: fixed; right: 20px; bottom: 90px; z-index: 30;
+  height: 54px; min-width: 54px; padding: 0 20px; border: none; border-radius: 27px;
+  background: var(--brand-primary); color: #fff; font-size: 15px; font-weight: 700;
+  font-family: inherit; display: flex; align-items: center; gap: 7px;
+  box-shadow: var(--shadow-fab); cursor: pointer; transition: transform .12s ease; }
+.podo-fab:active { transform: scale(.93); }
+
+/* ── 하단 탭바 ─────────────────────────────────────────────────── */
+.podo-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: flex; height: 64px; background: var(--surface); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px); }
+.podo-tabbar a, .podo-tabbar button {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  border: none; background: none; text-decoration: none; color: var(--ink-mute);
+  font-family: inherit; cursor: pointer; transition: color .15s ease; }
+.podo-tabbar svg { width: 22px; height: 22px; }
+.podo-tabbar span { font-size: 11px; font-weight: 600; }
+.podo-tabbar .on { color: var(--brand-primary); }
+.podo-tabbar .on span { font-weight: 800; }
+.podo-tabbar .soon { position: relative; }
+
+/* ── 토스트 ────────────────────────────────────────────────────── */
+#podoToast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 100px; z-index: 60;
+  background: rgba(17,24,39,.93); color: #fff; padding: 12px 18px; border-radius: 12px;
+  font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+#podoToast.show { opacity: 1; }
+
+/* ── 포도알 진행도: 이번 달 활동을 포도 한 송이로 보여주는 모티프 ── */
+.podo-progress { display: flex; gap: 5px; }
+.podo-progress i { width: 12px; height: 12px; border-radius: 50%; background: rgba(255,255,255,.28); display: block; }
+.podo-progress i.fill { background: #fff; box-shadow: inset -2px -2px 4px rgba(0,0,0,.12); }
+
+/* ── 리스트 행 ─────────────────────────────────────────────────── */
+.podo-row { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.podo-row:last-child { border-bottom: none; }
+.podo-row .grow { flex: 1; min-width: 0; }
+.podo-row .nm { font-size: 15px; font-weight: 700; }
+.podo-row .meta { font-size: 13px; color: var(--ink-sub); margin-top: 3px; }
+.podo-row .time { font-size: 12px; color: var(--ink-mute); margin-top: 6px; }
+
+.podo-empty { padding: 44px 20px; text-align: center; color: var(--ink-mute); font-size: 14px; line-height: 1.7; }
+
+/* ═══════════════════════════════════════════════════════════════
+   PC(데스크톱) — app.html과 같은 방식으로 480px 중앙 컬럼.
+   모바일(~768px)은 건드리지 않는다.
+   position:fixed 요소(탭바·FAB·토스트)는 뷰포트 기준이라 여기서 다시 잡아준다.
+   ═══════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) {
+  body { background: var(--app-outer-bg); }
+  .podo-app { max-width: var(--app-max-width); margin: 0 auto; box-shadow: 0 0 20px rgba(0,0,0,.08); }
+  .podo-tabbar {
+    left: calc(50% - (var(--app-max-width) / 2)); right: auto; width: var(--app-max-width);
+    border-left: 1px solid var(--line); border-right: 1px solid var(--line);
+  }
+  .podo-fab { right: calc(50% - (var(--app-max-width) / 2) + 20px); }
+  .podo-tabbar a:hover, .podo-tabbar button:hover { color: var(--brand-primary); }
+}

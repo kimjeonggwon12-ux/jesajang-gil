@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>포도원 — 연결</title>
+  <!--
+    포도원 목업 ③ 연결
+    ─────────────────────────────────────────────────────────────────
+    2026-09-23. 표지 톤 그대로. 3개 세그먼트(활동 신청 / 활동자 찾기 / 도움 신청)를
+    탭 새로고침 없이 전환합니다.
+    ⚠️ 전부 가짜 표본 데이터입니다(실명·실제 고유번호 없음). 백엔드 호출 없음.
+    ⚠️ 역할 체계는 app.html과 동일하게 4역할(인도자·교사·섬김이·협력교사) +
+      11항목(피드백/섭외/친분/만남1/만남2/상담1/상담2/복음방/동행교사/센터소개/센터수강).
+  -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="podo-ui.css" />
+  <style>
+    .pane { display: none; }
+    .pane.on { display: block; }
+
+    /* 명함 카드 */
+    .cardx { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-lg);
+      padding: 16px; margin-bottom: 10px; }
+    .cardx-top { display: flex; align-items: center; gap: 11px; }
+    .cardx-av { width: 46px; height: 46px; border-radius: 14px; background: var(--brand-light);
+      color: var(--brand-primary); display: flex; align-items: center; justify-content: center;
+      font-size: 17px; font-weight: 800; flex-shrink: 0; }
+    .cardx-nm { font-size: 16.5px; font-weight: 800; }
+    .cardx-meta { font-size: 13px; color: var(--ink-sub); margin-top: 3px; font-weight: 500; }
+    .cardx-intro { font-size: 14px; color: #374151; line-height: 1.6; margin: 12px 0 10px; }
+    .cardx-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .cardx-foot { display: flex; align-items: center; justify-content: space-between;
+      margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .cardx-when { font-size: 12.5px; color: var(--ink-sub); font-weight: 600; }
+    .cardx-btn { height: 36px; padding: 0 15px; border-radius: 10px; border: none;
+      background: var(--brand-primary); color: #fff; font-size: 13.5px; font-weight: 700;
+      font-family: inherit; cursor: pointer; }
+
+    /* 검색 */
+    .srch { padding: 12px 20px 0; background: var(--surface); }
+    .srch input { width: 100%; height: 46px; padding: 0 16px; border-radius: var(--r-md);
+      border: 1.5px solid transparent; background: var(--line); font-size: 15px;
+      font-family: inherit; outline: none; }
+    .srch input:focus { background: var(--surface); border-color: var(--brand-primary); box-shadow: 0 0 0 4px var(--brand-light); }
+
+    /* 도움 신청 */
+    .help { background: var(--surface); border-left: 3px solid var(--brand-leaf);
+      border-radius: 0 var(--r-md) var(--r-md) 0; padding: 15px 16px; margin-bottom: 10px;
+      border-top: 1px solid var(--line-2); border-right: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); }
+    .help-t { font-size: 15.5px; font-weight: 800; }
+    .help-b { font-size: 13.5px; color: var(--ink-sub); line-height: 1.6; margin-top: 6px; }
+  </style>
+</head>
+<body data-tab="connect">
+  <div class="podo-app">
+    <header class="podo-appbar">
+      <h1>연결</h1>
+      <div class="acts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+      </div>
+    </header>
+
+    <nav class="podo-seg" id="seg">
+      <button class="on" data-p="apply">활동 신청</button>
+      <button data-p="find">활동자 찾기</button>
+      <button data-p="help">도움 신청</button>
+    </nav>
+
+    <div class="podo-body">
+
+      <!-- ① 활동 신청 -->
+      <div class="pane on" id="p-apply">
+        <section class="podo-sec">
+          <div class="podo-sec-title" style="margin-bottom:6px">내 명함</div>
+          <div class="podo-sec-sub" style="margin-bottom:14px">어떤 역할로 함께할 수 있는지 적어두면, 필요한 분이 먼저 연락해요.</div>
+
+          <div class="cardx" style="margin-bottom:14px">
+            <div class="cardx-top">
+              <div class="cardx-av">나</div>
+              <div>
+                <div class="cardx-nm">테스트 교사</div>
+                <div class="cardx-meta">청년회 · 03지역 · 활동교사</div>
+              </div>
+            </div>
+            <div class="cardx-intro">주중 저녁에 복음방 동행 가능합니다. 20~30대 형제 상담 경험이 많아요.</div>
+            <div class="cardx-chips">
+              <span class="podo-chip on">인도자</span>
+              <span class="podo-chip on">교사</span>
+              <span class="podo-chip">복음방</span>
+              <span class="podo-chip">동행교사</span>
+              <span class="podo-chip">센터수강</span>
+              <span class="podo-chip leaf">#청년전도</span>
+              <span class="podo-chip leaf">#직장인</span>
+            </div>
+            <div class="cardx-foot">
+              <span class="cardx-when">활동 가능 일정 · 평일 19시 이후</span>
+              <button class="cardx-btn" onclick="podoToast('명함 수정 시트가 열립니다 (목업)')">수정</button>
+            </div>
+          </div>
+
+          <button class="podo-btn out" onclick="podoToast('활동 신청이 등록됩니다 (목업)')">이 명함으로 활동 신청하기</button>
+        </section>
+      </div>
+
+      <!-- ② 활동자 찾기 -->
+      <div class="pane" id="p-find">
+        <div class="srch"><input placeholder="이름 · 역할 · 항목으로 찾기 (예: 복음방, 섬김이)" /></div>
+        <nav class="podo-seg" style="border-bottom:none">
+          <button class="on">전체</button>
+          <button>인도자</button>
+          <button>교사</button>
+          <button>섬김이</button>
+          <button>협력교사</button>
+        </nav>
+
+        <section class="podo-sec">
+          <div class="cardx">
+            <div class="cardx-top">
+              <div class="cardx-av">김</div>
+              <div>
+                <div class="cardx-nm">김*연</div>
+                <div class="cardx-meta">부녀회 · 01지역 · 우수교사</div>
+              </div>
+            </div>
+            <div class="cardx-intro">복음방 섬김이로 오래 함께했습니다. 낮 시간 언제든 가능해요.</div>
+            <div class="cardx-chips">
+              <span class="podo-chip on">섬김이</span>
+              <span class="podo-chip">복음방</span>
+              <span class="podo-chip">상담1</span>
+              <span class="podo-chip leaf">#주부</span>
+            </div>
+            <div class="cardx-foot">
+              <span class="cardx-when">평일 낮 · 언제나</span>
+              <button class="cardx-btn" onclick="podoToast('연결 요청을 보냈습니다 (목업)')">연결 요청</button>
+            </div>
+          </div>
+
+          <div class="cardx">
+            <div class="cardx-top">
+              <div class="cardx-av">이</div>
+              <div>
+                <div class="cardx-nm">이*훈</div>
+                <div class="cardx-meta">장년회 · 05지역 · 활동교사</div>
+              </div>
+            </div>
+            <div class="cardx-intro">센터 소개·수강 동행 잘합니다. 주말 오전 가능.</div>
+            <div class="cardx-chips">
+              <span class="podo-chip on">협력교사</span>
+              <span class="podo-chip">센터소개</span>
+              <span class="podo-chip">센터수강</span>
+              <span class="podo-chip">동행교사</span>
+              <span class="podo-chip leaf">#장년</span>
+            </div>
+            <div class="cardx-foot">
+              <span class="cardx-when">토 09~12시</span>
+              <button class="cardx-btn" onclick="podoToast('연결 요청을 보냈습니다 (목업)')">연결 요청</button>
+            </div>
+          </div>
+
+          <div class="cardx">
+            <div class="cardx-top">
+              <div class="cardx-av">최</div>
+              <div>
+                <div class="cardx-nm">최*아</div>
+                <div class="cardx-meta">청년회 · 02지역 · 교사</div>
+              </div>
+            </div>
+            <div class="cardx-intro">또래 자매 친분·만남 단계 도와드릴 수 있어요.</div>
+            <div class="cardx-chips">
+              <span class="podo-chip on">교사</span>
+              <span class="podo-chip">친분</span>
+              <span class="podo-chip">만남1</span>
+              <span class="podo-chip">만남2</span>
+              <span class="podo-chip leaf">#20대</span>
+            </div>
+            <div class="cardx-foot">
+              <span class="cardx-when">상의 후 결정</span>
+              <button class="cardx-btn" onclick="podoToast('연결 요청을 보냈습니다 (목업)')">연결 요청</button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ③ 도움 신청 -->
+      <div class="pane" id="p-help">
+        <section class="podo-sec">
+          <div class="podo-sec-title" style="margin-bottom:6px">지금 도움이 필요한 곳</div>
+          <div class="podo-sec-sub" style="margin-bottom:14px">역할 하나만 채워져도 한 사람이 더 열매를 맺어요.</div>
+
+          <div class="help">
+            <div class="help-t">복음방 섬김이 한 분 구합니다</div>
+            <div class="help-b">03지역 · 목요일 저녁 7시 · 3주간<br>수강생 2명, 인도자·교사는 정해졌어요.</div>
+            <div class="cardx-chips" style="margin-top:10px">
+              <span class="podo-chip on">섬김이</span>
+              <span class="podo-chip">복음방</span>
+            </div>
+            <div class="cardx-foot">
+              <span class="cardx-when">2시간 전 · 마감까지 5일</span>
+              <button class="cardx-btn" onclick="podoToast('도움 신청에 참여했습니다 (목업)')">참여하기</button>
+            </div>
+          </div>
+
+          <div class="help">
+            <div class="help-t">센터 수강 동행 부탁드려요</div>
+            <div class="help-b">01지역 · 토요일 오전 · 1회<br>자매님이라 자매 협력교사면 더 좋아요.</div>
+            <div class="cardx-chips" style="margin-top:10px">
+              <span class="podo-chip on">협력교사</span>
+              <span class="podo-chip">센터수강</span>
+              <span class="podo-chip">동행교사</span>
+            </div>
+            <div class="cardx-foot">
+              <span class="cardx-when">어제 · 마감까지 2일</span>
+              <button class="cardx-btn" onclick="podoToast('도움 신청에 참여했습니다 (목업)')">참여하기</button>
+            </div>
+          </div>
+
+          <div class="help" style="border-left-color:var(--ink-mute);opacity:.62">
+            <div class="help-t">상담1 함께 들어가실 분</div>
+            <div class="help-b">05지역 · 지난주 마감 — 이*훈 교사님이 참여했어요.</div>
+            <div class="cardx-chips" style="margin-top:10px">
+              <span class="podo-chip">상담1</span>
+              <span class="podo-chip warn">마감</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+    </div>
+  </div>
+
+  <button class="podo-fab" onclick="podoToast('도움 신청 작성 시트가 열립니다 (목업)')">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    도움 신청
+  </button>
+
+  <script src="podo-ui.js"></script>
+  <script>
+    // 세그먼트 전환 — 페이지 이동 없이 pane만 바꾼다.
+    document.getElementById('seg').addEventListener('click', e => {
+      const b = e.target.closest('button[data-p]');
+      if (!b) return;
+      document.querySelectorAll('#seg button').forEach(x => x.classList.toggle('on', x === b));
+      document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'p-' + b.dataset.p));
+      document.querySelector('.podo-body').scrollTop = 0;
+    });
+  </script>
+</body>
+</html>
