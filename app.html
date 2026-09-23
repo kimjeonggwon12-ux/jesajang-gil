@@ -6185,13 +6185,19 @@ function teacherSheetHtml(t, extra) {
         ${loaded && t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'}">등급 제안 → ${esc(t.suggestion.suggestedTier)}</span>` : ''}
       </div>
 
-      <div class="tls-sec-t">활동 현황</div>
+      <div class="tls-sec-t">센터 인도 실적</div>
       <div class="tls-stats">
+        <div class="tls-stat"><b>${t.regLeads != null ? esc(t.regLeads) : '-'}</b><span>센터 등록</span></div>
+        <div class="tls-stat"><b>${t.unregLeads != null ? esc(t.unregLeads) : '-'}</b><span>센터 미등록</span></div>
         <div class="tls-stat"><b>${loaded ? esc(t.monthlyCount || 0) : '…'}</b><span>이번 달 활동</span></div>
-        <div class="tls-stat"><b>${loaded ? esc(t.leads1y || 0) : '…'}</b><span>최근 1년 센터 등록</span></div>
-        <div class="tls-stat"><b>${loaded ? esc(t.actTotal || 0) : '…'}</b><span>누적 기록</span></div>
       </div>
+      ${(t.counsel || t.gospelRoom || t.companion)
+        ? `<div class="tls-grid">${tlKV('부서 기록란', `상담 ${esc(t.counsel || 0)} · 복음방 ${esc(t.gospelRoom || 0)} · 동행교사 ${esc(t.companion || 0)}`)}</div>`
+        : ''}
+
+      <div class="tls-sec-t">앱 활동 기록</div>
       <div class="tls-grid">
+        ${tlKV('누적 기록', loaded ? esc(t.actTotal || 0) + '건' : wait)}
         ${tlKV('마지막 활동일', loaded ? esc(t.lastActivityDate || '-') : wait)}
         ${loaded && t.actTotal > 0 ? tlKV('기록한 활동', esc(actSummaryText(t, 20))) : ''}
         ${tlKV('승급·강등 조건', loaded ? esc(t.conditionText || '-') : wait)}
@@ -6311,7 +6317,10 @@ function teacherListSectionHtml() {
                 <td class="text-center tl-act">${!t._rep ? '…' : (t.monthlyCount > 0 ? `<b>${esc(t.monthlyCount)}</b>건` : '<span class="text-base-content/30">0</span>')}</td>
                 <td class="tl-more">${!t._rep ? '…' : (t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'} badge-sm">→ ${esc(t.suggestion.suggestedTier)}</span>` : '<span class="text-base-content/30">-</span>')}</td>
                 <td class="tl-more">${t.position ? `<span class="badge badge-outline badge-sm">${esc(t.position)}</span>` : ''}</td>
-                <td class="tl-more text-center font-bold" style="color:#7E22CE">${t._rep ? esc(t.leads1y || 0) : '…'}</td>
+                <!-- 2026-09-23: 센등은 이제 교사명단(getRoster)의 '센터등록' 열에서 바로 옴.
+                     리포트(getTeacherListReport) 응답을 기다릴 필요가 없어 즉시 표시된다.
+                     명단에 값이 없는 옛 데이터면 예전처럼 리포트의 leads1y 로 떨어진다. -->
+                <td class="tl-more text-center font-bold" style="color:#7E22CE">${t.regLeads != null ? esc(t.regLeads) : (t._rep ? esc(t.leads1y || 0) : '…')}</td>
                 <td class="tl-more">${!t._rep ? '…' : (t.apply ? `<span class="font-medium" style="color:#7E22CE">${esc(applyText(t.apply))}</span>` : '<span class="text-base-content/40">없음</span>')}</td>
               </tr>`).join('')}
             ${rows.length === 0 ? `<tr><td colspan="9" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
