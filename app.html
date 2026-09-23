@@ -92,6 +92,12 @@
       --dg-text: #212124;     /* 본문 */
       --dg-text-sub: #868B94; /* 보조 텍스트 */
       --dg-bg-soft: #F8F9FA;  /* 모듈 박스 배경 */
+
+      /* ── 2026-09-23 PC 레이아웃 토큰 ──
+         앱 본체 최대 폭. 모바일에선 안 쓰이고, @media(min-width:769px)에서만
+         #appPanel·탭바·바텀시트·FAB 위치 계산에 쓰인다(파일 맨 아래 PC 블록 참고). */
+      --app-max-width: 480px;
+      --app-outer-bg: #E9EAEE;  /* PC에서 앱 컬럼 바깥 여백 색 */
     }
     .lucide-i { width:1em; height:1em; display:inline-block; vertical-align:-0.15em; flex-shrink:0; }
     html, body { height: 100%; margin: 0; }
@@ -545,6 +551,61 @@
     #admin-pane-calAdmin .pill.event { background:#E8590C; }
     #admin-pane-calAdmin .ev-row { display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--color-border); border-radius:10px; margin-bottom:8px; }
     #admin-pane-calAdmin .ev-row .grow { flex:1; min-width:0; }
+
+    /* ════════════════════════════════════════════════════════════════════
+       2026-09-23 PC(데스크톱) 레이아웃 — "당근마켓처럼 모바일 앱이 PC 화면
+       가운데에 떠 있는" 형태.
+
+       ⚠️ 규칙: 여기 아래는 전부 @media (min-width:769px) 안에만 둔다.
+          모바일(~768px) 레이아웃은 한 줄도 건드리지 않는다(사용자 요청).
+       ⚠️ position:fixed 요소(하단 탭바 / FAB 2개 / 설치 토스트 / 바텀시트)는
+          뷰포트 기준이라 그냥 두면 PC에서 화면 양 끝에 붙는다. 전부 아래에서
+          480px 컬럼 기준으로 다시 잡아준다. 새 fixed 요소를 추가하면 여기도
+          같이 추가할 것.
+       ════════════════════════════════════════════════════════════════════ */
+    @media (min-width: 769px) {
+      /* 앱 컬럼 바깥은 살짝 더 진한 회색 — 흰 앱 영역과 대비가 생겨야
+         "가운데 떠 있는" 느낌이 난다(본문 배경 #F5F5F5와 같은 색이면 경계가 안 보임). */
+      body { background: var(--app-outer-bg); }
+
+      #appPanel {
+        max-width: var(--app-max-width);
+        margin: 0 auto;
+        background: #fff;
+        box-shadow: 0 0 20px rgba(0,0,0,0.08);
+        /* h-screen(100vh) + flex-col 유지 — 내부 스크롤 구조는 모바일과 동일 */
+      }
+      #loginPanel { background: var(--app-outer-bg); }
+
+      /* 하단 탭바: left/right:0 대신 480px 컬럼 안으로 */
+      #bottomTabBar {
+        left: calc(50% - (var(--app-max-width) / 2));
+        right: auto;
+        width: var(--app-max-width);
+        border-left: 1px solid var(--dg-line);
+        border-right: 1px solid var(--dg-line);
+      }
+
+      /* FAB 2종: 화면 우측 끝이 아니라 앱 컬럼 우측 안쪽에 붙게 */
+      #sec-activity .act-fab { right: calc(50% - (var(--app-max-width) / 2) + 20px); }
+      #sec-connect  .cn-fab  { right: calc(50% - (var(--app-max-width) / 2) + 16px); }
+
+      /* 설치 안내 토스트 — 이 요소는 kkoCardIn 애니메이션이 transform을 점유하므로
+         translateX(-50%)로 가운데 맞추면 재생 0.3초 동안 위치가 튄다. left를 calc로 직접 계산. */
+      #kkoInstallToast {
+        left: calc(50% - (var(--app-max-width) / 2) + 16px);
+        right: auto;
+        width: calc(var(--app-max-width) - 32px);
+      }
+
+      /* 바텀시트: 배경 딤은 화면 전체(앱처럼 보이게), 시트만 480px 중앙 정렬 */
+      .sheet { max-width: var(--app-max-width); border-radius: 20px 20px 0 0; }
+      /* daisyUI 모달(성장/코칭 등)도 같은 폭으로 */
+      .modal .modal-box { max-width: var(--app-max-width); }
+
+      /* PC에서 마우스 hover 피드백(터치엔 없던 것 — 모바일 영향 없음) */
+      #bottomTabBar .tab:hover { color: var(--color-primary); }
+    }
   </style>
 </head>
 <body>
