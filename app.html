@@ -183,7 +183,19 @@
     /* [SHARED] 공용 바텀시트(연결/캘린더 등 여러 섹션이 쓰던 거의 동일한 openSheet()/#sheetHost를
        1개로 통합 — calendar-room.html과 connect-room.html의 .sheet/.sheet-back가 byte-단위로 동일했음). */
     .sheet-back { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9990; display: flex; align-items: flex-end; justify-content: center; animation: sheetFadeIn .2s ease-out; }
-    .sheet { background: #fff; width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 20px 16px 24px; animation: sheetSlideUp .25s cubic-bezier(0.16,1,0.3,1); }
+    /* 2026-09-23: 하단 탭바(62px+safe-area)가 시트 내용을 덮어서 마지막 줄이 안 보였다.
+       시트 높이를 탭바만큼 줄이고, 아래 여백도 그만큼 준다. */
+    .sheet { background: #fff; width: 100%; max-width: 560px;
+      max-height: calc(92vh - 62px); overflow-y: auto; border-radius: 20px 20px 0 0;
+      padding: 14px 16px calc(28px + 62px + env(safe-area-inset-bottom, 0px)); animation: sheetSlideUp .25s cubic-bezier(0.16,1,0.3,1); }
+    /* 시트 공통 뒤로 버튼 — 스크롤해도 항상 보이게 위에 붙여둔다.
+       2026-09-23: 신청서처럼 긴 시트에서 빠져나갈 방법이 없다는 지적으로 신설. */
+    .sheet-back-btn { position: sticky; top: -14px; z-index: 5; display: block; margin: -14px -16px 10px;
+      padding: 13px 16px; width: calc(100% + 32px); text-align: left;
+      background: rgba(255,255,255,.96); backdrop-filter: blur(6px);
+      border: none; border-bottom: 1px solid var(--dg-line);
+      font-family: inherit; font-size: 15px; font-weight: 700; color: var(--dg-text-sub); cursor: pointer; }
+    .sheet-back-btn:active { color: var(--color-primary); }
     /* 2026-09-22: 당근 스타일 바텀시트 등장 애니메이션 — openSheet()는 매번 새 DOM을 만들어 넣으므로
        transition이 아니라 삽입 시 자동 재생되는 animation으로(캘린더/연결 등 이 시트를 쓰는 모든
        섹션에 공용 적용, 새 함정 없음 — 순수 시각 효과 추가라 기존 동작 안 건드림). */
@@ -287,6 +299,18 @@
 
     /* ── 섹션 구분(당근은 굵은 회색 띠로 블록을 나눔) */
     #sec-activity .act-divider { height:8px; background:#F7F8F9; }
+
+    /* ── 2026-09-23 "다음 단계로" 안내 — 흐려서 안 보인다는 지적으로 대비 강화 ── */
+    .next-step { background: var(--color-primary-light); border-radius: 14px;
+      padding: 12px 14px; margin-top: 10px; }
+    .next-step-k { font-size: 12.5px; font-weight: 800; color: var(--color-primary); }
+    .next-step-v { font-size: 14.5px; font-weight: 600; color: var(--color-primary-dark);
+      line-height: 1.6; margin-top: 4px; }
+    /* 대상자 상세의 "오늘 상황 추가 기록" */
+    .tgt-add { width: 100%; height: 52px; border-radius: 14px; border: none;
+      background: var(--color-primary); color: #fff; font-size: 16px; font-weight: 800;
+      font-family: inherit; cursor: pointer; letter-spacing: -0.02em; }
+    .tgt-add:active { transform: scale(.98); }
 
     /* ── 2026-09-23 내 등급 가이드(.gg-*) — "나는 어떤 교사이고 뭘 하면 되나" ── */
     #sec-activity .gg { padding: 20px; background: #fff; }
@@ -602,11 +626,17 @@
     #sec-admin .dept-table td b { font-size: 15.5px; }
 
     /* ── 2026-09-23 "교사 명단 관리" 배너(중앙·2배) ── */
-    #sec-admin .tl-banner { text-align: center; padding: 22px 16px 18px; background: #F8F5FF;
-      border-radius: 16px; border: 1px solid var(--color-primary-light); }
-    #sec-admin .tl-banner-t { font-size: 30px; font-weight: 900; letter-spacing: -0.05em; color: var(--color-primary); }
-    #sec-admin .tl-banner-s { font-size: 13px; color: var(--color-text-sub); line-height: 1.6; margin-top: 8px; }
-    @media (max-width: 640px) { #sec-admin .tl-banner-t { font-size: 26px; } }
+    /* 2026-09-23: "새 타이틀 같은 느낌으로" — 연보라 카드 대신 보라 그라데이션 밴드에
+       흰 글자, 위아래 잎사귀색 실선으로 장 구분처럼 보이게. */
+    #sec-admin .tl-banner { position: relative; text-align: center; padding: 26px 16px 22px;
+      border-radius: 18px; overflow: hidden; color: #fff;
+      background: linear-gradient(135deg, #9333EA, var(--color-primary));
+      box-shadow: 0 6px 20px rgba(126,34,206,.25); }
+    #sec-admin .tl-banner::before { content: ''; position: absolute; left: 0; right: 0; top: 0;
+      height: 4px; background: var(--color-leaf); }
+    #sec-admin .tl-banner-t { font-size: 32px; font-weight: 900; letter-spacing: -0.06em; line-height: 1.2; }
+    #sec-admin .tl-banner-s { font-size: 13px; color: rgba(255,255,255,.85); line-height: 1.6; margin-top: 10px; }
+    @media (max-width: 640px) { #sec-admin .tl-banner-t { font-size: 27px; } }
 
     /* ── 2026-09-23 "등급 승인" 제목 강조 ── */
     #sec-admin .bulk-title { font-size: 22px; font-weight: 900; letter-spacing: -0.04em; color: var(--color-primary); }
@@ -661,17 +691,17 @@
     .tls-edu-st { font-size: 12.5px; font-weight: 700; color: #AAAAAA; white-space: nowrap; }
     .tls-edu-row.on .tls-edu-st { color: var(--color-leaf-dark); }
     .tls-id { font-size: 11.5px; color: #C3C6CC; margin-top: 18px; text-align: right; }
-    /* 개별 창 안의 직책 지정(지역장·교관) */
-    .tls-pos { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-    .tls-pos-now { font-size: 14px; color: var(--dg-text-sub); font-weight: 600; }
+    /* 개별 창 안의 직책 지정(회장·총무·지역장·교관류·과장류 7종) */
+    .tls-pos-now { font-size: 14px; color: var(--dg-text-sub); font-weight: 600; margin-bottom: 10px; }
     .tls-pos-now b { color: var(--dg-text); font-weight: 800; }
-    .tls-pos-btns { display: flex; gap: 6px; }
-    .tls-pos-btn { height: 34px; padding: 0 14px; border-radius: 12px; font-size: 13.5px; font-weight: 700;
-      border: 1.5px solid var(--color-primary); background: #fff; color: var(--color-primary);
+    .tls-pos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 7px; }
+    .tls-pos-btn { height: 40px; padding: 0 8px; border-radius: 12px; font-size: 13.5px; font-weight: 700;
+      border: 1.5px solid var(--color-border); background: #fff; color: var(--dg-text-sub);
       font-family: inherit; cursor: pointer; white-space: nowrap; }
-    .tls-pos-btn.on { background: var(--color-primary); color: #fff; }
+    .tls-pos-btn.on { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
     .tls-pos-btn[disabled] { opacity: .5; }
-    .tls-pos-hint { font-size: 12.5px; color: var(--dg-text-sub); margin-top: 8px; }
+    .tls-pos-hint { font-size: 12.5px; color: var(--dg-text-sub); margin-top: 10px; line-height: 1.6; }
+    .tls-pos-hint b { color: var(--color-primary); }
 
     /* ── 2026-09-23 [홈으로] 버튼 (앱바 / 보라 헤더 두 곳) ── */
     .go-home-btn {
@@ -831,7 +861,11 @@
     .pd-input::placeholder { color: #9CA3AF; font-weight: 500; }
     .pd-input:focus { background: #fff; border-color: var(--color-primary); box-shadow: 0 0 0 4px var(--color-primary-light); }
     .pd-input.pd-err { border-color: #F87171; background: #FEF2F2; }
-    .pd-loading { margin-top: 32px; height: 56px; display: flex; align-items: center; justify-content: center;
+    .pd-enter { width: 100%; height: 54px; margin-top: 22px; border: none; border-radius: 14px;
+      background: var(--color-primary); color: #fff; font-size: 16.5px; font-weight: 800;
+      font-family: inherit; cursor: pointer; letter-spacing: -0.02em; transition: transform .1s ease; }
+    .pd-enter:active { transform: scale(.98); }
+    .pd-loading { margin-top: 12px; height: 40px; display: flex; align-items: center; justify-content: center;
       gap: 8px; opacity: 0; transition: opacity .3s ease; }
     .pd-loading.on { opacity: 1; }
     .pd-loading i { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #D1D5DB;
@@ -1006,6 +1040,9 @@
           <input type="text" id="name" class="pd-input" placeholder="이름을 입력하고 Enter를 누르세요" autocomplete="off" />
         </div>
 
+        <!-- 2026-09-23: Enter만으로 들어가는 구조라 "들어갈 방법"이 안 보인다는 지적.
+             이름칸 바로 밑에 버튼을 둔다(아래 안내문에 밀려 화면 밖으로 나가지 않게). -->
+        <button type="button" class="pd-enter" id="pdEnterBtn" onclick="startSession()">입장하기</button>
         <div class="pd-loading" id="pdLoading"><i></i><span id="pdLoadingText">입장 중...</span></div>
 
         <div class="pd-foot">
@@ -1264,7 +1301,12 @@
     function closeSheet() { document.getElementById('appSheetHost').innerHTML = ''; }
     function openSheet(html) {
       const h = document.getElementById('appSheetHost');
-      h.innerHTML = `<div class="sheet-back" id="appSheetBack"><div class="sheet">${html}</div></div>`;
+      // 2026-09-23: 신청서처럼 긴 시트에서 빠져나갈 방법이 없다는 지적 —
+      // 모든 시트 맨 위에 공통 [뒤로]를 달아준다(개별 닫기 버튼과 같이 있어도 무해).
+      h.innerHTML = `<div class="sheet-back" id="appSheetBack"><div class="sheet">
+          <button type="button" class="sheet-back-btn" onclick="closeSheet()">‹ 뒤로</button>
+          ${html}
+        </div></div>`;
       document.getElementById('appSheetBack').onclick = e => { if (e.target.id === 'appSheetBack') closeSheet(); };
     }
     App.openSheet = openSheet; App.closeSheet = closeSheet;
@@ -1336,6 +1378,7 @@
       document.getElementById('loginPanel').style.display = 'none';
       document.getElementById('appPanel').style.display = 'flex';
       updateAdminTabVisibility();
+      loadMyRosterRow();   // 명단에서 내 직책·부서를 확인해 관리자 탭 노출 결정
       enterFromHash();
       showInstallToastIfNeeded();
     }
@@ -1344,6 +1387,7 @@
     function pdEnterWithSpinner(id, nm, msg) {
       const la = document.getElementById('pdLoading'), lt = document.getElementById('pdLoadingText');
       if (la) la.classList.add('on');
+      const eb = document.getElementById('pdEnterBtn'); if (eb) eb.style.display = 'none';
       if (lt && msg) lt.textContent = msg;
       setTimeout(() => {
         if (lt) lt.textContent = '나의 교실로 이동합니다!';
@@ -1516,11 +1560,48 @@
     }
 
     // ════════════════════════════════════════════════════════════════
-    // [SHARED] 관리자 탭 노출 — 2026-09-20 라이브 코드가 "관리" 탭을 임시로
-    // 전체 개방해둔 상태를 그대로 유지(교관 게이트 제거됨). 복구 시 이 함수만
-    // getMyCoach/isCoach 기반 판정으로 바꾸면 됨(과거 커밋 9ecf665 이전 로직 참고).
+    // [SHARED] 관리자 접근 제어 (2026-09-23 신설 — 그 전까지는 전체 개방이었음)
+    // ────────────────────────────────────────────────────────────────
+    // 들어갈 수 있는 사람
+    //   ① 아래 ADMIN_POSITIONS 직책으로 지정된 사람 (교사 명단에서 지정)
+    //   ② 부서가 '교역자'인 사람 — 전원
+    //   ③ 센터 사명자 — 소속비고(note)에 '센터'가 들어간 사람
+    // ⚠️ ADMIN_POSITIONS 는 백엔드 Code.gs 의 ALLOWED_POS 와 같은 값이어야 한다.
+    //    한쪽만 고치면 지정은 되는데 못 들어가거나, 그 반대가 된다.
+    // ⚠️ 이건 화면을 감추는 수준의 제어다. 진짜 권한 차단이 필요하면 백엔드 각
+    //    action 에서도 검사해야 한다(현재 백엔드는 관리자 action을 따로 막지 않음).
     // ════════════════════════════════════════════════════════════════
-    function isAdmin() { return true; }
+    const ADMIN_POSITIONS = ['회장', '총무', '지역장', '섭외 교관', '복음방 교관', '전도 과장', '교육 과장',
+                             '교관', '총교관', '교육부'];   // 뒤 3개는 옛 데이터 호환
+    let myRosterRow = null;      // 내 교사명단 행(getRoster에서 내 고유번호로 찾음)
+    let myRosterLoaded = false;
+
+    function isAdmin() {
+      if (!myRosterLoaded) return false;       // 아직 못 받았으면 숨김(받고 나서 다시 판정)
+      const r = myRosterRow;
+      if (!r) return false;
+      if (ADMIN_POSITIONS.indexOf(String(r.position || '').trim()) !== -1) return true;
+      if (String(r.dept || '').trim() === '교역자') return true;
+      if (String(r.note || '').indexOf('센터') !== -1) return true;   // 센터 사명자
+      return false;
+    }
+
+    /** 내 명단 행을 한 번 받아와 관리자 탭 노출을 결정한다. */
+    async function loadMyRosterRow() {
+      try {
+        const res = await callApi({ action: 'getRoster' });
+        const rows = (res && res.rows) || [];
+        const mine = String(App.memberId || '').replace(/[^0-9]/g, '');
+        myRosterRow = rows.find(r => String(r.memberId || '').replace(/[^0-9]/g, '') === mine) || null;
+      } catch (e) {
+        myRosterRow = null;
+      }
+      myRosterLoaded = true;
+      updateAdminTabVisibility();
+      // 권한이 없는데 관리자 탭을 보고 있었다면 기본 탭으로 되돌린다.
+      if (!isAdmin() && App.currentTab === 'admin') switchTab('activity');
+    }
+
     function updateAdminTabVisibility() {
       const btn = document.getElementById('adminTabBtn');
       if (btn) btn.style.display = isAdmin() ? '' : 'none';
@@ -2579,8 +2660,11 @@
             </div>`).join('')}
         </div>
         <div class="text-[9px] text-base-content/40 text-center mt-1">${esc(t.stage || '-')} (${idx >= 0 ? idx + 1 : 0}/${home.stages.length}단계)</div>
-        <div class="alert bg-info/10 border border-info/30 mt-2 py-2 px-3">
-          <div class="text-xs text-info-content"><b>💡 다음 단계로:</b> ${esc(STAGE_GUIDE[t.stage] || '단계에 맞는 다음 행동을 계획해보세요.')}</div>
+        <!-- 2026-09-23: 안내 문구가 흐려서 안 보인다는 지적 — 옅은 alert 대신
+             보라 배경 + 진한 글자로 바꾸고 글자 크기도 키웠다. -->
+        <div class="next-step">
+          <div class="next-step-k">💡 다음 단계로</div>
+          <div class="next-step-v">${esc(STAGE_GUIDE[t.stage] || '단계에 맞는 다음 행동을 계획해보세요.')}</div>
         </div>
       `;
     }
@@ -2722,9 +2806,14 @@
             </div>
           </div>
           ${latestNextWork ? `
-          <div class="alert bg-info/10 border border-info/30">
-            <div class="text-sm"><b>다음 할 일:</b> ${esc(latestNextWork)}</div>
+          <div class="next-step">
+            <div class="next-step-k">다음 할 일</div>
+            <div class="next-step-v">${esc(latestNextWork)}</div>
           </div>` : ''}
+
+          <!-- 2026-09-23: 여기서 "새로 등록"이 아니라 오늘 상황을 이어서 적게 해달라는 요청.
+               활동 기록 시트를 열되 대상자·단계를 미리 채워서 연다(같은 대상자 행이 갱신됨). -->
+          <button type="button" class="tgt-add" id="tgt-add">＋ 오늘 상황 추가 기록하기</button>
           <div class="card card-border bg-base-100 shadow-sm">
             <div class="card-body p-4">
               <div class="text-sm font-bold mb-2">담당 교사 (인도자/섬김이)</div>
@@ -2897,11 +2986,33 @@
       openSheet(`<div class="act-sheet-form">${activityFormHtml()}</div>`);
       wireActivityForm();
     }
+    /**
+     * 2026-09-23 대상자 상세에서 "오늘 상황 추가 기록하기".
+     * 새 대상자를 또 만드는 게 아니라, 이 대상자를 지정해서 기록 시트를 연다.
+     * 백엔드 _upsertTargetFromActivity_ 가 대상자이름+담당범위로 기존 행을 찾아
+     * 갱신하므로, 같은 이름으로 넣으면 새 행이 생기지 않고 일지에 이어 쌓인다.
+     */
+    function openTargetAddRecord() {
+      const d = home.detailJournal;
+      if (!d || !d.target) return;
+      const t = d.target;
+      home.form.targetName = t.targetName || '';
+      home.form.targetGender = t.gender || '';
+      home.form.targetAgeGroup = t.ageGroup || '';
+      home.form.targetStage = t.stage || '';
+      home.form.date = todayStr();
+      home.form.todayWork = '';
+      home.form.nextWork = '';
+      renderActivityFormSheet();
+    }
+
     function renderHome() {
       const root = document.getElementById('homeContent');
       if (home.view === 'targetDetail') {
         if (targetsChartInstance) { targetsChartInstance.destroy(); targetsChartInstance = null; }
         root.innerHTML = targetDetailViewHtml();
+        const add = document.getElementById('tgt-add');
+        if (add) add.onclick = openTargetAddRecord;
         return;
       }
       root.innerHTML = dashboardViewHtml();
@@ -3086,7 +3197,7 @@
       if (c.loading) return cnSpinner;
       return `
       <div class="cn-sec-title">${c.exists ? '내 명함' : '내 명함 만들기'}</div>
-      <div class="cn-sec-sub">저장하면 바로 <b>활동자 찾기</b>에 노출돼요. 전화번호는 항상 공개됩니다.</div>
+
       <div class="kko-card">
         <div style="display:flex;gap:14px;align-items:flex-end">
           <div id="photoBox" style="width:90px;height:120px;border-radius:10px;overflow:hidden;background:var(--color-primary-light);display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -6369,10 +6480,14 @@ function switchRegion(region) {
 
 // ============ 2026-09-16: "👥 교사 명단" 탭 — 전체 교사 flat list + 교관/지역장 지정 ============
 // 기존 upsertRosterLeader 액션(교사명단 시트 "직책"열 갱신)을 그대로 재사용 — 신규 백엔드 없음.
+// 2026-09-23: 지정 가능한 직책(사용자 지시). 이 사람들만 관리자 화면에 들어갈 수 있다.
+// ⚠️ 백엔드 Code.gs 의 ALLOWED_POS 와 같은 값이어야 한다 — 한쪽만 고치면 저장이 거부된다.
+const ASSIGNABLE_POSITIONS = ['회장', '총무', '지역장', '섭외 교관', '복음방 교관', '전도 과장', '교육 과장'];
+
 async function assignPosition(t, position) {
   // 이미 그 직책이면 눌렀을 때 해제(빈 직책으로 되돌림), 아니면 새로 지정.
   const nextPosition = (t.position === position) ? '' : position;
-  const label = position === '교관' ? '교관' : '지역장';
+  const label = position;
   const verb = nextPosition ? '지정' : '해제';
   if (!confirm(`${maskName(t.name)} 교사를 ${label}(으)로 ${verb}하시겠습니까?`)) return;
   state.tlAssigning = true;
@@ -6613,15 +6728,18 @@ function teacherSheetHtml(t, extra) {
 
       <!-- 2026-09-23: 지역장·교관 지정을 여기로 통합(별도 패널 삭제 — 기능이 중복돼 정신없다는 지적).
            명단 위 부서·지역 필터로 대상을 좁힌 뒤 그 사람을 눌러 여기서 지정한다. -->
-      <div class="tls-sec-t">직책</div>
-      <div class="tls-pos">
-        <div class="tls-pos-now">현재 · <b>${esc(t.position || '일반 교사')}</b></div>
-        <div class="tls-pos-btns">
-          ${['지역장', '교관'].map(p => `
-            <button type="button" class="tls-pos-btn ${t.position === p ? 'on' : ''}" data-pos="${p}" ${state.tlAssigning ? 'disabled' : ''}>${p}${t.position === p ? ' 해제' : ' 지정'}</button>`).join('')}
-        </div>
+      <div class="tls-sec-t">직책 지정</div>
+      <div class="tls-pos-now">현재 · <b>${esc(t.position || '일반 교사')}</b></div>
+      <div class="tls-pos-grid">
+        ${ASSIGNABLE_POSITIONS.map(p => `
+          <button type="button" class="tls-pos-btn ${t.position === p ? 'on' : ''}" data-pos="${p}" ${state.tlAssigning ? 'disabled' : ''}>${esc(p)}</button>`).join('')}
       </div>
-      <div class="tls-pos-hint">${esc(t.dept || '-')} · ${esc(t.region || '-')} 담당으로 등록됩니다.</div>
+      <div class="tls-pos-hint">
+        ${esc(t.dept || '-')} · ${esc(t.region || '-')} 담당으로 등록됩니다.
+        지정된 직책을 다시 누르면 해제돼요.<br>
+        <b>직책이 지정된 사람만 관리자 화면에 들어갈 수 있어요.</b>
+        (교역자와 센터 사명자는 직책과 상관없이 들어갈 수 있어요)
+      </div>
 
       <div class="tls-id">고유번호 ${esc(t.memberId)}</div>
       <button class="kko-btn-outline" id="tls-encourage" style="margin-top:12px">💌 격려 메시지 보내기</button>
