@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>복음방 교사</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#5B4FCF">
+  <meta name="theme-color" content="#7E22CE">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="복음방 교사">
@@ -31,11 +31,11 @@
        ════════════════════════════════════════════════════════════════ */
     [data-theme="jesagil"] {
       /* DaisyUI 4.12는 색상 변수를 OKLCH(L% C H)로 받음 — HSL 아님, 주의 */
-      --p: 51.43% 0.1901 281.61;   /* primary: #5B4FCF */
+      --p: 49.55% 0.2369 301.91;   /* primary: #7E22CE 포도색 */
       --pc: 100% 0 0;
       --s: 66.58% 0.1574 58.32;    /* secondary: amber-600 */
       --sc: 100% 0 0;
-      --a: 59.60% 0.1274 163.23;   /* accent: emerald-600 */
+      --a: 72.27% 0.1920 149.58;   /* accent: #22C55E 잎사귀색 */
       --ac: 100% 0 0;
       --n: 27.95% 0.0368 260.03;   /* neutral: slate-800 */
       --nc: 96.70% 0.0029 264.54;
@@ -51,14 +51,14 @@
       --wac: 0% 0 0;
       --er: 59.56% 0.1901 25.05;    /* error: #D94040 */
       --erc: 100% 0 0;
-      --rounded-box: 0.75rem;
-      --rounded-btn: 0.5rem;
+      --rounded-box: 0.875rem;
+      --rounded-btn: 0.875rem;
       --rounded-badge: 1rem;
     }
     :root {
-      --color-primary: #5B4FCF;
-      --color-primary-light: #EDE9FF;
-      --color-primary-dark: #3D34A5;
+      --color-primary: #7E22CE;
+      --color-primary-light: #F3E8FF;
+      --color-primary-dark: #6B21A8;
       --color-surface: #FFFFFF;
       --color-card: #FFFFFF;
       --color-bg: #F5F5F5;
@@ -69,9 +69,14 @@
       --color-warning: #E8A020;
       --color-error: #D94040;
       --color-accent: #FF6B6B;
+      /* 2026-09-23 포도원 테마: 라운딩 14px로 통일(표지 modern-input과 같은 값) */
       --radius-card: 16px;
-      --radius-btn: 12px;
-      --radius-input: 10px;
+      --radius-btn: 14px;
+      --radius-input: 14px;
+      /* 잎사귀색 — 활동/성사/이수 같은 "잘 되고 있다" 신호에만 쓴다 */
+      --color-leaf: #22C55E;
+      --color-leaf-light: #DCFCE7;
+      --color-leaf-dark: #15803D;
       --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
       --height-btn: 52px;
       --height-btn-sm: 44px;
@@ -86,7 +91,7 @@
       --dg-radius-md: 14px;   /* 버튼/입력/그룹박스 */
       --dg-radius-sm: 10px;
       --dg-shadow-soft: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
-      --dg-shadow-fab: 0 6px 20px rgba(91,79,207,.45);
+      --dg-shadow-fab: 0 6px 20px rgba(126,34,206,.45);
       --dg-pad: 20px;         /* 넓은 여백 기준값 */
       --dg-line: #F2F2F5;     /* 피드 구분선 */
       --dg-text: #212124;     /* 본문 */
@@ -96,6 +101,8 @@
       /* ── 2026-09-23 PC 레이아웃 토큰 ──
          앱 본체 최대 폭. 모바일에선 안 쓰이고, @media(min-width:769px)에서만
          #appPanel·탭바·바텀시트·FAB 위치 계산에 쓰인다(파일 맨 아래 PC 블록 참고). */
+      /* 기본(폰)은 화면 전체 폭. PC에서만 아래 @media가 단계별로 넓혀준다.
+         480 고정이면 관리자 표가 너무 좁아서, 화면이 커질수록 컬럼도 커지게 함. */
       --app-max-width: 480px;
       --app-outer-bg: #E9EAEE;  /* PC에서 앱 컬럼 바깥 여백 색 */
     }
@@ -108,20 +115,20 @@
     .card-border { border-width: 0 !important; border-radius: 16px !important; box-shadow: 0 2px 12px rgba(0,0,0,0.08) !important; }
     .kko-btn-main {
       display: flex; align-items: center; justify-content: center;
-      height: 52px; min-height: 52px; border-radius: 12px;
-      background: #5B4FCF; color: #fff; font-size: 16px; font-weight: 700;
+      height: 52px; min-height: 52px; border-radius: 14px;
+      background: #7E22CE; color: #fff; font-size: 16px; font-weight: 700;
       border: none; width: 100%;
     }
     .kko-btn-main[disabled] { opacity: .6; }
     .kko-btn-outline {
       display: flex; align-items: center; justify-content: center;
-      height: 44px; min-height: 44px; border-radius: 12px;
-      background: #fff; color: #5B4FCF; font-size: 14px; font-weight: 700;
-      border: 1.5px solid #5B4FCF; width: 100%;
+      height: 44px; min-height: 44px; border-radius: 14px;
+      background: #fff; color: #7E22CE; font-size: 14px; font-weight: 700;
+      border: 1.5px solid #7E22CE; width: 100%;
     }
-    .kko-form .input, .kko-form .select, .kko-form textarea { min-height: 48px; border-radius: 12px; }
+    .kko-form .input, .kko-form .select, .kko-form textarea { min-height: 48px; border-radius: 14px; }
     .kko-form .input:focus, .kko-form .select:focus, .kko-form textarea:focus {
-      border-color: #5B4FCF !important; outline-color: #5B4FCF !important;
+      border-color: #7E22CE !important; outline-color: #7E22CE !important;
     }
     /* 2026-09-22: 당근 스타일 하단 탭바 — 얇은 경계선, 비활성은 중성 회색(#868B94),
        활성만 브랜드 보라 + 아이콘 살짝 확대. 높이/라벨을 조금 키워 터치 영역 확보. */
@@ -160,7 +167,7 @@
     @keyframes kkoTabBounce { 0% { transform: translateY(0); } 40% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
     @keyframes kkoShimmer { 0% { background-position:-200px 0; } 100% { background-position:200px 0; } }
     .kko-skeleton { background:linear-gradient(90deg,#EEEEEE 25%,#F5F5F5 37%,#EEEEEE 63%); background-size:400px 100%; animation:kkoShimmer 1.4s ease infinite; border-radius:8px; }
-    .kko-spinner { width:36px; height:36px; border-radius:50%; border:3px solid #EDE9FF; border-top-color:#5B4FCF; animation:kkoSpin .7s linear infinite; display:inline-block; }
+    .kko-spinner { width:36px; height:36px; border-radius:50%; border:3px solid #F3E8FF; border-top-color:#7E22CE; animation:kkoSpin .7s linear infinite; display:inline-block; }
     @keyframes kkoSpin { to { transform:rotate(360deg); } }
     #kkoInstallToast {
       position:fixed; left:16px; right:16px; z-index:60;
@@ -227,7 +234,7 @@
     /* ===== SECTION CSS: activity =====
        2026-09-22 당근마켓(Daangn) 스타일 리디자인 — 박스형 카드 대신 얇은 border-b 구분선 피드,
        우측 하단 FAB(.act-fab)+바텀시트(공유 openSheet/closeSheet 재사용, 새로 안 만듦),
-       select 대신 가로 스크롤 칩(.act-chip-btn). 브랜드 컬러(#5B4FCF)는 그대로 유지.
+       select 대신 가로 스크롤 칩(.act-chip-btn). 브랜드 컬러(#7E22CE)는 그대로 유지.
        ⚠️ 바텀시트는 #sec-activity 밖의 공유 #appSheetHost에 렌더되므로(다른 섹션들과 동일한
        기존 함정 — #sec-XXX 스코프가 안 먹음), 시트 안에서 쓰는 클래스(.act-sheet-form/
        .act-step-label/.act-chip-scroll/.act-chip-btn, Pretendard 폰트 포함)는 전역으로 두되
@@ -412,7 +419,7 @@
     .cn-badge-hot { background:#FFF0E5; color:#E8590C; }
     .cn-badge-tier { background:#E6F6EF; color:var(--color-success); }
     .cn-badge { display:inline-flex; align-items:center; font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; }
-    #sec-connect .cn-fab { position:fixed; right:16px; bottom:76px; height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:700; border:none; box-shadow:0 4px 14px rgba(91,79,207,.4); z-index:30; cursor:pointer; }
+    #sec-connect .cn-fab { position:fixed; right:16px; bottom:76px; height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:700; border:none; box-shadow:0 4px 14px rgba(126,34,206,.4); z-index:30; cursor:pointer; }
     #sec-connect .cn-hint { font-size:13px; color:var(--dg-text-sub); margin-top:5px; line-height:1.5; }
     .cn-lightbox { position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:9995; display:flex; align-items:center; justify-content:center; }
     .cn-lightbox img { max-width:94vw; max-height:90vh; border-radius:8px; }
@@ -493,7 +500,7 @@
     #sec-admin .section-card .text-2xl { font-size: 30px; }
     #sec-admin .section-card .text-lg { font-size: 19px; }
 
-    /* 교사 명단 — 폰에서는 이름·지역·등급까지만 보이고 나머지는 행을 눌러 상세로 */
+    /* 교사 명단 — 폰에서는 이름·지역·등급·활동까지만 보이고 나머지는 행을 눌러 시트로 */
     #sec-admin .tl-phone-hint { display: none; }
     @media (max-width: 640px) {
       #sec-admin .tl-more { display: none; }
@@ -501,6 +508,68 @@
       #sec-admin .table { font-size: 15px; }
       #sec-admin .table th, #sec-admin .table td { padding-left: 6px; padding-right: 6px; }
     }
+    #sec-admin .tl-act b { color: var(--color-primary); font-weight: 800; }
+
+    /* ── 2026-09-23 부서별 교사 현황: 막대그래프 → 표 ── */
+    #sec-admin .dept-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    #sec-admin .dept-table th, #sec-admin .dept-table td {
+      padding: 9px 6px; text-align: center; border-bottom: 1px solid var(--color-border); white-space: nowrap;
+    }
+    #sec-admin .dept-table th { font-size: 13px; font-weight: 800; color: var(--color-text-sub); background: var(--dg-bg-soft); }
+    #sec-admin .dept-table .dept-name { text-align: left; font-weight: 700; padding-left: 10px; }
+    #sec-admin .dept-table .dept-total { font-weight: 800; color: var(--color-primary); }
+    #sec-admin .dept-table td b { font-weight: 700; }
+    #sec-admin .dept-table .dept-pct { display: block; font-size: 11px; color: var(--color-text-sub); font-weight: 500; margin-top: 1px; }
+    #sec-admin .dept-table .dept-zero { color: #D1D5DB; }
+    #sec-admin .dept-table tfoot td { background: var(--dg-bg-soft); border-bottom: none; font-weight: 800; }
+
+    /* ── 2026-09-23 부서 탭: 전체 + 교자장부청 한 줄(아이콘 없음) ── */
+    #sec-admin .tl-dept-tabs { display: flex; gap: 6px; }
+    #sec-admin .tl-dept-tabs button {
+      flex: 1 1 0; min-width: 0; height: 38px; border-radius: 14px;
+      border: 1.5px solid var(--color-border); background: #fff;
+      color: var(--color-text-sub); font-size: 15px; font-weight: 700;
+      font-family: inherit; cursor: pointer; padding: 0;
+    }
+    #sec-admin .tl-dept-tabs button.on { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+
+    /* ════════════════════════════════════════════════════════════════
+       2026-09-23 교사 개별 시트(.tls-*)
+       ⚠️ 공유 #appSheetHost(= #sec-admin 바깥)에 렌더되므로 #sec-admin 으로
+          스코프하면 안 된다. 반드시 전역 .tls- 접두사로 둘 것.
+       ════════════════════════════════════════════════════════════════ */
+    .tls { letter-spacing: -0.02em; }
+    .tls-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .tls-name { font-size: 22px; font-weight: 900; letter-spacing: -0.04em; color: var(--dg-text); }
+    .tls-suffix { font-size: 15px; font-weight: 600; color: var(--dg-text-sub); }
+    .tls-sub { font-size: 13.5px; color: var(--dg-text-sub); margin-top: 4px; font-weight: 500; }
+    .tls-close { background: none; border: none; font-size: 20px; line-height: 1; color: var(--dg-text-sub); cursor: pointer; padding: 2px 4px; }
+    .tls-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
+    .tls-sec-t { font-size: 13px; font-weight: 800; color: var(--color-primary); margin: 20px 0 8px;
+      padding-bottom: 6px; border-bottom: 1.5px solid var(--color-primary-light); }
+    .tls-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .tls-stat { border: 1.5px solid var(--color-border); border-radius: 14px; padding: 12px 6px; text-align: center; }
+    .tls-stat b { display: block; font-size: 22px; font-weight: 900; color: var(--color-primary); letter-spacing: -0.04em; }
+    .tls-stat span { display: block; font-size: 11.5px; color: var(--dg-text-sub); font-weight: 600; margin-top: 3px; }
+    .tls-grid { display: grid; grid-template-columns: 104px 1fr; gap: 8px 12px; font-size: 13.5px; align-items: start; }
+    .tls-k { color: var(--dg-text-sub); font-weight: 600; }
+    .tls-v { font-weight: 600; color: var(--dg-text); word-break: break-word; }
+    .tls-dim { color: #C3C6CC; font-weight: 500; }
+    .tls-warn { color: var(--color-warning); font-weight: 700; }
+    .tls-wait, .tls-empty { font-size: 13.5px; color: var(--dg-text-sub); background: var(--dg-bg-soft);
+      border-radius: 14px; padding: 14px; line-height: 1.6; }
+    .tls-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tls-chip { display: inline-flex; align-items: center; height: 25px; padding: 0 10px; border-radius: 999px;
+      background: var(--color-primary-light); color: var(--color-primary); font-size: 12.5px; font-weight: 700; }
+    .tls-chip.leaf { background: var(--color-leaf-light); color: var(--color-leaf-dark); }
+    .tls-edu-sum { font-size: 13.5px; font-weight: 700; color: var(--dg-text-sub); margin-bottom: 8px; }
+    .tls-edu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 10px 12px; border: 1.5px solid var(--color-border); border-radius: 14px; margin-bottom: 6px; }
+    .tls-edu-row.on { border-color: var(--color-leaf-light); background: var(--color-leaf-light); }
+    .tls-edu-nm { font-size: 13.5px; font-weight: 700; }
+    .tls-edu-st { font-size: 12.5px; font-weight: 700; color: #AAAAAA; white-space: nowrap; }
+    .tls-edu-row.on .tls-edu-st { color: var(--color-leaf-dark); }
+    .tls-id { font-size: 11.5px; color: #C3C6CC; margin-top: 18px; text-align: right; }
     /* 관리자 4개 서브탭(1️⃣2️⃣3️⃣4️⃣) 전환 바 — connect 섹션의 kko-tabs 패턴 재사용 */
     #admin-subtabs { display:flex; gap:6px; overflow-x:auto; padding:10px 12px; background:#fff; border-bottom:1px solid var(--color-border); }
     #admin-subtabs .kko-tab {
@@ -553,6 +622,86 @@
     #admin-pane-calAdmin .ev-row .grow { flex:1; min-width:0; }
 
     /* ════════════════════════════════════════════════════════════════════
+       2026-09-23 포도원 표지 — 스플래시 + 로그인
+       podo-splash.html 목업을 그대로 옮겨온 것. 클래스에 pd- 접두사를 붙여
+       기존 섹션 CSS와 섞이지 않게 했다(목업의 Tailwind 유틸리티는 전부
+       일반 CSS로 풀어썼음 — app.html은 Tailwind CDN을 쓰지만 이 화면만은
+       유틸리티 의존을 줄여 나중에 손대기 쉽게).
+       ════════════════════════════════════════════════════════════════════ */
+    #loginPanel { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: #fff; }
+    .pd-screen { position: absolute; inset: 0; display: flex; flex-direction: column; transition: opacity .6s ease-in-out; }
+    .pd-screen.pd-hide { opacity: 0; pointer-events: none; z-index: -1; }
+
+    /* ① 스플래시 */
+    #pdSplash { z-index: 20; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #9333EA, var(--color-primary)); }
+    .pd-bunch { position: relative; width: 64px; height: 64px; margin-bottom: 24px; }
+    .pd-dot { width: 20px; height: 20px; border-radius: 50%; background: #fff; position: absolute;
+      box-shadow: inset -3px -3px 6px rgba(0,0,0,.1); }
+    .pd-leaf { width: 24px; height: 16px; background: var(--color-leaf); border-radius: 20px 0 20px 0;
+      position: absolute; top: -12px; right: 14px; transform-origin: bottom left;
+      animation: pdLeafGrow .6s cubic-bezier(.34,1.56,.64,1) forwards; animation-delay: 1s; opacity: 0; }
+    /* 흩어진 포도알이 가운데로 모여 한 송이가 된다 — "연결"의 시각적 은유 */
+    @keyframes pdGather1 { 0% { transform: translate(-50px,-50px) scale(0); opacity: 0; } 100% { transform: translate(0,0) scale(1); opacity: 1; } }
+    @keyframes pdGather2 { 0% { transform: translate(0,-60px) scale(0); opacity: 0; }    100% { transform: translate(0,0) scale(1); opacity: 1; } }
+    @keyframes pdGather3 { 0% { transform: translate(50px,-50px) scale(0); opacity: 0; }  100% { transform: translate(0,0) scale(1); opacity: 1; } }
+    @keyframes pdGather4 { 0% { transform: translate(-40px,30px) scale(0); opacity: 0; }  100% { transform: translate(0,0) scale(1); opacity: 1; } }
+    @keyframes pdGather5 { 0% { transform: translate(40px,30px) scale(0); opacity: 0; }   100% { transform: translate(0,0) scale(1); opacity: 1; } }
+    @keyframes pdGather6 { 0% { transform: translate(0,60px) scale(0); opacity: 0; }      100% { transform: translate(0,0) scale(1); opacity: 1; } }
+    @keyframes pdLeafGrow { 0% { transform: scale(0) rotate(-20deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+    .pd-d1 { top: 0;    left: 0;    animation: pdGather1 .8s cubic-bezier(.16,1,.3,1) forwards; }
+    .pd-d2 { top: 0;    left: 22px; animation: pdGather2 .8s cubic-bezier(.16,1,.3,1) forwards; animation-delay: .1s; opacity: 0; }
+    .pd-d3 { top: 0;    left: 44px; animation: pdGather3 .8s cubic-bezier(.16,1,.3,1) forwards; animation-delay: .2s; opacity: 0; }
+    .pd-d4 { top: 20px; left: 11px; animation: pdGather4 .8s cubic-bezier(.16,1,.3,1) forwards; animation-delay: .3s; opacity: 0; }
+    .pd-d5 { top: 20px; left: 33px; animation: pdGather5 .8s cubic-bezier(.16,1,.3,1) forwards; animation-delay: .4s; opacity: 0; }
+    .pd-d6 { top: 40px; left: 22px; animation: pdGather6 .8s cubic-bezier(.16,1,.3,1) forwards; animation-delay: .5s; opacity: 0; }
+    @keyframes pdFadeUp { 0% { opacity: 0; transform: translateY(15px); } 100% { opacity: 1; transform: translateY(0); } }
+    .pd-fade { animation: pdFadeUp .8s ease-out forwards; opacity: 0; }
+    .pd-fade.d1 { animation-delay: 1.2s; }
+    .pd-fade.d2 { animation-delay: 1.4s; }
+    .pd-title { font-size: 42px; font-weight: 900; color: #fff; letter-spacing: -0.05em; margin: 0 0 4px; }
+    .pd-tagline { font-size: 15px; font-weight: 500; color: rgba(255,255,255,.9); letter-spacing: .02em; margin: 0 0 32px; }
+    .pd-conn { position: absolute; bottom: 48px; display: flex; gap: 8px; opacity: .5; }
+    .pd-conn i { display: block; height: 6px; border-radius: 3px; background: #fff; }
+    .pd-conn i:nth-child(2) { width: 32px; }
+    .pd-conn i:nth-child(1), .pd-conn i:nth-child(3) { width: 6px; }
+
+    /* ② 로그인 */
+    #pdLogin { z-index: 10; justify-content: center; padding: 0 28px; background: #fff; }
+    #pdLoginContent { transform: translateY(-20px); transition: transform .7s ease-out; }
+    #pdLoginContent.pd-settled { transform: translateY(0); }
+    .pd-mark { width: 56px; height: 56px; border-radius: 16px; background: var(--color-primary-light);
+      border: 1px solid #E9D5FF; display: flex; align-items: center; justify-content: center;
+      margin-bottom: 24px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+    .pd-hello { font-size: 26px; font-weight: 800; color: #111827; line-height: 1.4; letter-spacing: -0.03em; margin: 0 0 8px; }
+    .pd-welcome { font-size: 14px; color: #6B7280; font-weight: 500; letter-spacing: -0.02em; margin: 0 0 40px; }
+    .pd-welcome b { color: var(--color-primary); font-weight: 700; }
+    .pd-field { margin-bottom: 16px; }
+    .pd-label { display: block; font-size: 13px; font-weight: 700; color: #4B5563; margin: 0 0 8px 4px; }
+    .pd-input { background: #F3F4F6; border: 1.5px solid transparent; border-radius: 14px;
+      font-size: 16px; padding: 16px 20px; width: 100%; color: #111827; font-family: inherit;
+      transition: all .2s ease; outline: none; }
+    .pd-input::placeholder { color: #9CA3AF; font-weight: 500; }
+    .pd-input:focus { background: #fff; border-color: var(--color-primary); box-shadow: 0 0 0 4px var(--color-primary-light); }
+    .pd-input.pd-err { border-color: #F87171; background: #FEF2F2; }
+    .pd-loading { margin-top: 32px; height: 56px; display: flex; align-items: center; justify-content: center;
+      gap: 8px; opacity: 0; transition: opacity .3s ease; }
+    .pd-loading.on { opacity: 1; }
+    .pd-loading i { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #D1D5DB;
+      border-top-color: var(--color-primary); animation: kkoSpin .7s linear infinite; display: block; }
+    .pd-loading span { font-size: 15px; font-weight: 700; color: var(--color-primary); }
+    .pd-foot { margin-top: 8px; text-align: center; }
+    .pd-foot p { font-size: 13px; color: #9CA3AF; font-weight: 500; margin: 0 0 12px; }
+    .pd-foot a { color: var(--color-primary); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+    .pd-forget { background: none; border: none; font-family: inherit; font-size: 13px; color: #9CA3AF;
+      font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    /* 저장된 고유번호로 바로 들어가는 안내 줄 */
+    .pd-saved { display: flex; align-items: center; gap: 8px; background: var(--color-primary-light);
+      border-radius: 14px; padding: 12px 16px; margin-bottom: 16px; font-size: 13.5px;
+      font-weight: 600; color: var(--color-primary-dark); }
+    .pd-saved b { font-weight: 800; }
+
+    /* ════════════════════════════════════════════════════════════════════
        2026-09-23 PC(데스크톱) 레이아웃 — "당근마켓처럼 모바일 앱이 PC 화면
        가운데에 떠 있는" 형태.
 
@@ -563,6 +712,12 @@
           480px 컬럼 기준으로 다시 잡아준다. 새 fixed 요소를 추가하면 여기도
           같이 추가할 것.
        ════════════════════════════════════════════════════════════════════ */
+    /* PC 폭 사다리 — 화면이 커지면 앱 컬럼도 같이 커진다(헤더·탭바는 항상 이 폭 안).
+       값만 여기서 바꾸면 #appPanel·탭바·FAB·시트가 전부 따라옵니다. */
+    @media (min-width: 769px)  { :root { --app-max-width: 720px; } }
+    @media (min-width: 1100px) { :root { --app-max-width: 880px; } }
+    @media (min-width: 1440px) { :root { --app-max-width: 1000px; } }
+
     @media (min-width: 769px) {
       /* 앱 컬럼 바깥은 살짝 더 진한 회색 — 흰 앱 영역과 대비가 생겨야
          "가운데 떠 있는" 느낌이 난다(본문 배경 #F5F5F5와 같은 색이면 경계가 안 보임). */
@@ -575,7 +730,17 @@
         box-shadow: 0 0 20px rgba(0,0,0,0.08);
         /* h-screen(100vh) + flex-col 유지 — 내부 스크롤 구조는 모바일과 동일 */
       }
+      /* 표지도 앱 컬럼 안에서만 — PC에서 스플래시가 화면 전체를 덮으면
+         "앱이 가운데 떠 있다"는 인상이 깨진다. */
       #loginPanel { background: var(--app-outer-bg); }
+      #loginPanel .pd-screen {
+        left: calc(50% - (var(--app-max-width) / 2));
+        right: auto;
+        width: var(--app-max-width);
+        box-shadow: 0 0 20px rgba(0,0,0,0.08);
+      }
+      /* 로그인 본문이 넓은 화면에서 너무 퍼지지 않게 */
+      #pdLoginContent { max-width: 420px; margin: 0 auto; width: 100%; }
 
       /* 하단 탭바: left/right:0 대신 480px 컬럼 안으로 */
       #bottomTabBar {
@@ -609,35 +774,72 @@
   </style>
 </head>
 <body>
-  <!--
-    ⚠️ 임시(당분간만): 편의를 위해 입장(성도고유번호+이름) 화면을 비활성화했습니다. home.html과 동일한
-    상태를 그대로 옮김 — 운영 복귀 시 loginPanel의 style="display:none"을 지우고
-    아래 스크립트의 enterWithoutLogin() 자동호출 리스너 한 줄만 지우면 됨(startSession 코드는 보존).
-  -->
-  <div class="hero min-h-screen" id="loginPanel" style="display:none">
-    <div class="hero-content text-center">
-      <div class="card w-full max-w-sm bg-base-100 shadow-xl">
-        <div class="card-body items-center">
-          <div class="w-16 h-16 rounded-full brand-avatar flex items-center justify-center text-3xl shadow-md mb-1">🙏</div>
-          <h2 class="card-title text-2xl">복음방 교사</h2>
-          <p class="text-xs text-base-content/50 -mt-1 mb-2">성도 고유번호와 이름으로 입장하세요</p>
-          <div class="w-full flex flex-col gap-2 mt-2">
-            <input type="text" id="memberId" placeholder="성도고유번호" class="input input-bordered w-full" />
-            <input type="text" id="name" placeholder="이름" class="input input-bordered w-full" />
-          </div>
-          <button onclick="startSession()" class="kko-btn-main mt-4">입장</button>
+  <!-- 2026-09-23: 표지(스플래시 + 로그인) — podo-splash.html 목업을 그대로 적용.
+       스플래시 2.8초 → 로그인. 고유번호는 localStorage에 저장돼 다음부터는
+       자동으로 채워지고 바로 입장합니다(아래 PD_KEY / pdBoot 참고). -->
+  <div id="loginPanel" style="display:none">
+
+    <!-- ① 스플래시 -->
+    <div id="pdSplash" class="pd-screen">
+      <div class="pd-bunch">
+        <div class="pd-leaf"></div>
+        <div class="pd-dot pd-d1"></div><div class="pd-dot pd-d2"></div><div class="pd-dot pd-d3"></div>
+        <div class="pd-dot pd-d4"></div><div class="pd-dot pd-d5"></div><div class="pd-dot pd-d6"></div>
+      </div>
+      <h1 class="pd-title pd-fade d1">포도원</h1>
+      <p class="pd-tagline pd-fade d2">알알이 맺히는 따뜻한 동행</p>
+      <div class="pd-conn pd-fade d2"><i></i><i></i><i></i></div>
+    </div>
+
+    <!-- ② 로그인 -->
+    <div id="pdLogin" class="pd-screen pd-hide">
+      <div id="pdLoginContent">
+        <div class="pd-mark">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="#7E22CE">
+            <path d="M15 3C15 3 17 2 19 4C21 6 20 8 20 8C20 8 18 9 16 7C14 5 15 3 15 3Z" fill="#22C55E"/>
+            <circle cx="8" cy="10" r="3.5" /><circle cx="16" cy="10" r="3.5" /><circle cx="12" cy="12" r="3.5" />
+            <circle cx="9" cy="15" r="3.5" /><circle cx="15" cy="15" r="3.5" /><circle cx="12" cy="18" r="3.5" />
+          </svg>
+        </div>
+
+        <h1 class="pd-hello">반가워요~ 👋<br>우리가 연결될 때, 더 많은 열매를 맺어요.</h1>
+        <p class="pd-welcome">복음방교사 커뮤니티, <b>포도원</b>에 오신 것을 환영해요.</p>
+
+        <!-- 저장된 고유번호가 있을 때만 보임 -->
+        <div class="pd-saved" id="pdSaved" style="display:none">
+          <span>🍇</span><span id="pdSavedText"></span>
+        </div>
+
+        <div class="pd-field">
+          <label class="pd-label" for="memberId">고유번호</label>
+          <input type="text" id="memberId" class="pd-input" placeholder="13자리 (- 생략)" autocomplete="off" inputmode="numeric" />
+        </div>
+        <div class="pd-field">
+          <label class="pd-label" for="name">이름</label>
+          <input type="text" id="name" class="pd-input" placeholder="이름을 입력하고 Enter를 누르세요" autocomplete="off" />
+        </div>
+
+        <div class="pd-loading" id="pdLoading"><i></i><span id="pdLoadingText">입장 중...</span></div>
+
+        <div class="pd-foot">
+          <p>처음 오셨나요? <a href="#" onclick="return false">교사 등록 안내</a></p>
+          <button type="button" class="pd-forget" id="pdForget" style="display:none">저장된 고유번호 지우기</button>
         </div>
       </div>
     </div>
   </div>
 
   <div id="appPanel" class="flex flex-col h-screen" style="display:none">
-    <header id="appHeader" class="flex items-center justify-between px-4 flex-shrink-0" style="height:56px;background:#5B4FCF">
+    <header id="appHeader" class="flex items-center justify-between px-4 flex-shrink-0" style="height:56px;background:#7E22CE">
       <div class="text-white font-bold text-base">복음방 교사</div>
       <div class="flex items-center gap-3 text-white">
         <button id="tierBadge" type="button" onclick="openGrowthModal()" style="display:none;height:26px;padding:0 10px;border-radius:13px;font-size:12px;font-weight:700;border:1px solid rgba(255,255,255,.55);white-space:nowrap"></button>
         <svg class="lucide-i" style="width:20px;height:20px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="알림"><path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>
-        <svg class="lucide-i" style="width:20px;height:20px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="내 프로필"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+        <!-- 2026-09-23: 저장된 고유번호를 확인/해제하는 통로. 자동 입장이 되면 로그인
+             화면을 볼 기회가 없어서, 여기서 "다른 번호로 입장"을 할 수 있게 했다. -->
+        <button type="button" onclick="openAccountSheet()" title="내 계정" style="background:none;border:none;color:inherit;padding:0;cursor:pointer;display:flex">
+          <svg class="lucide-i" style="width:20px;height:20px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+        </button>
       </div>
     </header>
     <!-- 2026-09-22: "OOO 교사님의 ~하세요" 인사말 바 제거(사용자 요청 — 자리만 차지하고
@@ -902,28 +1104,156 @@
     const paramName = urlParams.get('name');
     if (paramMemberId && paramName) { window.TEST_MEMBER_ID = paramMemberId; window.TEST_NAME = paramName; }
 
-    // ⚠️ 임시(당분간만): 로그인 없이 바로 입장. home.html과 동일 — 운영 복귀 시 이 리스너 한 줄만 제거.
-    function enterWithoutLogin() {
-      App.memberId = window.TEST_MEMBER_ID || 'TEST-0001';
-      App.name = window.TEST_NAME || '테스트사용자';
-      MEMBER_ID = App.memberId; MY_NAME = App.name; memberId = App.memberId; name = App.name;
+    // ════════════════════════════════════════════════════════════════
+    // 2026-09-23 표지(스플래시 → 로그인) + 고유번호 로컬 기억
+    // ────────────────────────────────────────────────────────────────
+    // 흐름: 스플래시 2.8초 → ① 저장된 고유번호가 있으면 그대로 입장
+    //                      → ② 없으면 로그인 화면(입력 후 Enter 또는 자동)
+    // 고유번호·이름은 localStorage에만 저장합니다(서버로 따로 보내지 않음).
+    // "저장된 고유번호 지우기"를 누르면 지워지고 다음부터 다시 물어봅니다.
+    //
+    // ⚠️ 지금도 입력값을 명단과 대조하지는 않습니다(기존 "자동 입장" 정책 유지).
+    //    실제 검증을 켤 자리는 아래 startSession() 안에 표시해뒀습니다.
+    // ════════════════════════════════════════════════════════════════
+    const PD_KEY = 'podo_member';
+
+    function pdLoadSaved() {
+      try {
+        const raw = localStorage.getItem(PD_KEY);
+        if (!raw) return null;
+        const v = JSON.parse(raw);
+        return (v && v.memberId && v.name) ? v : null;
+      } catch (e) { return null; }
+    }
+    function pdSave(memberId, name) {
+      try { localStorage.setItem(PD_KEY, JSON.stringify({ memberId, name })); } catch (e) {}
+    }
+    function pdClearSaved() {
+      try { localStorage.removeItem(PD_KEY); } catch (e) {}
+    }
+
+    /** 실제 입장 — 세션 변수 4개를 채우고 앱 화면으로 전환한다(기존 로직 그대로). */
+    function pdEnter(id, nm) {
+      App.memberId = id; App.name = nm;
+      MEMBER_ID = id; MY_NAME = nm; memberId = id; name = nm;
       document.getElementById('loginPanel').style.display = 'none';
       document.getElementById('appPanel').style.display = 'flex';
       updateAdminTabVisibility();
       enterFromHash();
       showInstallToastIfNeeded();
     }
-    if (!window.__FRAMED__) window.addEventListener('DOMContentLoaded', enterWithoutLogin);
+
+    /** 로그인 화면의 "입장 중..." 표시 후 실제 입장 */
+    function pdEnterWithSpinner(id, nm, msg) {
+      const la = document.getElementById('pdLoading'), lt = document.getElementById('pdLoadingText');
+      if (la) la.classList.add('on');
+      if (lt && msg) lt.textContent = msg;
+      setTimeout(() => {
+        if (lt) lt.textContent = '나의 교실로 이동합니다!';
+        setTimeout(() => pdEnter(id, nm), 350);
+      }, 550);
+    }
 
     function startSession() {
-      App.memberId = document.getElementById('memberId').value.trim();
-      App.name = document.getElementById('name').value.trim();
-      if (!App.memberId || !App.name) { alert('성도고유번호와 이름을 입력해주세요.'); return; }
-      MEMBER_ID = App.memberId; MY_NAME = App.name; memberId = App.memberId; name = App.name;
-      document.getElementById('loginPanel').style.display = 'none';
-      document.getElementById('appPanel').style.display = 'flex';
-      updateAdminTabVisibility();
-      switchTab('activity');
+      const idEl = document.getElementById('memberId'), nmEl = document.getElementById('name');
+      const id = idEl.value.trim(), nm = nmEl.value.trim();
+
+      // ⚠️ 여기가 실제 검증을 켤 자리 — 지금은 명단과 대조하지 않고 그대로 통과시킵니다.
+      if (!id || !nm) {
+        const target = !id ? idEl : nmEl;
+        target.classList.add('pd-err');
+        setTimeout(() => target.classList.remove('pd-err'), 800);
+        target.focus();
+        return;
+      }
+
+      pdSave(id, nm);               // ← 다음부터 안 쳐도 되게 기억
+      idEl.disabled = true; nmEl.disabled = true;
+      pdEnterWithSpinner(id, nm, '입장 중...');
+    }
+
+    /** 스플래시를 띄우고, 끝나면 저장값 유무에 따라 분기 */
+    function pdBoot() {
+      const panel = document.getElementById('loginPanel');
+      panel.style.display = 'block';
+
+      // 관리자 테스트링크(?memberId=&name=)는 표지를 건너뛰고 바로 입장
+      if (window.TEST_MEMBER_ID && window.TEST_NAME) {
+        panel.style.display = 'none';
+        pdEnter(window.TEST_MEMBER_ID, window.TEST_NAME);
+        return;
+      }
+
+      const saved = pdLoadSaved();
+      setTimeout(() => {
+        const splash = document.getElementById('pdSplash');
+        const login = document.getElementById('pdLogin');
+        const content = document.getElementById('pdLoginContent');
+        splash.style.opacity = '0';
+
+        setTimeout(() => {
+          splash.style.display = 'none';
+          login.classList.remove('pd-hide');
+          setTimeout(() => content.classList.add('pd-settled'), 50);
+
+          if (saved) {
+            // 저장된 고유번호 — 입력칸을 채워두고 바로 입장
+            document.getElementById('memberId').value = saved.memberId;
+            document.getElementById('name').value = saved.name;
+            const box = document.getElementById('pdSaved');
+            document.getElementById('pdSavedText').innerHTML =
+              '<b>' + esc(saved.name) + '</b>님으로 입장합니다';
+            box.style.display = 'flex';
+            pdEnterWithSpinner(saved.memberId, saved.name, '입장 중...');
+          }
+        }, 600); // .pd-screen transition(.6s)과 맞춤
+      }, 2800);
+    }
+
+    function pdWireLogin() {
+      ['memberId', 'name'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('keypress', e => { if (e.key === 'Enter') startSession(); });
+      });
+      const forget = document.getElementById('pdForget');
+      if (forget) {
+        if (pdLoadSaved()) forget.style.display = 'inline';
+        forget.onclick = () => {
+          pdClearSaved();
+          document.getElementById('memberId').value = '';
+          document.getElementById('name').value = '';
+          document.getElementById('pdSaved').style.display = 'none';
+          forget.style.display = 'none';
+          document.getElementById('memberId').focus();
+        };
+      }
+    }
+
+    if (!window.__FRAMED__) window.addEventListener('DOMContentLoaded', () => { pdWireLogin(); pdBoot(); });
+
+    /** 헤더 프로필 아이콘 → 내 계정 시트(저장된 고유번호 확인 / 다른 번호로 입장) */
+    function openAccountSheet() {
+      const saved = pdLoadSaved();
+      openSheet(`
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <div style="width:48px;height:48px;border-radius:16px;background:var(--color-primary-light);display:flex;align-items:center;justify-content:center;font-size:22px">🍇</div>
+          <div>
+            <div style="font-size:18px;font-weight:800;letter-spacing:-.03em">${esc(App.name || '-')}</div>
+            <div style="font-size:13px;color:var(--dg-text-sub);margin-top:2px">${esc(App.memberId || '-')}</div>
+          </div>
+        </div>
+        <div style="font-size:13px;color:var(--dg-text-sub);line-height:1.6;background:var(--dg-bg-soft);border-radius:14px;padding:12px 14px;margin-bottom:14px">
+          ${saved
+            ? '고유번호가 이 기기에 저장돼 있어요. 다음에 열 때도 입력 없이 바로 들어옵니다.'
+            : '이 기기에는 고유번호가 저장돼 있지 않아요.'}
+        </div>
+        ${saved ? `<button class="kko-btn-outline" id="acct-forget">다른 번호로 입장 (저장된 번호 지우기)</button>` : ''}
+        <button class="kko-btn-main" style="margin-top:8px" id="acct-close">닫기</button>
+      `);
+      const close = document.getElementById('acct-close');
+      if (close) close.onclick = closeSheet;
+      const forget = document.getElementById('acct-forget');
+      if (forget) forget.onclick = () => { pdClearSaved(); closeSheet(); location.reload(); };
     }
 
     // 2026-09-17: iOS/안드로이드 홈화면 추가 안내 — localStorage 키로 최초 1회만.
@@ -1486,7 +1816,7 @@
       '휴교사':   { icon: '⚪', bg: '#E0E0E0', fg: '#555555' },
       '교사':     { icon: '🟡', bg: '#FFE58A', fg: '#6B4E00' },
       '활동교사': { icon: '🟢', bg: '#BFEBD3', fg: '#11623B' },
-      '우수교사': { icon: '🟣', bg: '#3D34A5', fg: '#FFFFFF' }
+      '우수교사': { icon: '🟣', bg: '#6B21A8', fg: '#FFFFFF' }
     };
     function updateTierBadge() {
       const tier = home.tierStatus && home.tierStatus.tier;
@@ -1964,7 +2294,7 @@
             ${j.note ? `<div class="text-xs text-base-content/60">특이사항: ${esc(j.note)}</div>` : ''}
             ${j.todayWork ? `<div class="text-xs text-base-content/60">오늘: ${esc(j.todayWork)}</div>` : ''}
             ${j.nextWork ? `<div class="text-xs text-base-content/60">다음: ${esc(j.nextWork)}</div>` : ''}
-            <button type="button" class="text-[11px] font-bold mt-1.5" style="color:#5B4FCF" onclick="requestCoachForJournal(${idx})">🧑‍🏫 교관에게 피드백 요청</button>
+            <button type="button" class="text-[11px] font-bold mt-1.5" style="color:#7E22CE" onclick="requestCoachForJournal(${idx})">🧑‍🏫 교관에게 피드백 요청</button>
           </div>
         </div>`;
     }
@@ -3357,7 +3687,7 @@ DISC: ${selDisc || '선택안함'}
         <div class="animate-fade-in space-y-4">
         <div class="text-[11px] text-gray-400">${aiState.name}님 (${aiState.memberId}) · 내 수강생/멘티 코칭</div>
         <div class="flex bg-gray-100/80 backdrop-blur-md rounded-full p-1.5 shadow-inner relative max-w-[320px] mx-auto border border-gray-200">
-          <div class="absolute inset-y-1.5 rounded-full transition-all duration-300 ease-out shadow-[0_4px_15px_rgba(91,79,207,0.4)] bg-[var(--color-primary)]" style="width:calc(50% - 6px);left:${analyze ? '6px' : 'calc(50%)'}"></div>
+          <div class="absolute inset-y-1.5 rounded-full transition-all duration-300 ease-out shadow-[0_4px_15px_rgba(126,34,206,0.4)] bg-[var(--color-primary)]" style="width:calc(50% - 6px);left:${analyze ? '6px' : 'calc(50%)'}"></div>
           <button id="sc-mode-analyze" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 flex items-center justify-center gap-1 ${analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" /></svg> 심리 상담</button>
           <button id="sc-mode-script" class="flex-1 py-2.5 text-[13px] font-black z-10 transition-colors duration-300 flex items-center justify-center gap-1 ${!analyze ? 'text-white drop-shadow-md' : 'text-gray-500'}"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg> 퍼스널 코칭</button>
         </div>
@@ -3394,8 +3724,8 @@ DISC: ${selDisc || '선택안함'}
         </div>
         <div class="flex justify-center mt-5">
           <div class="relative flex flex-col justify-center items-center">
-            ${!sc.loading ? `<div class="absolute top-0 w-16 h-16 rounded-full animate-ping opacity-75" style="background:rgba(91,79,207,0.3)"></div>` : ''}
-            <button id="btn-sc-generate" ${sc.loading ? 'disabled' : ''} class="relative z-10 w-16 h-16 rounded-full shadow-[0_8px_25px_rgba(91,79,207,0.4)] flex items-center justify-center transition-all duration-300 border-[1.5px] border-white/80 ${sc.loading ? 'cursor-not-allowed scale-[0.98]' : 'hover:scale-110 active:scale-95'}" style="background:var(--color-primary)">
+            ${!sc.loading ? `<div class="absolute top-0 w-16 h-16 rounded-full animate-ping opacity-75" style="background:rgba(126,34,206,0.3)"></div>` : ''}
+            <button id="btn-sc-generate" ${sc.loading ? 'disabled' : ''} class="relative z-10 w-16 h-16 rounded-full shadow-[0_8px_25px_rgba(126,34,206,0.4)] flex items-center justify-center transition-all duration-300 border-[1.5px] border-white/80 ${sc.loading ? 'cursor-not-allowed scale-[0.98]' : 'hover:scale-110 active:scale-95'}" style="background:var(--color-primary)">
               ${sc.loading ? spinner : genIcon}
             </button>
             <div class="mt-2 text-[11px] font-black tracking-widest ${sc.loading ? 'animate-pulse' : 'opacity-80'}" style="color:var(--color-primary)">
@@ -4769,7 +5099,7 @@ function renderConnectStatsSection() {
   if (connectStats.error) return sectionCard('primary', '🤝', '연결방 현황', sub, `<div class="alert alert-error py-2 text-sm">${esc(connectStats.error)}</div>`);
   const card = (label, val, unit, note) => `<div class="rounded-box border border-base-300 p-4 text-center">
       <div class="text-xs text-base-content/50">${label}</div>
-      <div class="text-3xl font-black mt-1" style="color:#5B4FCF">${Number(val).toLocaleString()}<span class="text-sm font-bold text-base-content/40 ml-0.5">${unit}</span></div>
+      <div class="text-3xl font-black mt-1" style="color:#7E22CE">${Number(val).toLocaleString()}<span class="text-sm font-bold text-base-content/40 ml-0.5">${unit}</span></div>
       ${note ? `<div class="text-[10px] text-base-content/40 mt-1">${note}</div>` : ''}</div>`;
   return sectionCard('primary', '🤝', '연결방 현황', sub, `<div class="grid grid-cols-2 gap-3">
     ${card('명함 등록', connectStats.cards, '명', '한 줄 소개까지 등록한 교사')}
@@ -4800,7 +5130,7 @@ function renderStageDistributionSection() {
       <div class="flex flex-col gap-1.5">${d.stages.map(x => `
         <div class="flex items-center gap-2">
           <div class="text-xs font-bold shrink-0" style="width:56px">${esc(x.stage)}</div>
-          <div class="flex-1 rounded" style="background:#F3F4F6;height:16px"><div class="rounded" style="height:16px;width:${x.count ? Math.max(3, Math.round(x.count / max * 100)) : 0}%;background:${STAGE_BAR_COLOR[x.stage] || '#5B4FCF'}"></div></div>
+          <div class="flex-1 rounded" style="background:#F3F4F6;height:16px"><div class="rounded" style="height:16px;width:${x.count ? Math.max(3, Math.round(x.count / max * 100)) : 0}%;background:${STAGE_BAR_COLOR[x.stage] || '#7E22CE'}"></div></div>
           <div class="text-xs font-bold text-right shrink-0" style="width:44px">${x.count}명</div>
         </div>`).join('')}</div>`;
   }
@@ -5146,62 +5476,56 @@ function buildRosterStats() {
   return { deptLabels, deptCounts, deptTierCounts, tierLabels, tierCounts };
 }
 
+// 2026-09-23: 막대그래프 제거 요청 — 부서×등급을 표로 본다.
+// 행 = 교역자/자문회/장년회/부녀회/청년회, 열 = 총 / 휴 / 교 / 활 / 우.
+// (짧은 머리글은 폰에서 한 줄에 들어가게 하려는 것 — title 속성에 원래 이름을 넣어둠)
+const TIER_SHORT = { '휴교사': '휴', '교사': '교', '활동교사': '활', '우수교사': '우' };
+
 function renderRosterSection() {
   if (roster.length === 0) return '';
-  // 2026-09-22: 원형(도넛) 그래프 제거 요청 — "교사구분별 분포"는 위 총 교사 수 섹션의
-  // 등급별 인원·비율로 이미 확인 가능해 중복이라 판단, 부서별 막대그래프만 남김(전체 폭으로 확장).
+  const rows = ORG_MAIN_DEPTS.map(d => {
+    const list = roster.filter(r => orgBucket(r.dept) === d);
+    const byTier = {};
+    list.forEach(r => { const t = r.tier || '(미분류)'; byTier[t] = (byTier[t] || 0) + 1; });
+    return { dept: d, total: list.length, byTier };
+  }).filter(r => r.total > 0);
+
+  const totalAll = rows.reduce((n, r) => n + r.total, 0);
+  const tierAll = t => rows.reduce((n, r) => n + (r.byTier[t] || 0), 0);
+  const cell = (v, total) => v
+    ? `<b>${v.toLocaleString()}</b><span class="dept-pct">${pct(v, total)}%</span>`
+    : '<span class="dept-zero">-</span>';
+
   const body = `
-      <div class="grid gap-4 mb-4">
-        <div class="card card-border bg-base-100 shadow-sm">
-          <div class="card-body p-4">
-            <div class="text-sm font-medium text-base-content/70 mb-2">${licon('📊')} 부서별 등록 교사 수</div>
-            <canvas id="deptCountChart" height="210"></canvas>
-          </div>
-        </div>
-      </div>
+    <div class="overflow-x-auto">
+      <table class="dept-table">
+        <thead><tr>
+          <th class="dept-name">부서</th>
+          <th>총</th>
+          ${TIER_ORDER.map(t => `<th title="${esc(t)}" class="${TIER_TEXT_COLOR[t] || ''}">${TIER_SHORT[t] || esc(t)}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => `<tr>
+            <td class="dept-name">${esc(r.dept)}</td>
+            <td class="dept-total">${r.total.toLocaleString()}</td>
+            ${TIER_ORDER.map(t => `<td>${cell(r.byTier[t] || 0, r.total)}</td>`).join('')}
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr>
+          <td class="dept-name">합계</td>
+          <td class="dept-total">${totalAll.toLocaleString()}</td>
+          ${TIER_ORDER.map(t => `<td>${cell(tierAll(t), totalAll)}</td>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="text-xs text-base-content/40 mt-2">휴 = 휴교사 · 교 = 교사 · 활 = 활동교사 · 우 = 우수교사</div>
   `;
   return sectionCard('secondary', '🏢', '부서별 교사 현황', `교사명단 등록 ${roster.length}명 기준 (부서/교사구분은 시트 값을 그대로 사용)`, body);
 }
 
-function renderRosterCharts() {
-  if (roster.length === 0) return;
-  const s = buildRosterStats();
-
-  // "부서별 등록 교사 수" — 부서(교역자/자문회/장년회/부녀회/청년회/기타)별 한 막대에
-  // 휴교사·교사·활동교사·우수교사 4개 구간을 색으로 누적 표시, 구간마다 인원+비율 라벨 표기.
-  new Chart(document.getElementById('deptCountChart'), {
-    type: 'bar',
-    data: {
-      labels: s.deptLabels,
-      datasets: TIER_ORDER.map(t => ({
-        label: t,
-        backgroundColor: TIER_CHART_COLOR[t],
-        data: s.deptLabels.map(d => (s.deptTierCounts[d] && s.deptTierCounts[d][t]) || 0)
-      }))
-    },
-    plugins: [ChartDataLabels],
-    options: {
-      // 2026-09-22: "부서명·숫자가 너무 작다"는 지적 — 축/범례/막대 라벨 글자 전부 키움.
-      plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 14, weight: 'bold' } } },
-        datalabels: {
-          color: '#fff', font: { size: 13, weight: 'bold' },
-          formatter: (value, ctx) => {
-            if (!value) return '';
-            const deptLabel = ctx.chart.data.labels[ctx.dataIndex];
-            const deptTotal = s.deptCounts[deptLabel] || 0;
-            return `${value}명\n(${pct(value, deptTotal)}%)`;
-          }
-        }
-      },
-      scales: {
-        x: { stacked: true, ticks: { font: { size: 15, weight: 'bold' } } },
-        y: { stacked: true, beginAtZero: true, ticks: { font: { size: 13 } } }
-      }
-    }
-  });
-}
-
+// 2026-09-23: "부서별 등록 교사 수" 막대그래프 제거(표로 대체 — renderRosterSection 참고).
+// 호출부(eduRender 끝)는 그대로 두고 여기서 no-op 처리 — 나중에 다른 차트가 생기면 여기에 추가.
+function renderRosterCharts() { /* 차트 없음 */ }
 function eduRender() {
   const root = document.getElementById('eduRoot');
   root.innerHTML = `
@@ -5654,9 +5978,13 @@ function teacherListRowsFiltered() {
     (a.name || '').localeCompare(b.name || '', 'ko'));
 }
 
+// 2026-09-23: "전체 + 교자장부청 한 줄, 아이콘 없이" — 이모지와 '기타'를 빼고
+// 부서명을 한 글자로 줄여 폰에서도 줄바꿈 없이 들어가게 했다(title에 원래 이름).
+const DEPT_SHORT = { '교역자': '교', '자문회': '자', '장년회': '장', '부녀회': '부', '청년회': '청' };
+
 function teacherDeptTabsHtml() {
-  const tab = (v, l) => `<button type="button" class="tl-dept-tab btn btn-xs ${state.tlFilterDept === v ? 'btn-primary' : 'btn-ghost btn-outline'}" data-dept="${esc(v)}">${l}</button>`;
-  return `<div class="flex flex-wrap gap-1.5 px-4 pt-3">${tab('', '전체')}${DEPTS.map(d => tab(d, `${DIST_DEPT_ICON[d] || ''} ${esc(d)}`)).join('')}</div>`;
+  const tab = (v, l, full) => `<button type="button" class="tl-dept-tab ${state.tlFilterDept === v ? 'on' : ''}" data-dept="${esc(v)}" title="${esc(full || l)}">${l}</button>`;
+  return `<div class="tl-dept-tabs px-4 pt-3">${tab('', '전체')}${ORG_MAIN_DEPTS.map(d => tab(d, DEPT_SHORT[d] || esc(d), d)).join('')}</div>`;
 }
 
 // 선택한 부서의 지역장·교관 현황 + 등록(교사 이름 검색 → 지정). 기존 upsertRosterLeader 액션 재사용.
@@ -5728,34 +6056,149 @@ function teacherListFilterHtml() {
     </div>`;
 }
 
-function teacherListDetailHtml(t) {
-  if (!t) return '';
+// ════════════════════════════════════════════════════════════════════
+// 2026-09-23 교사 개별 시트(팝업)
+// ────────────────────────────────────────────────────────────────────
+// 교관 요청: "자기 지역 소속 교사가 어느 부서의 어느 지역의 어느 활동에
+// 연결돼서 활동할 수 있는지" 를 가로 스크롤 없이 한 창에서 봐야 한다.
+// → 명단 행을 누르면 이 시트가 뜨고, 명단(getRoster)·리포트(getTeacherListReport)로
+//   이미 갖고 있는 값을 먼저 그린 뒤, 연결 명함(getConnectCard)과
+//   이수교육(getRequiredEducation) 2건만 추가로 불러와 다시 그린다.
+// 캐시: 같은 사람을 다시 열면 재요청하지 않는다(tlSheetCache).
+// ════════════════════════════════════════════════════════════════════
+const tlSheetCache = {};   // memberId → { card, edu }
+let tlSheetOpenId = null;  // 응답이 늦게 와도 "지금 열려 있는 사람"만 다시 그리기 위한 가드
+
+function openTeacherSheet(mid) {
+  const t = (rosterAll || []).find(x => x.memberId === mid);
+  if (!t) return;
+  tlSheetOpenId = mid;
+  openSheet(teacherSheetHtml(t, tlSheetCache[mid]));
+  wireTeacherSheet(t);
+  if (!tlSheetCache[mid]) loadTeacherSheetExtras(t);
+}
+
+async function loadTeacherSheetExtras(t) {
+  const mid = t.memberId;
+  const [card, edu] = await Promise.all([
+    callApi({ action: 'getConnectCard', memberId: mid, viewerId: MEMBER_ID }).catch(() => null),
+    callApi({ action: 'getRequiredEducation', memberId: mid }).catch(() => null)
+  ]);
+  tlSheetCache[mid] = { card: (card && card.card) || null, edu: (edu && !edu.error) ? edu : null };
+  if (tlSheetOpenId !== mid) return;              // 그 사이 다른 교사를 열었으면 덮어쓰지 않음
+  openSheet(teacherSheetHtml(t, tlSheetCache[mid]));
+  wireTeacherSheet(t);
+}
+
+function tlKV(label, value) {
+  return `<div class="tls-k">${esc(label)}</div><div class="tls-v">${value}</div>`;
+}
+
+function teacherSheetHtml(t, extra) {
   const loaded = !!t._rep;
+  const dash = '<span class="tls-dim">-</span>';
+  const wait = '<span class="tls-dim">불러오는 중…</span>';
+
+  // ── 연결 현황: 명함(가능 역할·항목/일정) + 활동 신청
+  let connectBlock;
+  if (!extra) {
+    connectBlock = `<div class="tls-wait">${wait}</div>`;
+  } else if (extra.card) {
+    const c = extra.card;
+    const chips = arr => (arr && arr.length)
+      ? arr.map(v => `<span class="tls-chip">${esc(v)}</span>`).join('')
+      : dash;
+    const sched = c.schedType === '언제나' ? '언제나 가능'
+      : c.schedType === '상의' ? '상의 후 결정'
+      : [c.from && c.to ? c.from + ' ~ ' + c.to : '', (c.days || []).join(''), (c.times || []).join('·')].filter(Boolean).join(' · ');
+    connectBlock = `
+      <div class="tls-grid">
+        ${tlKV('명함 소속', esc([c.dept, c.region].filter(Boolean).join(' · ') || '-'))}
+        ${tlKV('가능 역할·항목', `<div class="tls-chips">${chips(c.roles)}</div>`)}
+        ${c.targets && c.targets.length ? tlKV('가능 대상', `<div class="tls-chips">${chips(c.targets)}</div>`) : ''}
+        ${c.fields && c.fields.length ? tlKV('전문 분야 · 전도 기능', `<div class="tls-chips">${chips(c.fields)}</div>`) : ''}
+        ${tlKV('활동 가능 일정', esc(sched || '-') + (c.expired ? ' <span class="tls-warn">(기간 지남)</span>' : ''))}
+        ${c.intro ? tlKV('소개', esc(c.intro)) : ''}
+        ${c.phone ? tlKV('연락처', esc(c.phone)) : ''}
+      </div>`;
+  } else {
+    connectBlock = `<div class="tls-empty">아직 명함을 등록하지 않았어요. (연결 탭에서 등록하면 여기에 보입니다)</div>`;
+  }
+
+  // ── 이수교육
+  let eduBlock;
+  if (!extra) {
+    eduBlock = `<div class="tls-wait">${wait}</div>`;
+  } else if (extra.edu) {
+    const cats = (extra.edu.categories && extra.edu.categories.length) ? extra.edu.categories : REQ_EDU_CATEGORIES_DEFAULT;
+    const done = cats.filter(c => extra.edu[c]);
+    eduBlock = `
+      <div class="tls-edu-sum">${done.length} / ${cats.length} 과목 이수</div>
+      <div class="tls-edu">
+        ${cats.map(c => {
+          const d = extra.edu[c];
+          return `<div class="tls-edu-row ${d ? 'on' : ''}">
+            <span class="tls-edu-nm">${esc(c)}</span>
+            <span class="tls-edu-st">${d ? esc(String(d)) : '미이수'}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+  } else {
+    eduBlock = `<div class="tls-empty">이수 현황을 불러오지 못했어요.</div>`;
+  }
+
   return `
-    <div class="border-t border-base-300 bg-base-200/40 p-4">
-      <div class="flex items-center justify-between mb-2">
-        <div class="text-base font-black text-base-content">${esc(t.name)} 교사 <span class="text-xs font-normal text-base-content/40">(${esc(t.memberId)})</span></div>
-        <button id="tl-detail-close" class="btn btn-ghost btn-xs">닫기 ✕</button>
+    <div class="tls">
+      <div class="tls-head">
+        <div>
+          <div class="tls-name">${esc(t.name)}<span class="tls-suffix"> 교사</span></div>
+          <div class="tls-sub">${esc(t.dept || '-')} · ${esc(t.region || '-')}${t.affiliation ? ' · ' + esc(t.affiliation) : ''}</div>
+        </div>
+        <button class="tls-close" id="tls-close" aria-label="닫기">✕</button>
       </div>
-      <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-3">
-        <div class="text-base-content/50">부서</div><div class="font-medium">${DIST_DEPT_ICON[t.dept] || ''} ${esc(t.dept || '-')}</div>
-        <div class="text-base-content/50">지역</div><div class="font-medium">${esc(t.region || '-')}</div>
-        <div class="text-base-content/50">등급</div><div class="font-medium"><span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'} badge-sm">${esc(t.tier || '-')}</span></div>
-        <div class="text-base-content/50">현재 직책</div><div class="font-medium">${t.position ? esc(t.position) : '(일반 교사)'}</div>
-        <div class="text-base-content/50">소속</div><div class="font-medium">${esc(t.affiliation || '-')}</div>
-        ${t.note ? `<div class="text-base-content/50">비고</div><div class="font-medium">${esc(t.note)}</div>` : ''}
-        <div class="text-base-content/50">최근 1년 센터 등록</div><div class="font-medium">${loaded ? esc(t.leads1y || 0) + '건' : '불러오는 중…'}</div>
-        <div class="text-base-content/50">이번 달 활동</div><div class="font-medium">${loaded ? esc(t.monthlyCount) + '건' : '…'}</div>
-        <div class="text-base-content/50">마지막 활동일</div><div class="font-medium">${loaded ? esc(t.lastActivityDate || '-') : '…'}</div>
-        <div class="text-base-content/50">활동 현황</div><div class="font-medium">${loaded ? (t.actTotal > 0 ? '활동 중 (기록 ' + t.actTotal + '건)' : '없음') : '…'}</div>
-        ${loaded && t.actTotal > 0 ? `<div class="text-base-content/50">기록한 활동 요약</div><div class="font-medium">${esc(actSummaryText(t, 20))}</div>` : ''}
-        <div class="text-base-content/50">활동 신청</div><div class="font-medium">${loaded ? (t.apply ? esc(applyText(t.apply)) : '없음') : '…'}</div>
-        ${loaded && t.apply ? `<div class="text-base-content/50">신청 소속·성별</div><div class="font-medium">${esc([t.affilSel, t.genderSel].filter(Boolean).join(' · ') || '-')}</div>` : ''}
-        <div class="text-base-content/50">승급·강등 조건 내역</div><div class="font-medium">${loaded ? esc(t.conditionText || '-') : '…'}</div>
-        ${loaded && t.suggestion ? `<div class="text-base-content/50">등급 제안</div><div class="font-medium">→ ${esc(t.suggestion.suggestedTier)} <span class="text-base-content/40">(${esc(t.suggestion.reason)})</span></div>` : ''}
+
+      <div class="tls-badges">
+        <span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'}">${esc(t.tier || '-')}</span>
+        ${t.position ? `<span class="badge badge-outline">${esc(t.position)}</span>` : ''}
+        ${loaded && t.actTotal > 0 ? `<span class="tls-chip leaf">활동 중 · 기록 ${esc(t.actTotal)}건</span>` : ''}
+        ${loaded && t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'}">등급 제안 → ${esc(t.suggestion.suggestedTier)}</span>` : ''}
       </div>
-      <button class="btn-encourage-trigger btn btn-sm btn-outline w-full" data-mid="${esc(t.memberId)}" data-name="${esc(t.name)}">💌 격려 메시지 보내기</button>
+
+      <div class="tls-sec-t">활동 현황</div>
+      <div class="tls-stats">
+        <div class="tls-stat"><b>${loaded ? esc(t.monthlyCount || 0) : '…'}</b><span>이번 달 활동</span></div>
+        <div class="tls-stat"><b>${loaded ? esc(t.leads1y || 0) : '…'}</b><span>최근 1년 센터 등록</span></div>
+        <div class="tls-stat"><b>${loaded ? esc(t.actTotal || 0) : '…'}</b><span>누적 기록</span></div>
+      </div>
+      <div class="tls-grid">
+        ${tlKV('마지막 활동일', loaded ? esc(t.lastActivityDate || '-') : wait)}
+        ${loaded && t.actTotal > 0 ? tlKV('기록한 활동', esc(actSummaryText(t, 20))) : ''}
+        ${tlKV('승급·강등 조건', loaded ? esc(t.conditionText || '-') : wait)}
+        ${loaded && t.suggestion ? tlKV('제안 사유', esc(t.suggestion.reason || '-')) : ''}
+      </div>
+
+      <div class="tls-sec-t">연결 현황</div>
+      ${connectBlock}
+      <div class="tls-grid" style="margin-top:8px">
+        ${tlKV('활동 신청', loaded ? (t.apply ? esc(applyText(t.apply)) : '<span class="tls-dim">없음</span>') : wait)}
+        ${loaded && t.apply ? tlKV('신청 소속·성별', esc([t.affilSel, t.genderSel].filter(Boolean).join(' · ') || '-')) : ''}
+      </div>
+
+      <div class="tls-sec-t">이수교육</div>
+      ${eduBlock}
+
+      ${t.note ? `<div class="tls-sec-t">비고</div><div class="tls-grid">${tlKV('메모', esc(t.note))}</div>` : ''}
+
+      <div class="tls-id">고유번호 ${esc(t.memberId)}</div>
+      <button class="kko-btn-outline" id="tls-encourage" style="margin-top:12px">💌 격려 메시지 보내기</button>
     </div>`;
+}
+
+function wireTeacherSheet(t) {
+  const close = document.getElementById('tls-close');
+  if (close) close.onclick = () => { tlSheetOpenId = null; closeSheet(); };
+  const enc = document.getElementById('tls-encourage');
+  if (enc) enc.onclick = () => { tlSheetOpenId = null; closeSheet(); openEncourageModal(t.memberId, t.name); };
 }
 
 function bulkBarHtml(rows) {
@@ -5766,7 +6209,7 @@ function bulkBarHtml(rows) {
       <div class="rounded-box border border-base-300 bg-base-100 p-3" style="box-shadow:var(--shadow-card)">
         <div class="flex flex-wrap items-center gap-2 mb-2">
           <div class="text-sm font-black">✅ 등급 일괄 승인 <span class="text-xs font-normal text-base-content/50">교육부·전도부만 할 수 있어요</span></div>
-          <div class="ml-auto text-xs font-bold" style="color:#5B4FCF">선택 ${n}명</div>
+          <div class="ml-auto text-xs font-bold" style="color:#7E22CE">선택 ${n}명</div>
         </div>
         <div class="flex flex-wrap gap-1.5 mb-2">
           <button type="button" id="tl-check-all" class="btn btn-xs btn-ghost btn-outline">보이는 ${rows.length}명 전체 선택</button>
@@ -5832,9 +6275,10 @@ function teacherListSectionHtml() {
           <thead class="sticky top-0 bg-base-100"><tr>
             <th><input type="checkbox" id="tl-check-head" class="checkbox checkbox-xs" ${allChecked ? 'checked' : ''}></th>
             <th>이름</th><th>지역</th><th>등급</th>
+            <th title="이번 달 활동 건수">활동</th>
             <th class="tl-more">등급 제안</th><th class="tl-more">직책</th>
             <th class="tl-more" title="최근 1년 센터 등록">센등</th>
-            <th class="tl-more">이번 달 활동</th><th class="tl-more">활동 신청</th>
+            <th class="tl-more">활동 신청</th>
           </tr></thead>
           <tbody>
             ${rows.map(t => `
@@ -5843,19 +6287,18 @@ function teacherListSectionHtml() {
                 <td class="font-medium">${esc(t.name)}</td>
                 <td>${esc(t.region || '-')}</td>
                 <td><span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'} badge-sm">${esc(t.tier || '-')}</span></td>
+                <td class="text-center tl-act">${!t._rep ? '…' : (t.monthlyCount > 0 ? `<b>${esc(t.monthlyCount)}</b>건` : '<span class="text-base-content/30">0</span>')}</td>
                 <td class="tl-more">${!t._rep ? '…' : (t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'} badge-sm">→ ${esc(t.suggestion.suggestedTier)}</span>` : '<span class="text-base-content/30">-</span>')}</td>
                 <td class="tl-more">${t.position ? `<span class="badge badge-outline badge-sm">${esc(t.position)}</span>` : ''}</td>
-                <td class="tl-more text-center font-bold" style="color:#5B4FCF">${t._rep ? esc(t.leads1y || 0) : '…'}</td>
-                <td class="tl-more text-center">${t._rep ? esc(t.monthlyCount) + '건' : '…'}</td>
-                <td class="tl-more">${!t._rep ? '…' : (t.apply ? `<span class="font-medium" style="color:#5B4FCF">${esc(applyText(t.apply))}</span>` : '<span class="text-base-content/40">없음</span>')}</td>
+                <td class="tl-more text-center font-bold" style="color:#7E22CE">${t._rep ? esc(t.leads1y || 0) : '…'}</td>
+                <td class="tl-more">${!t._rep ? '…' : (t.apply ? `<span class="font-medium" style="color:#7E22CE">${esc(applyText(t.apply))}</span>` : '<span class="text-base-content/40">없음</span>')}</td>
               </tr>`).join('')}
             ${rows.length === 0 ? `<tr><td colspan="9" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
           </tbody>
         </table>
       </div>
       ${hiddenCount > 0 ? `<button type="button" id="tl-more-btn" class="w-full mt-2 py-3 rounded-box border border-base-300 bg-base-100 text-sm font-bold" style="color:var(--color-primary)">${hiddenCount}명 더 보기 ›</button>` : ''}
-      <div class="text-[11px] text-base-content/40 mt-2 tl-phone-hint">행을 누르면 직책·센터 등록·이번 달 활동 등 나머지 정보를 볼 수 있어요.</div>
-      ${selected ? teacherListDetailHtml(selected) : ''}
+      <div class="text-[11px] text-base-content/40 mt-2">교사를 누르면 부서·지역·등급·활동·연결 현황·이수교육을 한 창에서 볼 수 있어요.</div>
     </div>`;
 }
 
@@ -5932,10 +6375,12 @@ function wireTeacherList() {
   const cn = $('tl-check-none'); if (cn) cn.onclick = () => { state.tlChecked.clear(); eduRender(); };
   const ba = $('bulk-apply'); if (ba) ba.onclick = () => runBulkApprove(false);
   const bs = $('bulk-apply-sug'); if (bs) bs.onclick = () => runBulkApprove(true);
+  // 2026-09-23: 행을 누르면 표 아래 인라인이 아니라 개별 시트(팝업)로 연다.
+  // (교관 요청 — "자기 지역 교사가 어느 부서·지역의 어느 활동에 연결돼 있는지"를
+  //  가로 스크롤 없이 한 창에서 봐야 함)
   document.querySelectorAll('.tl-row').forEach(row => {
-    row.onclick = () => { state.tlSelected = state.tlSelected === row.dataset.mid ? null : row.dataset.mid; eduRender(); };
+    row.onclick = () => openTeacherSheet(row.dataset.mid);
   });
-  const dc = $('tl-detail-close'); if (dc) dc.onclick = () => { state.tlSelected = null; eduRender(); };
 }
 function wirePosButtons() {
   document.querySelectorAll('.tl-pos-set').forEach(b => {
