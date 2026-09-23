@@ -1173,6 +1173,7 @@
         <div id="admin-pane-calAdmin" class="admin-pane">
           <div class="calAdm-tabs2">
             <button type="button" data-t="events" class="on">행사 등록·관리</button>
+            <button type="button" data-t="status">일정 등록 현황</button>
             <button type="button" data-t="report">스탭·참석자 집계</button>
             <button type="button" data-t="ads">전도부 광고</button>
           </div>
@@ -1700,12 +1701,37 @@
     // 2026-09-22: 일정 유형 3종 — 공식(관리자만 등록, 개강/행사 유형 포함)/부서(교사 등록, 부서단위)/
     // 내일정(교사 등록, 개인). 서버 V2_CAL_CATEGORIES와 이름 동일하게 맞출 것.
     const CAL_CATEGORIES = ['공식', '부서', '내일정'];
+    // 2026-09-23: 부서 일정의 지역 선택지. 01~14지역 + '새신자'(명단에 실제로 있는 값).
+    const CAL_REGION_OPTS = Array.from({ length: 14 }, (_, i) => String(i + 1).padStart(2, '0') + '지역').concat(['새신자']);
     const CAL_CAT_COLOR = { '공식': '#2F6FDE', '부서': '#2D9B6F', '내일정': '#E8590C' };
     const CAL_CAT_CLASS = { '공식': 'official', '부서': 'dept', '내일정': 'mine' };
     const calEvClass = e => CAL_CAT_CLASS[e.category] || 'official';
     const calCatColor = c => CAL_CAT_COLOR[c] || '#2F6FDE';
     const calEventsOn = date => calSt.events.filter(e => e.startDate <= date && date <= e.endDate);
     function calRangeText(e) { return e.startDate === e.endDate ? e.startDate : `${e.startDate} ~ ${e.endDate}`; }
+
+    // ────────────────────────────────────────────────────────────────
+    // 2026-09-23 달력 접두 표기 — 부서(+지역)를 제목 앞에 짧게 붙인다.
+    //   교역자            → "교)"
+    //   부녀회 01지역      → "부-1)"
+    //   부서 전체(지역 없음) → "부)"
+    // 부서 값은 DEPTS5(교/자/장/부/청) 한 글자로 저장돼 있고,
+    // 지역은 "01지역"/"1지역"/"01" 같은 형태가 섞일 수 있어 숫자만 뽑아 쓴다.
+    // ⚠️ 지역 값 형식이 바뀌면 calRegionNo() 만 고치면 된다.
+    // ────────────────────────────────────────────────────────────────
+    function calRegionNo(region) {
+      const m = String(region || '').match(/\d+/);
+      return m ? String(Number(m[0])) : '';   // "01지역" → "1"
+    }
+    function calPrefix(e) {
+      if (!e || e.category !== '부서' || !e.dept) return '';
+      const no = calRegionNo(e.region);
+      return no ? `${e.dept}-${no})` : `${e.dept})`;
+    }
+    function calTitleWithPrefix(e) {
+      const p = calPrefix(e);
+      return p ? p + ' ' + (e.title || '') : (e.title || '');
+    }
 
     function calDrawCalendar() {
       document.getElementById('calTitle').textContent = `${calSt.y}년 ${calSt.m + 1}월`;
@@ -1719,7 +1745,7 @@
         const dow = d.getDay();
         cells.push(`<div class="cal-day ${d.getMonth() !== calSt.m ? 'out' : ''} ${date === CAL_TODAY ? 'today' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}" data-date="${date}">
           <span class="cal-num">${d.getDate()}</span>
-          ${evs.slice(0, 2).map(e => `<span class="cal-chip ${calEvClass(e)}">${esc(e.title)}</span>`).join('')}
+          ${evs.slice(0, 2).map(e => `<span class="cal-chip ${calEvClass(e)}">${calPrefix(e) ? `<b class="cal-pfx">${esc(calPrefix(e))}</b>` : ''}${esc(e.title)}</span>`).join('')}
           ${evs.length > 2 ? `<span class="cal-more">+${evs.length - 2}</span>` : ''}
         </div>`);
         if (i === 34 && new Date(calSt.y, calSt.m, 1 - startOffset + 35).getMonth() !== calSt.m) break;
@@ -1738,7 +1764,7 @@
 
     function calOpenDayList(date, evs) {
       openSheet(`<div style="font-size:18px;font-weight:800;margin-bottom:12px">${date}</div>
-        ${evs.map((e, i) => `<div class="cal-ev-row" data-i="${i}"><span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category)}</span><div style="flex:1"><b>${esc(e.title)}</b><div class="cal-hint">${esc(calRangeText(e))}${e.place ? ' · ' + esc(e.place) : ''}</div></div>›</div>`).join('')}`);
+        ${evs.map((e, i) => `<div class="cal-ev-row" data-i="${i}"><span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category)}</span><div style="flex:1"><b>${esc(calTitleWithPrefix(e))}</b><div class="cal-hint">${esc(calRangeText(e))}${e.place ? ' · ' + esc(e.place) : ''}</div></div>›</div>`).join('')}`);
       document.querySelectorAll('.cal-ev-row').forEach(r => { r.onclick = () => calOpenEvent(evs[Number(r.dataset.i)]); });
     }
 
@@ -1758,7 +1784,7 @@
       const e = calCur, isOfficialEvent = e.category === '공식' && e.type === '행사';
       const isMineNonOfficial = e.category !== '공식' && sameIdClient(e.createdBy, MEMBER_ID);
       openSheet(`
-        <span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category)}${e.category === '공식' ? ' · ' + esc(e.type) : ''}</span>
+        <span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category)}${e.category === '공식' ? ' · ' + esc(e.type) : ''}${calPrefix(e) ? ' · ' + esc(calPrefix(e)) : ''}</span>
         <div style="font-size:21px;font-weight:800;margin:8px 0 4px">${esc(e.title)}</div>
         <div class="cal-hint">📅 ${esc(calRangeText(e))}${e.place ? ' · 📍 ' + esc(e.place) : ''}${e.dept ? ' · ' + esc(e.dept) : ''}</div>
         ${e.desc ? `<div style="margin-top:12px;font-size:14px;white-space:pre-wrap">${esc(e.desc)}</div>` : ''}
@@ -1898,7 +1924,7 @@
       document.querySelectorAll('#appSheetHost [data-cat]').forEach(b => { b.onclick = () => calOpenAddForm(b.dataset.cat); });
     }
     function calOpenAddForm(category) {
-      const f = { category, type: category === '공식' ? '행사' : category, title: '', startDate: todayStr(), endDate: '', dept: '', place: '', desc: '' };
+      const f = { category, type: category === '공식' ? '행사' : category, title: '', startDate: todayStr(), endDate: '', dept: '', region: '', place: '', desc: '' };
       openSheet(`
         <div style="font-size:19px;font-weight:800">${esc(category)} 일정 등록</div>
         ${category === '공식' ? `<label class="cal-lbl">유형 <span class="cal-req">*</span></label>${calSegHtml('calNewType', ['개강', '행사'], f.type)}` : ''}
@@ -1907,14 +1933,21 @@
           <div style="flex:1"><label class="cal-lbl" style="margin-top:0">시작일 <span class="cal-req">*</span></label><input type="date" class="cal-inp" id="calNewStart" value="${esc(f.startDate)}"></div>
           <div style="flex:1"><label class="cal-lbl" style="margin-top:0">종료일</label><input type="date" class="cal-inp" id="calNewEnd"></div>
         </div>
-        ${category === '부서' ? `<label class="cal-lbl">부서 <span class="cal-req">*</span></label>${calSegHtml('calNewDept', DEPTS5, '')}` : ''}
+        ${category === '부서' ? `<label class="cal-lbl">부서 <span class="cal-req">*</span></label>${calSegHtml('calNewDept', DEPTS5, '')}
+        <label class="cal-lbl">지역 <small>(선택 — 비우면 부서 전체 일정)</small></label>
+        ${calSegHtml('calNewRegion', CAL_REGION_OPTS, '')}
+        <div class="cal-hint">달력에는 "부-1) 제목"처럼 부서·지역이 앞에 붙어요.</div>` : ''}
         ${category === '공식' ? `<label class="cal-lbl">장소</label><input class="cal-inp" id="calNewPlace" maxlength="60">` : ''}
         <label class="cal-lbl">설명 <small style="font-weight:400">(선택)</small></label><textarea class="cal-inp" id="calNewDesc" maxlength="1000" style="min-height:70px"></textarea>
         <div style="display:flex;gap:10px;margin-top:18px">
           <button class="kko-btn-outline" style="flex:1" id="calNewBack">뒤로</button><button class="kko-btn-main" style="flex:2" id="calNewSave">등록</button>
         </div>`);
       if (category === '공식') calBindSeg('calNewType', v => { f.type = v; });
-      if (category === '부서') calBindSeg('calNewDept', v => { f.dept = v; });
+      if (category === '부서') {
+        calBindSeg('calNewDept', v => { f.dept = v; });
+        // 2026-09-23: 같은 지역을 다시 누르면 해제 = "부서 전체" 일정으로 돌아간다.
+        calBindSeg('calNewRegion', v => { f.region = (f.region === v) ? '' : v; });
+      }
       document.getElementById('calNewBack').onclick = () => calOpenAddCategoryPicker();
       document.getElementById('calNewSave').onclick = async () => {
         f.title = document.getElementById('calNewTitle').value.trim();
@@ -8034,9 +8067,117 @@ function calAdmBindAds() {
   }; });
 }
 
+// ════════════════════════════════════════════════════════════════════
+// 2026-09-23 "일정 등록 현황" — 부서·지역별로 올라온 일정을 집계해서 본다.
+// ────────────────────────────────────────────────────────────────────
+// 보기 3가지: 통합(부서×지역 교차표) / 부서별(지역 묶어서) / 목록.
+// getCalendarEvents 응답만 쓰고 새 API는 안 만든다.
+// 부서 값은 한 글자(교/자/장/부/청), 지역은 "01지역" 형태 — 달력 접두표기와 같은 규칙.
+// ════════════════════════════════════════════════════════════════════
+let calAdmStatusView = 'all';   // all | dept | list
+const CAL_DEPT_FULL = { '교': '교역자', '자': '자문회', '장': '장년회', '부': '부녀회', '청': '청년회' };
+
+function calAdmStatusRows() {
+  // 부서 일정만 대상(공식/내일정은 부서·지역 구분이 없음)
+  return (calAdmEvents || []).filter(e => e.category === '부서' && e.dept);
+}
+
+function calAdmStatusHtml() {
+  const rows = calAdmStatusRows();
+  const depts = DEPTS5.filter(d => rows.some(e => e.dept === d));
+  const regionKey = e => (e.region || '(부서 전체)');
+  const regions = [...new Set(rows.map(regionKey))]
+    .sort((a, b) => (a === '(부서 전체)' ? -1 : b === '(부서 전체)' ? 1 : a.localeCompare(b, 'ko', { numeric: true })));
+  const count = (d, rg) => rows.filter(e => e.dept === d && regionKey(e) === rg).length;
+
+  const seg = `
+    <div class="calAdm-tabs2" style="margin:0 0 14px">
+      ${[['all', '통합(부서×지역)'], ['dept', '부서별'], ['list', '목록']].map(([v, l]) =>
+        `<button type="button" class="${calAdmStatusView === v ? 'on' : ''}" data-sv="${v}">${l}</button>`).join('')}
+    </div>`;
+
+  if (!rows.length) {
+    return `<div class="kko-card">${seg}<div class="text-sm" style="color:var(--color-text-sub)">아직 부서·지역으로 올라온 일정이 없습니다.</div></div>`;
+  }
+
+  let body;
+  if (calAdmStatusView === 'all') {
+    body = `
+      <div class="wrap-table">
+        <table>
+          <thead><tr><th>지역</th>${depts.map(d => `<th style="text-align:center">${esc(CAL_DEPT_FULL[d] || d)}</th>`).join('')}<th style="text-align:center">계</th></tr></thead>
+          <tbody>
+            ${regions.map(rg => `<tr>
+              <td><b>${esc(rg)}</b></td>
+              ${depts.map(d => { const n = count(d, rg); return `<td style="text-align:center">${n || '<span style="color:#D1D5DB">-</span>'}</td>`; }).join('')}
+              <td style="text-align:center;font-weight:800;color:var(--color-primary)">${rows.filter(e => regionKey(e) === rg).length}</td>
+            </tr>`).join('')}
+            <tr style="background:var(--dg-bg-soft)">
+              <td><b>계</b></td>
+              ${depts.map(d => `<td style="text-align:center;font-weight:800">${rows.filter(e => e.dept === d).length}</td>`).join('')}
+              <td style="text-align:center;font-weight:900;color:var(--color-primary)">${rows.length}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+  } else if (calAdmStatusView === 'dept') {
+    body = depts.map(d => {
+      const inDept = rows.filter(e => e.dept === d);
+      const rgs = [...new Set(inDept.map(regionKey))].sort((a, b) => a.localeCompare(b, 'ko', { numeric: true }));
+      return `
+        <div style="margin-bottom:16px">
+          <div style="font-size:15px;font-weight:800;margin-bottom:6px">${esc(CAL_DEPT_FULL[d] || d)}
+            <span style="font-weight:600;color:var(--color-text-sub);font-size:13px">${inDept.length}건</span></div>
+          ${rgs.map(rg => {
+            const evs = inDept.filter(e => regionKey(e) === rg);
+            return `<div class="ev-row" style="align-items:flex-start">
+              <span class="pill event">${esc(rg === '(부서 전체)' ? d + ')' : d + '-' + (String(rg).match(/\d+/) ? Number(String(rg).match(/\d+/)[0]) : '') + ')')}</span>
+              <div class="grow">
+                <b>${esc(rg)} · ${evs.length}건</b>
+                <div class="text-xs" style="color:var(--color-text-sub);line-height:1.7">
+                  ${evs.map(e => `${esc(e.title)} <span style="color:#C3C6CC">(${esc(e.startDate)})</span>`).join('<br>')}
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`;
+    }).join('');
+  } else {
+    const sorted = [...rows].sort((a, b) => (a.startDate < b.startDate ? 1 : -1));
+    body = `
+      <div class="wrap-table">
+        <table>
+          <thead><tr><th>표기</th><th>부서</th><th>지역</th><th>제목</th><th>기간</th></tr></thead>
+          <tbody>
+            ${sorted.map(e => `<tr>
+              <td><b style="color:var(--color-primary)">${esc(calPrefix(e))}</b></td>
+              <td>${esc(CAL_DEPT_FULL[e.dept] || e.dept)}</td>
+              <td>${esc(e.region || '전체')}</td>
+              <td>${esc(e.title)}</td>
+              <td>${esc(e.startDate)}${e.endDate && e.endDate !== e.startDate ? ' ~ ' + esc(e.endDate) : ''}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  return `<div class="kko-card">
+      ${seg}
+      <div class="font-bold mb-2">부서 일정 ${rows.length}건</div>
+      ${body}
+    </div>`;
+}
+
+function calAdmBindStatus() {
+  document.querySelectorAll('#calAdmRoot [data-sv]').forEach(b => {
+    b.onclick = () => { calAdmStatusView = b.dataset.sv; calAdmRender(); };
+  });
+}
+
 function calAdmRender() {
   const root = document.getElementById('calAdmRoot');
   if (calAdmTab === 'events') { root.innerHTML = calAdmEventsHtml(); calAdmBindEvents(); }
+  else if (calAdmTab === 'status') { root.innerHTML = calAdmStatusHtml(); calAdmBindStatus(); }
   else if (calAdmTab === 'report') { root.innerHTML = calAdmReportHtml(); if (calAdmReport) calAdmBindReport(); }
   else { root.innerHTML = calAdmAdsHtml(); calAdmBindAds(); }
 }
