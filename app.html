@@ -715,8 +715,8 @@
     /* PC 폭 사다리 — 화면이 커지면 앱 컬럼도 같이 커진다(헤더·탭바는 항상 이 폭 안).
        값만 여기서 바꾸면 #appPanel·탭바·FAB·시트가 전부 따라옵니다. */
     @media (min-width: 769px)  { :root { --app-max-width: 720px; } }
-    @media (min-width: 1100px) { :root { --app-max-width: 880px; } }
-    @media (min-width: 1440px) { :root { --app-max-width: 1000px; } }
+    @media (min-width: 1100px) { :root { --app-max-width: 820px; } }
+    @media (min-width: 1440px) { :root { --app-max-width: 900px; } }
 
     @media (min-width: 769px) {
       /* 앱 컬럼 바깥은 살짝 더 진한 회색 — 흰 앱 영역과 대비가 생겨야
@@ -770,6 +770,27 @@
 
       /* PC에서 마우스 hover 피드백(터치엔 없던 것 — 모바일 영향 없음) */
       #bottomTabBar .tab:hover { color: var(--color-primary); }
+
+      /* ── 넓은 화면에서 "쫙 펼쳐져 배열이 깨지는" 것 방지 ──
+         컬럼 자체는 900px까지 넓어지지만, 탭바 아이콘과 헤더 내용까지 그 폭을
+         꽉 채우면 아이콘 사이가 휑해진다. 안쪽 내용만 따로 폭을 잡아둔다. */
+      #bottomTabBar { justify-content: center; }
+      #bottomTabBar .tab { flex: 0 1 120px; max-width: 120px; }
+
+      /* 헤더: 제목과 아이콘이 양 끝으로 벌어지지 않게 안쪽 폭 제한 + 가운데 정렬 */
+      #appHeader {
+        --hdr-gutter: max(16px, calc((100% - 620px) / 2));
+        padding-left: var(--hdr-gutter);
+        padding-right: var(--hdr-gutter);
+      }
+      /* 섹션 자체 헤더(내활동/연결/교재/관리자)도 같은 기준으로 */
+      #sec-activity .act-appbar,
+      #sec-connect .kko-tabs,
+      #admin-subtabs {
+        --hdr-gutter: max(16px, calc((100% - 620px) / 2));
+        padding-left: var(--hdr-gutter);
+        padding-right: var(--hdr-gutter);
+      }
     }
   </style>
 </head>
