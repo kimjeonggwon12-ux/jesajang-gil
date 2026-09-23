@@ -474,6 +474,19 @@
     #sec-connect .cn-fab { position:fixed; right:16px; bottom:76px; height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:700; border:none; box-shadow:0 4px 14px rgba(126,34,206,.4); z-index:30; cursor:pointer; }
     #sec-connect .cn-hint { font-size:13px; color:var(--dg-text-sub); margin-top:5px; line-height:1.5; }
 
+    /* ── 2026-09-23 명함 상단: 사진 옆 여백에 이름·전화번호를 채워 세로 길이 절약 ── */
+    #sec-connect .cn-idrow { display:flex; gap:12px; align-items:flex-start; }
+    #sec-connect .cn-photobox { width:84px; height:112px; border-radius:10px; overflow:hidden;
+      background:var(--color-primary-light); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    #sec-connect .cn-idfields { flex:1; min-width:0; }
+    #sec-connect .cn-idfields .cn-lbl { margin:10px 0 5px; font-size:13.5px; }
+    #sec-connect .cn-idfields .kko-input { min-height:42px; padding:8px 12px; font-size:15px; }
+    /* 사진 바꾸기 — 전체 폭 버튼이던 것을 작은 칩으로 */
+    #sec-connect .cn-photo-btn { display:inline-flex; align-items:center; justify-content:center;
+      height:32px; padding:0 12px; margin-top:8px; border-radius:999px; cursor:pointer;
+      border:1.5px solid var(--color-primary); background:#fff; color:var(--color-primary);
+      font-size:12.5px; font-weight:700; white-space:nowrap; }
+
     /* ════════════════════════════════════════════════════════════════════
        2026-09-23 ⚠️ 바텀시트 안의 연결 폼 스타일
        ────────────────────────────────────────────────────────────────────
@@ -3232,28 +3245,28 @@
       <div class="cn-sec-title">${c.exists ? '내 명함' : '내 명함 만들기'}</div>
 
       <div class="kko-card">
-        <div style="display:flex;gap:14px;align-items:flex-end">
-          <div id="photoBox" style="width:90px;height:120px;border-radius:10px;overflow:hidden;background:var(--color-primary-light);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-            ${f.photoUrl ? `<img class="zoomable" src="${esc(f.photoUrl)}" style="width:100%;height:100%;object-fit:cover" alt="프로필 사진">` : '<span style="font-size:34px">👤</span>'}
+        <!-- 2026-09-23: 사진 옆 여백이 비어 있어서 이름·전화번호를 그 자리로 올렸다.
+             사진 바꾸기 버튼도 작게 줄여 세로 길이를 아낀다. -->
+        <div class="cn-idrow">
+          <div id="photoBox" class="cn-photobox">
+            ${f.photoUrl ? `<img class="zoomable" src="${esc(f.photoUrl)}" style="width:100%;height:100%;object-fit:cover" alt="프로필 사진">` : '<span style="font-size:30px">👤</span>'}
           </div>
-          <div style="flex:1">
-            <div class="cn-hint" style="margin:0 0 6px">증명사진 크기로 저장돼요. 누르면 크게 볼 수 있어요.</div>
-            <label class="kko-btn-outline" style="cursor:pointer">사진 ${f.photoUrl ? '바꾸기' : '올리기'}<input type="file" id="photoFile" accept="image/*" style="display:none"></label>
+          <div class="cn-idfields">
+            <label class="cn-lbl" style="margin-top:0">이름 <span class="cn-req">*</span></label>
+            <input class="kko-input" data-f="name" value="${esc(f.name)}" maxlength="30">
+            <label class="cn-lbl">전화번호 <span class="cn-req">*</span></label>
+            <input class="kko-input" data-f="phone" type="tel" inputmode="tel" placeholder="010-0000-0000" value="${esc(f.phone)}" maxlength="20">
+            <label class="cn-photo-btn">사진 ${f.photoUrl ? '바꾸기' : '올리기'}<input type="file" id="photoFile" accept="image/*" style="display:none"></label>
           </div>
         </div>
+        <div class="cn-hint">부서·지역은 교사 명단과 자동 연동: ${esc(c.dept || '-')} · ${esc(c.region || '-')} · 증명사진 크기로 저장돼요.</div>
 
-        <label class="cn-lbl">이름 <span class="cn-req">*</span></label>
-        <input class="kko-input" data-f="name" value="${esc(f.name)}" maxlength="30">
-        <div class="cn-hint">부서·지역은 교사 명단과 자동 연동: ${esc(c.dept || '-')} · ${esc(c.region || '-')}</div>
-
-        <label class="cn-lbl">전화번호 <span class="cn-req">*</span> <small>(무조건 공개)</small></label>
-        <input class="kko-input" data-f="phone" type="tel" inputmode="tel" placeholder="010-0000-0000" value="${esc(f.phone)}" maxlength="20">
-
-        <label class="cn-lbl">한 마디 <small>(카드에 크게 보여요)</small></label>
-        <input class="kko-input" data-f="oneLiner" value="${esc(f.oneLiner)}" maxlength="80" placeholder="예: 처음 만나는 분과도 편안하게 대화해요">
-
-        <label class="cn-lbl">소개</label>
-        <textarea class="kko-input" data-f="intro" maxlength="800" placeholder="자유롭게 나를 소개해주세요">${esc(f.intro)}</textarea>
+        <!-- 2026-09-23: "한 마디"와 "소개"를 하나로 합침(사용자 요청).
+             첫 줄이 카드에 크게 보이는 한 마디(oneLiner)가 되고, 나머지는 소개(intro)로
+             저장된다. 기존에 따로 적어둔 값은 아래 introMerged 에서 합쳐서 보여준다. -->
+        <label class="cn-lbl">소개 <small>(첫 줄이 카드에 크게 보여요)</small></label>
+        <textarea class="kko-input" data-f="introMerged" maxlength="880" style="min-height:120px"
+          placeholder="처음 만나는 분과도 편안하게 대화해요&#10;주중 저녁에 복음방 동행 가능합니다. 20~30대 형제 상담 경험이 많아요.">${esc([f.oneLiner, f.intro].filter(Boolean).join('\n'))}</textarea>
 
         <!-- 2026-09-22: "경력" 입력칸 삭제(사용자 요청). f.career 값 자체는 저장 구조에
              남겨둬서 기존에 적어둔 내용이 날아가지는 않음(화면에서만 감춤). -->
@@ -3305,7 +3318,19 @@
     function bindCard() {
       const c = S.card, f = c.f, v = document.getElementById('cnView');
       if (c.loading) return;
-      v.querySelectorAll('[data-f]').forEach(el => { el.oninput = e => { f[el.dataset.f] = e.target.value; }; });
+      v.querySelectorAll('[data-f]').forEach(el => {
+        el.oninput = e => {
+          // 2026-09-23: 소개 한 칸에서 첫 줄 = 한 마디(oneLiner), 나머지 = 소개(intro).
+          // 저장 구조(백엔드 컬럼)는 그대로 둔 채 입력만 하나로 합친 것.
+          if (el.dataset.f === 'introMerged') {
+            const lines = String(e.target.value).split('\n');
+            f.oneLiner = (lines.shift() || '').trim().slice(0, 80);
+            f.intro = lines.join('\n').replace(/^\s+/, '');
+            return;
+          }
+          f[el.dataset.f] = e.target.value;
+        };
+      });
       bindMulti(v, f);
       v.querySelectorAll('#majorSeg button').forEach(b => { b.onclick = () => { f.hasMajor = b.dataset.major === '1'; cnRender(); }; });
       v.querySelectorAll('input[name=sched]').forEach(r => { r.onchange = () => { f.schedType = r.value; cnRender(); }; });
