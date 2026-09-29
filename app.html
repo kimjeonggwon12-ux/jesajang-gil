@@ -1370,6 +1370,29 @@
     // ════════════════════════════════════════════════════════════════
     const PD_KEY = 'podo_member';
 
+    // 2026-09-29: 앱 관리자(김정권) 전용 — 이 기기를 "관리자 기기"로 기억해 두면
+    // [홈으로]로 저장된 번호를 지워도 다시 칠 필요 없이 김정권으로 바로 입장하고,
+    // 고유번호 칸에 관리자 비번 7777을 치면(마지막 7을 누르는 순간) 이름 없이 관리자 모드로 입장.
+    // 관리자 기기 해제는 내 계정 시트의 "다른 번호로 입장".
+    const OWNER_ID = '0020113000010', OWNER_NAME = '김정권';
+    const ADMIN_CODE = '7777';
+    const PD_OWNER_KEY = 'podo_owner';
+    function pdIsOwnerDevice() { try { return localStorage.getItem(PD_OWNER_KEY) === '1'; } catch (e) { return false; } }
+    function pdSetOwnerDevice(on) { try { on ? localStorage.setItem(PD_OWNER_KEY, '1') : localStorage.removeItem(PD_OWNER_KEY); } catch (e) {} }
+    function isOwnerSession() { return String(App.memberId || '').replace(/[^0-9]/g, '') === OWNER_ID; }
+
+    /** 관리자 비번(7777) 입장 — 김정권으로, 관리자 탭을 열어서 들어간다. */
+    function pdAdminEnter() {
+      const idEl = document.getElementById('memberId'), nmEl = document.getElementById('name');
+      if (idEl.disabled) return;
+      pdSetOwnerDevice(true);
+      pdSave(OWNER_ID, OWNER_NAME);
+      idEl.value = OWNER_ID; nmEl.value = OWNER_NAME;
+      idEl.disabled = true; nmEl.disabled = true;
+      history.replaceState(null, '', location.pathname + location.search + '#admin');
+      pdEnterWithSpinner(OWNER_ID, OWNER_NAME, '관리자 모드로 입장 중...');
+    }
+
     function pdLoadSaved() {
       try {
         const raw = localStorage.getItem(PD_KEY);
@@ -1423,6 +1446,7 @@
       }
 
       pdSave(id, nm);               // ← 다음부터 안 쳐도 되게 기억
+      if (id.replace(/[^0-9]/g, '') === OWNER_ID) pdSetOwnerDevice(true);
       idEl.disabled = true; nmEl.disabled = true;
       pdEnterWithSpinner(id, nm, '입장 중...');
     }
@@ -1439,7 +1463,7 @@
         return;
       }
 
-      const saved = pdLoadSaved();
+      const saved = pdLoadSaved() || (pdIsOwnerDevice() ? { memberId: OWNER_ID, name: OWNER_NAME } : null);
       pdLoadStats();   // 스플래시가 도는 2.8초 동안 미리 받아둔다
       setTimeout(() => {
         const splash = document.getElementById('pdSplash');
@@ -1493,6 +1517,10 @@
     }
 
     function pdWireLogin() {
+      const idInput = document.getElementById('memberId');
+      if (idInput) idInput.addEventListener('input', () => {
+        if (idInput.value.replace(/[^0-9]/g, '') === ADMIN_CODE) pdAdminEnter();
+      });
       ['memberId', 'name'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('keypress', e => { if (e.key === 'Enter') startSession(); });
@@ -1502,6 +1530,7 @@
         if (pdLoadSaved()) forget.style.display = 'inline';
         forget.onclick = () => {
           pdClearSaved();
+          pdSetOwnerDevice(false);
           document.getElementById('memberId').value = '';
           document.getElementById('name').value = '';
           document.getElementById('pdSaved').style.display = 'none';
@@ -1530,6 +1559,7 @@
             : '이 기기에는 고유번호가 저장돼 있지 않아요.'}
         </div>
         <button class="kko-btn-outline" id="acct-home">🏠 홈으로 (표지부터 다시 시작)</button>
+        ${pdIsOwnerDevice() ? '<button class="kko-btn-outline" style="margin-top:8px" id="acct-other">다른 번호로 입장 (관리자 기기 해제)</button>' : ''}
         <button class="kko-btn-main" style="margin-top:8px" id="acct-close">닫기</button>
       `);
       const close = document.getElementById('acct-close');
@@ -1538,6 +1568,8 @@
       if (forget) forget.onclick = goToCover;
       const home = document.getElementById('acct-home');
       if (home) home.onclick = goToCover;
+      const other = document.getElementById('acct-other');
+      if (other) other.onclick = () => { pdSetOwnerDevice(false); goToCover(); };
     }
 
     /**
@@ -1591,6 +1623,7 @@
     let myRosterLoaded = false;
 
     function isAdmin() {
+      if (isOwnerSession()) return true;       // 앱 관리자(김정권)는 무조건 관리자 모드
       if (!myRosterLoaded) return false;       // 아직 못 받았으면 숨김(받고 나서 다시 판정)
       const r = myRosterRow;
       if (!r) return false;
