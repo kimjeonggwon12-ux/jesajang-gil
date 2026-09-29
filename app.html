@@ -207,6 +207,91 @@
        kko-btn-main/kko-btn-outline로 교체, 나머지 범용 이름(.pill/.lbl/.seg/.inp/.hint/.wrap/
        .day/.grid 등)은 cal- 접두사로 스코프. .sheet/.sheet-back/toast는 공유 것을 그대로 씀. */
     .cal-wrap { max-width:640px; margin:0 auto; padding:12px 12px 0; }
+    /* ── 2026-09-29 교사광장(구 캘린더 탭) — 당근 "동네생활" 방식 커뮤니티 ──
+       흰 앱바 + 검색 + 알약 메뉴줄(당근 상단 서비스 버튼) / 도마 전도 일정(기존 캘린더) /
+       지금 뜨는 교사 이야기(순위 1~5) / 교사 이야기 피드(제목·요약·썸네일) / 글 상세(사진·공감·댓글). */
+    #sec-calendar { background:#fff; min-height:100%; letter-spacing:-0.02em; color:var(--dg-text); }
+    #sec-calendar .pz-appbar { position:sticky; top:0; z-index:20; background:#fff; padding:10px 16px 0; }
+    #sec-calendar .pz-appbar-row { display:flex; align-items:center; gap:10px; height:44px; }
+    #sec-calendar .pz-logo { font-size:20px; font-weight:900; color:var(--dg-text); white-space:nowrap; display:flex; align-items:center; gap:5px; }
+    #sec-calendar .pz-logo i { width:20px; height:20px; border-radius:6px; background:var(--color-primary); display:inline-flex; align-items:center; justify-content:center; color:#fff; font-style:normal; font-size:12px; }
+    #sec-calendar .pz-search { flex:1; min-width:0; display:flex; align-items:center; gap:6px; height:40px; padding:0 14px; border-radius:999px; background:#F2F3F6; }
+    #sec-calendar .pz-search input { flex:1; min-width:0; border:none; background:transparent; outline:none; font-size:14px; color:var(--dg-text); }
+    #sec-calendar .pz-appbar-actions { display:flex; align-items:center; gap:10px; }
+    #sec-calendar .pz-appbar-actions button { background:none; border:none; padding:0; color:var(--dg-text); cursor:pointer; display:flex; }
+    #sec-calendar .pz-pills { display:flex; gap:6px; overflow-x:auto; padding:10px 0 10px; scrollbar-width:none; border-bottom:1px solid var(--dg-line); }
+    #sec-calendar .pz-pills::-webkit-scrollbar { display:none; }
+    #sec-calendar .pz-pill { flex-shrink:0; display:inline-flex; align-items:center; gap:4px; height:34px; padding:0 13px; border-radius:999px; border:1px solid #E5E7EB; background:#fff; font-size:13.5px; font-weight:700; color:var(--dg-text); cursor:pointer; }
+    #sec-calendar .pz-pill.on { background:var(--dg-text); border-color:var(--dg-text); color:#fff; }
+    #sec-calendar .pz-sec-title { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:18px; font-weight:800; margin:22px 0 10px; }
+    #sec-calendar .pz-sec-title small { font-size:13px; font-weight:600; color:var(--dg-text-sub); cursor:pointer; }
+    #sec-calendar .cal-wrap { padding-top:0; }
+    #sec-calendar .pz-wrap { max-width:640px; margin:0 auto; padding:0 12px 110px; }
+    #sec-calendar .pz-box { background:#fff; border:1px solid #EEF0F3; border-radius:18px; overflow:hidden; }
+    #sec-calendar .pz-hot-row { display:flex; gap:12px; align-items:center; padding:14px 16px; cursor:pointer; }
+    #sec-calendar .pz-hot-row + .pz-hot-row { border-top:1px solid var(--dg-line); }
+    #sec-calendar .pz-rank { width:18px; flex-shrink:0; font-size:17px; font-weight:800; }
+    #sec-calendar .pz-more { display:block; width:100%; padding:13px 0; border:none; border-top:1px solid var(--dg-line); background:#fff; font-size:14px; color:var(--dg-text-sub); cursor:pointer; }
+    #sec-calendar .pz-row { display:flex; gap:12px; padding:16px; cursor:pointer; }
+    #sec-calendar .pz-row + .pz-row { border-top:1px solid var(--dg-line); }
+    #sec-calendar .pz-row-main { flex:1; min-width:0; }
+    #sec-calendar .pz-title { font-size:15.5px; font-weight:700; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #sec-calendar .pz-sum { font-size:13.5px; color:#4D5159; line-height:1.45; margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-all; }
+    #sec-calendar .pz-meta { font-size:12.5px; color:var(--dg-text-sub); margin-top:4px; }
+    #sec-calendar .pz-cnt { display:flex; gap:10px; font-size:12.5px; color:var(--dg-text-sub); margin-top:6px; }
+    #sec-calendar .pz-thumb { width:76px; height:76px; flex-shrink:0; border-radius:10px; object-fit:cover; background:#F2F3F6; }
+    #sec-calendar .pz-empty { padding:36px 16px; text-align:center; color:var(--dg-text-sub); font-size:14px; line-height:1.6; }
+    #sec-calendar .pz-fab { position:fixed; right:16px; bottom:76px; height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:800; border:none; box-shadow:var(--dg-shadow-fab); z-index:30; cursor:pointer; }
+    .pz-cat { display:inline-block; padding:3px 8px; border-radius:6px; background:#F2F3F6; color:#4D5159; font-size:12px; font-weight:700; }
+    .pz-cat.c-succ { background:#E8F7EE; color:#1B7F4B; } .pz-cat.c-fail { background:#FDECEC; color:#C23B3B; }
+    .pz-cat.c-story { background:#F3E8FF; color:#7E22CE; } .pz-cat.c-tip { background:#FFF4E0; color:#B35C00; }
+    .pz-cat.c-q { background:#E8F1FD; color:#2F6FDE; } .pz-cat.c-thx { background:#FFF0F6; color:#C2255C; }
+    /* 글 상세 / 글쓰기 — body 최상위 전체화면(탭바 위) */
+    .pz-ov { position:fixed; inset:0; z-index:9000; background:#fff; display:flex; flex-direction:column; letter-spacing:-0.02em; color:var(--dg-text); animation:kkoFadeIn .15s ease; }
+    .pz-ov-bar { display:flex; align-items:center; gap:8px; height:52px; padding:0 8px; border-bottom:1px solid var(--dg-line); flex-shrink:0; }
+    .pz-ov-bar button { background:none; border:none; font-size:15px; font-weight:700; color:var(--dg-text); padding:8px; cursor:pointer; }
+    .pz-ov-bar .t { flex:1; font-size:16px; font-weight:800; text-align:center; }
+    .pz-ov-body { flex:1; overflow-y:auto; padding:16px 18px 24px; }
+    .pz-author { display:flex; align-items:center; gap:10px; margin-top:12px; }
+    .pz-ava { width:40px; height:40px; border-radius:50%; flex-shrink:0; background:#E9EBEE; object-fit:cover; display:flex; align-items:center; justify-content:center; font-weight:800; color:#fff; }
+    .pz-ava.sm { width:32px; height:32px; font-size:13px; }
+    .pz-d-title { font-size:20px; font-weight:800; line-height:1.35; margin-top:16px; }
+    .pz-d-body { font-size:15.5px; line-height:1.7; margin-top:10px; white-space:pre-wrap; word-break:break-word; }
+    .pz-d-photo { display:block; width:100%; border-radius:12px; margin-top:12px; background:#F2F3F6; cursor:zoom-in; }
+    .pz-tags { margin-top:14px; display:flex; flex-wrap:wrap; gap:6px; font-size:14px; color:#2F6FDE; font-weight:600; }
+    .pz-react { margin-top:14px; font-size:13px; color:var(--dg-text-sub); }
+    .pz-actions { display:flex; gap:18px; padding:12px 0; margin-top:6px; border-bottom:1px solid var(--dg-line); }
+    .pz-actions button { background:none; border:none; display:flex; align-items:center; gap:5px; font-size:15px; color:var(--dg-text); cursor:pointer; padding:0; }
+    .pz-actions button.on { color:var(--color-primary); font-weight:800; }
+    .pz-sort { display:flex; gap:12px; margin:14px 0 6px; font-size:13.5px; }
+    .pz-sort button { background:none; border:none; padding:0; color:var(--dg-text-sub); cursor:pointer; }
+    .pz-sort button.on { color:var(--dg-text); font-weight:800; }
+    .pz-cmt { display:flex; gap:10px; padding:12px 0; }
+    .pz-cmt + .pz-cmt { border-top:1px solid #F7F7F9; }
+    .pz-cmt-name { font-size:14px; font-weight:700; }
+    .pz-cmt-meta { font-size:12px; color:var(--dg-text-sub); margin-top:1px; }
+    .pz-cmt-text { font-size:14.5px; margin-top:5px; white-space:pre-wrap; word-break:break-word; line-height:1.5; }
+    .pz-cmt-del { background:none; border:none; padding:0; font-size:12px; color:var(--dg-text-sub); margin-top:4px; cursor:pointer; }
+    .pz-cmt-bar { display:flex; gap:8px; align-items:flex-end; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); border-top:1px solid var(--dg-line); background:#fff; flex-shrink:0; }
+    .pz-cmt-bar textarea { flex:1; min-height:40px; max-height:120px; border-radius:20px; border:none; background:#F2F3F6; padding:10px 14px; font-size:14.5px; resize:none; outline:none; font-family:inherit; }
+    .pz-cmt-bar button { height:40px; padding:0 16px; border-radius:20px; border:none; background:var(--color-primary); color:#fff; font-weight:800; cursor:pointer; }
+    .pz-cmt-bar button:disabled { opacity:.4; }
+    .pz-popular { margin-top:26px; border-top:8px solid #F5F6F8; margin-left:-18px; margin-right:-18px; padding:18px 18px 0; }
+    .pz-popular .pz-row { padding:14px 0; cursor:pointer; display:flex; gap:12px; }
+    .pz-popular .pz-row + .pz-row { border-top:1px solid var(--dg-line); }
+    .pz-f-lbl { font-size:14px; font-weight:800; margin:18px 0 8px; }
+    .pz-f-cats { display:flex; flex-wrap:wrap; gap:6px; }
+    .pz-f-cats button { height:36px; padding:0 14px; border-radius:999px; border:1px solid #E5E7EB; background:#fff; font-size:14px; font-weight:700; cursor:pointer; }
+    .pz-f-cats button.on { background:var(--color-primary); border-color:var(--color-primary); color:#fff; }
+    .pz-f-input { width:100%; border:1px solid #E5E7EB; border-radius:12px; padding:12px 14px; font-size:15px; outline:none; font-family:inherit; }
+    .pz-f-input:focus { border-color:var(--color-primary); }
+    .pz-f-photos { display:flex; gap:8px; flex-wrap:wrap; }
+    .pz-f-ph { position:relative; width:76px; height:76px; border-radius:10px; overflow:hidden; background:#F2F3F6; }
+    .pz-f-ph img { width:100%; height:100%; object-fit:cover; }
+    .pz-f-ph button { position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%; border:none; background:rgba(0,0,0,.6); color:#fff; font-size:12px; cursor:pointer; }
+    .pz-f-add { width:76px; height:76px; border-radius:10px; border:1.5px dashed #CDD1D8; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:12px; color:var(--dg-text-sub); cursor:pointer; }
+    .pz-lightbox { position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.92); display:flex; align-items:center; justify-content:center; }
+    .pz-lightbox img { max-width:100%; max-height:100%; object-fit:contain; }
     .cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
     .cal-head b { font-size:20px; }
     .cal-nav-btn { width:40px; height:40px; border-radius:50%; border:none; background:var(--color-primary-light); color:var(--color-primary); font-size:20px; cursor:pointer; }
@@ -960,6 +1045,8 @@
       /* FAB 2종: 화면 우측 끝이 아니라 앱 컬럼 우측 안쪽에 붙게 */
       #sec-activity .act-fab { right: calc(50% - (var(--app-max-width) / 2) + 20px); }
       #sec-connect  .cn-fab  { right: calc(50% - (var(--app-max-width) / 2) + 16px); }
+      #sec-calendar .pz-fab  { right: calc(50% - (var(--app-max-width) / 2) + 16px); }
+      .pz-ov { left: calc(50% - var(--app-max-width) / 2); right: auto; width: var(--app-max-width); border-left: 1px solid var(--dg-line); border-right: 1px solid var(--dg-line); }
 
       /* 설치 안내 토스트 — 이 요소는 kkoCardIn 애니메이션이 transform을 점유하므로
          translateX(-50%)로 가운데 맞추면 재생 0.3초 동안 위치가 튄다. left를 calc로 직접 계산. */
@@ -1091,9 +1178,27 @@
          하나씩 갖고, switchTab()이 .active 클래스로 노출을 전환한다(iframe src 재로드 없음 —
          첫 진입 시에만 각 섹션의 mount()를 1회 호출해 데이터를 불러온다). -->
     <div id="appSections" class="flex-1 w-full overflow-y-auto" style="background:#F5F5F5">
-      <!-- ===== SECTION: calendar ===== (원본: calendar-room.html) -->
+      <!-- ===== SECTION: calendar → 교사광장 ===== (2026-09-29: 탭 이름 "캘린더"→"교사광장", 해시는 #calendar 유지)
+           당근 "동네생활"처럼: 앱바(로고·검색) + 알약 메뉴줄 / 📅 도마 전도 일정(기존 캘린더 그대로) /
+           🔥 지금 뜨는 교사 이야기 / 교사 이야기 피드. 글 상세·글쓰기는 body 최상위 #pzOverlayHost. -->
       <section id="sec-calendar" class="app-section">
+        <div class="pz-appbar">
+          <div class="pz-appbar-row">
+            <div class="pz-logo"><i>✦</i>교사광장</div>
+            <label class="pz-search">
+              <input id="pzSearch" type="search" placeholder="교사 이야기 검색" autocomplete="off">
+              <svg class="lucide-i" style="width:18px;height:18px;color:#868B94" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </label>
+            <div class="pz-appbar-actions">
+              <button type="button" title="내 계정" onclick="openAccountSheet()">
+                <svg class="lucide-i" style="width:22px;height:22px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="pz-pills" id="pzPills"></div>
+        </div>
         <main class="cal-wrap">
+          <div class="pz-sec-title" id="pzCalTitle">📅 도마 전도 일정</div>
           <div class="kko-card" style="padding-bottom:10px">
             <div class="cal-head">
               <button class="cal-nav-btn" id="calPrev">‹</button>
@@ -1112,6 +1217,13 @@
             <div id="calAds"><div class="cal-hint">불러오는 중...</div></div>
           </div>
         </main>
+        <div class="pz-wrap">
+          <div class="pz-sec-title" id="pzHotTitle">🔥 지금 뜨는 교사 이야기</div>
+          <div class="pz-box" id="pzHot"><div class="pz-empty">불러오는 중...</div></div>
+          <div class="pz-sec-title" id="pzFeedTitle"><span id="pzFeedLabel">교사 이야기</span><small id="pzFeedCount"></small></div>
+          <div class="pz-box" id="pzFeed"><div class="pz-empty">불러오는 중...</div></div>
+        </div>
+        <button type="button" class="pz-fab" id="pzFab">+ 글쓰기</button>
       </section>
 
       <!-- ===== SECTION: activity ===== (원본: home.html "홈+활동방 통합" 대시보드)
@@ -1199,9 +1311,9 @@
       <!-- 2026-09-22: SPA 통합 — 해시 라우팅(#calendar/#activity/#connect/#ai/#textbook/#admin).
            관리자 탭은 isAdmin()이 true일 때만 노출(현재는 라이브 코드와 동일하게 임시 전체 개방 —
            복구 지점은 isAdmin() 함수 주석 참고). -->
-      <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="캘린더">
-        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /></svg></span>
-        <span class="tab-label">캘린더</span>
+      <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="교사광장">
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span class="tab-label">교사광장</span>
       </button>
       <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="내활동">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg></span>
@@ -1229,6 +1341,7 @@
   <div id="kkoInstallToast" style="display:none"><span id="kkoInstallToastText"></span></div>
   <div id="appToastHost"></div>
   <div id="appSheetHost"></div>
+  <div id="pzOverlayHost"></div>
 
   <!-- 2026-09-22: activity 섹션(원본 home.html) 전용 다이얼로그 4개 — 어느 섹션이 활성이든
        상관없이 전역 오버레이로 동작하므로 body 최상위에 둔다. -->
@@ -1664,7 +1777,7 @@
     const TAB_IDS = ['calendar', 'activity', 'connect', 'ai', 'textbook', 'admin'];
     // 섹션의 자체 헤더가 이미 있어서(관리자류) 공용 헤더를 숨겨야 하는 탭.
     // (2026-09-22: 인사말 바 자체를 없애서 TAB_GREET/greetTail 로직도 함께 제거)
-    const OWN_HEADER_TABS = ['activity', 'ai', 'textbook', 'admin'];
+    const OWN_HEADER_TABS = ['activity', 'ai', 'textbook', 'admin', 'calendar'];   // 2026-09-29 교사광장 자체 앱바
 
     function switchTab(tab) {
       if (!TAB_IDS.includes(tab)) tab = 'activity';
@@ -2014,7 +2127,317 @@
         } catch (e) { toast(e.message, true); btn.disabled = false; }
       };
     }
-    window.Sections.calendar = { mount() { calLoadAll(); } };
+    window.Sections.calendar = { mount() { calLoadAll(); if (window.pzMount) pzMount(); } };
+
+    // ════════════════════════════════════════════════════════════════
+    // ===== 교사광장 — 교사 이야기 커뮤니티 (2026-09-29) =====
+    // 당근 "동네생활" 구성: 알약 메뉴줄 → 🔥 지금 뜨는 교사 이야기(1~5위) → 교사 이야기 피드
+    // (제목·요약 2줄·지역·주제·시간·공감/댓글 수·썸네일) → 글 상세(작성자·본문·사진·해시태그·
+    // 공감·댓글 등록순/최신순·인기글) + 글쓰기(주제·제목·내용·사진 4장·해시태그).
+    // 백엔드: listPlazaPosts/getPlazaPost/savePlazaPost/deletePlazaPost/togglePlazaLike/
+    //         addPlazaComment/deletePlazaComment (backend-source/PlazaBackend.gs).
+    // ════════════════════════════════════════════════════════════════
+    (function () {
+      const PZ_CATS = ['성공 사례', '실패 사례', '교사 사연', '노하우', '질문', '감사·나눔'];
+      const PZ_CAT_CLS = { '성공 사례': 'c-succ', '실패 사례': 'c-fail', '교사 사연': 'c-story', '노하우': 'c-tip', '질문': 'c-q', '감사·나눔': 'c-thx' };
+      const PZ_PAGE = 20;
+      const P = { cat: '', kw: '', rows: [], hot: [], total: 0, loading: false, mounted: false, detail: null, sort: 'asc', ovOpen: false };
+      const $ = id => document.getElementById(id);
+      const ICON_LIKE = '<svg class="lucide-i" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
+      const ICON_CMT = '<svg class="lucide-i" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+
+      function ago(s) {
+        const t = new Date(String(s || '').replace(' ', 'T') + '+09:00'), d = (Date.now() - t) / 1000;
+        if (!isFinite(d)) return '';
+        if (d < 60) return '방금 전';
+        if (d < 3600) return Math.floor(d / 60) + '분 전';
+        if (d < 86400) return Math.floor(d / 3600) + '시간 전';
+        if (d < 86400 * 30) return Math.floor(d / 86400) + '일 전';
+        return String(s).slice(0, 10);
+      }
+      function catHtml(c) { return c ? `<span class="pz-cat ${PZ_CAT_CLS[c] || ''}">${esc(c)}</span>` : ''; }
+      function avaHtml(name, photo, sm) {
+        if (photo) return `<img class="pz-ava${sm ? ' sm' : ''}" src="${esc(photo)}" alt="">`;
+        const colors = ['#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
+        let h = 0; for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+        return `<div class="pz-ava${sm ? ' sm' : ''}" style="background:${colors[h % colors.length]}">${esc(String(name || '?').slice(0, 1))}</div>`;
+      }
+      function cntHtml(p) {
+        return `<div class="pz-cnt"><span style="display:flex;align-items:center;gap:3px">${ICON_LIKE}${p.likeCount}</span><span style="display:flex;align-items:center;gap:3px">${ICON_CMT}${p.commentCount}</span></div>`;
+      }
+      function thumbHtml(p) { return p.thumb ? `<img class="pz-thumb" src="${esc(p.thumb)}" alt="">` : ''; }
+      function metaText(p) { return [p.region, p.category, ago(p.createdAt)].filter(Boolean).join(' · '); }
+
+      // ── 목록 ──
+      function renderPills() {
+        const pills = [['cal', '📅 전도 일정'], ['hot', '🔥 인기글'], ['', '전체']].concat(PZ_CATS.map(c => [c, c])).concat([['write', '✍️ 글쓰기']]);
+        $('pzPills').innerHTML = pills.map(([k, l]) => {
+          const on = !['cal', 'hot', 'write'].includes(k) && k === P.cat;
+          return `<button type="button" class="pz-pill${on ? ' on' : ''}" data-pz-pill="${esc(k)}">${esc(l)}</button>`;
+        }).join('');
+      }
+      function scrollToEl(id) {
+        const el = $(id), sec = $('appSections');
+        if (!el || !sec) return;
+        const bar = document.querySelector('#sec-calendar .pz-appbar');
+        sec.scrollTo({ top: el.getBoundingClientRect().top - sec.getBoundingClientRect().top + sec.scrollTop - (bar ? bar.offsetHeight : 0) - 4, behavior: 'smooth' });
+      }
+      function renderLists() {
+        const hot = P.hot || [];
+        $('pzHot').innerHTML = hot.length
+          ? hot.map((p, i) => `<div class="pz-hot-row" data-pz-open="${esc(p.postId)}">
+              <div class="pz-rank">${i + 1}</div>
+              <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-meta">${esc([p.category, ago(p.createdAt)].filter(Boolean).join(' · '))}</div>${cntHtml(p)}</div>
+              ${thumbHtml(p)}</div>`).join('') + `<button type="button" class="pz-more" data-pz-pill="feed">더보기 ›</button>`
+          : `<div class="pz-empty">최근 2주 동안 올라온 이야기가 없어요.<br>첫 이야기를 들려주세요!</div>`;
+        $('pzFeedLabel').textContent = P.kw ? `'${P.kw}' 검색 결과` : (P.cat || '교사 이야기');
+        $('pzFeedCount').textContent = P.total ? `${P.total}개` : '';
+        const rows = P.rows;
+        $('pzFeed').innerHTML = rows.length
+          ? rows.map(p => `<div class="pz-row" data-pz-open="${esc(p.postId)}">
+              <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div><div class="pz-meta">${esc(metaText(p))}</div>${cntHtml(p)}</div>
+              ${thumbHtml(p)}</div>`).join('') + (rows.length < P.total ? `<button type="button" class="pz-more" id="pzMoreBtn">${P.loading ? '불러오는 중...' : '더보기 ›'}</button>` : '')
+          : `<div class="pz-empty">${P.loading ? '불러오는 중...' : (P.kw || P.cat ? '조건에 맞는 이야기가 없어요.' : '아직 올라온 이야기가 없어요.<br>전도하며 겪은 성공·실패 사례와 사연을 나눠주세요!')}</div>`;
+        const more = $('pzMoreBtn'); if (more) more.onclick = () => load(false);
+      }
+      async function load(reset) {
+        if (P.loading) return;
+        P.loading = true;
+        if (reset) { P.rows = []; P.total = 0; }
+        renderLists();
+        try {
+          const res = await callApi({ action: 'listPlazaPosts', memberId: MEMBER_ID, category: P.cat, keyword: P.kw, offset: reset ? 0 : P.rows.length, limit: PZ_PAGE });
+          if (res && res.error) throw new Error(res.error);
+          P.rows = (reset ? [] : P.rows).concat(res.rows || []);
+          P.total = res.total || 0;
+          if (res.hot) P.hot = res.hot;
+        } catch (e) { toast(e.message, true); }
+        P.loading = false;
+        renderLists();
+      }
+
+      // ── 전체화면 오버레이(글 상세/글쓰기) + 휴대폰 뒤로가기로 닫기 ──
+      function ovShow(html) {
+        const host = $('pzOverlayHost');
+        host.innerHTML = `<div class="pz-ov">${html}</div>`;
+        if (!P.ovOpen) { P.ovOpen = true; try { history.pushState({ pz: 1 }, '', location.href); } catch (e) {} }
+      }
+      function ovHide() { $('pzOverlayHost').innerHTML = ''; P.ovOpen = false; P.detail = null; }
+      function ovClose() { if (P.ovOpen) { try { history.back(); } catch (e) { ovHide(); } } }
+      window.addEventListener('popstate', () => { if (P.ovOpen) ovHide(); });
+
+      // ── 글 상세 ──
+      async function openPost(postId) {
+        ovShow(`<div class="pz-ov-bar"><button type="button" data-pz-back>‹</button><div class="t">교사광장</div><span style="width:40px"></span></div><div class="pz-ov-body"><div class="pz-empty">불러오는 중...</div></div>`);
+        try {
+          const res = await callApi({ action: 'getPlazaPost', memberId: MEMBER_ID, postId });
+          if (res && res.error) throw new Error(res.error);
+          P.detail = res; P.sort = 'asc';
+          if (P.ovOpen) renderPost();
+        } catch (e) { toast(e.message, true); ovClose(); }
+      }
+      function renderPost() {
+        const { post: p, comments } = P.detail;
+        const cs = comments.slice().sort((a, b) => P.sort === 'asc' ? (a.createdAt < b.createdAt ? -1 : 1) : (a.createdAt < b.createdAt ? 1 : -1));
+        const popular = (P.hot.length ? P.hot : P.rows).filter(x => x.postId !== p.postId).slice(0, 5);
+        const host = $('pzOverlayHost');
+        const keepDraft = host.querySelector('#pzCmtInput') ? host.querySelector('#pzCmtInput').value : '';
+        host.innerHTML = `<div class="pz-ov">
+          <div class="pz-ov-bar"><button type="button" data-pz-back>‹</button><div class="t">교사광장</div>${p.isMine ? '<button type="button" id="pzPostMenu">⋯</button>' : '<span style="width:40px"></span>'}</div>
+          <div class="pz-ov-body" id="pzOvBody">
+            ${catHtml(p.category)}
+            <div class="pz-author">${avaHtml(p.name, p.authorPhoto)}
+              <div><div style="font-size:15px;font-weight:800">${esc(p.name)}</div><div class="pz-cmt-meta">${esc([p.region, p.dept].filter(Boolean).join(' '))}${p.region || p.dept ? ' · ' : ''}${esc(ago(p.createdAt))}${p.updatedAt && p.updatedAt !== p.createdAt ? ' (수정됨)' : ''}</div></div>
+            </div>
+            <div class="pz-d-title">${esc(p.title)}</div>
+            <div class="pz-d-body">${esc(p.body)}</div>
+            ${(p.photos || []).map(src => `<img class="pz-d-photo" src="${esc(src)}" alt="첨부 사진">`).join('')}
+            ${p.tags.length ? `<div class="pz-tags">${p.tags.map(t => `<span>#${esc(t)}</span>`).join('')}</div>` : ''}
+            ${p.likeCount ? `<div class="pz-react">💜 선생님 ${p.likeCount}명이 공감했어요</div>` : ''}
+            <div class="pz-actions">
+              <button type="button" id="pzLikeBtn" class="${p.liked ? 'on' : ''}">${ICON_LIKE} 공감 ${p.likeCount}</button>
+              <button type="button" id="pzCmtFocus">${ICON_CMT} 댓글 ${comments.length}</button>
+            </div>
+            <div class="pz-sort"><button type="button" data-pz-sort="asc" class="${P.sort === 'asc' ? 'on' : ''}">등록순</button><button type="button" data-pz-sort="desc" class="${P.sort === 'desc' ? 'on' : ''}">최신순</button></div>
+            ${cs.length ? cs.map(c => `<div class="pz-cmt">${avaHtml(c.name, '', true)}
+                <div style="flex:1;min-width:0"><div class="pz-cmt-name">${esc(c.name)}</div><div class="pz-cmt-meta">${esc([c.region, ago(c.createdAt)].filter(Boolean).join(' · '))}</div>
+                <div class="pz-cmt-text">${esc(c.text)}</div>${c.isMine ? `<button type="button" class="pz-cmt-del" data-pz-delcmt="${esc(c.commentId)}">삭제</button>` : ''}</div></div>`).join('')
+              : '<div class="pz-empty" style="padding:22px 0">첫 댓글로 응원을 남겨주세요.</div>'}
+            ${popular.length ? `<div class="pz-popular"><div class="pz-sec-title" style="display:flex;justify-content:space-between;font-size:17px;font-weight:800;margin:0 0 4px">교사광장 인기글<small style="font-size:13px;font-weight:600;color:var(--dg-text-sub);cursor:pointer" data-pz-tofeed>더보기 ›</small></div>
+              ${popular.map(x => `<div class="pz-row" data-pz-open="${esc(x.postId)}"><div class="pz-row-main" style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.title)}</div><div style="font-size:13.5px;color:#4D5159;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.summary)}</div><div class="pz-cmt-meta" style="margin-top:4px">${esc(metaText(x))}</div>${cntHtml(x)}</div>${x.thumb ? `<img src="${esc(x.thumb)}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;flex-shrink:0" alt="">` : ''}</div>`).join('')}</div>` : ''}
+          </div>
+          <div class="pz-cmt-bar"><textarea id="pzCmtInput" rows="1" maxlength="1000" placeholder="따뜻한 댓글을 남겨주세요"></textarea><button type="button" id="pzCmtSend">등록</button></div>
+        </div>`;
+        const inp = $('pzCmtInput'); inp.value = keepDraft;
+        inp.oninput = () => { inp.style.height = 'auto'; inp.style.height = Math.min(120, inp.scrollHeight) + 'px'; };
+        $('pzCmtSend').onclick = sendComment;
+        $('pzCmtFocus').onclick = () => inp.focus();
+        $('pzLikeBtn').onclick = toggleLike;
+        const menu = $('pzPostMenu'); if (menu) menu.onclick = () => postMenu(p);
+      }
+      async function toggleLike() {
+        const p = P.detail.post;
+        p.liked = !p.liked; p.likeCount += p.liked ? 1 : -1; renderPost();
+        try {
+          const res = await callApi({ action: 'togglePlazaLike', memberId: MEMBER_ID, postId: p.postId });
+          if (res && res.error) throw new Error(res.error);
+          p.liked = res.liked; p.likeCount = res.likeCount;
+          [].concat(P.rows, P.hot).forEach(x => { if (x.postId === p.postId) { x.liked = res.liked; x.likeCount = res.likeCount; } });
+          if (P.detail && P.detail.post === p) renderPost();
+          renderLists();
+        } catch (e) { toast(e.message, true); }
+      }
+      async function sendComment() {
+        const inp = $('pzCmtInput'), text = inp.value.trim();
+        if (!text) return inp.focus();
+        const btn = $('pzCmtSend'); btn.disabled = true;
+        try {
+          const pid = P.detail.post.postId;
+          const r = await callApi({ action: 'addPlazaComment', memberId: MEMBER_ID, name: MY_NAME, postId: pid, text });
+          if (r && r.error) throw new Error(r.error);
+          inp.value = '';
+          const res = await callApi({ action: 'getPlazaPost', memberId: MEMBER_ID, postId: pid });
+          if (res && !res.error && P.ovOpen) { P.detail = res; renderPost(); const b = $('pzOvBody'); if (b && P.sort === 'asc') b.scrollTop = b.scrollHeight; }
+          [].concat(P.rows, P.hot).forEach(x => { if (x.postId === pid) x.commentCount = (res && res.comments ? res.comments.length : x.commentCount + 1); });
+          renderLists();
+        } catch (e) { toast(e.message, true); btn.disabled = false; }
+      }
+      async function deleteComment(cid) {
+        if (!confirm('댓글을 지울까요?')) return;
+        try {
+          const r = await callApi({ action: 'deletePlazaComment', memberId: MEMBER_ID, commentId: cid });
+          if (r && r.error) throw new Error(r.error);
+          const pid = P.detail.post.postId;
+          const res = await callApi({ action: 'getPlazaPost', memberId: MEMBER_ID, postId: pid });
+          if (res && !res.error && P.ovOpen) { P.detail = res; renderPost(); }
+          load(true);
+        } catch (e) { toast(e.message, true); }
+      }
+      function postMenu(p) {
+        openSheet(`<div style="display:flex;flex-direction:column;gap:8px;padding-top:6px">
+          <button class="kko-btn-outline" id="pzEditPost">✏️ 글 수정하기</button>
+          <button class="kko-btn-outline" id="pzDelPost" style="color:var(--color-error,#D32F2F)">🗑️ 글 삭제하기</button></div>`);
+        $('pzEditPost').onclick = () => { closeSheet(); openWrite(p); };
+        $('pzDelPost').onclick = async () => {
+          if (!confirm('이 글을 지울까요? 되돌릴 수 없어요.')) return;
+          closeSheet();
+          try {
+            const r = await callApi({ action: 'deletePlazaPost', memberId: MEMBER_ID, postId: p.postId });
+            if (r && r.error) throw new Error(r.error);
+            toast('글을 지웠어요.'); ovClose(); load(true);
+          } catch (e) { toast(e.message, true); }
+        };
+      }
+
+      // ── 사진 줄이기: 긴 변 maxSide 이하, dataURL이 maxChars 이하가 될 때까지 화질·크기를 낮춘다 ──
+      function loadImage(src) { return new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => no(new Error('이미지를 불러오지 못했어요.')); im.src = src; }); }
+      function fileToDataURL(file) { return new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(new Error('이미지를 읽지 못했어요.')); r.readAsDataURL(file); }); }
+      async function shrink(src, maxSide, maxChars, square) {
+        const im = await loadImage(src);
+        let side = maxSide;
+        for (let round = 0; round < 6; round++) {
+          const c = document.createElement('canvas');
+          let sx = 0, sy = 0, sw = im.width, sh = im.height;
+          if (square) { const m = Math.min(sw, sh); sx = (sw - m) / 2; sy = (sh - m) / 2; sw = sh = m; }
+          const scale = Math.min(1, side / Math.max(sw, sh));
+          c.width = Math.round(sw * scale); c.height = Math.round(sh * scale);
+          c.getContext('2d').drawImage(im, sx, sy, sw, sh, 0, 0, c.width, c.height);
+          for (const q of [0.8, 0.7, 0.6, 0.5, 0.42]) { const u = c.toDataURL('image/jpeg', q); if (u.length <= maxChars) return u; }
+          side = Math.round(side * 0.8);
+        }
+        throw new Error('사진이 너무 커요. 다른 사진을 골라주세요.');
+      }
+
+      // ── 글쓰기 / 수정 ──
+      function openWrite(existing) {
+        const f = existing
+          ? { postId: existing.postId, category: existing.category, title: existing.title, body: existing.body, tags: existing.tags.map(t => '#' + t).join(' '), photos: (existing.photos || []).slice() }
+          : { postId: '', category: P.cat || '', title: '', body: '', tags: '', photos: [] };
+        let saving = false;
+        const draw = () => {
+          ovShow(`<div class="pz-ov-bar"><button type="button" data-pz-back>닫기</button><div class="t">${f.postId ? '글 수정' : '교사광장 글쓰기'}</div><button type="button" id="pzSave" style="color:var(--color-primary)">${saving ? '올리는 중...' : '완료'}</button></div>
+            <div class="pz-ov-body">
+              <div class="pz-f-lbl" style="margin-top:4px">주제</div>
+              <div class="pz-f-cats">${PZ_CATS.map(c => `<button type="button" data-pz-cat="${esc(c)}" class="${f.category === c ? 'on' : ''}">${esc(c)}</button>`).join('')}</div>
+              <div class="pz-f-lbl">제목</div>
+              <input class="pz-f-input" id="pzFTitle" maxlength="80" placeholder="예: 세 번 거절당한 분이 복음방에 오시기까지" value="${esc(f.title)}">
+              <div class="pz-f-lbl">내용</div>
+              <textarea class="pz-f-input" id="pzFBody" maxlength="5000" style="min-height:220px;line-height:1.6" placeholder="전도하며 겪은 성공·실패 사례, 사연을 들려주세요.&#10;어떤 상황이었고, 무엇을 했고, 어떻게 됐는지 적으면 다른 선생님들께 큰 도움이 돼요.">${esc(f.body)}</textarea>
+              <div class="pz-f-lbl">사진 <small style="font-weight:600;color:var(--dg-text-sub)">(최대 4장)</small></div>
+              <div class="pz-f-photos">
+                ${f.photos.map((src, i) => `<div class="pz-f-ph"><img src="${esc(src)}" alt=""><button type="button" data-pz-rmph="${i}">✕</button></div>`).join('')}
+                ${f.photos.length < 4 ? `<label class="pz-f-add"><span style="font-size:22px;line-height:1">📷</span>${f.photos.length}/4<input type="file" id="pzFFile" accept="image/*" multiple style="display:none"></label>` : ''}
+              </div>
+              <div class="pz-f-lbl">해시태그</div>
+              <input class="pz-f-input" id="pzFTags" maxlength="200" placeholder="#복음방 #섭외 #청년" value="${esc(f.tags)}">
+            </div>`);
+          const bind = (id, key) => { const el = $(id); el.oninput = () => { f[key] = el.value; }; };
+          bind('pzFTitle', 'title'); bind('pzFBody', 'body'); bind('pzFTags', 'tags');
+          document.querySelectorAll('[data-pz-cat]').forEach(b => b.onclick = () => { f.category = b.dataset.pzCat; draw(); });
+          document.querySelectorAll('[data-pz-rmph]').forEach(b => b.onclick = () => { f.photos.splice(Number(b.dataset.pzRmph), 1); draw(); });
+          const file = $('pzFFile');
+          if (file) file.onchange = async () => {
+            const files = [...file.files].slice(0, 4 - f.photos.length);
+            try { for (const fl of files) f.photos.push(await shrink(await fileToDataURL(fl), 1000, 44000)); }
+            catch (e) { toast(e.message, true); }
+            draw();
+          };
+          $('pzSave').onclick = save;
+        };
+        const save = async () => {
+          if (saving) return;
+          if (!f.category) return toast('주제를 골라주세요.', true);
+          if (!f.title.trim()) return toast('제목을 입력해주세요.', true);
+          if (!f.body.trim()) return toast('내용을 입력해주세요.', true);
+          saving = true; draw();
+          try {
+            const thumb = f.photos[0] ? await shrink(f.photos[0], 200, 12000, true) : '';
+            const tags = f.tags.split(/[\s,]+/).map(t => t.replace(/^#+/, '').trim()).filter(Boolean);
+            const res = await callApi({ action: 'savePlazaPost', memberId: MEMBER_ID, name: MY_NAME,
+              data: { postId: f.postId, category: f.category, title: f.title.trim(), body: f.body.trim(), tags, thumb, photos: f.photos } });
+            if (res && res.error) throw new Error(res.error);
+            toast(f.postId ? '글을 고쳤어요.' : '교사광장에 글을 올렸어요!');
+            await load(true);
+            openPost(res.postId);   // 같은 오버레이에서 방금 올린 글 상세로 전환(히스토리 추가 없음)
+          } catch (e) { saving = false; draw(); toast(e.message, true); }
+        };
+        draw();
+      }
+
+      // ── 이벤트(위임) ──
+      document.addEventListener('click', e => {
+        const inPz = e.target.closest('#sec-calendar, #pzOverlayHost');
+        if (!inPz) return;
+        const ph = e.target.closest('.pz-d-photo');
+        if (ph) { const lb = document.createElement('div'); lb.className = 'pz-lightbox'; lb.innerHTML = `<img src="${esc(ph.src)}" alt="">`; lb.onclick = () => lb.remove(); document.body.appendChild(lb); return; }
+        if (e.target.closest('[data-pz-back]')) { ovClose(); return; }
+        const sortB = e.target.closest('[data-pz-sort]'); if (sortB) { P.sort = sortB.dataset.pzSort; renderPost(); return; }
+        const delC = e.target.closest('[data-pz-delcmt]'); if (delC) { deleteComment(delC.dataset.pzDelcmt); return; }
+        if (e.target.closest('[data-pz-tofeed]')) { ovClose(); setTimeout(() => scrollToEl('pzFeedTitle'), 250); return; }
+        const open = e.target.closest('[data-pz-open]'); if (open) { const id = open.dataset.pzOpen; openPost(id); return; }
+        const pill = e.target.closest('[data-pz-pill]');
+        if (pill) {
+          const k = pill.dataset.pzPill;
+          if (k === 'cal') return scrollToEl('pzCalTitle');
+          if (k === 'hot') return scrollToEl('pzHotTitle');
+          if (k === 'feed') return scrollToEl('pzFeedTitle');
+          if (k === 'write') return openWrite(null);
+          P.cat = k; P.kw = ''; const s = $('pzSearch'); if (s) s.value = '';
+          renderPills(); load(true); scrollToEl('pzHotTitle');
+        }
+      });
+
+      window.pzMount = function () {
+        if (P.mounted) return; P.mounted = true;
+        renderPills();
+        $('pzFab').onclick = () => openWrite(null);
+        const s = $('pzSearch');
+        const run = () => { const v = s.value.trim(); if (v === P.kw) return; P.kw = v; load(true); scrollToEl('pzFeedTitle'); };
+        s.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); s.blur(); run(); } };
+        s.onsearch = run;
+        load(true);
+      };
+    })();
 
     // ════════════════════════════════════════════════════════════════
     // ===== SECTION: activity ===== (원본: home.html "홈+활동방 통합" 대시보드)
@@ -2340,8 +2763,8 @@
       {
         key: 'time', label: '시간을 내기 어려워요',
         tip: '가능한 날짜만 골라 등록해두면, 그 날짜에 맞는 요청만 연결됩니다.',
-        dos: ['캘린더에서 가능한 날 확인하고 일정 등록', '명함에 요일·시간대만 지정해 올리기'],
-        go: [['캘린더 열기', 'calendar'], ['연결 탭 열기', 'connect']]
+        dos: ['교사광장의 도마 전도 일정에서 가능한 날 확인하고 일정 등록', '명함에 요일·시간대만 지정해 올리기'],
+        go: [['교사광장 열기', 'calendar'], ['연결 탭 열기', 'connect']]
       }
     ];
 
