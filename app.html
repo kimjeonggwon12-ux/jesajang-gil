@@ -242,6 +242,7 @@
     #sec-calendar .pz-meta { font-size:12.5px; color:var(--dg-text-sub); margin-top:4px; }
     #sec-calendar .pz-cnt { display:flex; gap:10px; font-size:12.5px; color:var(--dg-text-sub); margin-top:6px; }
     #sec-calendar .pz-thumb { width:76px; height:76px; flex-shrink:0; border-radius:10px; object-fit:cover; background:#F2F3F6; }
+    #sec-calendar .pz-guide { padding:11px 16px; font-size:13px; font-weight:600; color:#5B4B8A; background:#F6F3FF; border-bottom:1px solid #EEF0F3; line-height:1.45; }
     #sec-calendar .pz-empty { padding:36px 16px; text-align:center; color:var(--dg-text-sub); font-size:14px; line-height:1.6; }
     #sec-calendar .pz-fab { position:fixed; right:16px; bottom:76px; height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:800; border:none; box-shadow:var(--dg-shadow-fab); z-index:30; cursor:pointer; }
     .pz-cat { display:inline-block; padding:3px 8px; border-radius:6px; background:#F2F3F6; color:#4D5159; font-size:12px; font-weight:700; }
@@ -2152,6 +2153,16 @@
     (function () {
       const PZ_CATS = ['성공사례', '실패사례', '나눔', '질문'];   // 2026-09-30 지시서 기준
       const PZ_CAT_CLS = { '성공사례': 'c-succ', '실패사례': 'c-fail', '나눔': 'c-thx', '질문': 'c-q' };
+      // 2026-09-30: 각 글 박스 맨 위 한 줄 안내문
+      const PZ_GUIDE = {
+        hot: '🔥 최근 2주간 공감·댓글을 많이 받은 이야기 TOP 5예요.',
+        '': '📌 교사들이 올린 모든 이야기를 한곳에서 볼 수 있어요.',
+        '성공사례': '🎉 전도·교육에서 열매 맺은 경험을 나누고 노하우를 배워요.',
+        '실패사례': '💡 아쉬웠던 경험과 그 속에서 얻은 교훈을 나눠요.',
+        '나눔': '🤝 감사한 일, 자료·팁, 소소한 일상을 자유롭게 나눠요.',
+        '질문': '🙋 궁금한 점을 묻고 선배 교사들의 답을 들어봐요.'
+      };
+      function guideHtml(k) { return PZ_GUIDE[k] ? `<div class="pz-guide">${esc(PZ_GUIDE[k])}</div>` : ''; }
       const PZ_PAGE = 20;
       const P = { cat: '', kw: '', rows: [], hot: [], total: 0, loading: false, mounted: false, detail: null, sort: 'asc', ovOpen: false };
       const $ = id => document.getElementById(id);
@@ -2183,9 +2194,9 @@
 
       // ── 목록 ──
       function renderPills() {
-        const pills = [['cal', '📅 전도 일정'], ['hot', '🔥 인기글'], ['', '전체']].concat(PZ_CATS.map(c => [c, c])).concat([['write', '✍️ 글쓰기']]);
+        const pills = [['cal', '📅 전도 일정'], ['hot', '🔥 인기글'], ['', '전체']].concat(PZ_CATS.map(c => [c, c]));   // 2026-09-30: '✍️ 글쓰기' 알약 삭제(우측 하단 FAB와 중복)
         $('pzPills').innerHTML = pills.map(([k, l]) => {
-          const on = !['cal', 'hot', 'write'].includes(k) && k === P.cat;
+          const on = !['cal', 'hot'].includes(k) && k === P.cat;
           return `<button type="button" class="pz-pill${on ? ' on' : ''}" data-pz-pill="${esc(k)}">${esc(l)}</button>`;
         }).join('');
       }
@@ -2197,20 +2208,20 @@
       }
       function renderLists() {
         const hot = P.hot || [];
-        $('pzHot').innerHTML = hot.length
+        $('pzHot').innerHTML = guideHtml('hot') + (hot.length
           ? hot.map((p, i) => `<div class="pz-hot-row" data-pz-open="${esc(p.postId)}">
               <div class="pz-rank">${i + 1}</div>
               <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-meta">${esc([p.category, maskName(p.name), ago(p.createdAt)].filter(Boolean).join(' · '))}</div>${cntHtml(p)}</div>
               ${thumbHtml(p)}</div>`).join('') + `<button type="button" class="pz-more" data-pz-pill="feed">더보기 ›</button>`
-          : `<div class="pz-empty">최근 2주 동안 올라온 이야기가 없어요.<br>첫 이야기를 들려주세요!</div>`;
+          : `<div class="pz-empty">최근 2주 동안 올라온 이야기가 없어요.<br>첫 이야기를 들려주세요!</div>`);
         $('pzFeedLabel').textContent = P.kw ? `'${P.kw}' 검색 결과` : (P.cat ? '📌 ' + P.cat : '📌 교사 광장');
         $('pzFeedCount').textContent = P.total ? `${P.total}개` : '';
         const rows = P.rows;
-        $('pzFeed').innerHTML = rows.length
+        $('pzFeed').innerHTML = (P.kw ? '' : guideHtml(P.cat)) + (rows.length
           ? rows.map(p => `<div class="pz-row" data-pz-open="${esc(p.postId)}">
               <div class="pz-row-main"><div style="margin-bottom:4px">${catHtml(p.category)}</div><div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div><div class="pz-meta">${esc(metaText(p))}</div>${cntHtml(p)}</div>
               ${thumbHtml(p)}</div>`).join('') + (rows.length < P.total ? `<button type="button" class="pz-more" id="pzMoreBtn">${P.loading ? '불러오는 중...' : '더보기 ›'}</button>` : '')
-          : `<div class="pz-empty">${P.loading ? '불러오는 중...' : (P.kw || P.cat ? '조건에 맞는 이야기가 없어요.' : '아직 올라온 이야기가 없어요.<br>전도하며 겪은 성공·실패 사례와 사연을 나눠주세요!')}</div>`;
+          : `<div class="pz-empty">${P.loading ? '불러오는 중...' : (P.kw || P.cat ? '조건에 맞는 이야기가 없어요.' : '아직 올라온 이야기가 없어요.<br>전도하며 겪은 성공·실패 사례와 사연을 나눠주세요!')}</div>`);
         const more = $('pzMoreBtn'); if (more) more.onclick = () => load(false);
       }
       async function load(reset) {
@@ -2435,7 +2446,6 @@
           if (k === 'cal') return scrollToEl('pzCalTitle');
           if (k === 'hot') return scrollToEl('pzHotTitle');
           if (k === 'feed') return scrollToEl('pzFeedTitle');
-          if (k === 'write') return openWrite(null);
           P.cat = k; P.kw = ''; const s = $('pzSearch'); if (s) s.value = '';
           renderPills(); load(true); scrollToEl('pzHotTitle');
         }
