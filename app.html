@@ -283,6 +283,31 @@
     .pz-cat { display:inline-flex; align-items:center; gap:3px; padding:3px 9px 3px 7px; border-radius:999px; background:#F2F3F6; color:#4D5159; font-size:12px; font-weight:800; }
     .pz-cat.c-succ { background:#E8F7EE; color:#1B7F4B; } .pz-cat.c-fail { background:#FFF1E8; color:#C2410C; }
     .pz-cat.c-q { background:#E8F1FD; color:#2F6FDE; } .pz-cat.c-thx { background:#FFF0F6; color:#C2255C; }
+    /* 2026-09-30 앱 이름 공모전 — 리플릿과 같은 노란 카드 */
+    #sec-calendar .pz-contest { margin-top:22px; background:linear-gradient(160deg,#FEF3C7,#FDE68A); border-radius:20px; padding:18px 18px 16px; color:#78350F; box-shadow:0 1px 3px rgba(17,24,39,.05); }
+    .pzc-eyebrow { font-size:11.5px; font-weight:900; letter-spacing:.06em; color:#B45309; }
+    .pzc-title { font-size:21px; font-weight:900; line-height:1.3; margin-top:3px; color:#78350F; }
+    .pzc-desc { font-size:13.5px; line-height:1.5; margin-top:5px; color:#92400E; }
+    .pzc-top { display:flex; align-items:center; gap:6px; margin-top:12px; background:rgba(255,255,255,.75); border-radius:12px; padding:10px 12px; font-size:14px; cursor:pointer; }
+    .pzc-top b { font-weight:900; color:#78350F; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pzc-top span { margin-left:auto; flex-shrink:0; font-size:12.5px; font-weight:700; color:#B45309; }
+    .pzc-btns { display:flex; gap:8px; margin-top:12px; }
+    .pzc-go { flex:1; height:46px; border:none; border-radius:14px; background:#78350F; color:#fff; font-size:15px; font-weight:800; cursor:pointer; }
+    .pzc-go.wide { display:block; width:100%; flex:none; margin-top:18px; }
+    .pzc-see { flex-shrink:0; height:46px; padding:0 16px; border:none; border-radius:14px; background:#fff; color:#78350F; font-size:14px; font-weight:800; cursor:pointer; }
+    .pzc-ov .pzc-hero { background:linear-gradient(160deg,#FEF3C7,#FDE68A); border-radius:18px; padding:16px 16px 15px; margin-bottom:6px; }
+    .pzc-sub { font-size:13px; color:var(--dg-text-sub); margin:16px 2px 4px; }
+    .pzc-sub b { color:var(--dg-text); }
+    .pzc-row { display:flex; align-items:center; gap:12px; padding:14px 2px; border-bottom:1px solid var(--dg-line); cursor:pointer; }
+    .pzc-rank { width:30px; height:30px; flex-shrink:0; border-radius:10px; background:#F2F3F6; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:14px; color:#4D5159; }
+    .pzc-rank.r1 { background:#F59E0B; color:#fff; } .pzc-rank.r2 { background:#94A3B8; color:#fff; } .pzc-rank.r3 { background:#C2410C; color:#fff; }
+    .pzc-main { flex:1; min-width:0; }
+    .pzc-name { font-size:17px; font-weight:900; }
+    .pzc-mean { font-size:13.5px; color:#4D5159; line-height:1.45; margin-top:2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .pzc-who { font-size:12px; color:var(--dg-text-sub); margin-top:3px; }
+    .pzc-like { display:flex; flex-direction:column; align-items:center; gap:1px; flex-shrink:0; min-width:40px; color:var(--dg-text-sub); font-size:13px; }
+    .pzc-like.on { color:var(--color-primary); }
+    .pzc-note { margin-top:16px; font-size:13px; line-height:1.55; color:var(--dg-text-sub); background:#F6F7F9; border-radius:12px; padding:11px 13px; }
     .pz-d-hero { display:block; border-radius:0 !important; width:calc(100% + 36px); margin:-16px -18px 14px !important; max-height:70vh; object-fit:cover; background:#F2F3F6; cursor:zoom-in; }
     /* 글 상세 / 글쓰기 — body 최상위 전체화면(탭바 위) */
     .pz-ov { position:fixed; inset:0; z-index:9000; background:#fff; display:flex; flex-direction:column; letter-spacing:-0.02em; color:var(--dg-text); animation:kkoFadeIn .15s ease; }
@@ -1259,6 +1284,7 @@
           </div>
         </main>
         <div class="pz-wrap">
+          <div id="pzContest"></div>
           <div class="pz-sec-title c-hot" id="pzHotTitle"><span class="pz-sec-ic">🔥</span><span class="pz-sec-txt">지금 뜨는 교사 이야기</span></div>
           <div class="pz-box c-hot" id="pzHot"><div class="pz-empty">불러오는 중...</div></div>
           <div class="pz-sec-title c-all" id="pzFeedTitle"><span class="pz-sec-ic" id="pzFeedIc">📌</span><span class="pz-sec-txt" id="pzFeedLabel">교사 광장</span><small id="pzFeedCount"></small></div>
@@ -2353,9 +2379,9 @@
           const res = await callApi({ action: 'togglePlazaLike', memberId: MEMBER_ID, postId: p.postId });
           if (res && res.error) throw new Error(res.error);
           p.liked = res.liked; p.likeCount = res.likeCount;
-          [].concat(P.rows, P.hot).forEach(x => { if (x.postId === p.postId) { x.liked = res.liked; x.likeCount = res.likeCount; } });
+          [].concat(P.rows, P.hot, C.rows).forEach(x => { if (x.postId === p.postId) { x.liked = res.liked; x.likeCount = res.likeCount; } });
           if (P.detail && P.detail.post === p) renderPost();
-          renderLists();
+          renderLists(); renderContest();
         } catch (e) { toast(e.message, true); }
       }
       async function sendComment() {
@@ -2475,6 +2501,88 @@
         draw();
       }
 
+      // ── 앱 이름 공모전 (2026-09-30, 시범 사용단 리플릿 "이 앱의 이름을 지어 주세요") ──
+      // 제안 1건 = 광장 '나눔' 글, 제목 "[이름 공모] 이름", 내용 "담은 뜻: …" — 리플릿의 "광장 › 글쓰기 → 나눔,
+      // 제목에 [이름 공모]" 안내와 같은 형식이라 직접 쓴 글도 함께 모이고, 백엔드는 기존 광장 액션 그대로 쓴다.
+      // 공감 = 응원, 공감 많은 순으로 보여준다.
+      const PZC_TAG = '[이름 공모]';
+      const C = { rows: [], loaded: false };
+      const pzcName = p => String(p.title || '').slice(PZC_TAG.length).trim() || '(이름 없음)';
+      const pzcMeaning = p => String(p.summary || '').replace(/^\s*담은\s*뜻\s*[:：]\s*/, '');
+      async function loadContest() {
+        try {
+          const res = await callApi({ action: 'listPlazaPosts', memberId: MEMBER_ID, keyword: PZC_TAG, offset: 0, limit: 50 });
+          if (res && res.error) throw new Error(res.error);
+          C.rows = (res.rows || []).filter(p => String(p.title || '').startsWith(PZC_TAG));
+          C.loaded = true;
+        } catch (e) { /* 배너는 개수 없이도 동작 */ }
+        renderContest();
+      }
+      function renderContest() {
+        C.rows.sort((a, b) => b.likeCount - a.likeCount || b.commentCount - a.commentCount || (a.createdAt < b.createdAt ? 1 : -1));
+        const top = C.rows[0];
+        $('pzContest').innerHTML = `<div class="pz-contest">
+          <div class="pzc-eyebrow">NAMING CONTEST · 시범 사용단 특전</div>
+          <div class="pzc-title">이 앱의 이름을 지어 주세요</div>
+          <div class="pzc-desc">'교사 광장'은 임시 이름이에요. 뽑힌 이름이 정식 앱 이름이 돼요.</div>
+          ${top ? `<div class="pzc-top" data-pzc-list>🏆 지금 1위 <b>${esc(pzcName(top))}</b><span>공감 ${top.likeCount}</span></div>` : ''}
+          <div class="pzc-btns"><button type="button" class="pzc-go" data-pzc-write>✏️ 이름 제안하기</button><button type="button" class="pzc-see" data-pzc-list>제안 ${C.loaded ? C.rows.length + '개 ' : ''}보기 ›</button></div>
+        </div>`;
+      }
+      function openContestList() {
+        const rows = C.rows;
+        ovShow(`<div class="pz-ov-bar"><button type="button" data-pz-back>‹</button><div class="t">앱 이름 공모전</div><button type="button" data-pzc-write style="color:var(--color-primary)">제안</button></div>
+          <div class="pz-ov-body pzc-ov">
+            <div class="pzc-hero"><div class="pzc-eyebrow">NAMING CONTEST</div><div class="pzc-title">이 앱의 이름을 지어 주세요</div>
+              <div class="pzc-desc">복음방 교사들이 모이고, 연결되고, 열매 맺는 공간에 어울리는 이름을 제안해 주세요. 마음에 드는 이름에는 공감으로 응원해 주세요.</div></div>
+            <div class="pzc-sub">제안된 이름 <b>${rows.length}</b>개 · 공감 많은 순</div>
+            ${rows.length ? rows.map((p, i) => `<div class="pzc-row" data-pz-open="${esc(p.postId)}">
+                <div class="pzc-rank${i < 3 ? ' r' + (i + 1) : ''}">${i + 1}</div>
+                <div class="pzc-main"><div class="pzc-name">${esc(pzcName(p))}</div><div class="pzc-mean">${esc(pzcMeaning(p))}</div><div class="pzc-who">${esc(maskName(p.name))} 제안 · ${esc(ago(p.createdAt))}</div></div>
+                <div class="pzc-like${p.liked ? ' on' : ''}">${ICON_LIKE}<b>${p.likeCount}</b></div></div>`).join('')
+              : `<div class="pz-empty"><div style="font-size:40px;line-height:1;margin-bottom:10px">🏷️</div>아직 제안된 이름이 없어요.<br>첫 번째로 이름을 지어 주세요!</div>`}
+            <button type="button" class="pzc-go wide" data-pzc-write>✏️ 이름 제안하기</button>
+          </div>`);
+        if (!C.loaded) loadContest().then(() => { if (P.ovOpen && document.querySelector('.pzc-ov')) openContestList(); });
+      }
+      function openContestForm() {
+        const f = { name: '', meaning: '' };
+        let saving = false;
+        const draw = () => {
+          ovShow(`<div class="pz-ov-bar"><button type="button" data-pz-back>닫기</button><div class="t">이름 제안하기</div><button type="button" id="pzcSave" style="color:var(--color-primary)">${saving ? '올리는 중...' : '완료'}</button></div>
+            <div class="pz-ov-body pzc-ov">
+              <div class="pzc-hero"><div class="pzc-eyebrow">NAMING CONTEST</div><div class="pzc-title">이 앱의 이름을 지어 주세요</div>
+                <div class="pzc-desc">리플릿에 적은 이름을 그대로 옮겨 적어도 좋아요.</div></div>
+              <div class="pz-f-lbl">제안하는 이름</div>
+              <input class="pz-f-input" id="pzcName" maxlength="30" placeholder="예: 포도밭" value="${esc(f.name)}">
+              <div class="pz-f-lbl">담은 뜻</div>
+              <textarea class="pz-f-input" id="pzcMeaning" maxlength="500" style="min-height:120px;line-height:1.6" placeholder="이 이름에 어떤 마음을 담았는지 적어 주세요.">${esc(f.meaning)}</textarea>
+              <div class="pz-f-lbl">제안한 사람</div>
+              <div class="pz-f-input" style="background:#F6F7F9;color:var(--dg-text-sub)">${esc(MY_NAME || '내 이름')} <small>(자동으로 들어가요)</small></div>
+              <div class="pzc-note">제안은 광장 <b>'나눔'</b>에 <b>[이름 공모]</b> 글로 올라가요. 다른 선생님들이 공감·댓글로 응원할 수 있어요.</div>
+            </div>`);
+          $('pzcName').oninput = e => { f.name = e.target.value; };
+          $('pzcMeaning').oninput = e => { f.meaning = e.target.value; };
+          $('pzcSave').onclick = save;
+        };
+        const save = async () => {
+          if (saving) return;
+          const nm = f.name.trim(), mean = f.meaning.trim();
+          if (!nm) return toast('제안하는 이름을 입력해주세요.', true);
+          if (!mean) return toast('담은 뜻을 입력해주세요.', true);
+          saving = true; draw();
+          try {
+            const res = await callApi({ action: 'savePlazaPost', memberId: MEMBER_ID, name: MY_NAME,
+              data: { category: '나눔', title: `${PZC_TAG} ${nm}`, body: `담은 뜻: ${mean}`, tags: ['이름공모'], thumb: '', photos: [] } });
+            if (res && res.error) throw new Error(res.error);
+            toast('이름을 제안했어요. 고맙습니다!');
+            await loadContest(); load(true);
+            openContestList();
+          } catch (e) { saving = false; draw(); toast(e.message, true); }
+        };
+        draw();
+      }
+
       // ── 이벤트(위임) ──
       document.addEventListener('click', e => {
         const inPz = e.target.closest('#sec-calendar, #pzOverlayHost');
@@ -2482,6 +2590,8 @@
         const ph = e.target.closest('.pz-d-photo');
         if (ph) { const lb = document.createElement('div'); lb.className = 'pz-lightbox'; lb.innerHTML = `<img src="${esc(ph.src)}" alt="">`; lb.onclick = () => lb.remove(); document.body.appendChild(lb); return; }
         if (e.target.closest('[data-pz-back]')) { ovClose(); return; }
+        if (e.target.closest('[data-pzc-write]')) { openContestForm(); return; }
+        if (e.target.closest('[data-pzc-list]')) { openContestList(); return; }
         const sortB = e.target.closest('[data-pz-sort]'); if (sortB) { P.sort = sortB.dataset.pzSort; renderPost(); return; }
         const delC = e.target.closest('[data-pz-delcmt]'); if (delC) { deleteComment(delC.dataset.pzDelcmt); return; }
         if (e.target.closest('[data-pz-tofeed]')) { ovClose(); setTimeout(() => scrollToEl('pzFeedTitle'), 250); return; }
@@ -2506,6 +2616,7 @@
         s.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); s.blur(); run(); } };
         s.onsearch = run;
         load(true);
+        renderContest(); loadContest();
       };
     })();
 
