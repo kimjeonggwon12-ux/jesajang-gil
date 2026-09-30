@@ -326,7 +326,7 @@ function buildCoachingPrompt(targetGroup, stage, courseType, studentStatus, selM
 현재 진행 단계 및 목표: ${stage ? `[${stage}] - ${STAGE_DESCRIPTIONS[stage] || ''}` : '선택안함'}
 ${stage === '수강생' ? `수강 단계: ${courseType || '선택안함'}\n수강 상태: ${studentStatus || '선택안함'}` : ''}
 하츠 유형(심리 상담 결과 연동): ${heartsTypes && heartsTypes.length ? heartsTypes.join(', ') : '선택안함'}
-매난국죽: ${selSagunja || '선택안함'}
+사군자: ${selSagunja || '선택안함'}
 MBTI: ${selMbti || '선택안함'}
 에니어그램: ${selEnneagram || '선택안함'}
 DISC: ${selDisc || '선택안함'}
@@ -370,7 +370,7 @@ function buildAnalyzePrompt(targetGroup, stage, selMbti, selEnneagram, selDisc, 
   const commonContext = `
 대상: ${targetGroup || '선택안함'}
 현재 진행 단계 및 목표: ${stage ? `[${stage}] - ${STAGE_DESCRIPTIONS[stage] || ''}` : '선택안함'}
-매난국죽: ${selSagunja || '선택안함'}
+사군자: ${selSagunja || '선택안함'}
 MBTI: ${selMbti || '선택안함'}
 에니어그램: ${selEnneagram || '선택안함'}
 DISC: ${selDisc || '선택안함'}
@@ -877,7 +877,7 @@ function renderStudentCoachTab(body) {
         ${scSelect('sc-mbti', 'MBTI', sc.selMbti, mbtiOpts, '🧠')}
         ${scSelect('sc-enneagram', '에니어그램', sc.selEnneagram, ENNEAGRAM_OPTIONS, '🔆')}
         ${scSelect('sc-disc', 'DISC', sc.selDisc, DISC_OPTIONS, '<svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21v-6" /><path d="M12 21V3" /><path d="M19 21V9" /></svg>')}
-        ${scSelect('sc-sagunja', '매난국죽', sc.selSagunja, sagunjaOpts, '🎋')}
+        ${scSelect('sc-sagunja', '사군자', sc.selSagunja, sagunjaOpts, '🎋')}
       </div>
     </div>
 
