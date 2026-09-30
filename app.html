@@ -133,12 +133,12 @@
     /* 2026-09-22: 당근 스타일 하단 탭바 — 얇은 경계선, 비활성은 중성 회색(#868B94),
        활성만 브랜드 보라 + 아이콘 살짝 확대. 높이/라벨을 조금 키워 터치 영역 확보. */
     #bottomTabBar {
-      display: flex; height: 62px; flex-shrink: 0; background: #fff; border-top: 1px solid var(--dg-line);
+      display: flex; height: calc(66px + env(safe-area-inset-bottom, 0px)); flex-shrink: 0; background: #fff; border-top: 1px solid var(--dg-line);   /* 2026-09-30: 안전영역만큼 키우고 위 여백 확보 */
       position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;
       padding-bottom: env(safe-area-inset-bottom, 0px);
     }
     #bottomTabBar .tab {
-      flex: 1; display: flex; flex-direction: column; flex-wrap: nowrap; gap: 4px; align-items: center; justify-content: center;
+      flex: 1; display: flex; flex-direction: column; flex-wrap: nowrap; gap: 5px; align-items: center; justify-content: flex-start; padding-top: 13px; height: auto;
       color: var(--dg-text-sub); background: transparent !important; border: none !important;
       transition: color .15s ease;
     }
@@ -148,7 +148,7 @@
     #bottomTabBar .tab .tab-label { font-size: 11px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
     #bottomTabBar .tab.tab-active { color: var(--color-primary); }
     #bottomTabBar .tab.tab-active .tab-label { font-weight: 800; }
-    #appSections { padding-bottom: 76px; }
+    #appSections { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
     .app-section { display: none; }
     .app-section.active { display: block; }
     @keyframes stageUpDrop {
@@ -186,8 +186,8 @@
     /* 2026-09-23: 하단 탭바(62px+safe-area)가 시트 내용을 덮어서 마지막 줄이 안 보였다.
        시트 높이를 탭바만큼 줄이고, 아래 여백도 그만큼 준다. */
     .sheet { background: #fff; width: 100%; max-width: 560px;
-      max-height: calc(92vh - 62px); overflow-y: auto; border-radius: 20px 20px 0 0;
-      padding: 14px 16px calc(28px + 62px + env(safe-area-inset-bottom, 0px)); animation: sheetSlideUp .25s cubic-bezier(0.16,1,0.3,1); }
+      max-height: calc(92vh - 66px); overflow-y: auto; border-radius: 20px 20px 0 0;
+      padding: 14px 16px calc(28px + 66px + env(safe-area-inset-bottom, 0px)); animation: sheetSlideUp .25s cubic-bezier(0.16,1,0.3,1); }
     /* 시트 공통 뒤로 버튼 — 스크롤해도 항상 보이게 위에 붙여둔다.
        2026-09-23: 신청서처럼 긴 시트에서 빠져나갈 방법이 없다는 지적으로 신설. */
     .sheet-back-btn { position: sticky; top: -14px; z-index: 5; display: block; margin: -14px -16px 10px;
@@ -284,7 +284,7 @@
     #sec-calendar .pz-empty { padding:34px 16px; text-align:center; color:var(--dg-text-sub); font-size:14px; line-height:1.6; }
     #sec-calendar .pz-empty i { display:block; font-style:normal; font-size:40px; line-height:1; margin-bottom:10px; }
     #sec-calendar .pz-feed > .pz-empty { background:#fff; border-radius:18px; }
-    #sec-calendar .pz-fab { position:fixed; right:16px; bottom:76px; height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:800; border:none; box-shadow:var(--dg-shadow-fab); z-index:30; cursor:pointer; }
+    #sec-calendar .pz-fab { position:fixed; right:16px; bottom:calc(80px + env(safe-area-inset-bottom, 0px)); height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:800; border:none; box-shadow:var(--dg-shadow-fab); z-index:30; cursor:pointer; }
     .pz-cat { display:inline-flex; align-items:center; gap:3px; padding:3px 9px 3px 7px; border-radius:999px; background:#F2F3F6; color:#4D5159; font-size:12px; font-weight:800; }
     .pz-cat.c-succ { background:#E8F7EE; color:#1B7F4B; } .pz-cat.c-fail { background:#FFF1E8; color:#C2410C; }
     .pz-cat.c-q { background:#E8F1FD; color:#2F6FDE; } .pz-cat.c-thx { background:#FFF0F6; color:#C2255C; }
@@ -559,7 +559,7 @@
 
     /* ── 플로팅 액션 버튼(FAB) */
     #sec-activity .act-fab {
-      position:fixed; right:20px; bottom:80px; width:56px; height:56px; border-radius:50%;
+      position:fixed; right:20px; bottom:calc(82px + env(safe-area-inset-bottom, 0px)); width:56px; height:56px; border-radius:50%;
       background:var(--color-primary); color:#fff; border:none; line-height:1;
       display:flex; align-items:center; justify-content:center;
       box-shadow:var(--dg-shadow-fab); z-index:30; cursor:pointer; transition:transform .12s ease;
@@ -670,7 +670,7 @@
     .cn-badge-hot { background:#FFF0E5; color:#E8590C; }
     .cn-badge-tier { background:#E6F6EF; color:var(--color-success); }
     .cn-badge { display:inline-flex; align-items:center; font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px; }
-    #sec-connect .cn-fab { position:fixed; right:16px; bottom:76px; height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:700; border:none; box-shadow:0 4px 14px rgba(126,34,206,.4); z-index:30; cursor:pointer; }
+    #sec-connect .cn-fab { position:fixed; right:16px; bottom:calc(80px + env(safe-area-inset-bottom, 0px)); height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:700; border:none; box-shadow:0 4px 14px rgba(126,34,206,.4); z-index:30; cursor:pointer; }
     #sec-connect .cn-hint { font-size:13px; color:var(--dg-text-sub); margin-top:5px; line-height:1.5; }
 
     /* ── 2026-09-23 명함 상단: 사진 옆 여백에 이름·전화번호를 채워 세로 길이 절약 ── */
@@ -1431,9 +1431,9 @@
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         <span class="tab-label">광장</span>
       </button>
-      <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="내활동">
+      <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="나의교실">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg></span>
-        <span class="tab-label">내활동</span>
+        <span class="tab-label">나의교실</span>
       </button>
       <button role="tab" class="tab" data-tab="connect" onclick="switchTab('connect')" title="연결">
         <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3" /><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" /><path d="m21 3 1 11h-2" /><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" /><path d="M3 4h8" /></svg><span id="connectDot" style="display:none;position:absolute;top:-2px;right:-4px;width:9px;height:9px;border-radius:50%;background:#E5322D;border:1.5px solid #fff"></span></span>
@@ -2385,7 +2385,7 @@
                 <div class="pzm-main"><div class="pzm-name"><b>${esc(t.name)}</b><span>${esc([t.dept, t.region].filter(Boolean).join(' · '))}</span></div>
                   <div class="pzm-items">${(t.items || []).slice(0, 4).map(x => `<em>${esc(x.item)} ${x.count}</em>`).join('')}</div>
                   <div class="pzm-sum">${esc(t.summary)}</div></div></div>`).join('')}</div>`
-              : emptyHtml('📝', d.failed ? '잠시 후 다시 확인해 주세요.' : `${ml} 활동 기록이 아직 없어요.<br>내활동에 활동을 기록하면 이달의 교사 후보가 돼요!`))}
+              : emptyHtml('📝', d.failed ? '잠시 후 다시 확인해 주세요.' : `${ml} 활동 기록이 아직 없어요.<br>나의교실에 활동을 기록하면 이달의 교사 후보가 돼요!`))}
             <div class="pzm-rule">점수 = 활동마다 전도 단계 점수(섭외·친분 1, 만남 2, 상담 3, 복음방 4, 센터 5) + 긍정 반응 1${cur ? ' · 달이 끝날 때까지 바뀔 수 있어요' : ''}</div>
           </div>`;
         // 커피 쿠폰
