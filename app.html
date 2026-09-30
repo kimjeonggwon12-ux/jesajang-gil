@@ -230,6 +230,9 @@
     .c-fail { --pc:#C2410C; --pb:#FFF1E8; --pg:linear-gradient(145deg,#FFF1E8,#FED7C0); }
     .c-thx  { --pc:#C2255C; --pb:#FFF0F6; --pg:linear-gradient(145deg,#FFF0F6,#FCCFE2); }
     .c-q    { --pc:#2F6FDE; --pb:#E8F1FD; --pg:linear-gradient(145deg,#E8F1FD,#C7DBFA); }
+    .c-case { --pc:#0F766E; --pb:#E6F6F1; --pg:linear-gradient(145deg,#E6F6F1,#B8E6D8); }
+    .c-tom  { --pc:#B45309; --pb:#FEF3C7; }
+    .c-cup  { --pc:#9A3412; --pb:#FFEDD5; }
     .c-all, .c-hot { --pc:#7E22CE; --pb:#F5EDFF; --pg:linear-gradient(145deg,#F5EDFF,#E2CCFB); }
     .c-cal { --pc:#2F6FDE; --pb:#E8F1FD; }
     #sec-calendar .pz-pill.on { background:var(--pc, var(--dg-text)); border-color:var(--pc, var(--dg-text)); color:#fff; }
@@ -245,22 +248,24 @@
     #sec-calendar .pz-guide { display:flex; align-items:center; gap:8px; padding:11px 16px; background:var(--pb); color:var(--pc); font-size:13px; font-weight:700; line-height:1.45; }
     #sec-calendar .pz-guide-ic { width:24px; height:24px; border-radius:50%; background:#fff; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; }
     /* 지금 뜨는 이야기: 가로로 넘기는 카드 */
-    #sec-calendar .pz-hot-scroll { display:flex; gap:10px; overflow-x:auto; padding:14px 14px 16px; scroll-padding:0 14px; scroll-snap-type:x mandatory; scrollbar-width:none; }
-    #sec-calendar .pz-hot-scroll::-webkit-scrollbar { display:none; }
-    #sec-calendar .pz-hot-card { flex:0 0 148px; min-width:0; scroll-snap-align:start; cursor:pointer; }
-    #sec-calendar .pz-hot-img { position:relative; width:148px; height:112px; border-radius:14px; overflow:hidden; background:var(--pg,#F2F3F6); display:flex; align-items:center; justify-content:center; font-size:40px; }
+    /* 지금 뜨는 이야기(2026-09-30 2차): 사진 왼쪽 + 제목·요약·공감 오른쪽 줄 목록 */
+    #sec-calendar .pz-hot-row { display:flex; gap:12px; padding:13px 14px; cursor:pointer; align-items:stretch; }
+    #sec-calendar .pz-hot-row + .pz-hot-row { border-top:1px solid var(--dg-line); }
+    #sec-calendar .pz-hot-img { position:relative; width:96px; height:84px; flex-shrink:0; border-radius:12px; overflow:hidden; background:var(--pg,#F2F3F6); display:flex; align-items:center; justify-content:center; font-size:32px; }
     #sec-calendar .pz-hot-img img { width:100%; height:100%; object-fit:cover; }
-    #sec-calendar .pz-rank { position:absolute; top:7px; left:7px; min-width:24px; height:24px; padding:0 6px; border-radius:8px; background:rgba(17,17,20,.7); color:#fff; font-size:13px; font-weight:900; display:flex; align-items:center; justify-content:center; }
-    #sec-calendar .pz-hot-card:first-child .pz-rank { background:#7E22CE; }
-    #sec-calendar .pz-hot-card .pz-title { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; font-size:14.5px; margin-top:8px; min-height:39px; }
-    #sec-calendar .pz-hot-card .pz-cnt { margin-top:5px; }
+    #sec-calendar .pz-rank { position:absolute; top:5px; left:5px; min-width:22px; height:22px; padding:0 5px; border-radius:7px; background:rgba(17,17,20,.7); color:#fff; font-size:12.5px; font-weight:900; display:flex; align-items:center; justify-content:center; }
+    #sec-calendar .pz-guide + .pz-hot-row .pz-rank { background:#7E22CE; }
+    #sec-calendar .pz-hot-row .pz-row-main { display:flex; flex-direction:column; }
+    #sec-calendar .pz-hot-row .pz-title { font-size:15px; }
+    #sec-calendar .pz-hot-row .pz-sum { font-size:13px; margin-top:3px; }
+    #sec-calendar .pz-hot-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; padding-top:5px; font-size:12px; color:var(--dg-text-sub); }
     #sec-calendar .pz-more { display:block; width:100%; padding:13px 0; border:none; border-top:1px solid var(--dg-line); background:#fff; font-size:14px; font-weight:700; color:var(--dg-text-sub); cursor:pointer; }
     #sec-calendar .pz-feed > .pz-more { border:none; border-radius:18px; }
     /* 피드: 글마다 떨어진 카드, 왼쪽 띠 = 주제색 */
     #sec-calendar .pz-feed { display:flex; flex-direction:column; gap:10px; }
     #sec-calendar .pz-row { position:relative; display:flex; gap:12px; padding:15px 16px 13px 18px; cursor:pointer; background:#fff; border-radius:18px; box-shadow:0 1px 3px rgba(17,24,39,.05); overflow:hidden; transition:transform .12s; }
     #sec-calendar .pz-row::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--pc,#E5E7EB); }
-    #sec-calendar .pz-row:active, #sec-calendar .pz-hot-card:active { transform:scale(.98); }
+    #sec-calendar .pz-row:active, #sec-calendar .pz-hot-row:active, #sec-calendar .pzm-c:active { transform:scale(.98); }
     #sec-calendar .pz-row-main { flex:1; min-width:0; }
     #sec-calendar .pz-row-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; }
     #sec-calendar .pz-ago { font-size:12px; color:var(--dg-text-sub); flex-shrink:0; }
@@ -283,6 +288,33 @@
     .pz-cat { display:inline-flex; align-items:center; gap:3px; padding:3px 9px 3px 7px; border-radius:999px; background:#F2F3F6; color:#4D5159; font-size:12px; font-weight:800; }
     .pz-cat.c-succ { background:#E8F7EE; color:#1B7F4B; } .pz-cat.c-fail { background:#FFF1E8; color:#C2410C; }
     .pz-cat.c-q { background:#E8F1FD; color:#2F6FDE; } .pz-cat.c-thx { background:#FFF0F6; color:#C2255C; }
+    .pz-cat.c-case { background:#E6F6F1; color:#0F766E; } .pz-cat.c-contest { background:#FEF3C7; color:#92400E; }
+    /* 2026-09-30(2차) 이달의 교사 / 인기글 커피 쿠폰 */
+    .pzm-tabs { display:flex; gap:6px; padding:12px 14px 0; }
+    .pzm-tabs button { height:32px; padding:0 12px; border-radius:999px; border:1px solid #E5E7EB; background:#fff; font-size:13px; font-weight:700; color:var(--dg-text-sub); cursor:pointer; }
+    .pzm-tabs button.on { background:var(--pc); border-color:var(--pc); color:#fff; }
+    #sec-calendar .pzm-tabs + .pz-guide { margin-top:12px; }
+    .pzm-tom { display:flex; flex-direction:column; }
+    .pzm-t { display:flex; gap:13px; padding:14px 16px; align-items:flex-start; }
+    .pzm-t + .pzm-t { border-top:1px solid var(--dg-line); }
+    .pzm-photo { position:relative; width:64px; height:64px; flex-shrink:0; }
+    .pzm-photo img, .pzm-photo span { width:64px; height:64px; border-radius:50%; object-fit:cover; display:flex; align-items:center; justify-content:center; background:linear-gradient(145deg,#FEF3C7,#FCD34D); color:#92400E; font-size:24px; font-weight:900; box-shadow:0 0 0 3px #FDE68A; }
+    .pzm-photo i { position:absolute; right:-3px; bottom:-3px; width:24px; height:24px; border-radius:50%; background:#B45309; color:#fff; font-style:normal; font-size:12px; font-weight:900; display:flex; align-items:center; justify-content:center; border:2px solid #fff; }
+    .pzm-main { flex:1; min-width:0; }
+    .pzm-name { display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
+    .pzm-name b { font-size:16.5px; font-weight:900; }
+    .pzm-name span { font-size:12.5px; color:var(--dg-text-sub); }
+    .pzm-items { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+    .pzm-items em { font-style:normal; font-size:12px; font-weight:700; padding:2px 8px; border-radius:999px; background:#FEF3C7; color:#92400E; }
+    .pzm-sum { font-size:13px; color:#4D5159; line-height:1.5; margin-top:6px; }
+    .pzm-rule { font-size:11.5px; color:var(--dg-text-sub); line-height:1.5; padding:10px 16px 13px; border-top:1px dashed #ECEEF1; }
+    .pzm-c { display:flex; gap:12px; align-items:center; padding:13px 16px; cursor:pointer; }
+    .pzm-c + .pzm-c { border-top:1px solid var(--dg-line); }
+    .pzm-cup { position:relative; width:44px; height:44px; flex-shrink:0; border-radius:14px; background:var(--pb); display:flex; align-items:center; justify-content:center; font-size:22px; }
+    .pzm-cup b { position:absolute; top:-5px; right:-5px; width:20px; height:20px; border-radius:50%; background:var(--pc); color:#fff; font-size:11.5px; display:flex; align-items:center; justify-content:center; border:2px solid #fff; }
+    .pzm-who { font-size:12.5px; color:var(--dg-text-sub); margin-top:3px; }
+    .pzm-who b { color:var(--pc); }
+    .pzm-badge { flex-shrink:0; font-size:12px; font-weight:800; padding:4px 9px; border-radius:999px; background:var(--pb); color:var(--pc); }
     /* 2026-09-30 앱 이름 공모전 — 리플릿과 같은 노란 카드 */
     #sec-calendar .pz-contest { margin-top:22px; background:linear-gradient(160deg,#FEF3C7,#FDE68A); border-radius:20px; padding:18px 18px 16px; color:#78350F; box-shadow:0 1px 3px rgba(17,24,39,.05); }
     .pzc-eyebrow { font-size:11.5px; font-weight:900; letter-spacing:.06em; color:#B45309; }
@@ -1264,8 +1296,7 @@
           <div class="pz-pills" id="pzPills"></div>
         </div>
         <main class="cal-wrap">
-          <div class="pz-sec-title c-cal" id="pzCalTitle"><span class="pz-sec-ic">📅</span><span class="pz-sec-txt">도마 전도 일정</span></div>
-          <div class="kko-card" style="padding-bottom:10px">
+          <div class="kko-card" id="pzCalTitle" style="padding-bottom:10px;margin-top:14px">   <!-- 2026-09-30: "도마 전도 일정" 소제목 삭제, 달력만 -->
             <div class="cal-head">
               <button class="cal-nav-btn" id="calPrev">‹</button>
               <div style="text-align:center"><b id="calTitle"></b></div>
@@ -1275,7 +1306,7 @@
             <div class="cal-grid" id="calDow"></div>
             <div class="cal-grid" id="calDays"></div>
             <!-- 2026-09-22: 일정 유형 3종(공식/부서/내일정)으로 범례 확장 -->
-            <div class="cal-legend"><span><i style="background:#2F6FDE"></i>공식</span><span><i style="background:#2D9B6F"></i>부서</span><span><i style="background:#E8590C"></i>내 일정</span></div>
+            <div class="cal-legend"><span><i style="background:#2F6FDE"></i>공식</span><span><i style="background:#2D9B6F"></i>부서</span><span><i style="background:#E8590C"></i>내 일정(비공개)</span></div>
             <button class="kko-btn-outline" id="calAddBtn" style="margin-top:10px">+ 일정 추가</button>
           </div>
           <div class="kko-card" id="calAdBox">
@@ -1284,9 +1315,11 @@
           </div>
         </main>
         <div class="pz-wrap">
+          <div id="pzTom"></div>
           <div id="pzContest"></div>
           <div class="pz-sec-title c-hot" id="pzHotTitle"><span class="pz-sec-ic">🔥</span><span class="pz-sec-txt">지금 뜨는 교사 이야기</span></div>
           <div class="pz-box c-hot" id="pzHot"><div class="pz-empty">불러오는 중...</div></div>
+          <div id="pzCoupon"></div>
           <div class="pz-sec-title c-all" id="pzFeedTitle"><span class="pz-sec-ic" id="pzFeedIc">📌</span><span class="pz-sec-txt" id="pzFeedLabel">교사 광장</span><small id="pzFeedCount"></small></div>
           <div class="pz-feed" id="pzFeed"><div class="pz-empty">불러오는 중...</div></div>
         </div>
@@ -1880,9 +1913,9 @@
     }
     function enterFromHash() {
       const h = (location.hash || '').replace('#', '');
-      // 2026-09-29: 기본 진입 = 연결 탭의 "활동자 찾기"(사용자 요청). 해시가 있으면 그 탭.
+      // 2026-09-30: 기본 진입 = 광장(교사 광장 컨셉 강화, 사용자 요청). 해시가 있으면 그 탭.
       if (EMBED_PLAZA) { switchTab('calendar'); return; }
-      switchTab(TAB_IDS.includes(h) ? h : 'connect');
+      switchTab(TAB_IDS.includes(h) ? h : 'calendar');
     }
     // 2026-09-22: 섹션 간 인계 — 예전엔 iframe 에 ?chatWith=/?heartsStage= 같은 URL 파라미터를
     // 실어 방을 새로 열었지만, SPA에선 섹션이 다시 로드되지 않으므로 공유 상태로 대체한다.
@@ -2211,18 +2244,19 @@
     //         addPlazaComment/deletePlazaComment (backend-source/PlazaBackend.gs).
     // ════════════════════════════════════════════════════════════════
     (function () {
-      const PZ_CATS = ['성공사례', '실패사례', '나눔', '질문'];   // 2026-09-30 지시서 기준
-      const PZ_CAT_CLS = { '성공사례': 'c-succ', '실패사례': 'c-fail', '나눔': 'c-thx', '질문': 'c-q' };
-      // 2026-09-30 디자인 개편: 주제마다 아이콘·색(CSS .c-*)·안내문 — 알약·배너·카드·칩이 모두 이걸 쓴다
+      // 2026-09-30(2차): 성공사례+실패사례 → '사례' 하나로, '나눔'은 뺌(앱 이름 공모 글 저장용으로만 남음).
+      // 옛 글의 성공사례/실패사례는 '사례'로, 옛 나눔 글은 칩 없이 보여준다.
+      const PZ_CATS = ['사례', '질문'];
+      const PZ_CAT_CLS = { '사례': 'c-case', '성공사례': 'c-case', '실패사례': 'c-case', '질문': 'c-q' };
+      const catOf = c => (c === '성공사례' || c === '실패사례') ? '사례' : c;
+      // 주제마다 아이콘·색(CSS .c-*)·안내문 — 배너·카드·칩이 모두 이걸 쓴다
       const PZ_META = {
         hot: { ic: '🔥', cls: 'c-hot', t: '지금 뜨는 이야기', g: '최근 2주간 공감·댓글을 많이 받은 이야기 TOP 5예요.' },
         '': { ic: '📌', cls: 'c-all', t: '교사 광장', g: '교사들이 올린 모든 이야기를 한곳에서 볼 수 있어요.' },
-        '성공사례': { ic: '🎉', cls: 'c-succ', t: '성공사례', g: '전도·교육에서 열매 맺은 경험을 나누고 노하우를 배워요.' },
-        '실패사례': { ic: '💡', cls: 'c-fail', t: '실패사례', g: '아쉬웠던 경험과 그 속에서 얻은 교훈을 나눠요.' },
-        '나눔': { ic: '🤝', cls: 'c-thx', t: '나눔', g: '감사한 일, 자료·팁, 소소한 일상을 자유롭게 나눠요.' },
+        '사례': { ic: '🎯', cls: 'c-case', t: '사례', g: '전도·교육에서 잘된 경험도, 아쉬웠던 경험도 나누고 함께 배워요.' },
         '질문': { ic: '🙋', cls: 'c-q', t: '질문', g: '궁금한 점을 묻고 선배 교사들의 답을 들어봐요.' }
       };
-      const catIc = c => (PZ_META[c] || {}).ic || '🍇';
+      const catIc = c => (PZ_META[catOf(c)] || {}).ic || '🍇';
       function guideHtml(k) {
         const m = PZ_META[k];
         return m ? `<div class="pz-guide ${m.cls}"><span class="pz-guide-ic">💬</span><span>${esc(m.g)}</span></div>` : '';
@@ -2242,7 +2276,12 @@
         if (d < 86400 * 30) return Math.floor(d / 86400) + '일 전';
         return String(s).slice(0, 10);
       }
-      function catHtml(c) { return c ? `<span class="pz-cat ${PZ_CAT_CLS[c] || ''}">${catIc(c)} ${esc(c)}</span>` : ''; }
+      // 칩: 이름 공모 글은 '이름 공모', 옛 나눔 글은 칩 없음
+      function catHtml(c, title) {
+        if (String(title || '').startsWith('[이름 공모]')) return `<span class="pz-cat c-contest">🏷️ 이름 공모</span>`;
+        c = catOf(c);
+        return PZ_META[c] && c ? `<span class="pz-cat ${PZ_CAT_CLS[c] || ''}">${catIc(c)} ${esc(c)}</span>` : '';
+      }
       function avaHtml(name, photo, sm) {
         const size = sm === 'xs' ? ' xs' : sm ? ' sm' : '';
         if (photo) return `<img class="pz-ava${size}" src="${esc(photo)}" alt="">`;
@@ -2258,10 +2297,10 @@
 
       // ── 목록 ──
       function renderPills() {
-        // 2026-09-30: '✍️ 글쓰기' 알약 삭제(우측 하단 FAB와 중복). 켜진 알약은 주제색으로 칠한다.
-        const pills = [['cal', '📅 전도 일정'], ['hot', '🔥 인기글'], ['', '전체']].concat(PZ_CATS.map(c => [c, catIc(c) + ' ' + c]));
+        // 2026-09-30: '✍️ 글쓰기' 알약 삭제(우측 하단 FAB와 중복). 2차: 알약 아이콘 삭제, 이달의 교사·커피 쿠폰 추가.
+        const pills = [['cal', '전도 일정'], ['hot', '인기글'], ['tom', '이달의 교사'], ['coupon', '커피 쿠폰'], ['', '전체']].concat(PZ_CATS.map(c => [c, c]));
         $('pzPills').innerHTML = pills.map(([k, l]) => {
-          const on = !['cal', 'hot'].includes(k) && k === P.cat;
+          const on = !['cal', 'hot', 'tom', 'coupon'].includes(k) && k === P.cat;
           return `<button type="button" class="pz-pill ${(PZ_META[k] || {}).cls || ''}${on ? ' on' : ''}" data-pz-pill="${esc(k)}">${esc(l)}</button>`;
         }).join('');
       }
@@ -2273,10 +2312,12 @@
       }
       function renderLists() {
         const hot = P.hot || [];
+        // 2026-09-30(2차): 지금 뜨는 이야기 = 사진(왼쪽) + 순위·제목·요약·공감(오른쪽) 줄 목록
         $('pzHot').innerHTML = guideHtml('hot') + (hot.length
-          ? `<div class="pz-hot-scroll">${hot.map((p, i) => `<div class="pz-hot-card ${PZ_CAT_CLS[p.category] || ''}" data-pz-open="${esc(p.postId)}">
+          ? hot.map((p, i) => `<div class="pz-hot-row ${PZ_CAT_CLS[p.category] || 'c-all'}" data-pz-open="${esc(p.postId)}">
               <div class="pz-hot-img">${p.thumb ? `<img src="${esc(p.thumb)}" alt="">` : catIc(p.category)}<span class="pz-rank">${i + 1}</span></div>
-              <div class="pz-title">${esc(p.title)}</div>${cntHtml(p)}</div>`).join('')}</div>`
+              <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div>
+                <div class="pz-hot-foot"><span>${esc(maskName(p.name))}</span>${cntHtml(p)}</div></div></div>`).join('')
             + `<button type="button" class="pz-more" data-pz-pill="feed">전체 이야기 보기 ›</button>`
           : emptyHtml('🌱', '최근 2주 동안 올라온 이야기가 없어요.<br>첫 이야기를 들려주세요!'));
         const m = P.kw ? { ic: '🔍', cls: 'c-all', t: `'${P.kw}' 검색 결과` } : PZ_META[P.cat] || PZ_META[''];
@@ -2288,13 +2329,60 @@
         $('pzFeed').innerHTML = (P.kw ? '' : `<div class="pz-box">${guideHtml(P.cat)}</div>`) + (rows.length
           ? rows.map(p => `<div class="pz-row ${PZ_CAT_CLS[p.category] || ''}" data-pz-open="${esc(p.postId)}">
               <div class="pz-row-main">
-                <div class="pz-row-top">${catHtml(p.category)}<span class="pz-ago">${esc(ago(p.createdAt))}</span></div>
+                <div class="pz-row-top">${catHtml(p.category, p.title)}<span class="pz-ago">${esc(ago(p.createdAt))}</span></div>
                 <div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div>
                 <div class="pz-row-foot"><div class="pz-who">${avaHtml(p.name, '', 'xs')}<span><b>${esc(maskName(p.name))}</b>${p.region ? ' · ' + esc(p.region) : ''}</span></div>${cntHtml(p)}</div>
               </div>
               ${p.thumb ? `<img class="pz-thumb" src="${esc(p.thumb)}" alt="">` : ''}</div>`).join('') + (rows.length < P.total ? `<button type="button" class="pz-more" id="pzMoreBtn">${P.loading ? '불러오는 중...' : '더보기 ›'}</button>` : '')
-          : (P.loading ? emptyHtml('⏳', '불러오는 중...') : P.kw || P.cat ? emptyHtml('🔍', '조건에 맞는 이야기가 없어요.') : emptyHtml('✏️', '아직 올라온 이야기가 없어요.<br>전도하며 겪은 성공·실패 사례와 사연을 나눠주세요!')));
+          : (P.loading ? emptyHtml('⏳', '불러오는 중...') : P.kw || P.cat ? emptyHtml('🔍', '조건에 맞는 이야기가 없어요.') : emptyHtml('✏️', '아직 올라온 이야기가 없어요.<br>전도하며 겪은 사례와 사연을 나눠주세요!')));
         const more = $('pzMoreBtn'); if (more) more.onclick = () => load(false);
+      }
+
+      // ── 이달의 교사(부서별 1명) + 이달의 인기글 커피 쿠폰 (2026-09-30, getPlazaMonthly) ──
+      const M = { month: '', data: null, loading: false };
+      const monthKey = off => { const d = new Date(Date.now() + 9 * 3600e3); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + off); return d.toISOString().slice(0, 7); };
+      const monthLabel = k => k ? `${Number(k.slice(5, 7))}월` : '';
+      const DEPT_SHORT = { '교역자': '교', '자문회': '자', '장년회': '장', '부녀회': '부', '청년회': '청' };
+      async function loadMonthly(month, silent) {   // silent: 공감 뒤 조용히 다시 계산(깜빡임 없이)
+        M.month = month || M.month || monthKey(0);
+        if (!silent) { M.loading = true; renderMonthly(); }
+        try {
+          const res = await callApi({ action: 'getPlazaMonthly', memberId: MEMBER_ID, month: M.month });
+          if (res && res.error) throw new Error(res.error);
+          M.data = res;
+        } catch (e) { M.data = { teachers: [], coupon: [], failed: true }; }
+        M.loading = false; renderMonthly();
+      }
+      function monthTabs(sec) {
+        return `<div class="pzm-tabs">${[0, -1].map(off => { const k = monthKey(off); return `<button type="button" data-pzm-month="${k}" class="${M.month === k ? 'on' : ''}">${off ? '지난달' : '이번 달'} (${monthLabel(k)})</button>`; }).join('')}</div>`;
+      }
+      function renderMonthly() {
+        const d = M.data || { teachers: [], coupon: [] }, cur = M.month === monthKey(0), ml = monthLabel(M.month);
+        const wait = M.loading ? emptyHtml('⏳', '불러오는 중...') : '';
+        // 이달의 교사
+        const ts = d.teachers || [];
+        $('pzTom').innerHTML = `<div class="pz-sec-title c-tom" id="pzTomTitle"><span class="pz-sec-ic">🏅</span><span class="pz-sec-txt">${ml} 이달의 교사</span></div>
+          <div class="pz-box c-tom">${monthTabs()}
+            <div class="pz-guide c-tom"><span class="pz-guide-ic">💬</span><span>교·자·장·부·청 부서마다 한 달 활동 기록이 가장 알찬 선생님 한 분씩이에요.</span></div>
+            ${wait || (ts.length ? `<div class="pzm-tom">${ts.map(t => `<div class="pzm-t">
+                <div class="pzm-photo">${t.photo ? `<img src="${esc(t.photo)}" alt="">` : `<span>${esc(String(t.name || '?').slice(0, 1))}</span>`}<i>${esc(DEPT_SHORT[t.dept] || '')}</i></div>
+                <div class="pzm-main"><div class="pzm-name"><b>${esc(t.name)}</b><span>${esc([t.dept, t.region].filter(Boolean).join(' · '))}</span></div>
+                  <div class="pzm-items">${(t.items || []).slice(0, 4).map(x => `<em>${esc(x.item)} ${x.count}</em>`).join('')}</div>
+                  <div class="pzm-sum">${esc(t.summary)}</div></div></div>`).join('')}</div>`
+              : emptyHtml('📝', d.failed ? '잠시 후 다시 확인해 주세요.' : `${ml} 활동 기록이 아직 없어요.<br>내활동에 활동을 기록하면 이달의 교사 후보가 돼요!`))}
+            <div class="pzm-rule">점수 = 활동마다 전도 단계 점수(섭외·친분 1, 만남 2, 상담 3, 복음방 4, 센터 5) + 긍정 반응 1${cur ? ' · 달이 끝날 때까지 바뀔 수 있어요' : ''}</div>
+          </div>`;
+        // 커피 쿠폰
+        const cs = d.coupon || [];
+        $('pzCoupon').innerHTML = `<div class="pz-sec-title c-cup" id="pzCouponTitle"><span class="pz-sec-ic">☕</span><span class="pz-sec-txt">${ml} 인기글 커피 쿠폰</span></div>
+          <div class="pz-box c-cup">${monthTabs()}
+            <div class="pz-guide c-cup"><span class="pz-guide-ic">💬</span><span>한 달 동안 공감(추천)을 가장 많이 받은 글 3개의 작성자에게 커피 쿠폰을 드려요. (1인 1매)</span></div>
+            ${wait || (cs.length ? cs.map((p, i) => `<div class="pzm-c" data-pz-open="${esc(p.postId)}">
+                <div class="pzm-cup">☕<b>${i + 1}</b></div>
+                <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pzm-who">${esc(maskName(p.name))} · ${cur ? '현재 ' : ''}공감 <b>${p.likeCount}</b> · 댓글 ${p.commentCount}</div></div>
+                <span class="pzm-badge">${cur ? '당첨 예정' : '당첨'}</span></div>`).join('')
+              : emptyHtml('☕', d.failed ? '잠시 후 다시 확인해 주세요.' : `${ml}에 공감을 받은 글이 아직 없어요.<br>좋은 글에 공감을 눌러 추천해 주세요!`))}
+          </div>`;
       }
       async function load(reset) {
         if (P.loading) return;
@@ -2342,7 +2430,7 @@
           <div class="pz-ov-bar"><button type="button" data-pz-back>‹</button><div class="t">교사광장</div>${p.isMine ? '<button type="button" id="pzPostMenu">⋯</button>' : '<span style="width:40px"></span>'}</div>
           <div class="pz-ov-body" id="pzOvBody">
             ${(p.photos || [])[0] ? `<img class="pz-d-photo pz-d-hero" src="${esc(p.photos[0])}" alt="대표 사진">` : ''}
-            ${catHtml(p.category)}
+            ${catHtml(p.category, p.title)}
             <div class="pz-author">${avaHtml(p.name, p.authorPhoto)}
               <div><div style="font-size:15px;font-weight:800">${esc(p.name)}</div><div class="pz-cmt-meta">${esc([p.region, p.dept].filter(Boolean).join(' '))}${p.region || p.dept ? ' · ' : ''}${esc(ago(p.createdAt))}${p.updatedAt && p.updatedAt !== p.createdAt ? ' (수정됨)' : ''}</div></div>
             </div>
@@ -2381,7 +2469,7 @@
           p.liked = res.liked; p.likeCount = res.likeCount;
           [].concat(P.rows, P.hot, C.rows).forEach(x => { if (x.postId === p.postId) { x.liked = res.liked; x.likeCount = res.likeCount; } });
           if (P.detail && P.detail.post === p) renderPost();
-          renderLists(); renderContest();
+          renderLists(); renderContest(); loadMonthly(M.month, true);
         } catch (e) { toast(e.message, true); }
       }
       async function sendComment() {
@@ -2448,7 +2536,7 @@
       // ── 글쓰기 / 수정 ──
       function openWrite(existing) {
         const f = existing
-          ? { postId: existing.postId, category: existing.category, title: existing.title, body: existing.body, tags: existing.tags.map(t => '#' + t).join(' '), photos: (existing.photos || []).slice() }
+          ? { postId: existing.postId, category: PZ_CATS.includes(catOf(existing.category)) ? catOf(existing.category) : '', title: existing.title, body: existing.body, tags: existing.tags.map(t => '#' + t).join(' '), photos: (existing.photos || []).slice() }
           : { postId: '', category: P.cat || '', title: '', body: '', tags: '', photos: [] };
         let saving = false;
         const draw = () => {
@@ -2592,6 +2680,7 @@
         if (e.target.closest('[data-pz-back]')) { ovClose(); return; }
         if (e.target.closest('[data-pzc-write]')) { openContestForm(); return; }
         if (e.target.closest('[data-pzc-list]')) { openContestList(); return; }
+        const mb = e.target.closest('[data-pzm-month]'); if (mb) { loadMonthly(mb.dataset.pzmMonth); return; }
         const sortB = e.target.closest('[data-pz-sort]'); if (sortB) { P.sort = sortB.dataset.pzSort; renderPost(); return; }
         const delC = e.target.closest('[data-pz-delcmt]'); if (delC) { deleteComment(delC.dataset.pzDelcmt); return; }
         if (e.target.closest('[data-pz-tofeed]')) { ovClose(); setTimeout(() => scrollToEl('pzFeedTitle'), 250); return; }
@@ -2602,6 +2691,8 @@
           if (k === 'cal') return scrollToEl('pzCalTitle');
           if (k === 'hot') return scrollToEl('pzHotTitle');
           if (k === 'feed') return scrollToEl('pzFeedTitle');
+          if (k === 'tom') return scrollToEl('pzTomTitle');
+          if (k === 'coupon') return scrollToEl('pzCouponTitle');
           P.cat = k; P.kw = ''; const s = $('pzSearch'); if (s) s.value = '';
           renderPills(); load(true); scrollToEl('pzHotTitle');
         }
@@ -2616,7 +2707,7 @@
         s.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); s.blur(); run(); } };
         s.onsearch = run;
         load(true);
-        renderContest(); loadContest();
+        renderContest(); loadContest(); loadMonthly(monthKey(0));
       };
     })();
 
