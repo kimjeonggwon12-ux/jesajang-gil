@@ -212,7 +212,7 @@
        지금 뜨는 교사 이야기(순위 1~5) / 교사 이야기 피드(제목·요약·썸네일) / 글 상세(사진·공감·댓글). */
     .embed-plaza #bottomTabBar, .embed-plaza #appHeader, .embed-plaza #sec-calendar .pz-appbar-actions { display:none !important; }
     .embed-plaza #sec-calendar .pz-fab { bottom:20px; }
-    #sec-calendar { background:#fff; min-height:100%; letter-spacing:-0.02em; color:var(--dg-text); }
+    #sec-calendar { background:#F4F5F7; min-height:100%; letter-spacing:-0.02em; color:var(--dg-text); }
     #sec-calendar .pz-appbar { position:sticky; top:0; z-index:20; background:#fff; padding:10px 16px 0; }
     #sec-calendar .pz-appbar-row { display:flex; align-items:center; gap:10px; height:44px; }
     #sec-calendar .pz-logo { font-size:20px; font-weight:900; color:var(--dg-text); white-space:nowrap; display:flex; align-items:center; gap:5px; }
@@ -224,34 +224,65 @@
     #sec-calendar .pz-pills { display:flex; gap:6px; overflow-x:auto; padding:10px 0 10px; scrollbar-width:none; border-bottom:1px solid var(--dg-line); }
     #sec-calendar .pz-pills::-webkit-scrollbar { display:none; }
     #sec-calendar .pz-pill { flex-shrink:0; display:inline-flex; align-items:center; gap:4px; height:34px; padding:0 13px; border-radius:999px; border:1px solid #E5E7EB; background:#fff; font-size:13.5px; font-weight:700; color:var(--dg-text); cursor:pointer; }
-    #sec-calendar .pz-pill.on { background:var(--dg-text); border-color:var(--dg-text); color:#fff; }
-    #sec-calendar .pz-sec-title { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:18px; font-weight:800; margin:22px 0 10px; }
-    #sec-calendar .pz-sec-title small { font-size:13px; font-weight:600; color:var(--dg-text-sub); cursor:pointer; }
+    /* 2026-09-30 디자인 개편: 주제별 색(--pc 진한색 / --pb 연한 배경 / --pg 그라데이션)으로 알약·배너·카드·칩을 구분,
+       인기글은 가로로 넘기는 사진 카드, 피드는 한 박스 목록 → 글마다 떨어진 카드. 바탕은 연회색. */
+    .c-succ { --pc:#1B7F4B; --pb:#E8F7EE; --pg:linear-gradient(145deg,#E8F7EE,#BFE9D0); }
+    .c-fail { --pc:#C2410C; --pb:#FFF1E8; --pg:linear-gradient(145deg,#FFF1E8,#FED7C0); }
+    .c-thx  { --pc:#C2255C; --pb:#FFF0F6; --pg:linear-gradient(145deg,#FFF0F6,#FCCFE2); }
+    .c-q    { --pc:#2F6FDE; --pb:#E8F1FD; --pg:linear-gradient(145deg,#E8F1FD,#C7DBFA); }
+    .c-all, .c-hot { --pc:#7E22CE; --pb:#F5EDFF; --pg:linear-gradient(145deg,#F5EDFF,#E2CCFB); }
+    .c-cal { --pc:#2F6FDE; --pb:#E8F1FD; }
+    #sec-calendar .pz-pill.on { background:var(--pc, var(--dg-text)); border-color:var(--pc, var(--dg-text)); color:#fff; }
+    #sec-calendar .pz-sec-title { display:flex; align-items:center; gap:10px; margin:26px 2px 12px; }
+    #sec-calendar .pz-sec-ic { width:34px; height:34px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:18px; background:var(--pb,#F2F3F6); }
+    #sec-calendar .pz-sec-txt { flex:1; min-width:0; font-size:18px; font-weight:800; line-height:1.25; }
+    #sec-calendar .pz-sec-title small { font-size:12.5px; font-weight:700; color:var(--pc,var(--dg-text-sub)); background:var(--pb,#F2F3F6); padding:4px 10px; border-radius:999px; flex-shrink:0; }
     #sec-calendar .cal-wrap { padding-top:0; }
+    #sec-calendar .cal-wrap .kko-card { border-radius:20px; box-shadow:0 1px 3px rgba(17,24,39,.05); margin-bottom:12px; }
     #sec-calendar .pz-wrap { max-width:640px; margin:0 auto; padding:0 12px 110px; }
-    #sec-calendar .pz-box { background:#fff; border:1px solid #EEF0F3; border-radius:18px; overflow:hidden; }
-    #sec-calendar .pz-hot-row { display:flex; gap:12px; align-items:center; padding:14px 16px; cursor:pointer; }
-    #sec-calendar .pz-hot-row + .pz-hot-row { border-top:1px solid var(--dg-line); }
-    #sec-calendar .pz-rank { width:18px; flex-shrink:0; font-size:17px; font-weight:800; }
-    #sec-calendar .pz-more { display:block; width:100%; padding:13px 0; border:none; border-top:1px solid var(--dg-line); background:#fff; font-size:14px; color:var(--dg-text-sub); cursor:pointer; }
-    #sec-calendar .pz-row { display:flex; gap:12px; padding:16px; cursor:pointer; }
-    #sec-calendar .pz-row + .pz-row { border-top:1px solid var(--dg-line); }
+    #sec-calendar .pz-box { background:#fff; border-radius:20px; overflow:hidden; box-shadow:0 1px 3px rgba(17,24,39,.05); }
+    /* 안내 배너(박스 맨 위) */
+    #sec-calendar .pz-guide { display:flex; align-items:center; gap:8px; padding:11px 16px; background:var(--pb); color:var(--pc); font-size:13px; font-weight:700; line-height:1.45; }
+    #sec-calendar .pz-guide-ic { width:24px; height:24px; border-radius:50%; background:#fff; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; }
+    /* 지금 뜨는 이야기: 가로로 넘기는 카드 */
+    #sec-calendar .pz-hot-scroll { display:flex; gap:10px; overflow-x:auto; padding:14px 14px 16px; scroll-padding:0 14px; scroll-snap-type:x mandatory; scrollbar-width:none; }
+    #sec-calendar .pz-hot-scroll::-webkit-scrollbar { display:none; }
+    #sec-calendar .pz-hot-card { flex:0 0 148px; min-width:0; scroll-snap-align:start; cursor:pointer; }
+    #sec-calendar .pz-hot-img { position:relative; width:148px; height:112px; border-radius:14px; overflow:hidden; background:var(--pg,#F2F3F6); display:flex; align-items:center; justify-content:center; font-size:40px; }
+    #sec-calendar .pz-hot-img img { width:100%; height:100%; object-fit:cover; }
+    #sec-calendar .pz-rank { position:absolute; top:7px; left:7px; min-width:24px; height:24px; padding:0 6px; border-radius:8px; background:rgba(17,17,20,.7); color:#fff; font-size:13px; font-weight:900; display:flex; align-items:center; justify-content:center; }
+    #sec-calendar .pz-hot-card:first-child .pz-rank { background:#7E22CE; }
+    #sec-calendar .pz-hot-card .pz-title { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; font-size:14.5px; margin-top:8px; min-height:39px; }
+    #sec-calendar .pz-hot-card .pz-cnt { margin-top:5px; }
+    #sec-calendar .pz-more { display:block; width:100%; padding:13px 0; border:none; border-top:1px solid var(--dg-line); background:#fff; font-size:14px; font-weight:700; color:var(--dg-text-sub); cursor:pointer; }
+    #sec-calendar .pz-feed > .pz-more { border:none; border-radius:18px; }
+    /* 피드: 글마다 떨어진 카드, 왼쪽 띠 = 주제색 */
+    #sec-calendar .pz-feed { display:flex; flex-direction:column; gap:10px; }
+    #sec-calendar .pz-row { position:relative; display:flex; gap:12px; padding:15px 16px 13px 18px; cursor:pointer; background:#fff; border-radius:18px; box-shadow:0 1px 3px rgba(17,24,39,.05); overflow:hidden; transition:transform .12s; }
+    #sec-calendar .pz-row::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--pc,#E5E7EB); }
+    #sec-calendar .pz-row:active, #sec-calendar .pz-hot-card:active { transform:scale(.98); }
     #sec-calendar .pz-row-main { flex:1; min-width:0; }
-    #sec-calendar .pz-title { font-size:15.5px; font-weight:700; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    #sec-calendar .pz-sum { font-size:13.5px; color:#4D5159; line-height:1.45; margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-all; }
+    #sec-calendar .pz-row-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; }
+    #sec-calendar .pz-ago { font-size:12px; color:var(--dg-text-sub); flex-shrink:0; }
+    #sec-calendar .pz-title { font-size:16px; font-weight:800; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #sec-calendar .pz-sum { font-size:13.5px; color:#555A62; line-height:1.5; margin-top:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-all; }
+    #sec-calendar .pz-row-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:11px; padding-top:10px; border-top:1px dashed #ECEEF1; }
+    #sec-calendar .pz-who { display:flex; align-items:center; gap:7px; min-width:0; font-size:12.5px; color:var(--dg-text-sub); }
+    #sec-calendar .pz-who span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #sec-calendar .pz-who b { color:var(--dg-text); font-weight:700; }
+    #sec-calendar .pz-ava.xs { width:24px; height:24px; font-size:11px; }
     #sec-calendar .pz-meta { font-size:12.5px; color:var(--dg-text-sub); margin-top:4px; }
-    #sec-calendar .pz-cnt { display:flex; gap:10px; font-size:12.5px; color:var(--dg-text-sub); margin-top:6px; }
-    #sec-calendar .pz-thumb { width:76px; height:76px; flex-shrink:0; border-radius:10px; object-fit:cover; background:#F2F3F6; }
-    #sec-calendar .pz-guide { padding:11px 16px; font-size:13px; font-weight:600; color:#5B4B8A; background:#F6F3FF; border-bottom:1px solid #EEF0F3; line-height:1.45; }
-    #sec-calendar .pz-empty { padding:36px 16px; text-align:center; color:var(--dg-text-sub); font-size:14px; line-height:1.6; }
+    #sec-calendar .pz-cnt { display:flex; gap:10px; font-size:12.5px; font-weight:600; color:var(--dg-text-sub); flex-shrink:0; }
+    #sec-calendar .pz-cnt span { display:flex; align-items:center; gap:3px; }
+    #sec-calendar .pz-cnt .on { color:#7E22CE; }
+    #sec-calendar .pz-thumb { width:84px; height:84px; flex-shrink:0; border-radius:12px; object-fit:cover; background:#F2F3F6; align-self:center; }
+    #sec-calendar .pz-empty { padding:34px 16px; text-align:center; color:var(--dg-text-sub); font-size:14px; line-height:1.6; }
+    #sec-calendar .pz-empty i { display:block; font-style:normal; font-size:40px; line-height:1; margin-bottom:10px; }
+    #sec-calendar .pz-feed > .pz-empty { background:#fff; border-radius:18px; }
     #sec-calendar .pz-fab { position:fixed; right:16px; bottom:76px; height:52px; padding:0 20px; border-radius:26px; background:var(--color-primary); color:#fff; font-size:15px; font-weight:800; border:none; box-shadow:var(--dg-shadow-fab); z-index:30; cursor:pointer; }
-    .pz-cat { display:inline-block; padding:3px 8px; border-radius:6px; background:#F2F3F6; color:#4D5159; font-size:12px; font-weight:700; }
-    .pz-cat.c-succ { background:#E8F7EE; color:#1B7F4B; } .pz-cat.c-fail { background:#FDECEC; color:#C23B3B; }
-    .pz-cat.c-story { background:#F3E8FF; color:#7E22CE; } .pz-cat.c-tip { background:#FFF4E0; color:#B35C00; }
+    .pz-cat { display:inline-flex; align-items:center; gap:3px; padding:3px 9px 3px 7px; border-radius:999px; background:#F2F3F6; color:#4D5159; font-size:12px; font-weight:800; }
+    .pz-cat.c-succ { background:#E8F7EE; color:#1B7F4B; } .pz-cat.c-fail { background:#FFF1E8; color:#C2410C; }
     .pz-cat.c-q { background:#E8F1FD; color:#2F6FDE; } .pz-cat.c-thx { background:#FFF0F6; color:#C2255C; }
-    #sec-calendar .pz-thumb-ph { display:flex; align-items:center; justify-content:center; font-size:30px; background:linear-gradient(145deg,#F3E8FF,#E9D5FF); }
-    #sec-calendar .pz-thumb-ph.c-succ { background:linear-gradient(145deg,#E8F7EE,#C9EED8); } #sec-calendar .pz-thumb-ph.c-fail { background:linear-gradient(145deg,#FDECEC,#F9D2D2); }
-    #sec-calendar .pz-thumb-ph.c-q { background:linear-gradient(145deg,#E8F1FD,#CFE0FA); } #sec-calendar .pz-thumb-ph.c-thx { background:linear-gradient(145deg,#FFF0F6,#FCD5E6); }
     .pz-d-hero { display:block; border-radius:0 !important; width:calc(100% + 36px); margin:-16px -18px 14px !important; max-height:70vh; object-fit:cover; background:#F2F3F6; cursor:zoom-in; }
     /* 글 상세 / 글쓰기 — body 최상위 전체화면(탭바 위) */
     .pz-ov { position:fixed; inset:0; z-index:9000; background:#fff; display:flex; flex-direction:column; letter-spacing:-0.02em; color:var(--dg-text); animation:kkoFadeIn .15s ease; }
@@ -267,9 +298,9 @@
     .pz-d-photo { display:block; width:100%; border-radius:12px; margin-top:12px; background:#F2F3F6; cursor:zoom-in; }
     .pz-tags { margin-top:14px; display:flex; flex-wrap:wrap; gap:6px; font-size:14px; color:#2F6FDE; font-weight:600; }
     .pz-react { margin-top:14px; font-size:13px; color:var(--dg-text-sub); }
-    .pz-actions { display:flex; gap:18px; padding:12px 0; margin-top:6px; border-bottom:1px solid var(--dg-line); }
-    .pz-actions button { background:none; border:none; display:flex; align-items:center; gap:5px; font-size:15px; color:var(--dg-text); cursor:pointer; padding:0; }
-    .pz-actions button.on { color:var(--color-primary); font-weight:800; }
+    .pz-actions { display:flex; gap:8px; padding:14px 0; margin-top:6px; border-bottom:1px solid var(--dg-line); }
+    .pz-actions button { flex:1; height:44px; justify-content:center; background:#F4F5F7; border:none; border-radius:14px; display:flex; align-items:center; gap:6px; font-size:15px; font-weight:700; color:var(--dg-text); cursor:pointer; padding:0; }
+    .pz-actions button.on { background:#F5EDFF; color:var(--color-primary); font-weight:800; }
     .pz-sort { display:flex; gap:12px; margin:14px 0 6px; font-size:13.5px; }
     .pz-sort button { background:none; border:none; padding:0; color:var(--dg-text-sub); cursor:pointer; }
     .pz-sort button.on { color:var(--dg-text); font-weight:800; }
@@ -287,9 +318,12 @@
     .pz-popular .pz-row { padding:14px 0; cursor:pointer; display:flex; gap:12px; }
     .pz-popular .pz-row + .pz-row { border-top:1px solid var(--dg-line); }
     .pz-f-lbl { font-size:14px; font-weight:800; margin:18px 0 8px; }
-    .pz-f-cats { display:flex; flex-wrap:wrap; gap:6px; }
-    .pz-f-cats button { height:36px; padding:0 14px; border-radius:999px; border:1px solid #E5E7EB; background:#fff; font-size:14px; font-weight:700; cursor:pointer; }
-    .pz-f-cats button.on { background:var(--color-primary); border-color:var(--color-primary); color:#fff; }
+    .pz-f-cats { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .pz-f-cats button { display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:12px 13px; border-radius:14px; border:1.5px solid #E5E7EB; background:#fff; text-align:left; cursor:pointer; font-family:inherit; color:var(--dg-text); }
+    .pz-f-cats button b { font-size:15px; font-weight:800; }
+    .pz-f-cats button span { font-size:12px; line-height:1.4; color:var(--dg-text-sub); }
+    .pz-f-cats button.on { border-color:var(--pc); background:var(--pb); }
+    .pz-f-cats button.on b { color:var(--pc); }
     .pz-f-input { width:100%; border:1px solid #E5E7EB; border-radius:12px; padding:12px 14px; font-size:15px; outline:none; font-family:inherit; }
     .pz-f-input:focus { border-color:var(--color-primary); }
     .pz-f-photos { display:flex; gap:8px; flex-wrap:wrap; }
@@ -1205,7 +1239,7 @@
           <div class="pz-pills" id="pzPills"></div>
         </div>
         <main class="cal-wrap">
-          <div class="pz-sec-title" id="pzCalTitle">📅 도마 전도 일정</div>
+          <div class="pz-sec-title c-cal" id="pzCalTitle"><span class="pz-sec-ic">📅</span><span class="pz-sec-txt">도마 전도 일정</span></div>
           <div class="kko-card" style="padding-bottom:10px">
             <div class="cal-head">
               <button class="cal-nav-btn" id="calPrev">‹</button>
@@ -1225,10 +1259,10 @@
           </div>
         </main>
         <div class="pz-wrap">
-          <div class="pz-sec-title" id="pzHotTitle">🔥 지금 뜨는 교사 이야기</div>
-          <div class="pz-box" id="pzHot"><div class="pz-empty">불러오는 중...</div></div>
-          <div class="pz-sec-title" id="pzFeedTitle"><span id="pzFeedLabel">📌 교사 광장</span><small id="pzFeedCount"></small></div>
-          <div class="pz-box" id="pzFeed"><div class="pz-empty">불러오는 중...</div></div>
+          <div class="pz-sec-title c-hot" id="pzHotTitle"><span class="pz-sec-ic">🔥</span><span class="pz-sec-txt">지금 뜨는 교사 이야기</span></div>
+          <div class="pz-box c-hot" id="pzHot"><div class="pz-empty">불러오는 중...</div></div>
+          <div class="pz-sec-title c-all" id="pzFeedTitle"><span class="pz-sec-ic" id="pzFeedIc">📌</span><span class="pz-sec-txt" id="pzFeedLabel">교사 광장</span><small id="pzFeedCount"></small></div>
+          <div class="pz-feed" id="pzFeed"><div class="pz-empty">불러오는 중...</div></div>
         </div>
         <button type="button" class="pz-fab" id="pzFab">+ 글쓰기</button>
       </section>
@@ -2153,16 +2187,20 @@
     (function () {
       const PZ_CATS = ['성공사례', '실패사례', '나눔', '질문'];   // 2026-09-30 지시서 기준
       const PZ_CAT_CLS = { '성공사례': 'c-succ', '실패사례': 'c-fail', '나눔': 'c-thx', '질문': 'c-q' };
-      // 2026-09-30: 각 글 박스 맨 위 한 줄 안내문
-      const PZ_GUIDE = {
-        hot: '🔥 최근 2주간 공감·댓글을 많이 받은 이야기 TOP 5예요.',
-        '': '📌 교사들이 올린 모든 이야기를 한곳에서 볼 수 있어요.',
-        '성공사례': '🎉 전도·교육에서 열매 맺은 경험을 나누고 노하우를 배워요.',
-        '실패사례': '💡 아쉬웠던 경험과 그 속에서 얻은 교훈을 나눠요.',
-        '나눔': '🤝 감사한 일, 자료·팁, 소소한 일상을 자유롭게 나눠요.',
-        '질문': '🙋 궁금한 점을 묻고 선배 교사들의 답을 들어봐요.'
+      // 2026-09-30 디자인 개편: 주제마다 아이콘·색(CSS .c-*)·안내문 — 알약·배너·카드·칩이 모두 이걸 쓴다
+      const PZ_META = {
+        hot: { ic: '🔥', cls: 'c-hot', t: '지금 뜨는 이야기', g: '최근 2주간 공감·댓글을 많이 받은 이야기 TOP 5예요.' },
+        '': { ic: '📌', cls: 'c-all', t: '교사 광장', g: '교사들이 올린 모든 이야기를 한곳에서 볼 수 있어요.' },
+        '성공사례': { ic: '🎉', cls: 'c-succ', t: '성공사례', g: '전도·교육에서 열매 맺은 경험을 나누고 노하우를 배워요.' },
+        '실패사례': { ic: '💡', cls: 'c-fail', t: '실패사례', g: '아쉬웠던 경험과 그 속에서 얻은 교훈을 나눠요.' },
+        '나눔': { ic: '🤝', cls: 'c-thx', t: '나눔', g: '감사한 일, 자료·팁, 소소한 일상을 자유롭게 나눠요.' },
+        '질문': { ic: '🙋', cls: 'c-q', t: '질문', g: '궁금한 점을 묻고 선배 교사들의 답을 들어봐요.' }
       };
-      function guideHtml(k) { return PZ_GUIDE[k] ? `<div class="pz-guide">${esc(PZ_GUIDE[k])}</div>` : ''; }
+      const catIc = c => (PZ_META[c] || {}).ic || '🍇';
+      function guideHtml(k) {
+        const m = PZ_META[k];
+        return m ? `<div class="pz-guide ${m.cls}"><span class="pz-guide-ic">💬</span><span>${esc(m.g)}</span></div>` : '';
+      }
       const PZ_PAGE = 20;
       const P = { cat: '', kw: '', rows: [], hot: [], total: 0, loading: false, mounted: false, detail: null, sort: 'asc', ovOpen: false };
       const $ = id => document.getElementById(id);
@@ -2178,26 +2216,27 @@
         if (d < 86400 * 30) return Math.floor(d / 86400) + '일 전';
         return String(s).slice(0, 10);
       }
-      function catHtml(c) { return c ? `<span class="pz-cat ${PZ_CAT_CLS[c] || ''}">${esc(c)}</span>` : ''; }
+      function catHtml(c) { return c ? `<span class="pz-cat ${PZ_CAT_CLS[c] || ''}">${catIc(c)} ${esc(c)}</span>` : ''; }
       function avaHtml(name, photo, sm) {
-        if (photo) return `<img class="pz-ava${sm ? ' sm' : ''}" src="${esc(photo)}" alt="">`;
+        const size = sm === 'xs' ? ' xs' : sm ? ' sm' : '';
+        if (photo) return `<img class="pz-ava${size}" src="${esc(photo)}" alt="">`;
         const colors = ['#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
         let h = 0; for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-        return `<div class="pz-ava${sm ? ' sm' : ''}" style="background:${colors[h % colors.length]}">${esc(String(name || '?').slice(0, 1))}</div>`;
+        return `<div class="pz-ava${size}" style="background:${colors[h % colors.length]}">${esc(String(name || '?').slice(0, 1))}</div>`;
       }
       function cntHtml(p) {
-        return `<div class="pz-cnt"><span style="display:flex;align-items:center;gap:3px">${ICON_LIKE}${p.likeCount}</span><span style="display:flex;align-items:center;gap:3px">${ICON_CMT}${p.commentCount}</span></div>`;
+        return `<div class="pz-cnt"><span class="${p.liked ? 'on' : ''}">${ICON_LIKE}${p.likeCount}</span><span>${ICON_CMT}${p.commentCount}</span></div>`;
       }
-      // 사진이 없는 글은 기본 이미지(포도송이 + 주제색)
-      function thumbHtml(p) { return p.thumb ? `<img class="pz-thumb" src="${esc(p.thumb)}" alt="">` : `<div class="pz-thumb pz-thumb-ph ${PZ_CAT_CLS[p.category] || ''}">🍇</div>`; }
       function metaText(p) { return [maskName(p.name), p.region, ago(p.createdAt)].filter(Boolean).join(' · '); }
+      function emptyHtml(ic, msg) { return `<div class="pz-empty"><i>${ic}</i>${msg}</div>`; }
 
       // ── 목록 ──
       function renderPills() {
-        const pills = [['cal', '📅 전도 일정'], ['hot', '🔥 인기글'], ['', '전체']].concat(PZ_CATS.map(c => [c, c]));   // 2026-09-30: '✍️ 글쓰기' 알약 삭제(우측 하단 FAB와 중복)
+        // 2026-09-30: '✍️ 글쓰기' 알약 삭제(우측 하단 FAB와 중복). 켜진 알약은 주제색으로 칠한다.
+        const pills = [['cal', '📅 전도 일정'], ['hot', '🔥 인기글'], ['', '전체']].concat(PZ_CATS.map(c => [c, catIc(c) + ' ' + c]));
         $('pzPills').innerHTML = pills.map(([k, l]) => {
           const on = !['cal', 'hot'].includes(k) && k === P.cat;
-          return `<button type="button" class="pz-pill${on ? ' on' : ''}" data-pz-pill="${esc(k)}">${esc(l)}</button>`;
+          return `<button type="button" class="pz-pill ${(PZ_META[k] || {}).cls || ''}${on ? ' on' : ''}" data-pz-pill="${esc(k)}">${esc(l)}</button>`;
         }).join('');
       }
       function scrollToEl(id) {
@@ -2209,19 +2248,26 @@
       function renderLists() {
         const hot = P.hot || [];
         $('pzHot').innerHTML = guideHtml('hot') + (hot.length
-          ? hot.map((p, i) => `<div class="pz-hot-row" data-pz-open="${esc(p.postId)}">
-              <div class="pz-rank">${i + 1}</div>
-              <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-meta">${esc([p.category, maskName(p.name), ago(p.createdAt)].filter(Boolean).join(' · '))}</div>${cntHtml(p)}</div>
-              ${thumbHtml(p)}</div>`).join('') + `<button type="button" class="pz-more" data-pz-pill="feed">더보기 ›</button>`
-          : `<div class="pz-empty">최근 2주 동안 올라온 이야기가 없어요.<br>첫 이야기를 들려주세요!</div>`);
-        $('pzFeedLabel').textContent = P.kw ? `'${P.kw}' 검색 결과` : (P.cat ? '📌 ' + P.cat : '📌 교사 광장');
+          ? `<div class="pz-hot-scroll">${hot.map((p, i) => `<div class="pz-hot-card ${PZ_CAT_CLS[p.category] || ''}" data-pz-open="${esc(p.postId)}">
+              <div class="pz-hot-img">${p.thumb ? `<img src="${esc(p.thumb)}" alt="">` : catIc(p.category)}<span class="pz-rank">${i + 1}</span></div>
+              <div class="pz-title">${esc(p.title)}</div>${cntHtml(p)}</div>`).join('')}</div>`
+            + `<button type="button" class="pz-more" data-pz-pill="feed">전체 이야기 보기 ›</button>`
+          : emptyHtml('🌱', '최근 2주 동안 올라온 이야기가 없어요.<br>첫 이야기를 들려주세요!'));
+        const m = P.kw ? { ic: '🔍', cls: 'c-all', t: `'${P.kw}' 검색 결과` } : PZ_META[P.cat] || PZ_META[''];
+        $('pzFeedTitle').className = 'pz-sec-title ' + m.cls;
+        $('pzFeedIc').textContent = m.ic;
+        $('pzFeedLabel').textContent = m.t;
         $('pzFeedCount').textContent = P.total ? `${P.total}개` : '';
         const rows = P.rows;
-        $('pzFeed').innerHTML = (P.kw ? '' : guideHtml(P.cat)) + (rows.length
-          ? rows.map(p => `<div class="pz-row" data-pz-open="${esc(p.postId)}">
-              <div class="pz-row-main"><div style="margin-bottom:4px">${catHtml(p.category)}</div><div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div><div class="pz-meta">${esc(metaText(p))}</div>${cntHtml(p)}</div>
-              ${thumbHtml(p)}</div>`).join('') + (rows.length < P.total ? `<button type="button" class="pz-more" id="pzMoreBtn">${P.loading ? '불러오는 중...' : '더보기 ›'}</button>` : '')
-          : `<div class="pz-empty">${P.loading ? '불러오는 중...' : (P.kw || P.cat ? '조건에 맞는 이야기가 없어요.' : '아직 올라온 이야기가 없어요.<br>전도하며 겪은 성공·실패 사례와 사연을 나눠주세요!')}</div>`);
+        $('pzFeed').innerHTML = (P.kw ? '' : `<div class="pz-box">${guideHtml(P.cat)}</div>`) + (rows.length
+          ? rows.map(p => `<div class="pz-row ${PZ_CAT_CLS[p.category] || ''}" data-pz-open="${esc(p.postId)}">
+              <div class="pz-row-main">
+                <div class="pz-row-top">${catHtml(p.category)}<span class="pz-ago">${esc(ago(p.createdAt))}</span></div>
+                <div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div>
+                <div class="pz-row-foot"><div class="pz-who">${avaHtml(p.name, '', 'xs')}<span><b>${esc(maskName(p.name))}</b>${p.region ? ' · ' + esc(p.region) : ''}</span></div>${cntHtml(p)}</div>
+              </div>
+              ${p.thumb ? `<img class="pz-thumb" src="${esc(p.thumb)}" alt="">` : ''}</div>`).join('') + (rows.length < P.total ? `<button type="button" class="pz-more" id="pzMoreBtn">${P.loading ? '불러오는 중...' : '더보기 ›'}</button>` : '')
+          : (P.loading ? emptyHtml('⏳', '불러오는 중...') : P.kw || P.cat ? emptyHtml('🔍', '조건에 맞는 이야기가 없어요.') : emptyHtml('✏️', '아직 올라온 이야기가 없어요.<br>전도하며 겪은 성공·실패 사례와 사연을 나눠주세요!')));
         const more = $('pzMoreBtn'); if (more) more.onclick = () => load(false);
       }
       async function load(reset) {
@@ -2383,7 +2429,7 @@
           ovShow(`<div class="pz-ov-bar"><button type="button" data-pz-back>닫기</button><div class="t">${f.postId ? '글 수정' : '교사광장 글쓰기'}</div><button type="button" id="pzSave" style="color:var(--color-primary)">${saving ? '올리는 중...' : '완료'}</button></div>
             <div class="pz-ov-body">
               <div class="pz-f-lbl" style="margin-top:4px">주제</div>
-              <div class="pz-f-cats">${PZ_CATS.map(c => `<button type="button" data-pz-cat="${esc(c)}" class="${f.category === c ? 'on' : ''}">${esc(c)}</button>`).join('')}</div>
+              <div class="pz-f-cats">${PZ_CATS.map(c => `<button type="button" data-pz-cat="${esc(c)}" class="${PZ_CAT_CLS[c]}${f.category === c ? ' on' : ''}"><b>${catIc(c)} ${esc(c)}</b><span>${esc(PZ_META[c].g)}</span></button>`).join('')}</div>
               <div class="pz-f-lbl">제목</div>
               <input class="pz-f-input" id="pzFTitle" maxlength="80" placeholder="예: 세 번 거절당한 분이 복음방에 오시기까지" value="${esc(f.title)}">
               <div class="pz-f-lbl">내용</div>
