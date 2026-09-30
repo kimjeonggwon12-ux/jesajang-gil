@@ -388,6 +388,22 @@
     .pz-f-ph img { width:100%; height:100%; object-fit:cover; }
     .pz-f-ph button { position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%; border:none; background:rgba(0,0,0,.6); color:#fff; font-size:12px; cursor:pointer; }
     .pz-f-add { width:76px; height:76px; border-radius:10px; border:1.5px dashed #CDD1D8; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:12px; color:var(--dg-text-sub); cursor:pointer; }
+    /* 2026-09-30 사진 모자이크 */
+    .pz-f-hint { font-size:12.5px; color:var(--dg-text-sub); margin:-2px 0 8px; }
+    .pz-f-hint b { color:var(--color-primary); }
+    .pz-f-ph .pz-f-mz { position:absolute; left:0; right:0; bottom:0; top:auto; width:auto; height:22px; border-radius:0; background:rgba(126,34,206,.88); color:#fff; font-size:11px; font-weight:800; cursor:pointer; }
+    .pz-mz { position:fixed; inset:0; z-index:9600; background:#111; display:flex; flex-direction:column; color:#fff; letter-spacing:-0.02em; }
+    .pz-mz .pz-ov-bar { background:#fff; }
+    .pz-mz-help { padding:10px 16px; font-size:13.5px; text-align:center; color:#E5E7EB; }
+    .pz-mz-help b { color:#FDE68A; }
+    .pz-mz-stage { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:8px; overflow:hidden; }
+    .pz-mz-wrap { position:relative; display:inline-block; max-width:100%; max-height:100%; line-height:0; }
+    .pz-mz-wrap canvas { display:block; max-width:100%; max-height:calc(100vh - 190px); touch-action:none; cursor:crosshair; }
+    .pz-mz-sel { position:absolute; display:none; border:2px dashed #FDE68A; background:rgba(253,230,138,.18); pointer-events:none; }
+    .pz-mz-tools { display:flex; align-items:center; justify-content:space-between; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); background:#1F1F23; font-size:14px; }
+    .pz-mz-tools button { height:40px; padding:0 16px; border-radius:12px; border:none; background:#fff; color:#111; font-weight:800; font-size:14px; cursor:pointer; }
+    .pz-mz-tools button:disabled { opacity:.35; }
+    .pz-mz-tools b { color:#FDE68A; }
     .pz-lightbox { position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.92); display:flex; align-items:center; justify-content:center; }
     .pz-lightbox img { max-width:100%; max-height:100%; object-fit:contain; }
     .cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
@@ -2292,7 +2308,7 @@
       function cntHtml(p) {
         return `<div class="pz-cnt"><span class="${p.liked ? 'on' : ''}">${ICON_LIKE}${p.likeCount}</span><span>${ICON_CMT}${p.commentCount}</span></div>`;
       }
-      function metaText(p) { return [maskName(p.name), p.region, ago(p.createdAt)].filter(Boolean).join(' · '); }
+      function metaText(p) { return [p.name, p.region, ago(p.createdAt)].filter(Boolean).join(' · '); }
       function emptyHtml(ic, msg) { return `<div class="pz-empty"><i>${ic}</i>${msg}</div>`; }
 
       // ── 목록 ──
@@ -2317,7 +2333,7 @@
           ? hot.map((p, i) => `<div class="pz-hot-row ${PZ_CAT_CLS[p.category] || 'c-all'}" data-pz-open="${esc(p.postId)}">
               <div class="pz-hot-img">${p.thumb ? `<img src="${esc(p.thumb)}" alt="">` : catIc(p.category)}<span class="pz-rank">${i + 1}</span></div>
               <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div>
-                <div class="pz-hot-foot"><span>${esc(maskName(p.name))}</span>${cntHtml(p)}</div></div></div>`).join('')
+                <div class="pz-hot-foot"><span>${esc(p.name)}</span>${cntHtml(p)}</div></div></div>`).join('')
             + `<button type="button" class="pz-more" data-pz-pill="feed">전체 이야기 보기 ›</button>`
           : emptyHtml('🌱', '최근 2주 동안 올라온 이야기가 없어요.<br>첫 이야기를 들려주세요!'));
         const m = P.kw ? { ic: '🔍', cls: 'c-all', t: `'${P.kw}' 검색 결과` } : PZ_META[P.cat] || PZ_META[''];
@@ -2331,7 +2347,7 @@
               <div class="pz-row-main">
                 <div class="pz-row-top">${catHtml(p.category, p.title)}<span class="pz-ago">${esc(ago(p.createdAt))}</span></div>
                 <div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div>
-                <div class="pz-row-foot"><div class="pz-who">${avaHtml(p.name, '', 'xs')}<span><b>${esc(maskName(p.name))}</b>${p.region ? ' · ' + esc(p.region) : ''}</span></div>${cntHtml(p)}</div>
+                <div class="pz-row-foot"><div class="pz-who">${avaHtml(p.name, '', 'xs')}<span><b>${esc(p.name)}</b>${p.region ? ' · ' + esc(p.region) : ''}</span></div>${cntHtml(p)}</div>
               </div>
               ${p.thumb ? `<img class="pz-thumb" src="${esc(p.thumb)}" alt="">` : ''}</div>`).join('') + (rows.length < P.total ? `<button type="button" class="pz-more" id="pzMoreBtn">${P.loading ? '불러오는 중...' : '더보기 ›'}</button>` : '')
           : (P.loading ? emptyHtml('⏳', '불러오는 중...') : P.kw || P.cat ? emptyHtml('🔍', '조건에 맞는 이야기가 없어요.') : emptyHtml('✏️', '아직 올라온 이야기가 없어요.<br>전도하며 겪은 사례와 사연을 나눠주세요!')));
@@ -2379,7 +2395,7 @@
             <div class="pz-guide c-cup"><span class="pz-guide-ic">💬</span><span>한 달 동안 공감(추천)을 가장 많이 받은 글 3개의 작성자에게 커피 쿠폰을 드려요. (1인 1매)</span></div>
             ${wait || (cs.length ? cs.map((p, i) => `<div class="pzm-c" data-pz-open="${esc(p.postId)}">
                 <div class="pzm-cup">☕<b>${i + 1}</b></div>
-                <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pzm-who">${esc(maskName(p.name))} · ${cur ? '현재 ' : ''}공감 <b>${p.likeCount}</b> · 댓글 ${p.commentCount}</div></div>
+                <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pzm-who">${esc(p.name)} · ${cur ? '현재 ' : ''}공감 <b>${p.likeCount}</b> · 댓글 ${p.commentCount}</div></div>
                 <span class="pzm-badge">${cur ? '당첨 예정' : '당첨'}</span></div>`).join('')
               : emptyHtml('☕', d.failed ? '잠시 후 다시 확인해 주세요.' : `${ml}에 공감을 받은 글이 아직 없어요.<br>좋은 글에 공감을 눌러 추천해 주세요!`))}
           </div>`;
@@ -2533,6 +2549,77 @@
         throw new Error('사진이 너무 커요. 다른 사진을 골라주세요.');
       }
 
+      // ── 사진 모자이크 (2026-09-30) ──
+      // 올린 사진에서 가릴 사람 얼굴을 손가락으로 드래그해 네모로 감싸거나 톡 누르면 그 부분만 모자이크.
+      // 여러 곳 가능, [되돌리기]로 한 단계씩 취소. [완료]하면 모자이크된 사진으로 바꿔 넣는다(원본은 저장 안 함).
+      // 글쓰기 오버레이 위에 따로 띄우는 층이라 휴대폰 뒤로가기 기록은 건드리지 않는다.
+      function openMosaic(src, onDone) {
+        const layer = document.createElement('div');
+        layer.className = 'pz-mz';
+        layer.innerHTML = `<div class="pz-ov-bar"><button type="button" data-mz="cancel">취소</button><div class="t">모자이크</div><button type="button" data-mz="done" style="color:var(--color-primary)">완료</button></div>
+          <div class="pz-mz-help">가릴 얼굴을 <b>손가락으로 드래그</b>해 네모로 감싸거나, <b>톡 누르세요</b>.</div>
+          <div class="pz-mz-stage"><div class="pz-mz-wrap"><canvas></canvas><div class="pz-mz-sel"></div></div></div>
+          <div class="pz-mz-tools"><button type="button" data-mz="undo" disabled>↶ 되돌리기</button><span>모자이크 <b>0</b>곳</span></div>`;
+        document.body.appendChild(layer);
+        const cv = layer.querySelector('canvas'), ctx = cv.getContext('2d'), sel = layer.querySelector('.pz-mz-sel');
+        const undoBtn = layer.querySelector('[data-mz="undo"]'), countEl = layer.querySelector('.pz-mz-tools b');
+        const hist = [];
+        const close = () => layer.remove();
+        const sync = () => { undoBtn.disabled = !hist.length; countEl.textContent = hist.length; };
+        loadImage(src).then(im => {
+          cv.width = im.naturalWidth || im.width; cv.height = im.naturalHeight || im.height;
+          ctx.drawImage(im, 0, 0);
+        }).catch(e => { toast(e.message, true); close(); });
+        const toCanvas = ev => {
+          const r = cv.getBoundingClientRect();
+          return { x: (ev.clientX - r.left) * cv.width / r.width, y: (ev.clientY - r.top) * cv.height / r.height, px: ev.clientX - r.left, py: ev.clientY - r.top };
+        };
+        function pixelate(x, y, w, h) {
+          x = Math.max(0, Math.round(x)); y = Math.max(0, Math.round(y));
+          w = Math.min(cv.width - x, Math.round(w)); h = Math.min(cv.height - y, Math.round(h));
+          if (w < 2 || h < 2) return;
+          hist.push(ctx.getImageData(0, 0, cv.width, cv.height));
+          const bs = Math.max(8, Math.round(Math.max(cv.width, cv.height) / 45));   // 모자이크 칸 크기
+          const tw = Math.max(1, Math.ceil(w / bs)), th = Math.max(1, Math.ceil(h / bs));
+          const t = document.createElement('canvas'); t.width = tw; t.height = th;
+          t.getContext('2d').drawImage(cv, x, y, w, h, 0, 0, tw, th);
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(t, 0, 0, tw, th, x, y, w, h);
+          ctx.imageSmoothingEnabled = true;
+          sync();
+        }
+        let start = null;
+        cv.addEventListener('pointerdown', ev => { ev.preventDefault(); cv.setPointerCapture(ev.pointerId); start = toCanvas(ev); sel.style.display = 'none'; });
+        cv.addEventListener('pointermove', ev => {
+          if (!start) return;
+          const p = toCanvas(ev);
+          Object.assign(sel.style, { display: 'block', left: Math.min(start.px, p.px) + 'px', top: Math.min(start.py, p.py) + 'px', width: Math.abs(p.px - start.px) + 'px', height: Math.abs(p.py - start.py) + 'px' });
+        });
+        const finish = ev => {
+          if (!start) return;
+          const p = toCanvas(ev), s0 = start; start = null; sel.style.display = 'none';
+          const disp = Math.hypot(p.px - s0.px, p.py - s0.py);
+          if (disp < 12) {   // 톡 누르기 = 그 자리 중심으로 얼굴 크기만큼
+            const side = Math.min(cv.width, cv.height) * 0.16;
+            pixelate(s0.x - side / 2, s0.y - side / 2, side, side);
+          } else pixelate(Math.min(s0.x, p.x), Math.min(s0.y, p.y), Math.abs(p.x - s0.x), Math.abs(p.y - s0.y));
+        };
+        cv.addEventListener('pointerup', finish);
+        cv.addEventListener('pointercancel', () => { start = null; sel.style.display = 'none'; });
+        layer.addEventListener('click', async ev => {
+          const b = ev.target.closest('[data-mz]'); if (!b) return;
+          const k = b.dataset.mz;
+          if (k === 'cancel') return close();
+          if (k === 'undo') { const d = hist.pop(); if (d) ctx.putImageData(d, 0, 0); sync(); return; }
+          if (k === 'done') {
+            if (!hist.length) return close();
+            b.disabled = true;
+            try { const out = await shrink(cv.toDataURL('image/jpeg', 0.9), 1000, 44000); close(); onDone(out); }
+            catch (e) { b.disabled = false; toast(e.message, true); }
+          }
+        });
+      }
+
       // ── 글쓰기 / 수정 ──
       function openWrite(existing) {
         const f = existing
@@ -2549,8 +2636,9 @@
               <div class="pz-f-lbl">내용</div>
               <textarea class="pz-f-input" id="pzFBody" maxlength="5000" style="min-height:220px;line-height:1.6" placeholder="전도하며 겪은 성공·실패 사례, 사연을 들려주세요.&#10;어떤 상황이었고, 무엇을 했고, 어떻게 됐는지 적으면 다른 선생님들께 큰 도움이 돼요.">${esc(f.body)}</textarea>
               <div class="pz-f-lbl">사진 <small style="font-weight:600;color:var(--dg-text-sub)">(최대 4장)</small></div>
+              <div class="pz-f-hint">사진 아래 <b>[모자이크]</b>를 누르면 원하는 사람 얼굴만 가릴 수 있어요.</div>
               <div class="pz-f-photos">
-                ${f.photos.map((src, i) => `<div class="pz-f-ph"><img src="${esc(src)}" alt=""><button type="button" data-pz-rmph="${i}">✕</button></div>`).join('')}
+                ${f.photos.map((src, i) => `<div class="pz-f-ph"><img src="${esc(src)}" alt=""><button type="button" data-pz-rmph="${i}">✕</button><button type="button" class="pz-f-mz" data-pz-mosaic="${i}">모자이크</button></div>`).join('')}
                 ${f.photos.length < 4 ? `<label class="pz-f-add"><span style="font-size:22px;line-height:1">📷</span>${f.photos.length}/4<input type="file" id="pzFFile" accept="image/*" multiple style="display:none"></label>` : ''}
               </div>
               <div class="pz-f-lbl">해시태그</div>
@@ -2559,6 +2647,7 @@
           const bind = (id, key) => { const el = $(id); el.oninput = () => { f[key] = el.value; }; };
           bind('pzFTitle', 'title'); bind('pzFBody', 'body'); bind('pzFTags', 'tags');
           document.querySelectorAll('[data-pz-cat]').forEach(b => b.onclick = () => { f.category = b.dataset.pzCat; draw(); });
+          document.querySelectorAll('[data-pz-mosaic]').forEach(b => b.onclick = () => { const i = Number(b.dataset.pzMosaic); openMosaic(f.photos[i], out => { f.photos[i] = out; draw(); }); });
           document.querySelectorAll('[data-pz-rmph]').forEach(b => b.onclick = () => { f.photos.splice(Number(b.dataset.pzRmph), 1); draw(); });
           const file = $('pzFFile');
           if (file) file.onchange = async () => {
@@ -2626,7 +2715,7 @@
             <div class="pzc-sub">제안된 이름 <b>${rows.length}</b>개 · 공감 많은 순</div>
             ${rows.length ? rows.map((p, i) => `<div class="pzc-row" data-pz-open="${esc(p.postId)}">
                 <div class="pzc-rank${i < 3 ? ' r' + (i + 1) : ''}">${i + 1}</div>
-                <div class="pzc-main"><div class="pzc-name">${esc(pzcName(p))}</div><div class="pzc-mean">${esc(pzcMeaning(p))}</div><div class="pzc-who">${esc(maskName(p.name))} 제안 · ${esc(ago(p.createdAt))}</div></div>
+                <div class="pzc-main"><div class="pzc-name">${esc(pzcName(p))}</div><div class="pzc-mean">${esc(pzcMeaning(p))}</div><div class="pzc-who">${esc(p.name)} 제안 · ${esc(ago(p.createdAt))}</div></div>
                 <div class="pzc-like${p.liked ? ' on' : ''}">${ICON_LIKE}<b>${p.likeCount}</b></div></div>`).join('')
               : `<div class="pz-empty"><div style="font-size:40px;line-height:1;margin-bottom:10px">🏷️</div>아직 제안된 이름이 없어요.<br>첫 번째로 이름을 지어 주세요!</div>`}
             <button type="button" class="pzc-go wide" data-pzc-write>✏️ 이름 제안하기</button>
