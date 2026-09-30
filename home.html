@@ -17,12 +17,12 @@
 </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>복음방 교사</title>
+  <title>교사 광장</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#5B4FCF">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="복음방 교사">
+  <meta name="apple-mobile-web-app-title" content="교사 광장">
   <link rel="apple-touch-icon" href="icon-192.png">
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -215,9 +215,9 @@
     <nav id="bottomTabBar">
       <!-- 2026-09-20: 탭 명칭·아이콘 변경 — 연결/내활동/AI/교재/관리 (인라인 SVG, Lucide 계열). 연결 탭은 미읽 알림 빨간 점. -->
       <!-- 2026-09-22: "캘린더" 탭 신규(맨 앞) — 개강일·행사일 확인 + 스탭/참석자 신청 + 전도부 광고. -->
-      <button role="tab" class="tab" data-room="calendar" onclick="switchTab('calendar', this)" title="캘린더">
-        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /></svg></span>
-        <span class="tab-label">캘린더</span>
+      <button role="tab" class="tab" data-room="calendar" onclick="switchTab('calendar', this)" title="광장">
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span class="tab-label">광장</span>
       </button>
       <button role="tab" class="tab" data-room="connect" onclick="switchTab('connect', this)" title="연결">
         <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3" /><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" /><path d="m21 3 1 11h-2" /><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" /><path d="M3 4h8" /></svg><span id="connectDot" style="display:none;position:absolute;top:-2px;right:-4px;width:9px;height:9px;border-radius:50%;background:#E5322D;border:1.5px solid #fff"></span></span>
@@ -307,7 +307,7 @@
       feedback: 'feedback-room.html',
       coach: 'admin-home.html', // 하단 "관리" 탭 — 피드백 교관 화면(coach-dashboard) 제거 후 관리자 홈으로 연결
       connect: 'connect-room.html',
-      calendar: 'calendar-room.html' // 2026-09-22 신규
+      calendar: 'plaza-room.html' // 2026-09-30: 캘린더 → 교사 광장(도마 전도 일정 + 게시판)
     };
     const PROXY_URL = "https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec";
 

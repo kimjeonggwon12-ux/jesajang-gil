@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>복음방 교사</title>
+  <title>교사 광장</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#7E22CE">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="복음방 교사">
+  <meta name="apple-mobile-web-app-title" content="교사 광장">
   <link rel="apple-touch-icon" href="icon-192.png">
   <!-- 2026-09-22: SPA 통합(app.html) — daisyUI/Tailwind/Chart.js는 문서 전체에 1회만 로드.
        이전 11개 파일이 각자 따로 로드하던 동일 CDN들을 여기 하나로 합쳤다. -->
@@ -210,6 +210,8 @@
     /* ── 2026-09-29 교사광장(구 캘린더 탭) — 당근 "동네생활" 방식 커뮤니티 ──
        흰 앱바 + 검색 + 알약 메뉴줄(당근 상단 서비스 버튼) / 도마 전도 일정(기존 캘린더) /
        지금 뜨는 교사 이야기(순위 1~5) / 교사 이야기 피드(제목·요약·썸네일) / 글 상세(사진·공감·댓글). */
+    .embed-plaza #bottomTabBar, .embed-plaza #appHeader, .embed-plaza #sec-calendar .pz-appbar-actions { display:none !important; }
+    .embed-plaza #sec-calendar .pz-fab { bottom:20px; }
     #sec-calendar { background:#fff; min-height:100%; letter-spacing:-0.02em; color:var(--dg-text); }
     #sec-calendar .pz-appbar { position:sticky; top:0; z-index:20; background:#fff; padding:10px 16px 0; }
     #sec-calendar .pz-appbar-row { display:flex; align-items:center; gap:10px; height:44px; }
@@ -246,6 +248,10 @@
     .pz-cat.c-succ { background:#E8F7EE; color:#1B7F4B; } .pz-cat.c-fail { background:#FDECEC; color:#C23B3B; }
     .pz-cat.c-story { background:#F3E8FF; color:#7E22CE; } .pz-cat.c-tip { background:#FFF4E0; color:#B35C00; }
     .pz-cat.c-q { background:#E8F1FD; color:#2F6FDE; } .pz-cat.c-thx { background:#FFF0F6; color:#C2255C; }
+    #sec-calendar .pz-thumb-ph { display:flex; align-items:center; justify-content:center; font-size:30px; background:linear-gradient(145deg,#F3E8FF,#E9D5FF); }
+    #sec-calendar .pz-thumb-ph.c-succ { background:linear-gradient(145deg,#E8F7EE,#C9EED8); } #sec-calendar .pz-thumb-ph.c-fail { background:linear-gradient(145deg,#FDECEC,#F9D2D2); }
+    #sec-calendar .pz-thumb-ph.c-q { background:linear-gradient(145deg,#E8F1FD,#CFE0FA); } #sec-calendar .pz-thumb-ph.c-thx { background:linear-gradient(145deg,#FFF0F6,#FCD5E6); }
+    .pz-d-hero { display:block; width:calc(100% + 36px); margin:-16px -18px 14px; max-height:70vh; object-fit:cover; background:#F2F3F6; cursor:zoom-in; }
     /* 글 상세 / 글쓰기 — body 최상위 전체화면(탭바 위) */
     .pz-ov { position:fixed; inset:0; z-index:9000; background:#fff; display:flex; flex-direction:column; letter-spacing:-0.02em; color:var(--dg-text); animation:kkoFadeIn .15s ease; }
     .pz-ov-bar { display:flex; align-items:center; gap:8px; height:52px; padding:0 8px; border-bottom:1px solid var(--dg-line); flex-shrink:0; }
@@ -1100,7 +1106,7 @@
         <div class="pd-dot pd-d1"></div><div class="pd-dot pd-d2"></div><div class="pd-dot pd-d3"></div>
         <div class="pd-dot pd-d4"></div><div class="pd-dot pd-d5"></div><div class="pd-dot pd-d6"></div>
       </div>
-      <h1 class="pd-title pd-fade d1">복음방 교사</h1>
+      <h1 class="pd-title pd-fade d1">교사 광장</h1>
       <p class="pd-tagline pd-fade d2">알알이 맺히는 따뜻한 동행</p>
       <div class="pd-conn pd-fade d2"><i></i><i></i><i></i></div>
     </div>
@@ -1117,7 +1123,7 @@
         </div>
 
         <h1 class="pd-hello">반가워요~ 👋<br>우리가 연결될 때, 더 많은 열매를 맺어요.</h1>
-        <p class="pd-welcome">복음방교사 커뮤니티, <b>복음방 교사</b>에 오신 것을 환영해요.</p>
+        <p class="pd-welcome">복음방 교사들의 커뮤니티, <b>교사 광장</b>에 오신 것을 환영해요.</p>
 
         <!-- 2026-09-23: 로그인 화면에 전주교회 교사 현황 요약(getRoster 1회 호출).
              입장 전에도 "지금 우리 교회 교사가 몇 명이고 몇 명이 활동 중인지"가 보이게. -->
@@ -1155,7 +1161,7 @@
 
   <div id="appPanel" class="flex flex-col h-screen" style="display:none">
     <header id="appHeader" class="flex items-center justify-between px-4 flex-shrink-0" style="height:56px;background:#7E22CE">
-      <div class="text-white font-bold text-base">복음방 교사</div>
+      <div class="text-white font-bold text-base">교사 광장</div>
       <div class="flex items-center gap-3 text-white">
         <button id="tierBadge" type="button" onclick="openGrowthModal()" style="display:none;height:26px;padding:0 10px;border-radius:13px;font-size:12px;font-weight:700;border:1px solid rgba(255,255,255,.55);white-space:nowrap"></button>
         <svg class="lucide-i" style="width:20px;height:20px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="알림"><path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>
@@ -1220,7 +1226,7 @@
         <div class="pz-wrap">
           <div class="pz-sec-title" id="pzHotTitle">🔥 지금 뜨는 교사 이야기</div>
           <div class="pz-box" id="pzHot"><div class="pz-empty">불러오는 중...</div></div>
-          <div class="pz-sec-title" id="pzFeedTitle"><span id="pzFeedLabel">교사 이야기</span><small id="pzFeedCount"></small></div>
+          <div class="pz-sec-title" id="pzFeedTitle"><span id="pzFeedLabel">📌 교사 광장</span><small id="pzFeedCount"></small></div>
           <div class="pz-box" id="pzFeed"><div class="pz-empty">불러오는 중...</div></div>
         </div>
         <button type="button" class="pz-fab" id="pzFab">+ 글쓰기</button>
@@ -1311,9 +1317,9 @@
       <!-- 2026-09-22: SPA 통합 — 해시 라우팅(#calendar/#activity/#connect/#ai/#textbook/#admin).
            관리자 탭은 isAdmin()이 true일 때만 노출(현재는 라이브 코드와 동일하게 임시 전체 개방 —
            복구 지점은 isAdmin() 함수 주석 참고). -->
-      <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="교사광장">
+      <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="광장">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-        <span class="tab-label">교사광장</span>
+        <span class="tab-label">광장</span>
       </button>
       <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="내활동">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg></span>
@@ -1469,6 +1475,10 @@
     const paramMemberId = urlParams.get('memberId');
     const paramName = urlParams.get('name');
     if (paramMemberId && paramName) { window.TEST_MEMBER_ID = paramMemberId; window.TEST_NAME = paramName; }
+    // 2026-09-30: 옛 home.html(iframe 방식) 하단 "광장" 탭이 plaza-room.html → app.html?embed=plaza 로 연다.
+    // 같은 교사광장 화면(도마 전도 일정 + 교사 광장 게시판)을 그대로 쓰고, 앱 헤더·하단 탭만 숨긴다.
+    const EMBED_PLAZA = urlParams.get('embed') === 'plaza';
+    if (EMBED_PLAZA) document.documentElement.classList.add('embed-plaza');
 
     // ════════════════════════════════════════════════════════════════
     // 2026-09-23 표지(스플래시 → 로그인) + 고유번호 로컬 기억
@@ -1702,6 +1712,7 @@
 
     // 2026-09-17: iOS/안드로이드 홈화면 추가 안내 — localStorage 키로 최초 1회만.
     function showInstallToastIfNeeded() {
+      if (EMBED_PLAZA) return;
       try {
         if (localStorage.getItem('kko_install_toast_shown')) return;
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -1809,6 +1820,7 @@
     function enterFromHash() {
       const h = (location.hash || '').replace('#', '');
       // 2026-09-29: 기본 진입 = 연결 탭의 "활동자 찾기"(사용자 요청). 해시가 있으면 그 탭.
+      if (EMBED_PLAZA) { switchTab('calendar'); return; }
       switchTab(TAB_IDS.includes(h) ? h : 'connect');
     }
     // 2026-09-22: 섹션 간 인계 — 예전엔 iframe 에 ?chatWith=/?heartsStage= 같은 URL 파라미터를
@@ -2138,8 +2150,8 @@
     //         addPlazaComment/deletePlazaComment (backend-source/PlazaBackend.gs).
     // ════════════════════════════════════════════════════════════════
     (function () {
-      const PZ_CATS = ['성공 사례', '실패 사례', '교사 사연', '노하우', '질문', '감사·나눔'];
-      const PZ_CAT_CLS = { '성공 사례': 'c-succ', '실패 사례': 'c-fail', '교사 사연': 'c-story', '노하우': 'c-tip', '질문': 'c-q', '감사·나눔': 'c-thx' };
+      const PZ_CATS = ['성공사례', '실패사례', '나눔', '질문'];   // 2026-09-30 지시서 기준
+      const PZ_CAT_CLS = { '성공사례': 'c-succ', '실패사례': 'c-fail', '나눔': 'c-thx', '질문': 'c-q' };
       const PZ_PAGE = 20;
       const P = { cat: '', kw: '', rows: [], hot: [], total: 0, loading: false, mounted: false, detail: null, sort: 'asc', ovOpen: false };
       const $ = id => document.getElementById(id);
@@ -2165,8 +2177,9 @@
       function cntHtml(p) {
         return `<div class="pz-cnt"><span style="display:flex;align-items:center;gap:3px">${ICON_LIKE}${p.likeCount}</span><span style="display:flex;align-items:center;gap:3px">${ICON_CMT}${p.commentCount}</span></div>`;
       }
-      function thumbHtml(p) { return p.thumb ? `<img class="pz-thumb" src="${esc(p.thumb)}" alt="">` : ''; }
-      function metaText(p) { return [p.region, p.category, ago(p.createdAt)].filter(Boolean).join(' · '); }
+      // 사진이 없는 글은 기본 이미지(포도송이 + 주제색)
+      function thumbHtml(p) { return p.thumb ? `<img class="pz-thumb" src="${esc(p.thumb)}" alt="">` : `<div class="pz-thumb pz-thumb-ph ${PZ_CAT_CLS[p.category] || ''}">🍇</div>`; }
+      function metaText(p) { return [maskName(p.name), p.region, ago(p.createdAt)].filter(Boolean).join(' · '); }
 
       // ── 목록 ──
       function renderPills() {
@@ -2187,15 +2200,15 @@
         $('pzHot').innerHTML = hot.length
           ? hot.map((p, i) => `<div class="pz-hot-row" data-pz-open="${esc(p.postId)}">
               <div class="pz-rank">${i + 1}</div>
-              <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-meta">${esc([p.category, ago(p.createdAt)].filter(Boolean).join(' · '))}</div>${cntHtml(p)}</div>
+              <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-meta">${esc([p.category, maskName(p.name), ago(p.createdAt)].filter(Boolean).join(' · '))}</div>${cntHtml(p)}</div>
               ${thumbHtml(p)}</div>`).join('') + `<button type="button" class="pz-more" data-pz-pill="feed">더보기 ›</button>`
           : `<div class="pz-empty">최근 2주 동안 올라온 이야기가 없어요.<br>첫 이야기를 들려주세요!</div>`;
-        $('pzFeedLabel').textContent = P.kw ? `'${P.kw}' 검색 결과` : (P.cat || '교사 이야기');
+        $('pzFeedLabel').textContent = P.kw ? `'${P.kw}' 검색 결과` : (P.cat ? '📌 ' + P.cat : '📌 교사 광장');
         $('pzFeedCount').textContent = P.total ? `${P.total}개` : '';
         const rows = P.rows;
         $('pzFeed').innerHTML = rows.length
           ? rows.map(p => `<div class="pz-row" data-pz-open="${esc(p.postId)}">
-              <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div><div class="pz-meta">${esc(metaText(p))}</div>${cntHtml(p)}</div>
+              <div class="pz-row-main"><div style="margin-bottom:4px">${catHtml(p.category)}</div><div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div><div class="pz-meta">${esc(metaText(p))}</div>${cntHtml(p)}</div>
               ${thumbHtml(p)}</div>`).join('') + (rows.length < P.total ? `<button type="button" class="pz-more" id="pzMoreBtn">${P.loading ? '불러오는 중...' : '더보기 ›'}</button>` : '')
           : `<div class="pz-empty">${P.loading ? '불러오는 중...' : (P.kw || P.cat ? '조건에 맞는 이야기가 없어요.' : '아직 올라온 이야기가 없어요.<br>전도하며 겪은 성공·실패 사례와 사연을 나눠주세요!')}</div>`;
         const more = $('pzMoreBtn'); if (more) more.onclick = () => load(false);
@@ -2245,13 +2258,14 @@
         host.innerHTML = `<div class="pz-ov">
           <div class="pz-ov-bar"><button type="button" data-pz-back>‹</button><div class="t">교사광장</div>${p.isMine ? '<button type="button" id="pzPostMenu">⋯</button>' : '<span style="width:40px"></span>'}</div>
           <div class="pz-ov-body" id="pzOvBody">
+            ${(p.photos || [])[0] ? `<img class="pz-d-photo pz-d-hero" src="${esc(p.photos[0])}" alt="대표 사진">` : ''}
             ${catHtml(p.category)}
             <div class="pz-author">${avaHtml(p.name, p.authorPhoto)}
               <div><div style="font-size:15px;font-weight:800">${esc(p.name)}</div><div class="pz-cmt-meta">${esc([p.region, p.dept].filter(Boolean).join(' '))}${p.region || p.dept ? ' · ' : ''}${esc(ago(p.createdAt))}${p.updatedAt && p.updatedAt !== p.createdAt ? ' (수정됨)' : ''}</div></div>
             </div>
             <div class="pz-d-title">${esc(p.title)}</div>
             <div class="pz-d-body">${esc(p.body)}</div>
-            ${(p.photos || []).map(src => `<img class="pz-d-photo" src="${esc(src)}" alt="첨부 사진">`).join('')}
+            ${(p.photos || []).slice(1).map(src => `<img class="pz-d-photo" src="${esc(src)}" alt="첨부 사진">`).join('')}
             ${p.tags.length ? `<div class="pz-tags">${p.tags.map(t => `<span>#${esc(t)}</span>`).join('')}</div>` : ''}
             ${p.likeCount ? `<div class="pz-react">💜 선생님 ${p.likeCount}명이 공감했어요</div>` : ''}
             <div class="pz-actions">

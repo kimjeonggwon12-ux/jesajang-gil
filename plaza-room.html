@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>교사 광장</title>
+<!--
+  2026-09-30 신설: 교사 광장 방(도마 전도 일정 + 교사 광장 게시판).
+  실제 화면·기능은 app.html 의 "광장" 탭(#sec-calendar + PlazaBackend.gs 액션) 하나에만 두고,
+  이 파일은 옛 home.html(iframe 방식) 하단 "광장" 탭이나 직접 링크로 열렸을 때
+  받은 ?memberId=&name= 을 그대로 넘겨 app.html?embed=plaza 로 이어준다(코드 중복 없이 한 곳만 고치면 됨).
+-->
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    q.set('embed', 'plaza');
+    location.replace('app.html?' + q.toString() + '#calendar');
+  })();
+</script>
+</head>
+<body style="font-family:sans-serif;text-align:center;padding:40px;color:#666">
+  교사 광장으로 이동 중... <a href="app.html#calendar">바로 가기</a>
+</body>
+</html>

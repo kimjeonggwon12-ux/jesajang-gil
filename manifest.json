@@ -1,7 +1,7 @@
 {
-  "name": "복음방 교사",
-  "short_name": "복음방교사",
-  "start_url": "/jesajang-gil/home.html",
+  "name": "교사 광장",
+  "short_name": "교사광장",
+  "start_url": "/jesajang-gil/app.html",
   "scope": "/jesajang-gil/",
   "display": "standalone",
   "background_color": "#5B4FCF",
