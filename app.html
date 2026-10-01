@@ -246,7 +246,14 @@
     /* 2026-10-01: 알약줄 = [글] 칼럼 | [코너] 구분 */
     #sec-calendar .pz-pill-lbl { flex-shrink:0; align-self:center; font-size:11.5px; font-weight:800; color:#9CA3AF; padding:0 1px 0 2px; }
     #sec-calendar .pz-pill-sep { flex-shrink:0; align-self:center; width:1px; height:20px; background:#D1D5DB; margin:0 4px; }
-    #sec-calendar .pz-pill.corner { background:#F7F8FA; border-style:dashed; color:#4D5159; }
+    #sec-calendar .pz-pill-lbl.write { font-size:13px; color:var(--dg-text); padding:0 2px 0 0; }
+    #sec-calendar .pz-pill.write { background:var(--pb); border-color:transparent; color:var(--pc); }
+    #sec-calendar .pz-pill.corner { background:#fff; color:#4D5159; font-weight:600; }
+    #sec-calendar .pz-pill.corner i { font-style:normal; font-size:15px; margin-left:1px; color:#9CA3AF; }
+    #sec-calendar .pz-ftabs { display:flex; gap:6px; margin:0 0 10px; overflow-x:auto; scrollbar-width:none; }
+    #sec-calendar .pz-ftabs::-webkit-scrollbar { display:none; }
+    #sec-calendar .pz-ftabs button { flex-shrink:0; height:32px; padding:0 13px; border-radius:999px; border:1px solid #E5E7EB; background:#fff; font-size:13px; font-weight:700; color:var(--dg-text-sub); cursor:pointer; white-space:nowrap; }
+    #sec-calendar .pz-ftabs button.on { background:var(--pc, var(--dg-text)); border-color:var(--pc, var(--dg-text)); color:#fff; }
     /* 글쓰기 안내 카드 */
     #sec-calendar .pz-wc { margin-top:16px; background:#fff; border-radius:20px; padding:16px 14px 14px; box-shadow:0 1px 3px rgba(17,24,39,.05); }
     #sec-calendar .pz-wc-title { font-size:17px; font-weight:800; letter-spacing:-0.03em; }
@@ -1367,6 +1374,7 @@
           <div class="pz-sec-title c-hot" id="pzHotTitle"><span class="pz-sec-ic">🔥</span><span class="pz-sec-txt" id="pzHotLabel">지금 뜨는 교사 이야기</span><small class="pz-cup-chip">☕ 커피 쿠폰</small></div>
           <div class="pz-box c-hot" id="pzHot"><div class="pz-empty">불러오는 중...</div></div>
           <div class="pz-sec-title c-all" id="pzFeedTitle"><span class="pz-sec-ic" id="pzFeedIc">📌</span><span class="pz-sec-txt" id="pzFeedLabel">교사 광장</span><small id="pzFeedCount"></small></div>
+          <div class="pz-ftabs" id="pzFeedTabs"></div>
           <div class="pz-feed" id="pzFeed"><div class="pz-empty">불러오는 중...</div></div>
           <div id="pzTom"></div>
         </div>
@@ -2390,13 +2398,13 @@
       // ── 목록 ──
       function renderPills() {
         // 2026-09-30: '✍️ 글쓰기' 알약 삭제(우측 하단 FAB와 중복). 2차: 알약 아이콘 삭제, 이달의 교사·커피 쿠폰 추가.
-        // 2026-10-01: [글] 직접 쓰는 칼럼(전체·사례·질문·불편신고) | [코너] 인기글·쿠폰 / 이달의 교사 / 전도 일정 — 둘을 구분해 보여준다.
-        const cols = [['', '전체']].concat(PZ_CATS.map(c => [c, c]));
-        const corners = [['hot', '🔥 인기글·☕쿠폰'], ['tom', '🏅 이달의 교사'], ['cal', '📅 전도 일정']];
-        $('pzPills').innerHTML = '<span class="pz-pill-lbl">글</span>'
-          + cols.map(([k, l]) => `<button type="button" class="pz-pill ${(PZ_META[k] || {}).cls || ''}${k === P.cat ? ' on' : ''}" data-pz-pill="${esc(k)}">${esc(l)}</button>`).join('')
-          + '<span class="pz-pill-sep"></span><span class="pz-pill-lbl">코너</span>'
-          + corners.map(([k, l]) => `<button type="button" class="pz-pill corner" data-pz-pill="${esc(k)}">${esc(l)}</button>`).join('');
+        // 2026-10-01(2차): 앞 = ✍️ 글쓰기 사례·질문·불편신고(누르면 그 주제로 바로 글쓰기),
+        // 뒤 = 보는 곳(› 화살표로 '보러 가기' 암시). 목록 거르기(전체·사례·질문·불편신고)는 글 목록 위 탭으로 옮김.
+        const corners = [['hot', '🔥 인기글·쿠폰'], ['tom', '🏅 이달의 교사'], ['cal', '📅 전도 일정']];
+        $('pzPills').innerHTML = '<span class="pz-pill-lbl write">✍️ 글쓰기</span>'
+          + PZ_CATS.map(c => `<button type="button" class="pz-pill write ${PZ_CAT_CLS[c]}" data-pz-write="${esc(c)}">${esc(c)}</button>`).join('')
+          + '<span class="pz-pill-sep"></span>'
+          + corners.map(([k, l]) => `<button type="button" class="pz-pill corner" data-pz-pill="${esc(k)}">${esc(l)}<i>›</i></button>`).join('');
       }
       function scrollToEl(id) {
         const el = $(id), sec = $('appSections');
@@ -2410,6 +2418,8 @@
         $('pzFeedIc').textContent = m.ic;
         $('pzFeedLabel').textContent = m.t;
         $('pzFeedCount').textContent = P.total ? `${P.total}개` : '';
+        $('pzFeedTabs').innerHTML = [['', '전체']].concat(PZ_CATS.map(c => [c, c])).map(([k, l]) =>
+          `<button type="button" class="${(PZ_META[k] || {}).cls || ''}${!P.kw && k === P.cat ? ' on' : ''}" data-pz-pill="${esc(k)}">${esc(l)}</button>`).join('');
         const rows = P.rows;
         $('pzFeed').innerHTML = (P.kw ? '' : `<div class="pz-box">${guideHtml(P.cat)}</div>`) + (rows.length
           ? rows.map(p => `<div class="pz-row ${PZ_CAT_CLS[p.category] || ''}" data-pz-open="${esc(p.postId)}">
