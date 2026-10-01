@@ -231,6 +231,7 @@
     .c-thx  { --pc:#C2255C; --pb:#FFF0F6; --pg:linear-gradient(145deg,#FFF0F6,#FCCFE2); }
     .c-q    { --pc:#2F6FDE; --pb:#E8F1FD; --pg:linear-gradient(145deg,#E8F1FD,#C7DBFA); }
     .c-case { --pc:#0F766E; --pb:#E6F6F1; --pg:linear-gradient(145deg,#E6F6F1,#B8E6D8); }
+    .c-bug  { --pc:#B91C1C; --pb:#FEECEC; --pg:linear-gradient(145deg,#FEECEC,#FBC7C7); }
     .c-tom  { --pc:#B45309; --pb:#FEF3C7; }
     .c-cup  { --pc:#9A3412; --pb:#FFEDD5; }
     .c-all, .c-hot { --pc:#7E22CE; --pb:#F5EDFF; --pg:linear-gradient(145deg,#F5EDFF,#E2CCFB); }
@@ -289,6 +290,7 @@
     .pz-cat.c-succ { background:#E8F7EE; color:#1B7F4B; } .pz-cat.c-fail { background:#FFF1E8; color:#C2410C; }
     .pz-cat.c-q { background:#E8F1FD; color:#2F6FDE; } .pz-cat.c-thx { background:#FFF0F6; color:#C2255C; }
     .pz-cat.c-case { background:#E6F6F1; color:#0F766E; } .pz-cat.c-contest { background:#FEF3C7; color:#92400E; }
+    .pz-cat.c-bug { background:#FEECEC; color:#B91C1C; }
     /* 2026-09-30(2차) 이달의 교사 / 인기글 커피 쿠폰 */
     .pzm-tabs { display:flex; gap:6px; padding:12px 14px 0; }
     .pzm-tabs button { height:32px; padding:0 12px; border-radius:999px; border:1px solid #E5E7EB; background:#fff; font-size:13px; font-weight:700; color:var(--dg-text-sub); cursor:pointer; }
@@ -2305,15 +2307,17 @@
     (function () {
       // 2026-09-30(2차): 성공사례+실패사례 → '사례' 하나로, '나눔'은 뺌(앱 이름 공모 글 저장용으로만 남음).
       // 옛 글의 성공사례/실패사례는 '사례'로, 옛 나눔 글은 칩 없이 보여준다.
-      const PZ_CATS = ['사례', '질문'];
-      const PZ_CAT_CLS = { '사례': 'c-case', '성공사례': 'c-case', '실패사례': 'c-case', '질문': 'c-q' };
+      // 2026-10-01: 어플 불편한 점은 질문과 따로 '불편신고' 코너로 받는다.
+      const PZ_CATS = ['사례', '질문', '불편신고'];
+      const PZ_CAT_CLS = { '사례': 'c-case', '성공사례': 'c-case', '실패사례': 'c-case', '질문': 'c-q', '불편신고': 'c-bug' };
       const catOf = c => (c === '성공사례' || c === '실패사례') ? '사례' : c;
       // 주제마다 아이콘·색(CSS .c-*)·안내문 — 배너·카드·칩이 모두 이걸 쓴다
       const PZ_META = {
         hot: { ic: '🔥', cls: 'c-hot', t: '지금 뜨는 이야기', g: '최근 2주간 공감·댓글을 많이 받은 이야기 TOP 5예요.' },
         '': { ic: '📌', cls: 'c-all', t: '교사 광장', g: '교사들이 올린 모든 이야기를 한곳에서 볼 수 있어요.' },
         '사례': { ic: '🎯', cls: 'c-case', t: '사례', g: '전도·교육에서 잘된 경험도, 아쉬웠던 경험도 나누고 함께 배워요.' },
-        '질문': { ic: '🙋', cls: 'c-q', t: '질문', g: '궁금한 점을 묻고 선배 교사들의 답을 들어봐요.' }
+        '질문': { ic: '🙋', cls: 'c-q', t: '질문', g: '궁금한 점을 묻고 선배 교사들의 답을 들어봐요. (어플이 불편한 점은 불편신고에)' },
+        '불편신고': { ic: '🛠️', cls: 'c-bug', t: '불편신고', g: '어플을 쓰다 불편하거나 안 되는 점을 알려 주세요. 어떤 화면에서 무엇을 했는지 적어 주시면 빨리 고칠 수 있어요.' }
       };
       const catIc = c => (PZ_META[catOf(c)] || {}).ic || '🍇';
       function guideHtml(k) {
