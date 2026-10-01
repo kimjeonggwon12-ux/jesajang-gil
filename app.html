@@ -394,6 +394,11 @@
     .pz-f-hint { font-size:12.5px; color:var(--dg-text-sub); margin:-2px 0 8px; }
     .pz-f-hint b { color:var(--color-primary); }
     .pz-f-ph .pz-f-mz { position:absolute; left:0; right:0; bottom:0; top:auto; width:auto; height:22px; border-radius:0; background:rgba(126,34,206,.88); color:#fff; font-size:11px; font-weight:800; cursor:pointer; }
+    .pz-ap-list { display:flex; flex-direction:column; gap:14px; margin-top:12px; }
+    .pz-ap-item { background:#F7F8FA; border-radius:14px; overflow:hidden; }
+    .pz-ap-item img { display:block; width:100%; max-height:340px; object-fit:contain; background:#111; cursor:pointer; }
+    .pz-ap-btns { display:flex; flex-wrap:wrap; gap:6px; padding:8px; }
+    .pz-ap-btns button { flex:1 1 auto; height:36px; padding:0 10px; border-radius:10px; border:1px solid #E5E7EB; background:#fff; font-size:13px; font-weight:700; cursor:pointer; }
     .pz-mz { position:fixed; inset:0; z-index:9600; background:#111; display:flex; flex-direction:column; color:#fff; letter-spacing:-0.02em; }
     .pz-mz .pz-ov-bar { background:#fff; }
     .pz-mz-help { padding:10px 16px; font-size:13.5px; text-align:center; color:#E5E7EB; }
@@ -2490,7 +2495,7 @@
         const host = $('pzOverlayHost');
         const keepDraft = host.querySelector('#pzCmtInput') ? host.querySelector('#pzCmtInput').value : '';
         host.innerHTML = `<div class="pz-ov">
-          <div class="pz-ov-bar"><button type="button" data-pz-back>‹</button><div class="t">교사광장</div>${p.isMine ? '<button type="button" id="pzPostMenu">⋯</button>' : '<span style="width:40px"></span>'}</div>
+          <div class="pz-ov-bar"><button type="button" data-pz-back>‹</button><div class="t">교사광장</div>${p.isMine || isAdmin() ? '<button type="button" id="pzPostMenu">⋯</button>' : '<span style="width:40px"></span>'}</div>
           <div class="pz-ov-body" id="pzOvBody">
             ${(p.photos || [])[0] ? `<img class="pz-d-photo pz-d-hero" src="${esc(p.photos[0])}" alt="대표 사진">` : ''}
             ${catHtml(p.category, p.title)}
@@ -2563,8 +2568,11 @@
       }
       function postMenu(p) {
         openSheet(`<div style="display:flex;flex-direction:column;gap:8px;padding-top:6px">
-          <button class="kko-btn-outline" id="pzEditPost">✏️ 글 수정하기</button>
-          <button class="kko-btn-outline" id="pzDelPost" style="color:var(--color-error,#D32F2F)">🗑️ 글 삭제하기</button></div>`);
+          ${isAdmin() ? '<button class="kko-btn-outline" id="pzAdminPhotos">🛡️ 사진 편집 (관리자) — 모자이크·삭제·교체</button>' : ''}
+          ${p.isMine ? `<button class="kko-btn-outline" id="pzEditPost">✏️ 글 수정하기</button>
+          <button class="kko-btn-outline" id="pzDelPost" style="color:var(--color-error,#D32F2F)">🗑️ 글 삭제하기</button>` : ''}</div>`);
+        const ap = $('pzAdminPhotos'); if (ap) ap.onclick = () => { closeSheet(); openAdminPhotos(p); };
+        if (!p.isMine) return;
         $('pzEditPost').onclick = () => { closeSheet(); openWrite(p); };
         $('pzDelPost').onclick = async () => {
           if (!confirm('이 글을 지울까요? 되돌릴 수 없어요.')) return;
@@ -2720,6 +2728,66 @@
             toast(f.postId ? '글을 고쳤어요.' : '교사광장에 글을 올렸어요!');
             await load(true);
             openPost(res.postId);   // 같은 오버레이에서 방금 올린 글 상세로 전환(히스토리 추가 없음)
+          } catch (e) { saving = false; draw(); toast(e.message, true); }
+        };
+        draw();
+      }
+
+      // ── 관리자 사진 편집 (2026-10-01) ──
+      // 남이 올린 사연 사진을 관리자가 모자이크(기존 openMosaic 재사용)·삭제·교체·추가해서 다시 올린다.
+      // 사진 칸만 바뀌고 제목·내용·작성일은 그대로(백엔드 adminSetPlazaPhotos, 관리자 판정도 서버에서 다시 함).
+      function openAdminPhotos(p) {
+        const photos = (p.photos || []).slice();
+        let saving = false, dirty = false, swapAt = -1;
+        const draw = () => {
+          ovShow(`<div class="pz-ov-bar"><button type="button" id="pzApBack">취소</button><div class="t">사진 편집 (관리자)</div><button type="button" id="pzApSave" style="color:var(--color-primary)">${saving ? '저장 중...' : '저장'}</button></div>
+            <div class="pz-ov-body">
+              <div class="pz-d-title" style="font-size:16px;margin-top:4px">${esc(p.title)}</div>
+              <div class="pz-cmt-meta" style="margin-bottom:12px">${esc(p.name)} 선생님 글 · 사진만 바뀌고 글 내용은 그대로예요.</div>
+              <div class="pz-f-hint">사진을 누르면 크게 열려 <b>얼굴·이름·전화번호</b> 등을 드래그해 모자이크할 수 있어요. 여러 번 해도 돼요.</div>
+              <div class="pz-ap-list">
+                ${photos.map((src, i) => `<div class="pz-ap-item">
+                  <img src="${esc(src)}" alt="" data-pz-apmz="${i}">
+                  <div class="pz-ap-btns">
+                    <button type="button" data-pz-apmz="${i}">🔲 모자이크</button>
+                    <button type="button" data-pz-apswap="${i}">🔄 교체</button>
+                    ${i ? `<button type="button" data-pz-apfirst="${i}">⭐ 대표로</button>` : ''}
+                    <button type="button" data-pz-aprm="${i}" style="color:#D32F2F">🗑️ 삭제</button>
+                  </div></div>`).join('') || '<div class="pz-empty" style="padding:22px 0">사진이 없어요.</div>'}
+              </div>
+              ${photos.length < 4 ? `<label class="pz-f-add" style="width:100%;height:52px;flex-direction:row;gap:6px;margin-top:10px"><span style="font-size:20px">📷</span>사진 추가 (${photos.length}/4)<input type="file" id="pzApAdd" accept="image/*" multiple style="display:none"></label>` : ''}
+              <input type="file" id="pzApSwapFile" accept="image/*" style="display:none">
+            </div>`);
+          $('pzApBack').onclick = () => { if (dirty && !confirm('바꾼 내용을 버리고 나갈까요?')) return; openPost(p.postId); };
+          document.querySelectorAll('[data-pz-apmz]').forEach(b => b.onclick = () => { const i = Number(b.dataset.pzApmz); openMosaic(photos[i], out => { photos[i] = out; dirty = true; draw(); }); });
+          document.querySelectorAll('[data-pz-aprm]').forEach(b => b.onclick = () => { if (!confirm('이 사진을 지울까요?')) return; photos.splice(Number(b.dataset.pzAprm), 1); dirty = true; draw(); });
+          document.querySelectorAll('[data-pz-apfirst]').forEach(b => b.onclick = () => { const i = Number(b.dataset.pzApfirst); photos.unshift(photos.splice(i, 1)[0]); dirty = true; draw(); });
+          const swapFile = $('pzApSwapFile');
+          document.querySelectorAll('[data-pz-apswap]').forEach(b => b.onclick = () => { swapAt = Number(b.dataset.pzApswap); swapFile.value = ''; swapFile.click(); });
+          swapFile.onchange = async () => {
+            const fl = swapFile.files[0]; if (!fl || swapAt < 0) return;
+            try { photos[swapAt] = await shrink(await fileToDataURL(fl), 1000, 44000); dirty = true; } catch (e) { toast(e.message, true); }
+            draw();
+          };
+          const add = $('pzApAdd');
+          if (add) add.onchange = async () => {
+            const files = [...add.files].slice(0, 4 - photos.length);
+            try { for (const fl of files) photos.push(await shrink(await fileToDataURL(fl), 1000, 44000)); dirty = true; } catch (e) { toast(e.message, true); }
+            draw();
+          };
+          $('pzApSave').onclick = save;
+        };
+        const save = async () => {
+          if (saving) return;
+          if (!dirty) return openPost(p.postId);
+          saving = true; draw();
+          try {
+            const thumb = photos[0] ? await shrink(photos[0], 200, 12000, true) : '';
+            const res = await callApi({ action: 'adminSetPlazaPhotos', memberId: MEMBER_ID, postId: p.postId, photos, thumb });
+            if (res && res.error) throw new Error(res.error);
+            toast('사진을 바꿔 올렸어요.');
+            await load(true);
+            openPost(p.postId);
           } catch (e) { saving = false; draw(); toast(e.message, true); }
         };
         draw();
