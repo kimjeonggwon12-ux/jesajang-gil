@@ -636,7 +636,8 @@
        밑줄. 글자도 전반적으로 키움(작다는 지적). */
     #sec-connect .kko-tabs { display:flex; background:#fff; border-bottom:1px solid var(--dg-line); position:sticky; top:0; z-index:20; }
     #sec-connect .kko-tab {
-      flex:1; height:52px; font-size:16px; font-weight:700; letter-spacing:-0.02em;
+      flex:1 1 0; min-width:0; height:52px; padding:0 4px; white-space:nowrap; overflow:hidden; text-overflow:clip;
+      font-size:clamp(13px, 3.9vw, 16px); font-weight:700; letter-spacing:-0.03em;
       color:var(--dg-text-sub); background:none; border:none; border-bottom:2.5px solid transparent;
       cursor:pointer; transition:color .15s ease;
     }
@@ -656,7 +657,7 @@
       #sec-connect .kko-card { padding:16px; }
       #sec-connect .cn-seg { gap:7px; }
       #sec-connect .cn-sec-title { font-size:22px; }
-      #sec-connect .kko-tab { font-size:15px; }
+      #sec-connect .kko-tab { font-size:clamp(13px, 3.9vw, 15px); }
     }
     #sec-connect .cn-role-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     #sec-connect .cn-role-btn { height:56px; border-radius:var(--radius-btn); font-size:17px; font-weight:700; background:#fff; color:#888; border:1.5px solid #D5D5E0; cursor:pointer; }
@@ -1379,9 +1380,9 @@
            다른 기능이 깨짐). 대화 종료 시 이전에 있던 탭으로 돌아간다(목록 화면 자체가 없어졌으므로). -->
       <section id="sec-connect" class="app-section">
         <nav class="kko-tabs" id="topTabs">
-          <button class="kko-tab kko-tab-active" data-tab="card">활동 신청</button>
-          <button class="kko-tab" data-tab="find">활동자 찾기</button>
-          <button class="kko-tab" data-tab="board">협력자 구함</button>
+          <button class="kko-tab kko-tab-active" data-tab="card">내소개</button>
+          <button class="kko-tab" data-tab="find">활동신청자</button>
+          <button class="kko-tab" data-tab="board">협력 요청 공지</button>
         </nav>
         <main id="cnView" class="cn-wrap"></main>
         <div id="cnFabHost"></div>
@@ -3221,7 +3222,7 @@
       {
         key: 'chance', label: '하고 싶은데 기회가 없어요',
         tip: '먼저 "나 이런 거 할 수 있어요"를 올려두면 필요한 분이 찾아옵니다. 남의 복음방에 동행부터 시작하는 게 가장 빨라요.',
-        dos: ['연결 탭에 내 명함 올리기 (가능 역할·항목·일정)', '협력자 구함에서 동행교사·섬김이로 참여하기'],
+        dos: ['연결 탭에 내 명함 올리기 (가능 역할·항목·일정)', '협력 요청 공지에서 동행교사·섬김이로 참여하기'],
         go: [['연결 탭 열기', 'connect']]
       },
       {
@@ -3233,7 +3234,7 @@
       {
         key: 'env', label: '가정·직장 사정이 있어요',
         tip: '부담이 적은 역할부터 하나만 잡아보세요. 섬김이 한 번도 활동 기록이 됩니다.',
-        dos: ['명함의 활동 가능 일정을 "상의 후 결정"으로 등록', '협력자 구함 중 1회짜리에 섬김이로 참여'],
+        dos: ['명함의 활동 가능 일정을 "상의 후 결정"으로 등록', '협력 요청 공지 중 1회짜리에 섬김이로 참여'],
         go: [['연결 탭 열기', 'connect']]
       },
       {
@@ -3270,7 +3271,7 @@
       } else {
         // 나머지 등급은 바로 다음 한 걸음을 제시
         const steps = tier === '우수교사'
-          ? [['협력자 구함에 응답하기', 'connect'], ['내 활동 기록 남기기', 'activity']]
+          ? [['협력 요청 공지에 응답하기', 'connect'], ['내 활동 기록 남기기', 'activity']]
           : [['연결 탭에서 함께할 사람 찾기', 'connect'], ['교재·이수교육 확인하기', 'textbook']];
         extra = `<div class="gg-gos">${steps.map(([txt, tab]) => `<button type="button" class="gg-go" data-gotab="${tab}">${esc(txt)} ›</button>`).join('')}</div>`;
       }
@@ -4015,7 +4016,7 @@
     // ════════════════════════════════════════════════════════════════
     const CN_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
     const CN_TIMES = ['오전', '오후', '저녁'];
-    // 2026-09-22: 명함·활동자 찾기·도움 신청의 역할 체계를 활동 기록과 동일한 "4역할 11항목"으로 통일.
+    // 2026-09-22: 명함·활동신청자·도움 신청의 역할 체계를 활동 기록과 동일한 "4역할 11항목"으로 통일.
     // (전에는 '피드백·상담'/'동행·코칭'/'센터 인도' 같은 연결 전용 6종이라 활동 기록과 호환이 안 됐음)
     // ⚠️ '센터인도'는 전도 '단계' 이름이고 역할·기능으로는 '센터수강'이 맞다(사용자 확정) —
     //    아래 11항목에는 센터소개/센터수강만 있고 센터인도는 없다.
@@ -4117,7 +4118,7 @@
     });
     function cnRender() {
       const v = document.getElementById('cnView');
-      document.getElementById('cnFabHost').innerHTML = S.tab === 'board' ? '<button class="cn-fab" id="fabAdd">+ 협력자 구함 등록</button>' : '';
+      document.getElementById('cnFabHost').innerHTML = S.tab === 'board' ? '<button class="cn-fab" id="fabAdd">+ 협력 요청 공지 등록</button>' : '';
       if (S.tab === 'card') { v.innerHTML = cardHtml(); bindCard(); }
       else if (S.tab === 'find') { v.innerHTML = findHtml(); bindFind(); }
       else if (S.tab === 'chat') { renderChat(v); }
@@ -4288,17 +4289,17 @@
         if (res && res.error) throw new Error(res.error);
         const wasExisting = c.exists;
         c.exists = true; c.f = Object.assign(emptyCard(), res.card); S.find.loaded = false;
-        toast(wasExisting ? '내 명함을 업데이트했어요.' : '등록했어요! 이제 활동자 찾기에 노출돼요.');
+        toast(wasExisting ? '내 명함을 업데이트했어요.' : '등록했어요! 이제 활동신청자에 노출돼요.');
       } catch (e) { toast(e.message, true); }
       c.saving = false; cnRender();
     }
     async function deleteCard() {
-      if (!confirm('내 명함을 내릴까요? 활동자 찾기에서 더 이상 보이지 않아요.')) return;
+      if (!confirm('내 명함을 내릴까요? 활동신청자에서 더 이상 보이지 않아요.')) return;
       try { await callApi({ action: 'deleteConnectCard', memberId: MEMBER_ID }); S.find.loaded = false; await loadCard(); toast('명함을 내렸어요.'); }
       catch (e) { toast(e.message, true); }
     }
 
-    // ====================== 활동자 찾기 (검색) ======================
+    // ====================== 활동신청자 (검색) ======================
     async function loadFind() {
       const q = S.find; q.loading = true; q.error = ''; if (S.tab === 'find') cnRender();
       try {
@@ -4321,7 +4322,7 @@
       const q = S.find;
       const tagOpts = [].concat(CARD_TARGETS, CARD_FIELDS, CARD_LANGS);
       return `
-      <div class="cn-sec-title">활동자 찾기</div>
+      <div class="cn-sec-title">활동신청자</div>
       <div class="cn-sec-sub">역할·지역·태그·일정으로 함께할 교사를 찾아보세요.</div>
       <!-- 2026-09-23: 역할 드롭다운 1개를 "4역할"과 "11항목" 2개로 분리(사용자 요청).
            둘은 AND로 걸린다 — 예: 인도자 + 복음방 = 복음방 인도자를 찾는다.
@@ -4408,7 +4409,7 @@
         const res = await callApi({ action: 'getHelpPosts', memberId: MEMBER_ID, type: '', dept: b.dept });
         if (res && res.error) throw new Error(res.error);
         let rows = res.rows || [];
-        // 2026-09-23 "도움 신청 검색": 활동자 찾기와 같은 방식으로 거른다.
+        // 2026-09-23 "도움 신청 검색": 활동신청자와 같은 방식으로 거른다.
         // 요청유형은 "교사 · 상담1" 한 문자열이라 역할·항목을 각각 부분일치로 본다.
         if (b.role) rows = rows.filter(h => String(h.type || '').includes(b.role));
         if (b.item) rows = rows.filter(h => String(h.type || '').includes(b.item));
@@ -4440,10 +4441,10 @@
     function boardHtml() {
       const b = S.board;
       return `
-      <div class="cn-sec-title">협력자 구함</div>
+      <div class="cn-sec-title">협력 요청 공지</div>
       <div class="cn-sec-sub">도움이 필요한 전도 활동을 올리고, 도와줄 교사를 만나보세요.</div>
-      <!-- 2026-09-23 "도움 요청 검색" — 활동자 찾기와 같은 UI/UX(드롭다운 4 + 키워드 1). -->
-      <div class="cn-lbl" style="margin-top:14px">협력자 구함 검색</div>
+      <!-- 2026-09-23 "도움 요청 검색" — 활동신청자와 같은 UI/UX(드롭다운 4 + 키워드 1). -->
+      <div class="cn-lbl" style="margin-top:14px">협력 요청 공지 검색</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${cnSelHtml('hRole', '4역할 전체', CN_ROLE_PARTS, b.role)}
         ${cnSelHtml('hItem', '11항목 전체', CN_ROLE_ITEMS, b.item)}
@@ -4484,7 +4485,7 @@
       const chat = document.getElementById('hpChat');
       if (chat) chat.onclick = () => {
         callApi({ action: 'recordMatch', kind: '도와주세요', refId: h.helpId, fromId: MEMBER_ID, fromName: MY_NAME, toId: h.memberId, toName: h.name }).catch(() => {});
-        openChat(h.memberId, h.name, `[협력자 구함] "${h.oneLiner}" (${h.type}) 글을 보고 연락드려요. 도와드리고 싶습니다!`);
+        openChat(h.memberId, h.name, `[협력 요청 공지] "${h.oneLiner}" (${h.type}) 글을 보고 연락드려요. 도와드리고 싶습니다!`);
       };
       const cl = document.getElementById('hpClose');
       if (cl) cl.onclick = async () => {
@@ -4504,7 +4505,7 @@
       const f = { role: '', item: '', type: '', dept: '', startDate: todayStr(), endDate: '',
                   oneLiner: '', target: '', need: '', desc: '' };
       openSheet(`
-        <div style="font-size:20px;font-weight:800">협력자 구함 등록</div>
+        <div style="font-size:20px;font-weight:800">협력 요청 공지 등록</div>
         <div class="cn-sec-sub" style="margin-top:4px">어떤 대상자에게 어떤 사람이 필요한지 적어주세요. 조건에 맞는 교사가 찾아옵니다.</div>
 
         <label class="cn-lbl">어떤 역할이 필요한가요? <span class="cn-req">*</span></label>
@@ -4689,7 +4690,7 @@
       }
     }
     window.Sections.connect = {
-      mount() { cnSwitchTab('find'); cnConsumePendingChat(); },   // 2026-09-29: 첫 화면 = 활동자 찾기
+      mount() { cnSwitchTab('find'); cnConsumePendingChat(); },   // 2026-09-29: 첫 화면 = 활동신청자
       onShow() { cnConsumePendingChat(); }
     };
 
@@ -8811,12 +8812,12 @@ let cnAdmData = null, cnAdmTab = 'cards';
 function cnAdmStatsHtml(s) {
   return `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
     <div class="stat-tile"><b>${s.cardCount}</b><span>등록된 명함</span></div>
-    <div class="stat-tile"><b>${s.helpOpen}</b><span>진행 중인 협력자 구함 (전체 ${s.helpCount})</span></div>
+    <div class="stat-tile"><b>${s.helpOpen}</b><span>진행 중인 협력 요청 공지 (전체 ${s.helpCount})</span></div>
     <div class="stat-tile"><b>${s.matchCount}</b><span>채팅 매칭 요청</span></div>
     <div class="stat-tile"><b>${s.matchDone}</b><span>성사 표시됨</span></div>
   </div>
   <div class="kko-card mt-3">
-    <div class="text-sm font-bold mb-2">협력자 구함 유형별</div>
+    <div class="text-sm font-bold mb-2">협력 요청 공지 유형별</div>
     <div class="flex flex-wrap gap-2 text-xs">${Object.entries(s.helpByType).map(([k,v]) => `<span class="badge2 req">${esc(k)} ${v}</span>`).join('')}</div>
   </div>`;
 }
@@ -8845,8 +8846,8 @@ function cnAdmRender() {
   root.innerHTML = `
     ${cnAdmStatsHtml(cnAdmData.stats)}
     <div class="tabs2">
-      <button data-t="cards" class="${cnAdmTab==='cards'?'on':''}">활동 신청 교사 (${cnAdmData.cards.length})</button>
-      <button data-t="helps" class="${cnAdmTab==='helps'?'on':''}">협력자 구함 (${cnAdmData.helps.length})</button>
+      <button data-t="cards" class="${cnAdmTab==='cards'?'on':''}">내소개 등록 교사 (${cnAdmData.cards.length})</button>
+      <button data-t="helps" class="${cnAdmTab==='helps'?'on':''}">협력 요청 공지 (${cnAdmData.helps.length})</button>
       <button data-t="matches" class="${cnAdmTab==='matches'?'on':''}">매칭 (${cnAdmData.matches.length})</button>
     </div>
     ${cnAdmTab==='cards' ? cnAdmCardsTable(cnAdmData.cards) : cnAdmTab==='helps' ? cnAdmHelpsTable(cnAdmData.helps) : cnAdmMatchesTable(cnAdmData.matches)}
