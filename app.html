@@ -1249,6 +1249,18 @@
         padding-right: var(--hdr-gutter);
       }
     }
+    /* 2026-10-01: 일부 폰의 야간(다크) 모드에서 입력칸 바탕만 검정으로 바뀌고 글씨는 검정 그대로라
+       글을 쓸 수 없던 문제 — 다크 모드일 땐 입력칸을 어두운 바탕 + 흰 글씨로 통일한다. */
+    @media (prefers-color-scheme: dark) {
+      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="button"]):not([type="submit"]),
+      textarea, select {
+        background-color:#1E1E22 !important; color:#fff !important; -webkit-text-fill-color:#fff !important;
+        caret-color:#fff !important; border-color:#4B4B55 !important;
+      }
+      input::placeholder, textarea::placeholder { color:#9A9AA5 !important; -webkit-text-fill-color:#9A9AA5 !important; opacity:1; }
+      select option { background-color:#1E1E22; color:#fff; }
+      input:-webkit-autofill { -webkit-box-shadow:0 0 0 1000px #1E1E22 inset !important; -webkit-text-fill-color:#fff !important; }
+    }
   </style>
 </head>
 <body>
