@@ -271,6 +271,20 @@
     #sec-calendar .pz-cup-goal b { font-weight:900; }
     #sec-calendar .pz-hot-row.cup { background:#FFFBF5; }
     #sec-calendar .pz-hot-row .pzm-badge { align-self:flex-start; background:#FFEDD5; color:#9A3412; }
+    /* 2026-10-01(3차) 모둠: 3개씩 + 더보기 */
+    #sec-calendar .pz-sec-act { flex-shrink:0; height:32px; padding:0 12px; border-radius:999px; border:1px solid var(--pc,#E5E7EB); background:#fff; color:var(--pc,var(--dg-text)); font-size:13px; font-weight:800; cursor:pointer; }
+    #sec-calendar .c-ad { --pc:#5B4FCF; --pb:#EFEDFB; }
+    #sec-calendar .pz-up-row { display:flex; gap:12px; align-items:center; padding:12px 14px; cursor:pointer; }
+    #sec-calendar .pz-up-row + .pz-up-row { border-top:1px solid var(--dg-line); }
+    #sec-calendar .pz-up-date { width:52px; flex-shrink:0; text-align:center; border-radius:12px; background:var(--pb); color:var(--pc); padding:6px 0; line-height:1.2; }
+    #sec-calendar .pz-up-date b { display:block; font-size:16px; font-weight:900; }
+    #sec-calendar .pz-up-date span { font-size:11.5px; font-weight:700; }
+    #sec-calendar .pz-up-row .pz-title { font-size:15px; }
+    #sec-calendar .pz-up-row .pz-sum { font-size:12.5px; margin-top:2px; }
+    #sec-calendar .pz-cal-full { padding:12px 14px 8px; border-top:1px solid var(--dg-line); }
+    #sec-calendar .pz-ad-list { padding:12px 14px 4px; }
+    #pzContest .pz-contest { margin-top:0; }
+    .pzc-top + .pzc-top { margin-top:6px; }
     #sec-calendar .pz-wrap { max-width:640px; margin:0 auto; padding:0 12px 110px; }
     #sec-calendar .pz-box { background:#fff; border-radius:20px; overflow:hidden; box-shadow:0 1px 3px rgba(17,24,39,.05); }
     /* 안내 배너(박스 맨 위) */
@@ -1347,38 +1361,37 @@
           </div>
           <div class="pz-pills" id="pzPills"></div>
         </div>
-        <main class="cal-wrap">
-          <div class="kko-card" id="pzCalTitle" style="padding-bottom:10px;margin-top:14px">   <!-- 2026-09-30: "도마 전도 일정" 소제목 삭제, 달력만 -->
-            <div class="cal-head">
-              <button class="cal-nav-btn" id="calPrev">‹</button>
-              <div style="text-align:center"><b id="calTitle"></b></div>
-              <button class="cal-nav-btn" id="calNext">›</button>
-            </div>
-            <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="cal-today-btn" id="calTodayBtn">오늘</button></div>
-            <div class="cal-grid" id="calDow"></div>
-            <div class="cal-grid" id="calDays"></div>
-            <!-- 2026-09-22: 일정 유형 3종(공식/부서/내일정)으로 범례 확장 -->
-            <div class="cal-legend"><span><i style="background:#2F6FDE"></i>공식</span><span><i style="background:#2D9B6F"></i>부서</span><span><i style="background:#E8590C"></i>내 일정(비공개)</span></div>
-            <button class="kko-btn-outline" id="calAddBtn" style="margin-top:10px">+ 일정 추가</button>
-          </div>
-          <div class="kko-card" id="calAdBox">
-            <div class="cal-ad-title">📢 전도부 광고</div>
-            <div id="calAds"><div class="cal-hint">불러오는 중...</div></div>
-          </div>
-        </main>
         <div class="pz-wrap">
-          <!-- 2026-10-01 구조 개편: 직접 쓰는 글 칼럼(사례·질문·불편신고)과 코너(인기글·커피 쿠폰/이달의 교사/전도 일정)를 나눔.
-               커피 쿠폰은 따로 두지 않고 '지금 뜨는 교사 이야기'(이달 공감 순위)에 합쳐 당첨 예정·달성 조건을 함께 보여준다. -->
-          <div id="pzWriteCta"></div>
+          <!-- 2026-10-01(3차) 모둠 구조: 위 알약 = 각 모둠으로 이동. 모둠마다 3개씩 보이고 [더보기]로 펼친다.
+               글쓰기는 오른쪽 아래 버튼 하나(사례·질문·불편신고 중 골라 쓰기). -->
+          <div class="pz-sec-title c-cal" id="pzCalTitle"><span class="pz-sec-ic">📅</span><span class="pz-sec-txt">전도 일정</span><button type="button" class="pz-sec-act" id="calAddBtn">+ 일정 추가</button></div>
+          <div class="pz-box c-cal">
+            <div id="calUpcoming"><div class="pz-empty">불러오는 중...</div></div>
+            <div id="calFull" class="pz-cal-full" style="display:none">
+              <div class="cal-head">
+                <button class="cal-nav-btn" id="calPrev">‹</button>
+                <div style="text-align:center"><b id="calTitle"></b></div>
+                <button class="cal-nav-btn" id="calNext">›</button>
+              </div>
+              <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="cal-today-btn" id="calTodayBtn">오늘</button></div>
+              <div class="cal-grid" id="calDow"></div>
+              <div class="cal-grid" id="calDays"></div>
+              <div class="cal-legend"><span><i style="background:#2F6FDE"></i>공식</span><span><i style="background:#2D9B6F"></i>부서</span><span><i style="background:#E8590C"></i>내 일정(비공개)</span></div>
+            </div>
+            <div id="calMoreHost"></div>
+          </div>
+          <div class="pz-sec-title c-ad" id="pzAdTitle"><span class="pz-sec-ic">📢</span><span class="pz-sec-txt">전도부 광고</span></div>
+          <div class="pz-box c-ad" id="calAds"><div class="pz-empty">불러오는 중...</div></div>
+          <div id="pzTom"></div>
+          <div class="pz-sec-title c-tom" id="pzContestTitle"><span class="pz-sec-ic">🏷️</span><span class="pz-sec-txt">앱 이름 공모</span></div>
           <div id="pzContest"></div>
           <div class="pz-sec-title c-hot" id="pzHotTitle"><span class="pz-sec-ic">🔥</span><span class="pz-sec-txt" id="pzHotLabel">지금 뜨는 교사 이야기</span><small class="pz-cup-chip">☕ 커피 쿠폰</small></div>
           <div class="pz-box c-hot" id="pzHot"><div class="pz-empty">불러오는 중...</div></div>
           <div class="pz-sec-title c-all" id="pzFeedTitle"><span class="pz-sec-ic" id="pzFeedIc">📌</span><span class="pz-sec-txt" id="pzFeedLabel">교사 광장</span><small id="pzFeedCount"></small></div>
           <div class="pz-ftabs" id="pzFeedTabs"></div>
           <div class="pz-feed" id="pzFeed"><div class="pz-empty">불러오는 중...</div></div>
-          <div id="pzTom"></div>
         </div>
-        <button type="button" class="pz-fab" id="pzFab">+ 글쓰기</button>
+        <button type="button" class="pz-fab" id="pzFab">✍️ 글쓰기</button>
       </section>
 
       <!-- ===== SECTION: activity ===== (원본: home.html "홈+활동방 통합" 대시보드)
@@ -2011,8 +2024,15 @@
     // 원본의 PROXY_URL/qs/MEMBER_ID/MY_NAME/esc/toast/callApi/closeSheet/openSheet 로컬 정의는
     // 전부 제거(공유 전역과 이름이 같아 코드 나머지는 무수정 그대로 동작).
     // ════════════════════════════════════════════════════════════════
+    // 2026-10-01(3차) 광장 모둠별 '3개만 보기 / 더보기' 상태(달력·광고는 이 코드, 나머지는 교사광장 IIFE가 그림)
+    const PZX = { cal: false, ad: false, tom: false, hot: false, feed: false };
+    const PZ_SEC_ID = { cal: 'pzCalTitle', ad: 'pzAdTitle', tom: 'pzTomTitle', contest: 'pzContestTitle', hot: 'pzHotTitle', feed: 'pzFeedTitle' };
+    function pzMoreBtn(key, total, label) {
+      if (key !== 'cal' && total <= 3) return '';
+      return `<button type="button" class="pz-more" data-pz-more="${key}">${PZX[key] ? '접기 ︿' : (label || `더보기 (${total - 3}개 더) ›`)}</button>`;
+    }
     const calDOW = ['일', '월', '화', '수', '목', '금', '토'];
-    const calSt = { y: 0, m: 0, events: [] };
+    const calSt = { y: 0, m: 0, events: [], ads: null, adErr: '' };
     const calP2 = n => String(n).padStart(2, '0');
     const calYmd = (y, m, d) => `${y}-${calP2(m + 1)}-${calP2(d)}`;
     const calTodayDate = new Date();
@@ -2227,12 +2247,45 @@
       try {
         const [evRes, adRes] = await Promise.all([callApi({ action: 'getCalendarEvents', memberId: MEMBER_ID }), callApi({ action: 'getCalendarAds' })]);
         calSt.events = (evRes && evRes.rows) || [];
-        const ads = (adRes && adRes.rows) || [];
-        document.getElementById('calAds').innerHTML = ads.length
-          ? ads.map(a => `<div class="cal-ad"><b>${esc(a.title)}</b>${a.body ? `<div>${esc(a.body)}</div>` : ''}</div>`).join('')
-          : '<div class="cal-hint">등록된 공지가 없어요.</div>';
-      } catch (e) { document.getElementById('calAds').innerHTML = `<div class="cal-hint" style="color:var(--color-error)">${esc(e.message)}</div>`; }
-      calDrawCalendar();
+        calSt.ads = (adRes && adRes.rows) || []; calSt.adErr = '';
+      } catch (e) { calSt.adErr = e.message; }
+      calDrawCalendar(); calRenderUpcoming(); calRenderAds();
+    }
+    // 오늘부터 120일 안의 일정을 날짜순으로(반복 일정은 다음 한 번만)
+    function calUpcomingList(max) {
+      const out = [], seen = new Set();
+      const base = new Date(calTodayDate.getFullYear(), calTodayDate.getMonth(), calTodayDate.getDate());
+      for (let i = 0; i < 120 && out.length < max; i++) {
+        const d = new Date(base); d.setDate(base.getDate() + i);
+        const date = calYmd(d.getFullYear(), d.getMonth(), d.getDate());
+        for (const e of calEventsOn(date)) {
+          const k = e.eventId || e.id || (e.title + '|' + e.startDate);
+          if (seen.has(k)) continue;
+          seen.add(k); out.push({ e, date, d });
+          if (out.length >= max) break;
+        }
+      }
+      return out;
+    }
+    function calRenderUpcoming() {
+      const host = document.getElementById('calUpcoming'); if (!host) return;
+      const list = calUpcomingList(PZX.cal ? 10 : 3);
+      host.innerHTML = list.length ? list.map(({ e, date, d }, i) => `<div class="pz-up-row ${'c-cal'}" data-cal-up="${i}">
+          <div class="pz-up-date"><b>${d.getMonth() + 1}/${d.getDate()}</b><span>${date === CAL_TODAY ? '오늘' : calDOW[d.getDay()] + '요일'}</span></div>
+          <div class="pz-row-main" style="flex:1;min-width:0"><div class="pz-title">${esc(calTitleWithPrefix(e))}</div><div class="pz-sum">${esc([calRangeText(e), e.place].filter(Boolean).join(' · '))}</div></div>
+          <span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category === '내일정' ? '내 일정' : e.category)}</span></div>`).join('')
+        : '<div class="pz-empty">다가오는 일정이 없어요.</div>';
+      host.querySelectorAll('[data-cal-up]').forEach(r => { r.onclick = () => calOpenEvent(list[Number(r.dataset.calUp)].e); });
+      document.getElementById('calFull').style.display = PZX.cal ? '' : 'none';
+      document.getElementById('calMoreHost').innerHTML = pzMoreBtn('cal', 0, '더보기 · 달력 보기 ›');
+    }
+    function calRenderAds() {
+      const el = document.getElementById('calAds'); if (!el) return;
+      const ads = calSt.ads;
+      el.innerHTML = calSt.adErr ? `<div class="pz-empty" style="color:var(--color-error)">${esc(calSt.adErr)}</div>`
+        : !ads ? '<div class="pz-empty">불러오는 중...</div>'
+        : ads.length ? `<div class="pz-ad-list">${ads.slice(0, PZX.ad ? ads.length : 3).map(a => `<div class="cal-ad"><b>${esc(a.title)}</b>${a.body ? `<div>${esc(a.body)}</div>` : ''}</div>`).join('')}</div>` + pzMoreBtn('ad', ads.length)
+        : '<div class="pz-empty">등록된 광고가 없어요.</div>';
     }
     document.getElementById('calAddBtn').onclick = () => calOpenAddCategoryPicker();
 
@@ -2398,13 +2451,9 @@
       // ── 목록 ──
       function renderPills() {
         // 2026-09-30: '✍️ 글쓰기' 알약 삭제(우측 하단 FAB와 중복). 2차: 알약 아이콘 삭제, 이달의 교사·커피 쿠폰 추가.
-        // 2026-10-01(2차): 앞 = ✍️ 글쓰기 사례·질문·불편신고(누르면 그 주제로 바로 글쓰기),
-        // 뒤 = 보는 곳(› 화살표로 '보러 가기' 암시). 목록 거르기(전체·사례·질문·불편신고)는 글 목록 위 탭으로 옮김.
-        const corners = [['hot', '🔥 인기글·쿠폰'], ['tom', '🏅 이달의 교사'], ['cal', '📅 전도 일정']];
-        $('pzPills').innerHTML = '<span class="pz-pill-lbl write">✍️ 글쓰기</span>'
-          + PZ_CATS.map(c => `<button type="button" class="pz-pill write ${PZ_CAT_CLS[c]}" data-pz-write="${esc(c)}">${esc(c)}</button>`).join('')
-          + '<span class="pz-pill-sep"></span>'
-          + corners.map(([k, l]) => `<button type="button" class="pz-pill corner" data-pz-pill="${esc(k)}">${esc(l)}<i>›</i></button>`).join('');
+        // 2026-10-01(3차): 알약 = 모둠 이동 탭(화면 순서 그대로). 글쓰기는 오른쪽 아래 버튼 하나.
+        const secs = [['cal', '📅 전도 일정'], ['ad', '📢 광고'], ['tom', '🏅 이달의 교사'], ['contest', '🏷️ 이름 공모'], ['hot', '🔥 인기글·쿠폰'], ['feed', '📌 교사 광장']];
+        $('pzPills').innerHTML = secs.map(([k, l]) => `<button type="button" class="pz-pill" data-pz-go="${k}">${esc(l)}</button>`).join('');
       }
       function scrollToEl(id) {
         const el = $(id), sec = $('appSections');
@@ -2422,13 +2471,13 @@
           `<button type="button" class="${(PZ_META[k] || {}).cls || ''}${!P.kw && k === P.cat ? ' on' : ''}" data-pz-pill="${esc(k)}">${esc(l)}</button>`).join('');
         const rows = P.rows;
         $('pzFeed').innerHTML = (P.kw ? '' : `<div class="pz-box">${guideHtml(P.cat)}</div>`) + (rows.length
-          ? rows.map(p => `<div class="pz-row ${PZ_CAT_CLS[p.category] || ''}" data-pz-open="${esc(p.postId)}">
+          ? rows.slice(0, PZX.feed ? rows.length : 3).map(p => `<div class="pz-row ${PZ_CAT_CLS[p.category] || ''}" data-pz-open="${esc(p.postId)}">
               <div class="pz-row-main">
                 <div class="pz-row-top">${catHtml(p.category, p.title)}<span class="pz-ago">${esc(ago(p.createdAt))}</span></div>
                 <div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div>
                 <div class="pz-row-foot"><div class="pz-who">${avaHtml(p.name, '', 'xs')}<span><b>${esc(p.name)}</b>${p.region ? ' · ' + esc(p.region) : ''}</span></div>${cntHtml(p)}</div>
               </div>
-              ${p.thumb ? `<img class="pz-thumb" src="${esc(p.thumb)}" alt="">` : ''}</div>`).join('') + (rows.length < P.total ? `<button type="button" class="pz-more" id="pzMoreBtn">${P.loading ? '불러오는 중...' : '더보기 ›'}</button>` : '')
+              ${p.thumb ? `<img class="pz-thumb" src="${esc(p.thumb)}" alt="">` : ''}</div>`).join('') + (!PZX.feed ? pzMoreBtn('feed', P.total) : rows.length < P.total ? `<button type="button" class="pz-more" id="pzMoreBtn">${P.loading ? '불러오는 중...' : '더보기 ›'}</button>` : pzMoreBtn('feed', P.total))
           : (P.loading ? emptyHtml('⏳', '불러오는 중...') : P.kw || P.cat ? emptyHtml('🔍', '조건에 맞는 이야기가 없어요.') : emptyHtml('✏️', '아직 올라온 이야기가 없어요.<br>전도하며 겪은 사례와 사연을 나눠주세요!')));
         const more = $('pzMoreBtn'); if (more) more.onclick = () => load(false);
       }
@@ -2459,12 +2508,13 @@
         $('pzTom').innerHTML = `<div class="pz-sec-title c-tom" id="pzTomTitle"><span class="pz-sec-ic">🏅</span><span class="pz-sec-txt">${ml} 이달의 교사</span></div>
           <div class="pz-box c-tom">${monthTabs()}
             <div class="pz-guide c-tom"><span class="pz-guide-ic">💬</span><span>광장 글이 아니라 <b>나의교실 활동 기록</b>으로 뽑아요. 교·자·장·부·청 부서마다 한 달 활동이 가장 알찬 선생님 한 분씩이에요.</span></div>
-            ${wait || (ts.length ? `<div class="pzm-tom">${ts.map(t => `<div class="pzm-t">
+            ${wait || (ts.length ? `<div class="pzm-tom">${ts.slice(0, PZX.tom ? ts.length : 3).map(t => `<div class="pzm-t">
                 <div class="pzm-photo">${t.photo ? `<img src="${esc(t.photo)}" alt="">` : `<span>${esc(String(t.name || '?').slice(0, 1))}</span>`}<i>${esc(DEPT_SHORT[t.dept] || '')}</i></div>
                 <div class="pzm-main"><div class="pzm-name"><b>${esc(t.name)}</b><span>${esc([t.dept, t.region].filter(Boolean).join(' · '))}</span></div>
                   <div class="pzm-items">${(t.items || []).slice(0, 4).map(x => `<em>${esc(x.item)} ${x.count}</em>`).join('')}</div>
                   <div class="pzm-sum">${esc(t.summary)}</div></div></div>`).join('')}</div>`
               : emptyHtml('📝', d.failed ? '잠시 후 다시 확인해 주세요.' : `${ml} 활동 기록이 아직 없어요.<br>나의교실에 활동을 기록하면 이달의 교사 후보가 돼요!`))}
+            ${wait ? '' : pzMoreBtn('tom', ts.length)}
             <div class="pzm-rule">점수 = 활동마다 전도 단계 점수(섭외·친분 1, 만남 2, 상담 3, 복음방 4, 센터 5) + 긍정 반응 1${cur ? ' · 달이 끝날 때까지 바뀔 수 있어요' : ''}</div>
           </div>`;
         // 2026-10-01: 지금 뜨는 교사 이야기 = 이달 공감 순위(커피 쿠폰 섹션 통합)
@@ -2485,12 +2535,12 @@
         $('pzHot').innerHTML = `${monthTabs()}
           <div class="pz-guide c-hot"><span class="pz-guide-ic">💬</span><span>${ml}에 올린 사례·질문·불편신고 글을 공감 많은 순으로 보여줘요. 공감 TOP 3 작성자에게 커피 쿠폰을 드려요(1인 1매).</span></div>
           ${goal ? `<div class="pz-cup-goal">${goal}</div>` : ''}
-          ${wait || (pop.length ? pop.slice(0, 5).map((p, i) => `<div class="pz-hot-row ${PZ_CAT_CLS[p.category] || 'c-all'}${p.coupon ? ' cup' : ''}" data-pz-open="${esc(p.postId)}">
+          ${wait || (pop.length ? pop.slice(0, PZX.hot ? 10 : 3).map((p, i) => `<div class="pz-hot-row ${PZ_CAT_CLS[p.category] || 'c-all'}${p.coupon ? ' cup' : ''}" data-pz-open="${esc(p.postId)}">
               <div class="pz-hot-img">${p.thumb ? `<img src="${esc(p.thumb)}" alt="">` : catIc(p.category)}<span class="pz-rank">${i + 1}</span></div>
               <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div>
                 <div class="pz-hot-foot"><span>${esc(p.name)}</span>${cntHtml(p)}</div></div>
               ${p.coupon ? `<span class="pzm-badge">☕ ${cur ? '당첨 예정' : '당첨'}</span>` : ''}</div>`).join('')
-            + `<button type="button" class="pz-more" data-pz-pill="feed">전체 이야기 보기 ›</button>`
+            + pzMoreBtn('hot', pop.length)
             : emptyHtml('☕', d.failed ? '잠시 후 다시 확인해 주세요.' : cur ? `${ml}에 공감을 받은 글이 아직 없어요.<br>첫 글을 올리고 커피 쿠폰 주인공이 되어 보세요!` : `${ml}엔 공감을 받은 글이 없었어요.`))}`;
       }
       async function load(reset) {
@@ -2854,13 +2904,12 @@
       }
       function renderContest() {
         C.rows.sort((a, b) => b.likeCount - a.likeCount || b.commentCount - a.commentCount || (a.createdAt < b.createdAt ? 1 : -1));
-        const top = C.rows[0];
         $('pzContest').innerHTML = `<div class="pz-contest">
           <div class="pzc-eyebrow">NAMING CONTEST · 시범 사용단 특전</div>
           <div class="pzc-title">이 앱의 이름을 지어 주세요</div>
           <div class="pzc-desc">'교사 광장'은 임시 이름이에요. 뽑힌 이름이 정식 앱 이름이 돼요.</div>
-          ${top ? `<div class="pzc-top" data-pzc-list>🏆 지금 1위 <b>${esc(pzcName(top))}</b><span>공감 ${top.likeCount}</span></div>` : ''}
-          <div class="pzc-btns"><button type="button" class="pzc-go" data-pzc-write>✏️ 이름 제안하기</button><button type="button" class="pzc-see" data-pzc-list>제안 ${C.loaded ? C.rows.length + '개 ' : ''}보기 ›</button></div>
+          ${C.rows.slice(0, 3).map((p, i) => `<div class="pzc-top" data-pzc-list>${['🥇', '🥈', '🥉'][i]} <b>${esc(pzcName(p))}</b><span>공감 ${p.likeCount}</span></div>`).join('')}
+          <div class="pzc-btns"><button type="button" class="pzc-go" data-pzc-write>✏️ 이름 제안하기</button><button type="button" class="pzc-see" data-pzc-list>더보기${C.loaded ? ' (' + C.rows.length + '개)' : ''} ›</button></div>
         </div>`;
       }
       function openContestList() {
@@ -2931,33 +2980,26 @@
         const delC = e.target.closest('[data-pz-delcmt]'); if (delC) { deleteComment(delC.dataset.pzDelcmt); return; }
         if (e.target.closest('[data-pz-tofeed]')) { ovClose(); setTimeout(() => scrollToEl('pzFeedTitle'), 250); return; }
         const open = e.target.closest('[data-pz-open]'); if (open) { const id = open.dataset.pzOpen; openPost(id); return; }
-        const wc = e.target.closest('[data-pz-write]'); if (wc) { openWrite(null, wc.dataset.pzWrite); return; }
+        const go = e.target.closest('[data-pz-go]'); if (go) { scrollToEl(PZ_SEC_ID[go.dataset.pzGo]); return; }
+        const mo = e.target.closest('[data-pz-more]');
+        if (mo) {
+          const k = mo.dataset.pzMore; PZX[k] = !PZX[k];
+          if (k === 'cal') calRenderUpcoming(); else if (k === 'ad') calRenderAds();
+          else if (k === 'tom' || k === 'hot') renderMonthly(); else if (k === 'feed') renderLists();
+          if (!PZX[k]) scrollToEl(PZ_SEC_ID[k]);
+          return;
+        }
         const pill = e.target.closest('[data-pz-pill]');
         if (pill) {
           const k = pill.dataset.pzPill;
-          if (k === 'cal') return scrollToEl('pzCalTitle');
-          if (k === 'hot') return scrollToEl('pzHotTitle');
-          if (k === 'feed') return scrollToEl('pzFeedTitle');
-          if (k === 'tom') return scrollToEl('pzTomTitle');
           P.cat = k; P.kw = ''; const s = $('pzSearch'); if (s) s.value = '';
           renderPills(); load(true); scrollToEl('pzFeedTitle');
         }
       });
 
-      // 2026-10-01: 어떤 글을 쓰는지(사례·질문·불편신고 중 하나) + 공감 → 인기글 → 커피 쿠폰 흐름을 한눈에
-      const PZ_WC_SUB = { '사례': '전도·교육 경험', '질문': '궁금한 점', '불편신고': '어플 불편한 점' };
-      function renderWriteCta() {
-        $('pzWriteCta').innerHTML = `<div class="pz-wc">
-          <div class="pz-wc-title">✍️ 교사 광장에 글 쓰기</div>
-          <div class="pz-wc-sub">아래 세 가지 중 하나를 골라 써 주세요.</div>
-          <div class="pz-wc-btns">${PZ_CATS.map(c => `<button type="button" class="${PZ_CAT_CLS[c]}" data-pz-write="${esc(c)}"><i>${catIc(c)}</i><b>${esc(c)}</b><span>${esc(PZ_WC_SUB[c] || '')}</span></button>`).join('')}</div>
-          <div class="pz-wc-flow">공감을 많이 받은 글은 <b>🔥 지금 뜨는 교사 이야기</b>에 오르고,<br>매달 공감 <b>TOP 3</b> 작성자에게 <b>☕ 커피 쿠폰</b>을 드려요!</div>
-        </div>`;
-      }
-
       window.pzMount = function () {
         if (P.mounted) return; P.mounted = true;
-        renderPills(); renderWriteCta();
+        renderPills();
         $('pzFab').onclick = () => openWrite(null);
         const s = $('pzSearch');
         const run = () => { const v = s.value.trim(); if (v === P.kw) return; P.kw = v; load(true); scrollToEl('pzFeedTitle'); };
