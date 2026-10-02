@@ -1440,7 +1440,7 @@
         <nav class="kko-tabs" id="topTabs">
           <button class="kko-tab kko-tab-active" data-tab="card">내소개</button>
           <button class="kko-tab" data-tab="find">활동신청자</button>
-          <button class="kko-tab" data-tab="board">협력 요청 공지</button>
+          <button class="kko-tab" data-tab="board">도와주세요</button>
         </nav>
         <main id="cnView" class="cn-wrap"></main>
         <div id="cnFabHost"></div>
@@ -3335,7 +3335,7 @@
       {
         key: 'chance', label: '하고 싶은데 기회가 없어요',
         tip: '먼저 "나 이런 거 할 수 있어요"를 올려두면 필요한 분이 찾아옵니다. 남의 복음방에 동행부터 시작하는 게 가장 빨라요.',
-        dos: ['연결 탭에 내 명함 올리기 (가능 역할·항목·일정)', '협력 요청 공지에서 동행교사·섬김이로 참여하기'],
+        dos: ['연결 탭에 내 명함 올리기 (가능 역할·항목·일정)', ''도와주세요' 코너에서 동행교사·섬김이로 참여하기'],
         go: [['연결 탭 열기', 'connect']]
       },
       {
@@ -3347,7 +3347,7 @@
       {
         key: 'env', label: '가정·직장 사정이 있어요',
         tip: '부담이 적은 역할부터 하나만 잡아보세요. 섬김이 한 번도 활동 기록이 됩니다.',
-        dos: ['명함의 활동 가능 일정을 "상의 후 결정"으로 등록', '협력 요청 공지 중 1회짜리에 섬김이로 참여'],
+        dos: ['명함의 활동 가능 일정을 "상의 후 결정"으로 등록', ''도와주세요' 글 중 1회짜리에 섬김이로 참여'],
         go: [['연결 탭 열기', 'connect']]
       },
       {
@@ -3384,7 +3384,7 @@
       } else {
         // 나머지 등급은 바로 다음 한 걸음을 제시
         const steps = tier === '우수교사'
-          ? [['협력 요청 공지에 응답하기', 'connect'], ['내 활동 기록 남기기', 'activity']]
+          ? [[''도와주세요' 글에 응답하기', 'connect'], ['내 활동 기록 남기기', 'activity']]
           : [['연결 탭에서 함께할 사람 찾기', 'connect'], ['교재·이수교육 확인하기', 'textbook']];
         extra = `<div class="gg-gos">${steps.map(([txt, tab]) => `<button type="button" class="gg-go" data-gotab="${tab}">${esc(txt)} ›</button>`).join('')}</div>`;
       }
@@ -4231,7 +4231,7 @@
     });
     function cnRender() {
       const v = document.getElementById('cnView');
-      document.getElementById('cnFabHost').innerHTML = S.tab === 'board' ? '<button class="cn-fab" id="fabAdd">+ 협력 요청 공지 등록</button>' : '';
+      document.getElementById('cnFabHost').innerHTML = S.tab === 'board' ? '<button class="cn-fab" id="fabAdd">+ 도와주세요 글 등록</button>' : '';
       if (S.tab === 'card') { v.innerHTML = cardHtml(); bindCard(); }
       else if (S.tab === 'find') { v.innerHTML = findHtml(); bindFind(); }
       else if (S.tab === 'chat') { renderChat(v); }
@@ -4554,10 +4554,10 @@
     function boardHtml() {
       const b = S.board;
       return `
-      <div class="cn-sec-title">협력 요청 공지</div>
+      <div class="cn-sec-title">도와주세요</div>
       <div class="cn-sec-sub">도움이 필요한 전도 활동을 올리고, 도와줄 교사를 만나보세요.</div>
       <!-- 2026-09-23 "도움 요청 검색" — 활동신청자와 같은 UI/UX(드롭다운 4 + 키워드 1). -->
-      <div class="cn-lbl" style="margin-top:14px">협력 요청 공지 검색</div>
+      <div class="cn-lbl" style="margin-top:14px">도와주세요 글 검색</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${cnSelHtml('hRole', '4역할 전체', CN_ROLE_PARTS, b.role)}
         ${cnSelHtml('hItem', '11항목 전체', CN_ROLE_ITEMS, b.item)}
@@ -4598,7 +4598,7 @@
       const chat = document.getElementById('hpChat');
       if (chat) chat.onclick = () => {
         callApi({ action: 'recordMatch', kind: '도와주세요', refId: h.helpId, fromId: MEMBER_ID, fromName: MY_NAME, toId: h.memberId, toName: h.name }).catch(() => {});
-        openChat(h.memberId, h.name, `[협력 요청 공지] "${h.oneLiner}" (${h.type}) 글을 보고 연락드려요. 도와드리고 싶습니다!`);
+        openChat(h.memberId, h.name, `[도와주세요] "${h.oneLiner}" (${h.type}) 글을 보고 연락드려요. 도와드리고 싶습니다!`);
       };
       const cl = document.getElementById('hpClose');
       if (cl) cl.onclick = async () => {
@@ -4618,7 +4618,7 @@
       const f = { role: '', item: '', type: '', dept: '', startDate: todayStr(), endDate: '',
                   oneLiner: '', target: '', need: '', desc: '' };
       openSheet(`
-        <div style="font-size:20px;font-weight:800">협력 요청 공지 등록</div>
+        <div style="font-size:20px;font-weight:800">도와주세요 글 등록</div>
         <div class="cn-sec-sub" style="margin-top:4px">어떤 대상자에게 어떤 사람이 필요한지 적어주세요. 조건에 맞는 교사가 찾아옵니다.</div>
 
         <label class="cn-lbl">어떤 역할이 필요한가요? <span class="cn-req">*</span></label>
@@ -8925,12 +8925,12 @@ let cnAdmData = null, cnAdmTab = 'cards';
 function cnAdmStatsHtml(s) {
   return `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
     <div class="stat-tile"><b>${s.cardCount}</b><span>등록된 명함</span></div>
-    <div class="stat-tile"><b>${s.helpOpen}</b><span>진행 중인 협력 요청 공지 (전체 ${s.helpCount})</span></div>
+    <div class="stat-tile"><b>${s.helpOpen}</b><span>진행 중인 도와주세요 글 (전체 ${s.helpCount})</span></div>
     <div class="stat-tile"><b>${s.matchCount}</b><span>채팅 매칭 요청</span></div>
     <div class="stat-tile"><b>${s.matchDone}</b><span>성사 표시됨</span></div>
   </div>
   <div class="kko-card mt-3">
-    <div class="text-sm font-bold mb-2">협력 요청 공지 유형별</div>
+    <div class="text-sm font-bold mb-2">도와주세요 유형별</div>
     <div class="flex flex-wrap gap-2 text-xs">${Object.entries(s.helpByType).map(([k,v]) => `<span class="badge2 req">${esc(k)} ${v}</span>`).join('')}</div>
   </div>`;
 }
@@ -8960,7 +8960,7 @@ function cnAdmRender() {
     ${cnAdmStatsHtml(cnAdmData.stats)}
     <div class="tabs2">
       <button data-t="cards" class="${cnAdmTab==='cards'?'on':''}">내소개 등록 교사 (${cnAdmData.cards.length})</button>
-      <button data-t="helps" class="${cnAdmTab==='helps'?'on':''}">협력 요청 공지 (${cnAdmData.helps.length})</button>
+      <button data-t="helps" class="${cnAdmTab==='helps'?'on':''}">도와주세요 (${cnAdmData.helps.length})</button>
       <button data-t="matches" class="${cnAdmTab==='matches'?'on':''}">매칭 (${cnAdmData.matches.length})</button>
     </div>
     ${cnAdmTab==='cards' ? cnAdmCardsTable(cnAdmData.cards) : cnAdmTab==='helps' ? cnAdmHelpsTable(cnAdmData.helps) : cnAdmMatchesTable(cnAdmData.matches)}
