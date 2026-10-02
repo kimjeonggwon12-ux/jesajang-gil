@@ -3310,6 +3310,13 @@
       });
       return out;
     }
+    // 2026-10-02: 협력은 개인 대상자 단계 관리가 아니라 봉사 활동이라, 타일 숫자 = 올해 협력 활동 건수,
+    // 펼치면 단계 대신 협력 9항목(COOP_ACTIVITY_OPTIONS)별 건수가 나온다.
+    function myCoopRecords() {
+      const year = String(new Date().getFullYear());
+      return ((home.monthlyActRes && home.monthlyActRes.rows) || [])
+        .filter(a => String(a.submittedAt || '').slice(0, 4) === year && (a.roles || []).includes(COOP_ROLE));
+    }
     function toggleActivityRole(role) { home.expandedRolePart = (home.expandedRolePart === role) ? null : role; home.expandedStage = null; renderHome(); }
     function toggleActivityStage(stage) { home.expandedStage = (home.expandedStage === stage) ? null : stage; renderHome(); }
     // ── Phase 2: 인사말 위젯 + 내 상태(등급) — 피드 최상단.
@@ -3467,20 +3474,40 @@
     // 펼침 화살표를 넣어 탭 가능한 버튼처럼 보이게 함.
     function myActivityViewHtml() {
       const byRole = targetsByRole();
+      const coopRecs = myCoopRecords();
       const open = home.expandedRolePart;
       const tiles = MY_ACTIVITY_ROLES.map(role => {
         const on = open === role;
         return `
         <button type="button" class="act-stat ${on ? 'on' : ''}" onclick="toggleActivityRole('${role}')">
-          <div class="act-stat-num">${byRole[role].length}</div>
+          <div class="act-stat-num">${role === COOP_ROLE ? coopRecs.length : byRole[role].length}</div>
           <div class="act-stat-label">${esc(roleShortLabel(role))} <span class="act-stat-caret">${on ? '▲' : '▼'}</span></div>
         </button>`;
       }).join('');
       const hint = `<div class="act-stats-hint">${open
-        ? `<b>${esc(roleShortLabel(open))}</b> 대상자를 단계별로 보고 있어요 · 다시 누르면 접혀요`
+        ? (open === COOP_ROLE
+          ? `<b>협력</b> 활동을 항목별로 보고 있어요 (올해) · 다시 누르면 접혀요`
+          : `<b>${esc(roleShortLabel(open))}</b> 대상자를 단계별로 보고 있어요 · 다시 누르면 접혀요`)
         : '역할을 눌러보세요 · 담당 대상자가 어느 단계에 있는지 펼쳐서 볼 수 있어요'}</div>`;
       let detail = '';
-      if (open) {
+      if (open === COOP_ROLE) {
+        const rows = COOP_ACTIVITY_OPTIONS.map(item => {
+          const recs = coopRecs.filter(a => (a.activities || []).includes(item));
+          const n = recs.length, filled = Math.min(n, 3);
+          const dots = '●'.repeat(filled) + '○'.repeat(3 - filled);
+          const expanded = home.expandedStage === item && n > 0;
+          return `<div>
+            <button type="button" ${n ? `onclick="toggleActivityStage('${esc(item)}')"` : 'disabled'} class="w-full flex items-center" style="min-height:38px;padding:0 4px;text-align:left;opacity:${n ? 1 : .45}">
+              <span style="width:76px;font-size:14px;font-weight:600">${esc(item)}</span>
+              <span style="flex:1;color:var(--color-primary);letter-spacing:2px;font-size:14px">${dots}</span>
+              <span style="font-size:14px;font-weight:700">${n}건</span>
+            </button>
+            ${expanded ? `<div class="flex flex-wrap gap-1.5" style="padding:4px 4px 10px 76px">${recs.map(a => `<span class="act-chip act-chip-stage" style="height:28px">${esc(String(a.submittedAt || '').slice(5, 10))}${a.targetName ? ' · ' + esc(maskName(a.targetName)) : ''}</span>`).join('')}</div>` : ''}
+          </div>`;
+        }).join('');
+        detail = `<div class="kko-card-in" style="margin:2px var(--dg-pad) 0;background:var(--dg-bg-soft);border-radius:var(--dg-radius-md);padding:12px 12px 6px">
+          <div style="font-size:12.5px;color:var(--dg-text-sub);margin-bottom:4px">협력 활동 항목별 건수 (올해) · 항목을 누르면 날짜 목록</div>${rows}</div>`;
+      } else if (open) {
         const list = byRole[open];
         const stages = (home.stages && home.stages.length) ? home.stages : TARGET_STAGES_FALLBACK;
         const rows = stages.map(st => {
@@ -4180,7 +4207,12 @@
     const CN_ROLE_PARTS = ROLE_OPTIONS;   // 인도자·교사·섬김이·협력교사 (활동 기록과 같은 배열 재사용)
     const CN_ROLE_ITEMS = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '동행교사', '센터소개', '센터수강'];
     // 명함의 roles 배열에는 역할·항목을 함께 담는다(백엔드 컬럼 추가 없이 호환 유지).
-    const CARD_ROLES = CN_ROLE_PARTS.concat(CN_ROLE_ITEMS);
+    // 2026-10-02: 4번째 역할 '협력교사'는 11항목 대신 전용 9항목(COOP_ACTIVITY_OPTIONS, 나의 교실과 동일).
+    //   역할을 고르면 그 역할의 항목만, 역할이 '전체'면 두 체계를 합친 목록을 보여준다.
+    const CN_COOP_ITEMS = COOP_ACTIVITY_OPTIONS;
+    const CN_ALL_ITEMS = CN_ROLE_ITEMS.concat(CN_COOP_ITEMS.filter(i => !CN_ROLE_ITEMS.includes(i)));
+    function cnItemsForRole(role) { return role === COOP_ROLE ? CN_COOP_ITEMS : (role ? CN_ROLE_ITEMS : CN_ALL_ITEMS); }
+    const CARD_ROLES = CN_ROLE_PARTS.concat(CN_ALL_ITEMS);
     const CARD_LANGS = ['영어', '일본어', '중국어', '그 외'];
     const CARD_TARGETS = ['청년 대상', '장년 대상', '부녀 대상', '자문 대상', '전 연령'];
     const CARD_FIELDS = ['인문학', '노방 대상자 전문', '사주·타로', '애니어그램', '사군자', '디스크', '온라인 강의', '이단 시비 전문', '은사 전문', '찬양·음악', '운동'];
@@ -4379,8 +4411,10 @@
 
         <label class="cn-lbl">가능 역할 <small>(인·교·섬·협)</small></label>
         ${multiHtml('roles', CN_ROLE_PARTS, f.roles)}
-        <label class="cn-lbl">가능 항목 <small>(역할 아래 단계 — 활동 기록과 같은 11항목)</small></label>
+        <label class="cn-lbl">가능 항목 <small>(인도·교사·섬김 — 활동 기록과 같은 11항목)</small></label>
         ${multiHtml('roles', CN_ROLE_ITEMS, f.roles)}
+        <label class="cn-lbl">협력 항목 <small>(협력 — 활동 기록과 같은 9항목)</small></label>
+        ${multiHtml('roles', CN_COOP_ITEMS.filter(i => !CN_ROLE_ITEMS.includes(i)), f.roles)}
 
         <label class="cn-lbl">가능 외국어</label>${multiHtml('langs', CARD_LANGS, f.langs)}
         <label class="cn-lbl">가능 대상</label>${multiHtml('targets', CARD_TARGETS, f.targets)}
@@ -4487,7 +4521,7 @@
            역할은 서버에 보내고(후보를 줄이고) 항목은 받아온 목록에서 걸러낸다. -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${cnSelHtml('fRole', '4역할 전체', CN_ROLE_PARTS, q.role)}
-        ${cnSelHtml('fItem', '11항목 전체', CN_ROLE_ITEMS, q.item)}
+        ${cnSelHtml('fItem', '항목 전체', cnItemsForRole(q.role), q.item)}
         ${cnSelHtml('fRegion', '지역 전체', q.regions, q.region)}
         ${cnSelHtml('fTag', '태그 전체', tagOpts, q.tag)}
       </div>
@@ -4516,7 +4550,10 @@
     }
     function bindFind() {
       const q = S.find, v = document.getElementById('cnView');
-      const on = (id, key) => { const el = document.getElementById(id); if (el) el.onchange = e => { q[key] = e.target.value; loadFind(); }; };
+      const on = (id, key) => { const el = document.getElementById(id); if (el) el.onchange = e => {
+        q[key] = e.target.value;
+        if (key === 'role' && q.item && !cnItemsForRole(q.role).includes(q.item)) q.item = '';
+        loadFind(); }; };
       on('fRole', 'role'); on('fItem', 'item'); on('fRegion', 'region'); on('fTag', 'tag'); on('fSched', 'schedule');
       const k = document.getElementById('fKeyword');
       if (k) { k.oninput = e => { q.keyword = e.target.value; }; k.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) loadFind(); }; k.onchange = () => loadFind(); }
@@ -4625,7 +4662,7 @@
       <div class="cn-lbl" style="margin-top:14px">도와주세요 글 검색</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${cnSelHtml('hRole', '4역할 전체', CN_ROLE_PARTS, b.role)}
-        ${cnSelHtml('hItem', '11항목 전체', CN_ROLE_ITEMS, b.item)}
+        ${cnSelHtml('hItem', '항목 전체', cnItemsForRole(b.role), b.item)}
         ${cnSelHtml('hRegion', '지역 전체', b.regions, b.region)}
         ${cnSelHtml('hDeptSel', '부서 전체', DEPTS5, b.dept)}
       </div>
@@ -4638,7 +4675,10 @@
     }
     function bindBoard() {
       const b = S.board, v = document.getElementById('cnView');
-      const on = (id, key) => { const el = document.getElementById(id); if (el) el.onchange = e => { b[key] = e.target.value; loadBoard(); }; };
+      const on = (id, key) => { const el = document.getElementById(id); if (el) el.onchange = e => {
+        b[key] = e.target.value;
+        if (key === 'role' && b.item && !cnItemsForRole(b.role).includes(b.item)) b.item = '';
+        loadBoard(); }; };
       on('hRole', 'role'); on('hItem', 'item'); on('hRegion', 'region'); on('hDeptSel', 'dept');
       const k = document.getElementById('hKeyword');
       if (k) {
@@ -4689,7 +4729,7 @@
         <label class="cn-lbl">어떤 역할이 필요한가요? <span class="cn-req">*</span></label>
         ${cnSelHtml('bfRole', '4역할 중 선택', CN_ROLE_PARTS, '')}
         <label class="cn-lbl">어떤 항목인가요? <span class="cn-req">*</span></label>
-        ${cnSelHtml('bfItem', '11항목 중 선택', CN_ROLE_ITEMS, '')}
+        ${cnSelHtml('bfItem', '항목 중 선택', cnItemsForRole(''), '')}
         <label class="cn-lbl">부서 <span class="cn-req">*</span></label>
         ${cnSelHtml('bfDept', '부서 선택', DEPTS5, '')}
 
@@ -4720,7 +4760,16 @@
 
       const onSel = (id, key) => {
         const el = document.getElementById(id);
-        if (el) el.onchange = e => { f[key] = e.target.value; f.type = [f.role, f.item].filter(Boolean).join(' · '); };
+        if (el) el.onchange = e => {
+          f[key] = e.target.value;
+          if (key === 'role') {   // 협력이면 9항목, 그 외 역할은 11항목으로 항목 목록을 바꾼다
+            const opts = cnItemsForRole(f.role);
+            if (!opts.includes(f.item)) f.item = '';
+            const itemEl = document.getElementById('bfItem');
+            if (itemEl) itemEl.innerHTML = `<option value="">항목 중 선택</option>${opts.map(o => `<option value="${esc(o)}" ${o === f.item ? 'selected' : ''}>${esc(o)}</option>`).join('')}`;
+          }
+          f.type = [f.role, f.item].filter(Boolean).join(' · ');
+        };
       };
       onSel('bfRole', 'role'); onSel('bfItem', 'item'); onSel('bfDept', 'dept');
 
@@ -6842,12 +6891,14 @@ function renderStageDistributionSection() {
   else if (d.error) body = `<div class="alert alert-error py-2 text-sm">${esc(d.error)}</div>`;
   else {
     const max = Math.max(1, ...d.stages.map(x => x.count));
-    body = `<div class="text-xs text-base-content/40 mb-2">${stageRole ? esc(adminRoleShortLabel(stageRole)) + ' 기준 ' : ''}진행 중인 대상자 ${d.total}명</div>
+    const isItems = d.kind === 'items'; // 협력: 단계 대신 협력 9항목별 활동 건수(올해)
+    const unit = isItems ? '건' : '명';
+    body = `<div class="text-xs text-base-content/40 mb-2">${isItems ? `협력 활동 항목별 건수 (올해) · 총 ${d.total}건` : `${stageRole ? esc(adminRoleShortLabel(stageRole)) + ' 기준 ' : ''}진행 중인 대상자 ${d.total}명`}</div>
       <div class="flex flex-col gap-1.5">${d.stages.map(x => `
         <div class="flex items-center gap-2">
-          <div class="text-xs font-bold shrink-0" style="width:56px">${esc(x.stage)}</div>
+          <div class="text-xs font-bold shrink-0" style="width:${isItems ? 64 : 56}px">${esc(x.stage)}</div>
           <div class="flex-1 rounded" style="background:#F3F4F6;height:16px"><div class="rounded" style="height:16px;width:${x.count ? Math.max(3, Math.round(x.count / max * 100)) : 0}%;background:${STAGE_BAR_COLOR[x.stage] || '#7E22CE'}"></div></div>
-          <div class="text-xs font-bold text-right shrink-0" style="width:44px">${x.count}명</div>
+          <div class="text-xs font-bold text-right shrink-0" style="width:44px">${x.count}${unit}</div>
         </div>`).join('')}</div>`;
   }
   return sectionCard('accent', '📊', title, sub, key + tabs + body);
