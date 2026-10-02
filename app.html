@@ -3082,7 +3082,16 @@
     const ROLE_OPTIONS = ['인도자', '교사', '섬김이', '협력교사'];
     const ROLE_ACTIVITY_OPTIONS = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
     const TEACHER_EXTRA_ACTIVITY = '동행교사';
-    const ROLES_WITH_EXTRA_ACTIVITY = ['교사', '협력교사'];
+    const ROLES_WITH_EXTRA_ACTIVITY = ['교사'];
+    // 2026-10-02: 사용자 피드백 — 협력교사는 개인 섭외자 단계 관리(인도·교사·섬김)와 달리 여러 사람을
+    // 이름 없이 돕는 봉사라서 전용 9항목으로 고정. 협력은 다른 역할과 함께 고를 수 없다(항목 체계가 달라서).
+    // Code.gs COOP_ACTIVITY_OPTIONS와 반드시 같이 맞출 것.
+    const COOP_ROLE = '협력교사';
+    const COOP_ACTIVITY_OPTIONS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사'];
+    function activityOptionsForRoles(roles) {
+      if (roles.includes(COOP_ROLE)) return COOP_ACTIVITY_OPTIONS;
+      return roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r)) ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS;
+    }
     const ROLE_SHORT_LABEL = { '인도자': '인도', '교사': '교사', '섬김이': '섬김', '협력교사': '협력' };
     function roleShortLabel(role) { return ROLE_SHORT_LABEL[role] || role; }
     const REACTION_OPTIONS = ['긍정적', '중립', '부정적'];
@@ -3502,8 +3511,7 @@
 
     function activityFormHtml() {
       const f = home.form;
-      const hasTeacherExtra = f.roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r));
-      const itemOptions = hasTeacherExtra ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS;
+      const itemOptions = activityOptionsForRoles(f.roles);
       const stageOptions = home.stages.length ? home.stages : TARGET_STAGES_FALLBACK;
       const isConsult = f.activityItem === '상담1' || f.activityItem === '상담2';
       const isGospel = f.activityItem === '복음방';
@@ -3525,7 +3533,7 @@
         </div>
 
         <div class="act-form-group">
-          <div class="act-step-label">어떤 역할로 함께하셨어요? <span style="font-weight:500;color:var(--dg-text-sub)">· 여러 개 가능</span></div>
+          <div class="act-step-label">어떤 역할로 함께하셨어요? <span style="font-weight:500;color:var(--dg-text-sub)">· 여러 개 가능 (협력은 단독)</span></div>
           <div class="act-chip-wrap">
             ${ROLE_OPTIONS.map(r => `
               <button type="button" class="act-chip-btn af-role-chip ${f.roles.includes(r) ? 'on' : ''}" data-role="${esc(r)}">${esc(roleShortLabel(r))}</button>`).join('')}
@@ -3601,9 +3609,9 @@
         btn.onclick = () => {
           const v = btn.dataset.role;
           if (f.roles.includes(v)) f.roles = f.roles.filter(r => r !== v);
-          else f.roles.push(v);
-          const hasTeacherExtra = f.roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r));
-          const opts = hasTeacherExtra ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS;
+          else if (v === COOP_ROLE) f.roles = [v];                       // 협력은 단독 선택
+          else f.roles = f.roles.filter(r => r !== COOP_ROLE).concat([v]);
+          const opts = activityOptionsForRoles(f.roles);
           if (!opts.includes(f.activityItem)) f.activityItem = f.roles.length ? opts[0] : '';
           renderActivityFormSheet();
         };
@@ -6659,7 +6667,7 @@ function renderTopRegionsSection() {
 
         <div class="divider my-5"></div>
         <div class="text-lg font-black text-base-content mb-1">🏢 부서별 교사 활동 우수 지역 (자문회·장년회·부녀회·청년회, 교역자 제외)</div>
-        <div class="text-xs text-base-content/50 mb-2">4역할 11항목 활동 데이터를 기반으로 만남·상담·복음방·센터인도 4개 측면의 우수 지역을 부서별로 자동 선정합니다.</div>
+        <div class="text-xs text-base-content/50 mb-2">4역할 활동 항목 데이터를 기반으로 만남·상담·복음방·센터인도 4개 측면의 우수 지역을 부서별로 자동 선정합니다.</div>
         ${deptTopRegionsSectionHtml()}
       </div>
     </div>
@@ -7445,13 +7453,13 @@ let state = {
   regionView: 'table',   // 'table' | 'chart' — 지역별 상세 섹션 표시 방식
   activityView: 'table', // 'table' | 'chart' — 지역별 활동 분석 섹션 표시 방식
   roleActivityView: 'table', // 'table' | 'chart' — 지역별 인섬교(인도자·교사·섬김이·협력) 활동 섹션 표시 방식
-  roleTab: '인도자', // 2026-09-22 신설 "[지역별] 4역할 활동" 섹션 — 탭으로 고른 역할 1개만 지역×11항목 표로 보여줌
+  roleTab: '인도자', // 2026-09-22 신설 "[지역별] 4역할 활동" 섹션 — 탭으로 고른 역할 1개만 지역×활동 항목 표로 보여줌
   teacherDetailOpen: false, // 교사별 상세(지역 필터+표) 접기/펼치기 — 기본 접힘
   pendingOnly: false, // true면 교사별 상세 표를 "승급·강등 제안 있는 교사만"으로 좁혀서 보여줌
   showSampleData: false, // 2026-09-16: 브리핑용 샘플 데이터 토글 — ON이면 "지역별 인섬교 활동" 표/그래프/AI분석이 실제 데이터 대신 고정 샘플을 사용
   aiAnalysis: null, // { loading, error, text } — 부서 탭 하단 "🤖 AI 지역 분석" 결과(부서 바뀌면 초기화)
   // 2026-09-15: 3역할(인도자/섬김이/교사) → 4역할(인도자/교사/섬김이/협력교사)로 확장.
-  expandedRoleCol: { '인도자': false, '교사': false, '섬김이': false, '협력교사': false }, // "지역별 인섬교 활동" 표에서 역할 열 헤더 클릭 시 11개 항목 펼치기/접기
+  expandedRoleCol: { '인도자': false, '교사': false, '섬김이': false, '협력교사': false }, // "지역별 인섬교 활동" 표에서 역할 열 헤더 클릭 시 활동 항목 펼치기/접기
   // Phase 2(2026-09-15): 리더 격려 메시지 팝업 — encourageTarget이 {memberId,name}이면 열림.
   encourageTarget: null,
   encourageFromName: '', // 세션 내 재입력 편의를 위해 보내는 분 성함을 기억(로그인 없는 관리자 화면이라 매번 입력 필요)
@@ -8305,23 +8313,24 @@ function byRegionSectionHtml(byRegion) {
 }
 
 // 2026-09-22 신설: "[지역별] 4역할 활동" — 4역할 탭(인도자/교사/섬김이/협력교사)을 누르면 그 역할만
-// 지역×11항목 표로 전환해서 보여준다(buildRoleActivityBreakdown의 counts[region][role][item] 재사용,
+// 지역×활동 항목 표로 전환해서(협력교사는 전용 9항목) 보여준다(buildRoleActivityBreakdown의 counts[region][role][item] 재사용,
 // 새 데이터 집계 없음 — 기존 strongItemSectionHtml/aiAnalysisSectionHtml과 같은 b 객체를 그대로 씀).
 function roleRegionSectionHtml(b) {
   if (!b || !b.allRegions || !b.allRegions.length) return '';
   const regions = [...b.allRegions].sort((x, y) => String(x).localeCompare(String(y), 'ko', { numeric: true }));
   const role = ROLE_PARTS_DASH.includes(state.roleTab) ? state.roleTab : ROLE_PARTS_DASH[0];
   const tabs = ROLE_PARTS_DASH.map(r => `<button type="button" class="role-region-tab btn btn-xs ${role === r ? 'btn-primary' : 'btn-ghost btn-outline'}" data-role="${esc(r)}">${esc(r)}</button>`).join('');
-  const rowTotal = region => ROLE_ACTIVITY_ITEMS_DASH.reduce((s, item) => s + (((b.counts[region] || {})[role] || {})[item] || 0), 0);
+  const items = roleItemsDash(role);
+  const rowTotal = region => items.reduce((s, item) => s + (((b.counts[region] || {})[role] || {})[item] || 0), 0);
   return `
     <div class="px-4 pt-3">
-      ${sectionTitleBand('🧭', '지역별 4역할 활동', '역할 탭을 누르면 그 역할만 지역별 11항목 활동 건수로 전환됩니다 (강세·약세 파악용).', '#F5F3FF')}
+      ${sectionTitleBand('🧭', '지역별 4역할 활동', '역할 탭을 누르면 그 역할만 지역별 활동 항목 건수로 전환됩니다 (강세·약세 파악용).', '#F5F3FF')}
       <div class="flex flex-wrap gap-1.5 mb-2">${tabs}</div>
       <div class="kko-table-card kko-card-in"><div class="overflow-x-auto">
         <table class="table table-zebra table-sm">
           <thead class="sticky top-0 bg-base-100"><tr>
             <th>지역</th>
-            ${ROLE_ACTIVITY_ITEMS_DASH.map(item => `<th class="whitespace-nowrap">${esc(item)}</th>`).join('')}
+            ${items.map(item => `<th class="whitespace-nowrap">${esc(item)}</th>`).join('')}
             <th>합계</th>
           </tr></thead>
           <tbody>
@@ -8329,14 +8338,14 @@ function roleRegionSectionHtml(b) {
               const total = rowTotal(region);
               return `<tr>
                 <td class="font-medium">${esc(regionOnlyLabel(state.dept, region))}</td>
-                ${ROLE_ACTIVITY_ITEMS_DASH.map(item => {
+                ${items.map(item => {
                   const c = ((b.counts[region] || {})[role] || {})[item] || 0;
                   return `<td class="text-xs text-center ${c ? 'font-bold' : 'text-base-content/30'}">${c || '-'}</td>`;
                 }).join('')}
                 <td class="font-bold text-primary">${total}</td>
               </tr>`;
             }).join('')}
-            ${regions.every(region => rowTotal(region) === 0) ? `<tr><td colspan="${ROLE_ACTIVITY_ITEMS_DASH.length + 2}" class="text-center text-base-content/40 py-4">이번 달 ${esc(role)} 활동 기록이 없습니다.</td></tr>` : ''}
+            ${regions.every(region => rowTotal(region) === 0) ? `<tr><td colspan="${items.length + 2}" class="text-center text-base-content/40 py-4">이번 달 ${esc(role)} 활동 기록이 없습니다.</td></tr>` : ''}
           </tbody>
         </table>
       </div></div>
@@ -8628,7 +8637,12 @@ function activityAnalysisSectionHtml(analysis) {
 // 기록(activity-room.html 시절)은 이 표에서 제외(그건 아래 "지역별 활동 분석"이 계속 담당).
 // 2026-09-15: 3역할(인도자/섬김이/교사) → 4역할(인도자/교사/섬김이/협력교사)로 확장.
 const ROLE_PARTS_DASH = ['인도자', '교사', '섬김이', '협력교사'];
-const ROLE_ACTIVITY_ITEMS_DASH = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '동행교사', '센터소개', '센터수강'];
+// 2026-10-02: 협력교사는 전용 9항목(나의 교실 COOP_ACTIVITY_OPTIONS와 동일) — 역할별 표는 roleItemsDash(role),
+// 역할 무관 합산(강세 항목·AI 분석)은 두 체계를 합친 ROLE_ACTIVITY_ITEMS_DASH를 쓴다.
+const BASE_ACTIVITY_ITEMS_DASH = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '동행교사', '센터소개', '센터수강'];
+const COOP_ACTIVITY_ITEMS_DASH = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사'];
+const ROLE_ACTIVITY_ITEMS_DASH = BASE_ACTIVITY_ITEMS_DASH.concat(COOP_ACTIVITY_ITEMS_DASH.filter(i => !BASE_ACTIVITY_ITEMS_DASH.includes(i)));
+function roleItemsDash(role) { return role === '협력교사' ? COOP_ACTIVITY_ITEMS_DASH : BASE_ACTIVITY_ITEMS_DASH; }
 function _emptyRoleCounts() {
   const o = {};
   ROLE_PARTS_DASH.forEach(r => { o[r] = 0; });
@@ -8735,7 +8749,7 @@ function buildSampleRoleActivityBreakdown() {
     ROLE_PARTS_DASH.forEach((role, roi) => {
       counts[region][role] = {};
       const roleFactor = role === '교사' ? 1.3 : (role === '인도자' ? 1.1 : 1); // 교사 활동이 조금 더 많게
-      ROLE_ACTIVITY_ITEMS_DASH.forEach((item, ii) => {
+      roleItemsDash(role).forEach((item, ii) => {
         const base = 2 + _sampleSeed_(ri, roi, ii, 6); // 기본 2~7건
         const boost = item === strongItem ? 10 + _sampleSeed_(ri, roi, ii, 6) : 0; // 강세 항목만 확 높임
         counts[region][role][item] = Math.round((base + boost) * roleFactor);
@@ -8744,7 +8758,7 @@ function buildSampleRoleActivityBreakdown() {
   });
   SAMPLE_REGIONS.forEach(region => {
     ROLE_PARTS_DASH.forEach(role => {
-      ROLE_ACTIVITY_ITEMS_DASH.forEach(item => {
+      roleItemsDash(role).forEach(item => {
         const c = counts[region][role][item];
         itemGrandTotal[item] = (itemGrandTotal[item] || 0) + c;
         grandTotal += c;
@@ -8759,7 +8773,7 @@ function buildSampleRoleActivityBreakdown() {
     ROLE_PARTS_DASH.forEach(role => { regionRoleTotal[region][role] = Object.values(counts[region][role]).reduce((s, v) => s + v, 0); });
     ROLE_ACTIVITY_ITEMS_DASH.forEach(item => {
       let sum = 0;
-      ROLE_PARTS_DASH.forEach(role => { sum += counts[region][role][item]; });
+      ROLE_PARTS_DASH.forEach(role => { sum += counts[region][role][item] || 0; });
       regionItemTotal[region][item] = sum;
     });
   });
@@ -8876,7 +8890,7 @@ function distRender() {
       </div>
       <div class="px-4 pt-2">
         <div class="alert bg-base-200 border border-base-300 py-2.5 px-3 text-[11px] text-base-content/70 leading-relaxed">
-          🧭 이 화면은 지역장·교관이 담당 지역 교사들의 4역할(인도자·교사·섬김이·협력) 11항목 활동을 체계적으로 관찰·관리하는 직무 공간입니다. 지역별 강세·약세를 파악하고 보완 방향을 제시하세요.
+          🧭 이 화면은 지역장·교관이 담당 지역 교사들의 4역할(인도자·교사·섬김이·협력) 활동 항목을 체계적으로 관찰·관리하는 직무 공간입니다. 지역별 강세·약세를 파악하고 보완 방향을 제시하세요.
         </div>
       </div>` : ''}
 
