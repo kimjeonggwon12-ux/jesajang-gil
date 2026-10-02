@@ -137,6 +137,8 @@
       position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;
       padding-bottom: env(safe-area-inset-bottom, 0px);
     }
+    /* 2026-10-02: 광장 글 상세·글쓰기 등 전체화면 창(z 9000)이 떠 있으면 탭바(z 9999)를 숨긴다 — 탭바가 맨 아래 댓글 입력칸을 덮어 댓글을 못 쓰던 문제 */
+    body:has(#pzOverlayHost > *) #bottomTabBar, body:has(.pz-mz) #bottomTabBar { display: none; }
     #bottomTabBar .tab {
       flex: 1; display: flex; flex-direction: column; flex-wrap: nowrap; gap: 5px; align-items: center; justify-content: flex-start; padding-top: 13px; height: auto;
       color: var(--dg-text-sub); background: transparent !important; border: none !important;
@@ -2519,7 +2521,7 @@
         const ts = d.teachers || [];
         $('pzTom').innerHTML = `<div class="pz-sec-title c-tom" id="pzTomTitle"><span class="pz-sec-ic">🏅</span><span class="pz-sec-txt">${ml} 이달의 교사</span></div>
           <div class="pz-box c-tom">${monthTabs()}
-            <div class="pz-guide c-tom"><span class="pz-guide-ic">💬</span><span>광장 글이 아니라 <b>나의교실 활동 기록</b>으로 뽑아요. 교·자·장·부·청 부서마다 한 달 활동이 가장 알찬 선생님 한 분씩이에요.</span></div>
+            <div class="pz-guide c-tom"><span class="pz-guide-ic">💬</span><span>광장 글이 아니라 <b>나의교실 활동 기록</b>으로 뽑아요. 교·자·장·부·청 부서마다 한 달 활동이 가장 알찬 교사 한 분씩이에요.</span></div>
             ${wait || (ts.length ? `<div class="pzm-tom">${ts.slice(0, PZX.tom ? ts.length : 3).map(t => `<div class="pzm-t">
                 <div class="pzm-photo">${t.photo ? `<img src="${esc(t.photo)}" alt="">` : `<span>${esc(String(t.name || '?').slice(0, 1))}</span>`}<i>${esc(DEPT_SHORT[t.dept] || '')}</i></div>
                 <div class="pzm-main"><div class="pzm-name"><b>${esc(t.name)}</b><span>${esc([t.dept, t.region].filter(Boolean).join(' · '))}</span></div>
@@ -2609,7 +2611,7 @@
             <div class="pz-d-body">${esc(p.body)}</div>
             ${(p.photos || []).slice(1).map(src => `<img class="pz-d-photo" src="${esc(src)}" alt="첨부 사진">`).join('')}
             ${p.tags.length ? `<div class="pz-tags">${p.tags.map(t => `<span>#${esc(t)}</span>`).join('')}</div>` : ''}
-            ${p.likeCount ? `<div class="pz-react">💜 선생님 ${p.likeCount}명이 공감했어요</div>` : ''}
+            ${p.likeCount ? `<div class="pz-react">💜 교사 ${p.likeCount}명이 공감했어요</div>` : ''}
             <div class="pz-actions">
               <button type="button" id="pzLikeBtn" class="${p.liked ? 'on' : ''}">${ICON_LIKE} 공감 ${p.likeCount}</button>
               <button type="button" id="pzCmtFocus">${ICON_CMT} 댓글 ${comments.length}</button>
@@ -2793,7 +2795,7 @@
               <div class="pz-f-lbl">제목</div>
               <input class="pz-f-input" id="pzFTitle" maxlength="80" placeholder="예: 세 번 거절당한 분이 복음방에 오시기까지" value="${esc(f.title)}">
               <div class="pz-f-lbl">내용</div>
-              <textarea class="pz-f-input" id="pzFBody" maxlength="5000" style="min-height:220px;line-height:1.6" placeholder="전도하며 겪은 성공·실패 사례, 사연을 들려주세요.&#10;어떤 상황이었고, 무엇을 했고, 어떻게 됐는지 적으면 다른 선생님들께 큰 도움이 돼요.">${esc(f.body)}</textarea>
+              <textarea class="pz-f-input" id="pzFBody" maxlength="5000" style="min-height:220px;line-height:1.6" placeholder="전도하며 겪은 성공·실패 사례, 사연을 들려주세요.&#10;어떤 상황이었고, 무엇을 했고, 어떻게 됐는지 적으면 다른 교사들께 큰 도움이 돼요.">${esc(f.body)}</textarea>
               <div class="pz-f-lbl">사진 <small style="font-weight:600;color:var(--dg-text-sub)">(최대 4장)</small></div>
               <div class="pz-f-hint">사진 아래 <b>[모자이크]</b>를 누르면 원하는 사람 얼굴만 가릴 수 있어요.</div>
               <div class="pz-f-photos">
@@ -2847,7 +2849,7 @@
           ovShow(`<div class="pz-ov-bar"><button type="button" id="pzApBack">취소</button><div class="t">사진 편집 (관리자)</div><button type="button" id="pzApSave" style="color:var(--color-primary)">${saving ? '저장 중...' : '저장'}</button></div>
             <div class="pz-ov-body">
               <div class="pz-d-title" style="font-size:16px;margin-top:4px">${esc(p.title)}</div>
-              <div class="pz-cmt-meta" style="margin-bottom:12px">${esc(p.name)} 선생님 글 · 사진만 바뀌고 글 내용은 그대로예요.</div>
+              <div class="pz-cmt-meta" style="margin-bottom:12px">${esc(p.name)} 교사 글 · 사진만 바뀌고 글 내용은 그대로예요.</div>
               <div class="pz-f-hint">사진을 누르면 크게 열려 <b>얼굴·이름·전화번호</b> 등을 드래그해 모자이크할 수 있어요. 여러 번 해도 돼요.</div>
               <div class="pz-ap-list">
                 ${photos.map((src, i) => `<div class="pz-ap-item">
@@ -2954,7 +2956,7 @@
               <textarea class="pz-f-input" id="pzcMeaning" maxlength="500" style="min-height:120px;line-height:1.6" placeholder="이 이름에 어떤 마음을 담았는지 적어 주세요.">${esc(f.meaning)}</textarea>
               <div class="pz-f-lbl">제안한 사람</div>
               <div class="pz-f-input" style="background:#F6F7F9;color:var(--dg-text-sub)">${esc(MY_NAME || '내 이름')} <small>(자동으로 들어가요)</small></div>
-              <div class="pzc-note">제안은 광장 <b>'나눔'</b>에 <b>[이름 공모]</b> 글로 올라가요. 다른 선생님들이 공감·댓글로 응원할 수 있어요.</div>
+              <div class="pzc-note">제안은 광장 <b>'나눔'</b>에 <b>[이름 공모]</b> 글로 올라가요. 다른 교사들이 공감·댓글로 응원할 수 있어요.</div>
             </div>`);
           $('pzcName').oninput = e => { f.name = e.target.value; };
           $('pzcMeaning').oninput = e => { f.meaning = e.target.value; };
