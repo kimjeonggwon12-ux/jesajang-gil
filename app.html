@@ -2599,6 +2599,10 @@
         const popular = (P.hot.length ? P.hot : P.rows).filter(x => x.postId !== p.postId).slice(0, 5);
         const host = $('pzOverlayHost');
         const keepDraft = host.querySelector('#pzCmtInput') ? host.querySelector('#pzCmtInput').value : '';
+        // 같은 글을 다시 그릴 때(공감·정렬·댓글 삭제)는 보던 위치 유지 — 공감 누르면 맨 위로 튀던 문제
+        const oldBody = host.querySelector('#pzOvBody');
+        const keepScroll = oldBody && host.dataset.pzPid === p.postId ? oldBody.scrollTop : 0;
+        host.dataset.pzPid = p.postId;
         host.innerHTML = `<div class="pz-ov">
           <div class="pz-ov-bar"><button type="button" data-pz-back>‹</button><div class="t">교사광장</div>${p.isMine || isAdmin() ? '<button type="button" id="pzPostMenu">⋯</button>' : '<span style="width:40px"></span>'}</div>
           <div class="pz-ov-body" id="pzOvBody">
@@ -2626,6 +2630,7 @@
           </div>
           <div class="pz-cmt-bar"><textarea id="pzCmtInput" rows="1" maxlength="1000" placeholder="따뜻한 댓글을 남겨주세요"></textarea><button type="button" id="pzCmtSend">등록</button></div>
         </div>`;
+        if (keepScroll) $('pzOvBody').scrollTop = keepScroll;
         const inp = $('pzCmtInput'); inp.value = keepDraft;
         inp.oninput = () => { inp.style.height = 'auto'; inp.style.height = Math.min(120, inp.scrollHeight) + 'px'; };
         $('pzCmtSend').onclick = sendComment;
