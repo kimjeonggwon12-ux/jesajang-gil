@@ -4694,7 +4694,8 @@
         // 2026-09-22: 요청 유형이 "교사 · 상담1"처럼 역할+항목 조합 문자열이 되어서,
         // 백엔드 정확일치 필터로는 역할만으로 못 거른다. 유형은 전체로 받아와 아래에서
         // 부분일치로 거른다(옛 글 '동행 교사 필요' 같은 것도 '교사'로 같이 걸림).
-        const res = await callApi({ action: 'getHelpPosts', memberId: MEMBER_ID, type: '', dept: b.dept });
+        // 2026-10-02: 관리자(7777 입장 = 김정권 계정)는 마감·기한 지난 남의 글까지 받아 정리(삭제)할 수 있게 한다.
+        const res = await callApi({ action: 'getHelpPosts', memberId: MEMBER_ID, type: '', dept: b.dept, includeClosed: isOwnerSession() });
         if (res && res.error) throw new Error(res.error);
         let rows = res.rows || [];
         // 2026-09-23 "도움 신청 검색": 활동신청자와 같은 방식으로 거른다.
@@ -4772,7 +4773,16 @@
           ${h.isMine ? (open ? '<button class="kko-btn-main" style="flex:1" id="hpClose">마감하기</button>' : '<div class="cn-hint" style="flex:1;text-align:center">마감된 글입니다.</div>')
             : (open ? '<button class="kko-btn-main" style="flex:1" id="hpChat">💬 채팅으로 신청</button>' : '<div class="cn-hint" style="flex:1;text-align:center">마감된 글입니다.</div>')}
         </div>
+        ${(h.isMine || isOwnerSession()) ? `<button type="button" id="hpDelete" style="width:100%;margin-top:10px;min-height:46px;border-radius:12px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;font-size:15px;font-weight:700">🗑 이 글 삭제${h.isMine ? '' : ' (관리자)'}</button>` : ''}
         <div style="text-align:center;margin-top:10px"><button class="cn-hint" style="background:none;border:none;cursor:pointer" onclick="closeSheet()">닫기</button></div>`);
+      // 2026-10-02: 도와주세요 글 삭제 — 올린 사람 본인 또는 관리자(7777). 백엔드 deleteHelpPost가 시트 행을 지운다.
+      const del = document.getElementById('hpDelete');
+      if (del) del.onclick = async () => {
+        if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = '한 번 더 누르면 영구 삭제돼요'; del.style.background = '#DC2626'; del.style.color = '#fff'; return; }
+        del.disabled = true; del.textContent = '삭제하는 중...';
+        try { const res = await callApi({ action: 'deleteHelpPost', helpId: h.helpId, memberId: MEMBER_ID }); if (!res || res.error) throw new Error((res && res.error) || '삭제 실패'); closeSheet(); loadBoard(); toast('글을 삭제했어요.'); }
+        catch (e) { toast(e.message, true); del.disabled = false; del.textContent = '🗑 이 글 삭제'; del.dataset.armed = ''; }
+      };
       const chat = document.getElementById('hpChat');
       if (chat) chat.onclick = () => {
         callApi({ action: 'recordMatch', kind: '도와주세요', refId: h.helpId, fromId: MEMBER_ID, fromName: MY_NAME, toId: h.memberId, toName: h.name }).catch(() => {});
