@@ -3845,8 +3845,9 @@
         <div class="act-sec-head">
           <span class="act-sec-title">내 전도 대상자</span>
           <span class="act-sec-more">${home.targets.length}명</span>
+          <button type="button" onclick="openTargetDeleteList()" style="margin-left:auto;padding:5px 11px;border-radius:999px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;font-size:13px;font-weight:700">🗑 대상자 삭제</button>
         </div>
-        <div style="padding:0 var(--dg-pad) 4px;font-size:12.5px;color:var(--dg-text-sub)">막대 하나가 대상자 한 명이에요. 눌러서 자세히 볼 수 있어요.</div>
+        <div style="padding:0 var(--dg-pad) 4px;font-size:12.5px;color:var(--dg-text-sub)">막대 하나가 대상자 한 명이에요. 누르면 자세히 보기·삭제를 고를 수 있어요.</div>
         <div class="overflow-x-auto pb-1" style="padding:8px var(--dg-pad) 0">
           <div style="width:${chartWidth}px;height:260px">
             <canvas id="targetsChart"></canvas>
@@ -3867,11 +3868,82 @@
         data: { labels, datasets: [{ data: values, backgroundColor: home.targets.map(t => stageIndex(t.stage) >= 0 ? stageTemp(t.stage).color : '#d1d5db'), borderRadius: 4 }] },
         options: {
           responsive: true, maintainAspectRatio: false,
-          onClick: (evt, elements) => { if (!elements.length) return; const t = home.targets[elements[0].index]; if (t) openTargetDetail(t.targetId); },
+          onClick: (evt, elements) => { if (!elements.length) return; const t = home.targets[elements[0].index]; if (t) openTargetBarActions(t.targetId); },
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => (home.targets[ctx.dataIndex] && home.targets[ctx.dataIndex].stage) || '단계 미상' } } },
           scales: { y: { min: 0, max: n, ticks: { stepSize: 1, font: { size: 9 }, callback: v => stages[v - 1] || '' } }, x: { ticks: { font: { size: 9 } } } }
         }
       });
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 2026-10-02 대상자 영구 삭제 — 사용자 요청: "삭제 칸이 딱 보이게, 이름 목록에서 고르면 과거 기록까지 모두".
+    //   진입점 3곳: ① "내 전도 대상자" 머리의 🗑 버튼(이름 목록) ② 그래프 막대 누르기(보기/삭제)
+    //   ③ 대상자 상세 화면 맨 아래. 확인은 네이티브 confirm 대신 시트 안에서 한 번 더 누르게 한다.
+    //   백엔드 deleteTarget 이 대상자 행 + 단계 이력 + 이 대상자 일지(활동실적 행)를 지운다.
+    // ════════════════════════════════════════════════════════════════
+    function myRecordCountFor(name) {
+      return ((home.monthlyActRes && home.monthlyActRes.rows) || []).filter(a => (a.targetName || '') === name).length;
+    }
+    function openTargetBarActions(targetId) {
+      const t = home.targets.find(x => x.targetId === targetId); if (!t) return;
+      openSheet(`
+        <div style="font-size:19px;font-weight:800">${esc(maskName(t.targetName))} <span style="font-size:14px;font-weight:600;color:var(--dg-text-sub)">· ${esc(t.stage || '-')}</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
+          <button type="button" class="act-btn-primary" onclick="closeSheet();openTargetDetail('${esc(t.targetId)}')">자세히 보기</button>
+          <button type="button" onclick="openTargetDeleteConfirm('${esc(t.targetId)}')" style="min-height:48px;border-radius:12px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;font-size:15px;font-weight:700">🗑 이 대상자 영구 삭제</button>
+          <button type="button" class="act-btn-ghost" onclick="closeSheet()">닫기</button>
+        </div>`);
+    }
+    function openTargetDeleteList() {
+      const list = home.targets;
+      openSheet(`
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:19px;font-weight:800">🗑 대상자 삭제</div>
+          <button type="button" class="act-sheet-close" onclick="closeSheet()" aria-label="닫기">✕</button>
+        </div>
+        <div style="font-size:13px;color:var(--dg-text-sub);margin-top:4px">지금까지 기록한 대상자예요. 삭제하면 그 대상자의 <b style="color:#DC2626">과거 기록(일지·단계 이력)까지 모두 지워지고 되돌릴 수 없어요.</b></div>
+        <div style="display:flex;flex-direction:column;margin-top:12px">
+          ${list.length ? list.map(t => `
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--dg-line, #eee)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:15px;font-weight:700">${esc(maskName(t.targetName))}${t.completed ? ' <span style="font-size:11px;color:var(--dg-text-sub)">(완료)</span>' : ''}</div>
+              <div style="font-size:12px;color:var(--dg-text-sub)">${esc(t.stage || '-')} · 기록 ${myRecordCountFor(t.targetName)}건 · 등록 ${esc(String(t.createdAt || '').slice(0, 10))}</div>
+            </div>
+            <button type="button" onclick="openTargetDeleteConfirm('${esc(t.targetId)}')" style="padding:7px 14px;border-radius:10px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;font-size:14px;font-weight:700">삭제</button>
+          </div>`).join('') : '<div style="text-align:center;padding:28px 0;color:var(--dg-text-sub)">기록한 대상자가 없어요.</div>'}
+        </div>`);
+    }
+    function openTargetDeleteConfirm(targetId) {
+      const t = home.targets.find(x => x.targetId === targetId); if (!t) return;
+      const n = myRecordCountFor(t.targetName);
+      openSheet(`
+        <div style="font-size:19px;font-weight:800;color:#DC2626">정말 삭제할까요?</div>
+        <div style="font-size:15px;margin-top:10px"><b>${esc(maskName(t.targetName))}</b> (${esc(t.stage || '-')})</div>
+        <div style="font-size:13.5px;color:var(--dg-text-sub);margin-top:8px;line-height:1.6">
+          · 대상자 정보와 단계 이력이 지워져요<br>
+          · 이 대상자로 남긴 활동 기록 ${n}건도 함께 지워져요 (이번 달·올해 활동 건수에서도 빠져요)<br>
+          · <b style="color:#DC2626">영구 삭제라 되돌릴 수 없어요</b>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px">
+          <button type="button" class="act-btn-ghost" style="flex:1" onclick="openTargetDeleteList()">취소</button>
+          <button type="button" id="tdel-go" style="flex:2;min-height:48px;border-radius:12px;border:0;background:#DC2626;color:#fff;font-size:15px;font-weight:800" onclick="confirmDeleteTarget('${esc(t.targetId)}')">영구 삭제</button>
+        </div>`);
+    }
+    async function confirmDeleteTarget(targetId) {
+      const btn = document.getElementById('tdel-go');
+      if (btn) { btn.disabled = true; btn.textContent = '삭제하는 중...'; }
+      try {
+        const res = await callApi({ action: 'deleteTarget', memberId, targetId });
+        if (!res || res.error) throw new Error((res && res.error) || '삭제 실패');
+        closeSheet();
+        if (home.view === 'targetDetail') home.view = 'dashboard';
+        await refreshAfterSubmit();
+        renderHome();
+        toast(`${maskName(res.targetName || '')} 대상자를 삭제했어요 (기록 ${res.deletedActivities || 0}건)`);
+      } catch (e) {
+        toast('삭제 중 오류: ' + e.message, true);
+        if (btn) { btn.disabled = false; btn.textContent = '영구 삭제'; }
+      }
     }
 
     async function openTargetDetail(targetId) {
@@ -3992,6 +4064,7 @@
               ${journal.length === 0 ? `<div class="text-xs text-base-content/40 text-center py-4">기록이 없습니다.</div>` : journal.map((j, i) => journalRowHtml(j, i)).join('')}
             </div>
           </div>
+          <button type="button" onclick="openTargetDeleteConfirm('${esc(target.targetId)}')" style="min-height:46px;border-radius:12px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;font-size:14px;font-weight:700">🗑 이 대상자 영구 삭제 (과거 기록 모두)</button>
         </div>
       `;
     }
