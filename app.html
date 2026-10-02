@@ -400,6 +400,8 @@
     .pz-d-body { font-size:15.5px; line-height:1.7; margin-top:10px; white-space:pre-wrap; word-break:break-word; }
     .pz-d-photo { display:block; width:100%; border-radius:12px; margin-top:12px; background:#F2F3F6; cursor:zoom-in; }
     .pz-tags { margin-top:14px; display:flex; flex-wrap:wrap; gap:6px; font-size:14px; color:#2F6FDE; font-weight:600; }
+    .pz-react[hidden] { display:none; }
+    #pzLikeBtn { touch-action:manipulation; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
     .pz-react { margin-top:14px; font-size:13px; color:var(--dg-text-sub); }
     .pz-actions { display:flex; gap:8px; padding:14px 0; margin-top:6px; border-bottom:1px solid var(--dg-line); }
     .pz-actions button { flex:1; height:44px; justify-content:center; background:#F4F5F7; border:none; border-radius:14px; display:flex; align-items:center; gap:6px; font-size:15px; font-weight:700; color:var(--dg-text); cursor:pointer; padding:0; }
@@ -2615,7 +2617,7 @@
             <div class="pz-d-body">${esc(p.body)}</div>
             ${(p.photos || []).slice(1).map(src => `<img class="pz-d-photo" src="${esc(src)}" alt="첨부 사진">`).join('')}
             ${p.tags.length ? `<div class="pz-tags">${p.tags.map(t => `<span>#${esc(t)}</span>`).join('')}</div>` : ''}
-            ${p.likeCount ? `<div class="pz-react">💜 교사 ${p.likeCount}명이 공감했어요</div>` : ''}
+            <div class="pz-react" id="pzReact"${p.likeCount ? '' : ' hidden'}>💜 교사 ${p.likeCount}명이 공감했어요</div>
             <div class="pz-actions">
               <button type="button" id="pzLikeBtn" class="${p.liked ? 'on' : ''}">${ICON_LIKE} 공감 ${p.likeCount}</button>
               <button type="button" id="pzCmtFocus">${ICON_CMT} 댓글 ${comments.length}</button>
@@ -2630,7 +2632,11 @@
           </div>
           <div class="pz-cmt-bar"><textarea id="pzCmtInput" rows="1" maxlength="1000" placeholder="따뜻한 댓글을 남겨주세요"></textarea><button type="button" id="pzCmtSend">등록</button></div>
         </div>`;
-        if (keepScroll) $('pzOvBody').scrollTop = keepScroll;
+        if (keepScroll) {
+          const body = $('pzOvBody'); body.scrollTop = keepScroll;
+          // 사진이 다시 불러와지는 동안 화면이 짧아 위치가 덜 내려갔으면 사진이 뜬 뒤 다시 맞춘다
+          body.querySelectorAll('img').forEach(im => { if (!im.complete) im.addEventListener('load', () => { if (body.scrollTop < keepScroll) body.scrollTop = keepScroll; }, { once: true }); });
+        }
         const inp = $('pzCmtInput'); inp.value = keepDraft;
         inp.oninput = () => { inp.style.height = 'auto'; inp.style.height = Math.min(120, inp.scrollHeight) + 'px'; };
         $('pzCmtSend').onclick = sendComment;
@@ -2638,17 +2644,27 @@
         $('pzLikeBtn').onclick = toggleLike;
         const menu = $('pzPostMenu'); if (menu) menu.onclick = () => postMenu(p);
       }
+      // 공감은 글 전체를 다시 그리지 않고 공감 버튼·문구만 바꾼다 — 다시 그리면 사진이 새로 불러와지는 동안
+      // 화면이 짧아져 스크롤이 맨 위로 튀었음(2026-10-02)
+      function paintLike(p) {
+        const b = $('pzLikeBtn'); if (!b) return;
+        b.className = p.liked ? 'on' : '';
+        b.innerHTML = `${ICON_LIKE} 공감 ${p.likeCount}`;
+        const r = $('pzReact');
+        if (r) { r.hidden = !p.likeCount; r.textContent = `💜 교사 ${p.likeCount}명이 공감했어요`; }
+      }
       async function toggleLike() {
         const p = P.detail.post;
-        p.liked = !p.liked; p.likeCount += p.liked ? 1 : -1; renderPost();
+        const was = { liked: p.liked, likeCount: p.likeCount };
+        p.liked = !p.liked; p.likeCount += p.liked ? 1 : -1; paintLike(p);
         try {
           const res = await callApi({ action: 'togglePlazaLike', memberId: MEMBER_ID, postId: p.postId });
           if (res && res.error) throw new Error(res.error);
           p.liked = res.liked; p.likeCount = res.likeCount;
           [].concat(P.rows, P.hot, C.rows).forEach(x => { if (x.postId === p.postId) { x.liked = res.liked; x.likeCount = res.likeCount; } });
-          if (P.detail && P.detail.post === p) renderPost();
+          if (P.detail && P.detail.post === p) paintLike(p);
           renderLists(); renderContest(); loadMonthly(M.month, true);
-        } catch (e) { toast(e.message, true); }
+        } catch (e) { p.liked = was.liked; p.likeCount = was.likeCount; paintLike(p); toast(e.message, true); }
       }
       async function sendComment() {
         const inp = $('pzCmtInput'), text = inp.value.trim();
