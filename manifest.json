@@ -5,7 +5,7 @@
   "scope": "/jesajang-gil/",
   "display": "standalone",
   "background_color": "#5B4FCF",
-  "theme_color": "#5B4FCF",
+  "theme_color": "#00AE82",
   "lang": "ko",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
