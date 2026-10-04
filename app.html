@@ -7850,6 +7850,7 @@ let state = {
   tlChecked: new Set(), tlMinLeads: 0, tlQuery: '',
   bulkApproverDept: '', bulkApproverName: '', bulkTier: '', bulkBusy: false, bulkNote: '',
   tlFilterRegion: '',
+  tlFilterAdmin: '', // 2026-10-04: '' | 'admin' — 직책(관리자) 지정된 사람만 따로 보기
   tlFilterTier: '',
   tlFilterApply: '', // '' | 'yes' | 'no' — 활동 신청 여부 필터
   tlSelected: null, // 선택된 교사의 memberId
@@ -8074,6 +8075,7 @@ function teacherListRowsFiltered() {
   }
   if (state.tlFilterDept) rows = rows.filter(t => deptBucket(t.dept) === state.tlFilterDept);
   if (state.tlFilterRegion) rows = rows.filter(t => t.region === state.tlFilterRegion);
+  if (state.tlFilterAdmin === 'admin') rows = rows.filter(isAdminPosRow);
   if (state.tlFilterTier) rows = rows.filter(t => t.tier === state.tlFilterTier);
   if (state.tlFilterApply === 'yes') rows = rows.filter(t => t._rep && t.apply);
   if (state.tlFilterApply === 'no') rows = rows.filter(t => t._rep && !t.apply);
@@ -8116,15 +8118,26 @@ function teacherSearchHtml() {
       </div>
     </div>`;
 }
+// 2026-10-04: 관리자 화면에 들어갈 수 있는 직책(ADMIN_POSITIONS)이 지정된 사람인지.
+// 교역자·센터 사명자는 직책 없이도 들어가지만, 여기서는 "직책으로 지정된 사람"만 추린다(해제할 수 있는 대상).
+function isAdminPosRow(t) {
+  const p = String(t.position || '').trim();
+  return !!p && ADMIN_POSITIONS.includes(p);
+}
 function teacherListFilterHtml() {
   const regionsForDept = state.tlFilterDept
     ? [...new Set((rosterAll || []).filter(t => deptBucket(t.dept) === state.tlFilterDept).map(t => t.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko', { numeric: true }))
     : [];
+  const adminCount = (rosterAll || []).filter(t => isAdminPosRow(t) && (!state.tlFilterDept || deptBucket(t.dept) === state.tlFilterDept)).length;
   return `
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 pt-3">
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 px-4 pt-3">
       <select id="tl-filter-region" class="select select-bordered select-sm w-full" ${state.tlFilterDept ? '' : 'disabled'}>
         <option value="">지역 전체</option>
         ${regionsForDept.map(r => `<option value="${esc(r)}" ${state.tlFilterRegion === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+      </select>
+      <select id="tl-filter-admin" class="select select-bordered select-sm w-full">
+        <option value="">직책 전체</option>
+        <option value="admin" ${state.tlFilterAdmin === 'admin' ? 'selected' : ''}>관리자만 (${adminCount}명)</option>
       </select>
       <select id="tl-filter-tier" class="select select-bordered select-sm w-full">
         <option value="">등급 전체</option>
@@ -8353,7 +8366,7 @@ function teacherListSectionHtml() {
   if (!rosterAll) return '';
   const allRowsFiltered = teacherListRowsFiltered();
   // 20/50명씩 끊어 보기(0이면 전체). 체크박스 "보이는 N명 전체 선택"도 이 잘린 목록 기준.
-  const rows = state.tlLimit > 0 ? allRowsFiltered.slice(0, state.tlLimit) : allRowsFiltered;
+  const rows = (state.tlLimit > 0 && state.tlFilterAdmin !== 'admin') ? allRowsFiltered.slice(0, state.tlLimit) : allRowsFiltered;   // 관리자 목록은 끊지 않고 전부
   const hiddenCount = allRowsFiltered.length - rows.length;
   const selected = state.tlSelected ? rosterAll.find(t => t.memberId === state.tlSelected) : null;
   const pendingTotal = rosterAll.filter(t => t.suggestion && (!state.tlFilterDept || deptBucket(t.dept) === state.tlFilterDept)).length;
@@ -8381,7 +8394,8 @@ function teacherListSectionHtml() {
         </div>
       </div>
     </div>
-    <div class="px-4 pt-1 pb-4">
+    ${state.tlFilterAdmin === 'admin' ? adminPosListHtml(allRowsFiltered) : ''}
+    <div class="px-4 pt-1 pb-4" ${state.tlFilterAdmin === 'admin' ? 'style="display:none"' : ''}>
       <div class="overflow-x-auto kko-table-card kko-card-in">
         <table class="table table-zebra table-sm tl-table">
           <!-- 2026-09-22 열 개편: 부서 열 삭제(부서를 이미 위에서 고르므로 중복) → 이름 옆이 지역.
@@ -8417,6 +8431,33 @@ function teacherListSectionHtml() {
       </div>
       ${hiddenCount > 0 ? `<button type="button" id="tl-more-btn" class="w-full mt-2 py-3 rounded-box border border-base-300 bg-base-100 text-sm font-bold" style="color:var(--color-primary)">${hiddenCount}명 더 보기 ›</button>` : ''}
       <div class="text-[11px] text-base-content/40 mt-2">교사를 누르면 부서·지역·등급·활동·연결 현황·이수교육을 한 창에서 볼 수 있어요.</div>
+    </div>`;
+}
+
+// 2026-10-04: "관리자만" 필터 — 직책이 지정된 사람 목록. [보기] = 개별 창, [직책 해제] = assignPosition 으로 빈 직책(확인 창 거침).
+function adminPosListHtml(rows) {
+  return `
+    <div class="px-4 pt-1 pb-4">
+      <div class="overflow-x-auto kko-table-card kko-card-in">
+        <table class="table table-sm tl-table tl-adm-table">
+          <thead class="bg-base-100"><tr><th>이름</th><th>부서</th><th>지역</th><th>직책</th><th class="text-right">관리</th></tr></thead>
+          <tbody>
+            ${rows.map(t => `
+              <tr>
+                <td class="font-medium">${esc(t.name)}</td>
+                <td>${esc(t.dept || '-')}</td>
+                <td>${esc(t.region || '-')}</td>
+                <td><span class="badge badge-outline badge-sm">${esc(t.position)}</span></td>
+                <td class="text-right whitespace-nowrap">
+                  <button type="button" class="btn btn-xs btn-ghost" data-adm-view="${esc(t.memberId)}">보기</button>
+                  <button type="button" class="btn btn-xs btn-outline btn-error" data-adm-del="${esc(t.memberId)}" ${state.tlAssigning ? 'disabled' : ''}>직책 해제</button>
+                </td>
+              </tr>`).join('')}
+            ${rows.length === 0 ? `<tr><td colspan="5" class="text-center text-base-content/40 py-6">조건에 맞는 관리자가 없습니다.</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+      <div class="text-[11px] text-base-content/40 mt-2">직책을 해제하면 그 사람은 다음 접속부터 관리자 메뉴가 사라져요. (교역자·센터 사명자는 직책과 상관없이 들어갈 수 있어 이 목록에는 없어요)</div>
     </div>`;
 }
 
@@ -8463,6 +8504,13 @@ function wireTeacherList() {
   });
   const bind = (id, fn) => { const el = $(id); if (el) el.onchange = fn; };
   bind('tl-filter-region', e => { state.tlFilterRegion = e.target.value; eduRender(); });
+  // 관리자만 보기를 켜면 부서 탭을 '전체'로 바꿔 모든 부서의 관리자를 한 번에 보여 준다(그 뒤 부서 탭으로 좁힐 수 있음).
+  bind('tl-filter-admin', e => { state.tlFilterAdmin = e.target.value; if (state.tlFilterAdmin) { state.tlFilterDept = ''; state.tlFilterRegion = ''; } eduRender(); });
+  const findRow = mid => (rosterAll || []).find(x => x.memberId === mid);
+  document.querySelectorAll('[data-adm-view]').forEach(b => { b.onclick = () => openTeacherSheet(b.dataset.admView); });
+  document.querySelectorAll('[data-adm-del]').forEach(b => {
+    b.onclick = () => { const t = findRow(b.dataset.admDel); if (t && t.position) assignPosition(t, t.position); };   // 같은 직책을 다시 지정 = 해제
+  });
   bind('tl-filter-tier', e => { state.tlFilterTier = e.target.value; eduRender(); });
   bind('tl-filter-apply', e => { state.tlFilterApply = e.target.value; eduRender(); });
   bind('tl-min-leads', e => { state.tlMinLeads = Math.max(0, Number(e.target.value) || 0); eduRender(); });
