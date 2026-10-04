@@ -1032,6 +1032,17 @@
       background:var(--color-bg); color:var(--color-text-sub); border:none; white-space:nowrap;
     }
     #admin-subtabs .kko-tab.kko-tab-active { background:var(--color-primary); color:#fff; }
+    /* 2026-10-04 부서별 참여 현황(관리자 첫 화면 맨 위) */
+    .part-card { position:relative; background:#fff; border:2px solid #00AE82; border-radius:18px; padding:6px 6px 4px; margin-bottom:16px; }
+    .part-head { position:absolute; top:14px; right:14px; z-index:1; }
+    @media (max-width: 760px) { .part-head { position:static; display:flex; justify-content:flex-end; padding:8px 8px 0; } }
+    .part-title { font-size:20px; font-weight:900; letter-spacing:-0.03em; color:#111; }
+    .part-sub { font-size:13px; color:#767676; margin-top:2px; }
+    .part-btns { display:flex; gap:6px; }
+    .part-btn { height:38px; padding:0 14px; border-radius:10px; border:none; background:#00AE82; color:#fff; font-size:14px; font-weight:800; cursor:pointer; }
+    .part-btn.ghost { background:#E8F7F2; color:#00AE82; }
+    .part-canvas { display:block; max-width:100%; }
+    .part-wait { padding:28px 8px; text-align:center; font-size:13px; color:#767676; }
     #sec-admin .admin-pane { display:none; }
 
     /* --- 3️⃣ 연결 현황 관리 (connect-admin.html 흡수) --- */
@@ -1744,8 +1755,9 @@
       <!-- ===== SECTION: admin ===== -->
       <section id="sec-admin" class="app-section">
         <div id="admin-subtabs">
-          <button type="button" class="kko-tab kko-tab-active" data-subtab="edu" onclick="adminSwitchSubTab('edu')">1️⃣ 교사 현황</button>
-          <button type="button" class="kko-tab" data-subtab="dist" onclick="adminSwitchSubTab('dist')">2️⃣ 부서별 활동 관리</button>
+          <!-- 2026-10-04: 부서별 활동 관리를 맨 앞·기본 화면으로(맨 위 '부서별 참여 현황' 그래프를 바로 보고 공유하도록) -->
+          <button type="button" class="kko-tab kko-tab-active" data-subtab="dist" onclick="adminSwitchSubTab('dist')">1️⃣ 부서별 활동 관리</button>
+          <button type="button" class="kko-tab" data-subtab="edu" onclick="adminSwitchSubTab('edu')">2️⃣ 교사 현황</button>
           <button type="button" class="kko-tab" data-subtab="connectAdmin" onclick="adminSwitchSubTab('connectAdmin')">3️⃣ 연결 현황 관리</button>
           <button type="button" class="kko-tab" data-subtab="calAdmin" onclick="adminSwitchSubTab('calAdmin')">4️⃣ 캘린더 관리</button>
         </div>
@@ -9439,7 +9451,7 @@ function distRender() {
       </div>` : ''}
 
     ${isOverview
-      ? `<div class="px-4 pt-3">${renderSettlementSection()}${renderStageDistributionSection()}</div>${orgSummarySectionHtml()}`
+      ? `<div class="px-4 pt-3">${participationSectionHtml()}${renderSettlementSection()}${renderStageDistributionSection()}</div>${orgSummarySectionHtml()}`
       : state.loading
         ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
         : state.error
@@ -9495,6 +9507,7 @@ function distRender() {
     b.onclick = () => { state.roleTab = b.dataset.role; distRender(); };
   });
   if (isOverview) wireSettlementFilters(); // "[전체] 결산"/"[전체] MVP·단계분포"는 이제 여기서만 렌더됨
+  if (isOverview) drawParticipationChart();
 
   destroyRegionCharts();
   if (isDeptDetail && report && !state.loading && !state.error) {
@@ -9503,13 +9516,94 @@ function distRender() {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════
+// 2026-10-04 부서별 참여 현황 — 관리자 첫 화면 맨 위. 교·자·장·부·청 총 교사 중 이번 달 활동을 1건 이상
+// 기록한 교사 수(getOrgSummary 의 activeCount — 저녁 9시 텔레봇 서머리 '부서별 참여율'과 같은 기준).
+// 그래프를 캔버스에 직접 그려서 제목·날짜까지 그대로 이미지 저장/공유(카톡 등) 할 수 있게 한다.
+// ════════════════════════════════════════════════════════════════════
+const PART_DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
+const PART_COLORS = { '교역자': '#6366F1', '자문회': '#0EA5E9', '장년회': '#00AE82', '부녀회': '#F97316', '청년회': '#EC4899' };
+function participationRows() {
+  const orgs = (orgSummary && orgSummary.orgs) || [];
+  return PART_DEPTS.map(d => {
+    const o = orgs.find(x => x.dept === d) || {};
+    return { dept: d, total: o.totalTeachers || 0, active: o.activeCount || 0 };
+  });
+}
+function participationSectionHtml() {
+  // 제목·기준일은 캔버스 안에 그려 이미지에도 들어가므로, 카드 머리엔 버튼만(오른쪽 위).
+  const head = `<div class="part-head">
+    ${orgSummary && !orgSummary.error ? `<div class="part-btns"><button type="button" class="part-btn" id="partSave">⬇ 이미지 저장</button>${navigator.canShare ? '<button type="button" class="part-btn ghost" id="partShare">공유</button>' : ''}</div>` : ''}</div>`;
+  let body;
+  if (!orgSummary) body = `<div class="part-wait"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>교사 명단과 이번 달 기록을 집계하는 중이에요 (20초 정도)</div>`;
+  else if (orgSummary.error) body = `<div class="part-wait" style="color:var(--color-error)">${esc(orgSummary.error)}</div>`;
+  else body = `<canvas id="partCanvas" class="part-canvas"></canvas>`;
+  return `<div class="part-card kko-card-in">${head}${body}</div>`;
+}
+function participationTitle() {
+  const m = String((orgSummary && orgSummary.month) || '').split('-');
+  return `${m[0] ? Number(m[0]) + '년 ' : ''}${m[1] ? Number(m[1]) + '월 ' : ''}부서별 참여 현황`;
+}
+function drawParticipationChart() {
+  const cv = document.getElementById('partCanvas'); if (!cv) return;
+  const rows = participationRows();
+  const W = Math.max(300, Math.min(cv.parentElement.clientWidth - 12, 1200));
+  const rowH = 54, top = 92, H = top + rows.length * rowH + 64;
+  const dpr = 2;
+  cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const F = (w, px) => `${w} ${px}px Pretendard, 'Malgun Gothic', sans-serif`;
+  g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H);
+  // 제목·기준일(이미지만 따로 공유돼도 무엇인지 알 수 있게)
+  g.fillStyle = '#111'; g.font = F(900, 22); g.textBaseline = 'alphabetic'; g.fillText(participationTitle(), 20, 38);
+  g.fillStyle = '#767676'; g.font = F(500, 13);
+  g.fillText(`${(orgSummary && orgSummary.asOf) || ''} 기준 · ${W < 560 ? '이번 달 기록한 교사 / 총 교사' : '이번 달 활동을 1건 이상 기록한 교사 / 총 교사'}`, 20, 62);
+  const labelW = 64, valW = W < 520 ? 118 : 150, barX = 20 + labelW, barW = W - barX - valW - 20;
+  let sumA = 0, sumT = 0;
+  rows.forEach((r, i) => {
+    const y = top + i * rowH, p = r.total ? r.active / r.total : 0;
+    sumA += r.active; sumT += r.total;
+    g.fillStyle = '#111'; g.font = F(800, 16); g.textBaseline = 'middle'; g.fillText(r.dept, 20, y + 16);
+    g.fillStyle = '#F1F2F4'; roundRect(g, barX, y + 2, barW, 28, 8); g.fill();
+    if (r.active > 0) { g.fillStyle = PART_COLORS[r.dept]; roundRect(g, barX, y + 2, Math.max(16, barW * p), 28, 8); g.fill(); }
+    g.fillStyle = PART_COLORS[r.dept]; g.font = F(900, 17);
+    const pctTxt = (p * 100).toFixed(1) + '%';
+    g.fillText(pctTxt, barX + barW + 12, y + 10);
+    g.fillStyle = '#505050'; g.font = F(600, 12.5); g.fillText(`${r.active.toLocaleString()} / ${r.total.toLocaleString()}명`, barX + barW + 12, y + 28);
+  });
+  // 합계 줄
+  const y2 = top + rows.length * rowH + 8;
+  g.strokeStyle = '#EDEDED'; g.lineWidth = 1; g.beginPath(); g.moveTo(20, y2); g.lineTo(W - 20, y2); g.stroke();
+  g.fillStyle = '#111'; g.font = F(900, 16); g.fillText('전체', 20, y2 + 28);
+  g.fillStyle = '#00AE82'; g.font = F(900, 18);
+  g.fillText(`${sumA.toLocaleString()} / ${sumT.toLocaleString()}명 참여 (${sumT ? (sumA / sumT * 100).toFixed(1) : '0.0'}%)`, barX, y2 + 28);
+  if (W >= 560) { g.fillStyle = '#B0B0B0'; g.font = F(600, 11); g.textAlign = 'right'; g.fillText('교사광장', W - 20, y2 + 28); g.textAlign = 'left'; }
+  const fname = `부서별참여현황_${(orgSummary && orgSummary.asOf) || ''}.png`;
+  const save = document.getElementById('partSave');
+  if (save) save.onclick = () => { const a = document.createElement('a'); a.download = fname; a.href = cv.toDataURL('image/png'); a.click(); };
+  const share = document.getElementById('partShare');
+  if (share) share.onclick = () => cv.toBlob(async b => {
+    try {
+      const file = new File([b], fname, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: participationTitle() });
+      else save && save.click();
+    } catch (e) {}
+  }, 'image/png');
+}
+function roundRect(g, x, y, w, h, r) {
+  r = Math.min(r, h / 2, w / 2);
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+window.addEventListener('resize', () => { if (document.getElementById('partCanvas')) drawParticipationChart(); });
+
 
 
     // ════════════════════════════════════════════════════════════════
     // [ADMIN] 서브탭 전환 — 교사현황(edu) / 부서별활동관리(dist) / 연결현황관리 / 캘린더관리.
     // mainNavHtml(파일 이동 링크)은 각 파일에서 제거하고 이 스위처로 대체.
     // ════════════════════════════════════════════════════════════════
-    let adminSubTab = 'edu';
+    let adminSubTab = 'dist';
     const adminMounted = { edu: false, dist: false, connectAdmin: false, calAdmin: false };
     function adminSwitchSubTab(tab) {
       adminSubTab = tab;
@@ -9878,7 +9972,7 @@ async function calAdmInit() {
   calAdmRender();
 }
 
-    window.Sections.admin = { mount() { adminSwitchSubTab('edu'); } };
+    window.Sections.admin = { mount() { adminSwitchSubTab('dist'); } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
 
   </script>
 </body>
