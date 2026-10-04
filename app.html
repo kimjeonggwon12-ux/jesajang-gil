@@ -4798,6 +4798,8 @@
       const c = S.card, f = c.f;
       if (c.loading) return cnSpinner;
       return `
+      <!-- 2026-10-04: 내 소개(활동신청) 배너 -->
+      <div class="cn-banner"><div class="cn-banner-eye">내 소개 (활동신청)</div><div class="cn-banner-t">교사 활동을 신청합니다.</div><div class="cn-banner-s">내 명함을 등록하면 활동신청자 목록에 올라가, 함께할 교사와 연결돼요.</div><span class="cn-banner-art" aria-hidden="true">✍️</span></div>
       <div class="cn-sec-title">${c.exists ? '내 명함' : '내 명함 만들기'}</div>
       ${c.exists ? `<div class="cn-hint" style="margin:-4px 0 10px">이미 등록된 명함이에요. 새로 쌓이지 않고, 고친 내용이 기존 명함에 업데이트돼요.${f.updatedAt ? ` (마지막 수정 ${esc(String(f.updatedAt).slice(0, 16))})` : ''}</div>` : ''}
 
