@@ -1267,6 +1267,81 @@
       input:-webkit-autofill { -webkit-box-shadow:0 0 0 1000px #1E1E22 inset !important; -webkit-text-fill-color:#fff !important; }
     }
   </style>
+  <style>
+    /* ===== 2026-10-04 교사광장 정리: 말씀광장(wordsquare.org) 느낌 =====
+       흰 바탕 · 강조색 한 가지(--ws-g) · 큰 검은 제목 · 그림자/색띠/무지개 주제색 제거 · 상단 알약 → 동그라미 아이콘 바로가기.
+       위쪽 원래 규칙은 그대로 두고 여기서 덮어쓴다(되돌리려면 이 <style> 블록만 지우면 됨). 강조색을 바꾸려면 --ws-g/--ws-gb만 고치면 된다. */
+    #sec-calendar, .pz-ov { --ws-g:#00AE82; --ws-gb:#E8F7F2; --ws-t:#111; --ws-s:#767676; --ws-l:#EDEDED; }
+    #sec-calendar { background:#fff; }
+    #sec-calendar .c-succ, #sec-calendar .c-fail, #sec-calendar .c-thx, #sec-calendar .c-q, #sec-calendar .c-case, #sec-calendar .c-bug,
+    #sec-calendar .c-tom, #sec-calendar .c-cup, #sec-calendar .c-all, #sec-calendar .c-hot, #sec-calendar .c-cal, #sec-calendar .c-ad,
+    .pz-ov .c-succ, .pz-ov .c-fail, .pz-ov .c-thx, .pz-ov .c-q, .pz-ov .c-case, .pz-ov .c-bug, .pz-ov .c-tom, .pz-ov .c-cup, .pz-ov .c-all, .pz-ov .c-hot {
+      --pc:var(--ws-g); --pb:var(--ws-gb); --pg:linear-gradient(145deg,#F3FBF8,#D9F2EA);
+    }
+    /* 앱바 + 동그라미 바로가기 */
+    #sec-calendar .pz-appbar { padding:10px 16px 0; border-bottom:1px solid var(--ws-l); }
+    #sec-calendar .pz-logo { color:var(--ws-t); }
+    #sec-calendar .pz-logo i { background:var(--ws-g); }
+    #sec-calendar .pz-search { background:#F5F5F5; }
+    #sec-calendar .pz-pills { gap:4px; padding:14px 0 12px; border-bottom:none; justify-content:space-between; }
+    #sec-calendar .pz-pill { flex:1 0 64px; flex-direction:column; gap:6px; height:auto; padding:0; border:none; border-radius:0; background:none; font-size:12px; font-weight:600; color:#505050; }
+    #sec-calendar .pz-pill .pz-q-ic { width:48px; height:48px; border-radius:50%; background:#F5F5F5; display:flex; align-items:center; justify-content:center; font-size:22px; line-height:1; }
+    #sec-calendar .pz-pill:active .pz-q-ic { background:var(--ws-gb); }
+    /* 모둠 제목: 아이콘 타일 없이 크고 굵은 검은 글씨 + 오른쪽 회색 글자 버튼 */
+    #sec-calendar .pz-wrap { padding:0 16px 110px; }
+    #sec-calendar .pz-sec-title { margin:34px 2px 14px; }
+    #sec-calendar .pz-sec-ic { display:none; }
+    #sec-calendar .pz-sec-txt { font-size:21px; font-weight:800; color:var(--ws-t); letter-spacing:-0.04em; }
+    #sec-calendar .pz-sec-title small, #sec-calendar .pz-cup-chip { background:none; padding:0; font-size:13px; font-weight:600; color:var(--ws-s); }
+    #sec-calendar .pz-sec-act { height:auto; padding:4px 2px; border:none; background:none; color:var(--ws-g); font-size:14px; font-weight:700; }
+    /* 상자: 그림자 대신 옅은 테두리 */
+    #sec-calendar .pz-box, #sec-calendar .pz-wc, #sec-calendar .cal-wrap .kko-card { border-radius:16px; box-shadow:none; border:1px solid var(--ws-l); }
+    #sec-calendar .pz-guide { background:#FAFAFA; color:#505050; font-weight:500; border-bottom:1px solid var(--ws-l); }
+    #sec-calendar .pz-guide-ic { display:none; }
+    #sec-calendar .pz-more { color:var(--ws-s); font-weight:600; border-top-color:var(--ws-l); }
+    #sec-calendar .pz-up-row + .pz-up-row, #sec-calendar .pz-hot-row + .pz-hot-row, #sec-calendar .pz-cal-full { border-top-color:var(--ws-l); }
+    #sec-calendar .pz-up-date { background:#F5F5F5; color:var(--ws-t); }
+    #sec-calendar .pz-up-date span { color:var(--ws-s); }
+    #sec-calendar .pz-rank, #sec-calendar .pz-guide + .pz-hot-row .pz-rank { background:var(--ws-t); }
+    #sec-calendar .pz-hot-row.cup { background:none; }
+    #sec-calendar .pz-cup-goal, #sec-calendar .pz-wc-flow { background:#F7F8F8; color:#505050; }
+    #sec-calendar .pz-cup-goal b, #sec-calendar .pz-wc-flow b { color:var(--ws-g); }
+    #sec-calendar .pz-hot-row .pzm-badge { background:var(--ws-gb); color:var(--ws-g); }
+    /* 피드: 떨어진 카드 → 줄로 나눈 깔끔한 목록, 분류 탭은 밑줄 탭 */
+    #sec-calendar .pz-ftabs { gap:20px; margin:0; border-bottom:1px solid var(--ws-l); }
+    #sec-calendar .pz-ftabs button, #sec-calendar .pz-ftabs button.on { height:42px; padding:0 2px; border:none; border-bottom:2px solid transparent; border-radius:0; background:none; font-size:15px; font-weight:600; color:var(--ws-s); }
+    #sec-calendar .pz-ftabs button.on { color:var(--ws-t); font-weight:800; border-bottom-color:var(--ws-t); }
+    #sec-calendar .pz-feed { gap:0; }
+    #sec-calendar .pz-feed > .pz-box { border:none; border-radius:0; margin:12px 0 2px; }
+    #sec-calendar .pz-feed > .pz-box .pz-guide { border-radius:10px; border:none; }
+    #sec-calendar .pz-row { padding:18px 2px; border-radius:0; box-shadow:none; background:none; border-bottom:1px solid var(--ws-l); }
+    #sec-calendar .pz-row::before { display:none; }
+    #sec-calendar .pz-row-foot { margin-top:10px; padding-top:0; border-top:none; }
+    #sec-calendar .pz-title { font-size:16.5px; font-weight:700; color:var(--ws-t); }
+    #sec-calendar .pz-sum { color:var(--ws-s); }
+    #sec-calendar .pz-feed > .pz-more { margin-top:16px; border:1px solid var(--ws-l); border-radius:12px; }
+    #sec-calendar .pz-feed > .pz-empty { border:1px solid var(--ws-l); border-radius:16px; margin-top:12px; }
+    #sec-calendar .pz-cnt .on { color:var(--ws-g); }
+    /* 분류 칩: 주제마다 다른 색 대신 한 가지 */
+    #sec-calendar .pz-cat, .pz-ov .pz-cat { background:var(--ws-gb); color:var(--ws-g); font-weight:700; }
+    /* 이달의 교사 / 이름 공모: 노랑 → 차분한 회색 + 강조색 */
+    #sec-calendar .pzm-photo img, #sec-calendar .pzm-photo span { background:var(--ws-gb); color:var(--ws-g); box-shadow:0 0 0 2px var(--ws-gb); }
+    #sec-calendar .pzm-photo i { background:var(--ws-g); }
+    #sec-calendar .pzm-items em { background:#F5F5F5; color:#505050; }
+    #sec-calendar .pzm-t + .pzm-t, #sec-calendar .pzm-c + .pzm-c { border-top-color:var(--ws-l); }
+    #sec-calendar .pz-contest, .pzc-ov .pzc-hero { background:#F7F8F8; color:var(--ws-t); box-shadow:none; border:1px solid var(--ws-l); }
+    #sec-calendar .pz-contest .pzc-eyebrow, .pzc-ov .pzc-eyebrow { color:var(--ws-g); }
+    #sec-calendar .pz-contest .pzc-title, .pzc-ov .pzc-title, #sec-calendar .pz-contest .pzc-top b, .pzc-ov .pzc-top b { color:var(--ws-t); }
+    #sec-calendar .pz-contest .pzc-desc, .pzc-ov .pzc-desc { color:var(--ws-s); }
+    #sec-calendar .pz-contest .pzc-top { background:#fff; border:1px solid var(--ws-l); }
+    #sec-calendar .pz-contest .pzc-top span, .pzc-ov .pzc-top span { color:var(--ws-g); }
+    #sec-calendar .pz-contest .pzc-go, .pzc-ov .pzc-go { background:var(--ws-g); }
+    #sec-calendar .pz-contest .pzc-see { color:var(--ws-t); border:1px solid var(--ws-l); }
+    /* 글쓰기 버튼 + 글 상세 */
+    #sec-calendar .pz-fab { background:var(--ws-g); box-shadow:0 6px 16px rgba(0,174,130,.28); }
+    .pz-ov .pz-author-hint, .pz-ov .pzc-like.on { color:var(--ws-g); }
+    .pz-ov .pz-tags { color:var(--ws-g); }
+  </style>
 </head>
 <body>
   <!-- 2026-09-23: 표지(스플래시 + 로그인) — podo-splash.html 목업을 그대로 적용.
@@ -2469,8 +2544,9 @@
       function renderPills() {
         // 2026-09-30: '✍️ 글쓰기' 알약 삭제(우측 하단 FAB와 중복). 2차: 알약 아이콘 삭제, 이달의 교사·커피 쿠폰 추가.
         // 2026-10-01(3차): 알약 = 모둠 이동 탭(화면 순서 그대로). 글쓰기는 오른쪽 아래 버튼 하나.
-        const secs = [['cal', '📅 전도 일정'], ['ad', '📢 광고'], ['tom', '🏅 이달의 교사'], ['contest', '🏷️ 이름 공모'], ['hot', '🔥 인기글·쿠폰'], ['feed', '📌 교사 광장']];
-        $('pzPills').innerHTML = secs.map(([k, l]) => `<button type="button" class="pz-pill" data-pz-go="${k}">${esc(l)}</button>`).join('');
+        // 2026-10-04: 말씀광장처럼 동그라미 아이콘 + 아래 글자 바로가기로 표시.
+        const secs = [['cal', '📅', '전도 일정'], ['ad', '📢', '광고'], ['tom', '🏅', '이달의 교사'], ['contest', '🏷️', '이름 공모'], ['hot', '🔥', '인기글'], ['feed', '📌', '이야기']];
+        $('pzPills').innerHTML = secs.map(([k, ic, l]) => `<button type="button" class="pz-pill" data-pz-go="${k}"><span class="pz-q-ic">${ic}</span><span>${esc(l)}</span></button>`).join('');
       }
       function scrollToEl(id) {
         const el = $(id), sec = $('appSections');
