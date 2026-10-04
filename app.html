@@ -1308,6 +1308,55 @@
     #sec-calendar .pz-cup-goal b, #sec-calendar .pz-wc-flow b { color:var(--ws-g); }
     #sec-calendar .pz-hot-row .pzm-badge { background:var(--ws-gb); color:var(--ws-g); }
     #sec-calendar .cal-ad { background:#F7F8F8; border-left-color:var(--ws-g); }
+    /* 2026-10-04 전도 일정: 달력(항상) + 이번 주 칸 + 접힌 일정 목록, 접기 머리 */
+    #sec-calendar .pz-cal-layout { display:flex; flex-direction:column; }
+    #sec-calendar .pz-cal-main { min-width:0; }
+    #sec-calendar .pz-fold-h { display:flex; align-items:center; justify-content:space-between; width:100%; padding:13px 16px; border:none; background:#fff; cursor:pointer; font-size:15px; font-weight:800; color:var(--ws-t); text-align:left; }
+    #sec-calendar .pz-fold-h small { font-size:12.5px; font-weight:600; color:var(--ws-s); margin-left:4px; }
+    #sec-calendar .pz-fold-h i { font-style:normal; font-size:13px; color:var(--ws-s); transition:transform .15s; }
+    #sec-calendar .pz-fold-h.closed i { transform:rotate(180deg); }
+    #sec-calendar .pz-fold-h.sub { border-top:1px solid var(--ws-l); background:#FAFAFA; font-size:14px; }
+    #sec-calendar .pz-fold-h:hover { background:#FAFAFA; }
+    #sec-calendar .pz-cal-full { border-top:none; padding:0 14px 12px; }
+    #sec-calendar .pz-week { border-top:1px solid var(--ws-l); }
+    #sec-calendar .pz-week .pz-fold-h { background:var(--ws-gb); color:var(--ws-g); }
+    #sec-calendar .pz-week .pz-fold-h small { color:var(--ws-g); opacity:.8; }
+    #sec-calendar #calWeek { padding:4px 12px 12px; }
+    #sec-calendar .pz-wk-day { display:flex; gap:10px; align-items:flex-start; padding:9px 4px; border-bottom:1px dashed var(--ws-l); }
+    #sec-calendar .pz-wk-day:last-child { border-bottom:none; }
+    #sec-calendar .pz-wk-day.past { opacity:.5; }
+    #sec-calendar .pz-wk-day.today { background:var(--ws-gb); border-radius:10px; border-bottom-color:transparent; padding:9px 8px; }
+    #sec-calendar .pz-wk-d { width:42px; flex-shrink:0; text-align:center; line-height:1.2; }
+    #sec-calendar .pz-wk-d b { display:block; font-size:14px; font-weight:900; color:var(--ws-t); }
+    #sec-calendar .pz-wk-d.sun b { color:#D94040; } #sec-calendar .pz-wk-d.sat b { color:#2F6FDE; }
+    #sec-calendar .pz-wk-d span { font-size:11.5px; color:var(--ws-s); }
+    #sec-calendar .pz-wk-day.today .pz-wk-d span { color:var(--ws-g); font-weight:800; }
+    #sec-calendar .pz-wk-evs { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; padding-top:2px; }
+    #sec-calendar .pz-wk-ev { display:flex; align-items:center; gap:6px; border:none; background:none; padding:2px 0; text-align:left; cursor:pointer; font-size:13.5px; font-weight:700; color:var(--ws-t); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    #sec-calendar .pz-wk-ev:hover { color:var(--ws-g); }
+    #sec-calendar .pz-wk-ev i { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    #sec-calendar .pz-wk-none { font-size:12.5px; color:#B5B5B5; padding-top:2px; }
+    /* 2026-10-04 전도부 게시판 */
+    #sec-calendar .pz-board { border:2px solid var(--ws-g) !important; }
+    #sec-calendar .pz-board-h { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:var(--ws-g); color:#fff; font-size:16px; font-weight:900; letter-spacing:-0.02em; }
+    #sec-calendar .pz-board-h small { font-size:12.5px; font-weight:700; opacity:.9; }
+    #sec-calendar .pz-board-row { padding:14px 16px; cursor:pointer; }
+    #sec-calendar .pz-board-row + .pz-board-row { border-top:1px solid var(--ws-l); }
+    #sec-calendar .pz-board-row:hover { background:#FAFAFA; }
+    #sec-calendar .pz-board-top { display:flex; align-items:center; gap:8px; }
+    #sec-calendar .pz-board-tag { flex-shrink:0; font-size:11.5px; font-weight:900; padding:3px 8px; border-radius:6px; background:#FFE9E9; color:#D94040; }
+    #sec-calendar .pz-board-top b { flex:1; min-width:0; font-size:15.5px; font-weight:800; color:var(--ws-t); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #sec-calendar .pz-board-top time { flex-shrink:0; font-size:12px; color:var(--ws-s); }
+    #sec-calendar .pz-board-body { margin-top:6px; padding-left:2px; font-size:13.5px; line-height:1.55; color:#505050; white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    #sec-calendar .pz-board-row.open .pz-board-body { display:block; -webkit-line-clamp:unset; }
+    @media (min-width: 1024px) {
+      html.pz-dk #sec-calendar .pz-cal-layout { flex-direction:row; }
+      html.pz-dk #sec-calendar .pz-cal-main { flex:1; }
+      html.pz-dk #sec-calendar .pz-week { width:340px; flex-shrink:0; border-top:none; border-left:1px solid var(--ws-l); }
+      html.pz-dk #sec-calendar .cal-day { min-height:92px; }
+      html.pz-dk #sec-calendar .cal-chip { font-size:11.5px; line-height:17px; }
+    }
+
     /* 피드: 떨어진 카드 → 줄로 나눈 깔끔한 목록, 분류 탭은 밑줄 탭 */
     #sec-calendar .pz-ftabs { gap:20px; margin:0; border-bottom:1px solid var(--ws-l); }
     #sec-calendar .pz-ftabs button, #sec-calendar .pz-ftabs button.on { height:42px; padding:0 2px; border:none; border-bottom:2px solid transparent; border-radius:0; background:none; font-size:15px; font-weight:600; color:var(--ws-s); }
@@ -1582,9 +1631,13 @@
           <!-- 2026-10-01(3차) 모둠 구조: 위 알약 = 각 모둠으로 이동. 모둠마다 3개씩 보이고 [더보기]로 펼친다.
                글쓰기는 오른쪽 아래 버튼 하나(사례·질문·불편신고 중 골라 쓰기). -->
           <div class="pz-sec-title c-cal" id="pzCalTitle"><span class="pz-sec-ic">📅</span><span class="pz-sec-txt">전도 일정</span><button type="button" class="pz-sec-act" id="calAddBtn">+ 일정 추가</button></div>
-          <div class="pz-box c-cal" id="pzCalBox">
-            <div id="calUpcoming"><div class="pz-empty">불러오는 중...</div></div>
-            <div id="calFull" class="pz-cal-full" style="display:none">
+          <!-- 2026-10-04: 달력은 항상 보이게(예전엔 [더보기·달력 보기]를 눌러야 열림). 옆(PC)/아래(폰)에 '이번 주 일정' 칸,
+               달력 아래에 '다가오는 전도 일정' 목록(처음엔 접힘). 세 칸 모두 머리를 누르면 접고 펼친다(상태는 이 기기에 기억). -->
+          <div class="pz-box c-cal pz-cal-box" id="pzCalBox">
+           <div class="pz-cal-layout">
+            <div class="pz-cal-main">
+            <button type="button" class="pz-fold-h" data-pz-fold="cal"><span>🗓️ 달력</span><i>︿</i></button>
+            <div id="calFull" class="pz-cal-full pz-fold-b" data-pz-fold-b="cal">
               <div class="cal-head">
                 <button class="cal-nav-btn" id="calPrev">‹</button>
                 <div style="text-align:center"><b id="calTitle"></b></div>
@@ -1595,10 +1648,20 @@
               <div class="cal-grid" id="calDays"></div>
               <div class="cal-legend"><span><i style="background:#2F6FDE"></i>공식</span><span><i style="background:#2D9B6F"></i>부서</span><span><i style="background:#E8590C"></i>내 일정(비공개)</span></div>
             </div>
+            <button type="button" class="pz-fold-h sub" data-pz-fold="up"><span>📋 다가오는 전도 일정 <small id="calUpCount"></small></span><i>︿</i></button>
+            <div class="pz-fold-b" data-pz-fold-b="up">
+              <div id="calUpcoming"><div class="pz-empty">불러오는 중...</div></div>
+            </div>
             <div id="calMoreHost"></div>
+            </div>
+            <aside class="pz-week">
+              <button type="button" class="pz-fold-h" data-pz-fold="week"><span>⭐ 이번 주 일정 <small id="calWeekRange"></small></span><i>︿</i></button>
+              <div class="pz-fold-b" data-pz-fold-b="week"><div id="calWeek"><div class="pz-empty">불러오는 중...</div></div></div>
+            </aside>
+           </div>
           </div>
           <div class="pz-sec-title c-ad" id="pzAdTitle"><span class="pz-sec-ic">📢</span><span class="pz-sec-txt">전도부 광고</span></div>
-          <div class="pz-box c-ad" id="calAds"><div class="pz-empty">불러오는 중...</div></div>
+          <div class="pz-box c-ad pz-board" id="calAds"><div class="pz-empty">불러오는 중...</div></div>
           <div id="pzTom"></div>
           <div class="pz-sec-title c-tom" id="pzContestTitle"><span class="pz-sec-ic">🏷️</span><span class="pz-sec-txt">앱 이름 공모</span></div>
           <div id="pzContest"></div>
@@ -2192,8 +2255,9 @@
         let cols = wrap.querySelector('.pz-dk-cols');
         if (!cols) { cols = document.createElement('div'); cols.className = 'pz-dk-cols'; cols.innerHTML = '<div class="pz-dk-main"></div><div class="pz-dk-side"></div>'; }
         const main = cols.firstElementChild, side = cols.lastElementChild;
-        wrap.append(el('pzHero'), pills, cols);
-        main.append(el('pzCalTitle'), el('pzCalBox'), el('pzHotTitle'), el('pzHot'));
+        // 2026-10-04: 전도 일정(달력+이번 주)은 한 줄 전체로 넓게, 그 아래 2단(왼쪽 인기글 | 오른쪽 게시판·이름 공모)
+        wrap.append(el('pzHero'), pills, el('pzCalTitle'), el('pzCalBox'), cols);
+        main.append(el('pzHotTitle'), el('pzHot'));
         side.append(el('pzAdTitle'), el('calAds'), el('pzContestTitle'), el('pzContest'));
         wrap.append(el('pzTom'), el('pzFeedTitle'), el('pzFeedTabs'), el('pzFeed'));
         let gnb = el('pzGnb');
@@ -2414,7 +2478,7 @@
           const res = await callApi({ action: 'deleteCalendarEvent', eventId: e.eventId, memberId: MEMBER_ID });
           if (res && res.error) throw new Error(res.error);
           calSt.events = calSt.events.filter(x => x.eventId !== e.eventId);
-          closeSheet(); calDrawCalendar(); toast('삭제했어요.');
+          closeSheet(); calDrawCalendar(); calRenderUpcoming(); toast('삭제했어요.');
         } catch (err) { toast(err.message, true); }
       };
     }
@@ -2526,25 +2590,65 @@
       }
       return out;
     }
+    // ── 2026-10-04: 접기/펼치기(달력·이번 주·다가오는 일정). 기본값: 달력·이번 주 펼침, 목록 접힘. 이 기기에 기억.
+    const PZ_FOLD_DEF = { cal: true, week: true, up: false };
+    const pzFold = Object.assign({}, PZ_FOLD_DEF);
+    try { Object.assign(pzFold, JSON.parse(localStorage.getItem('pz_fold') || '{}')); } catch (e) {}
+    function pzApplyFold() {
+      document.querySelectorAll('[data-pz-fold]').forEach(h => { const k = h.dataset.pzFold; h.classList.toggle('closed', !pzFold[k]); });
+      document.querySelectorAll('[data-pz-fold-b]').forEach(b => { b.style.display = pzFold[b.dataset.pzFoldB] ? '' : 'none'; });
+    }
+    document.querySelectorAll('[data-pz-fold]').forEach(h => {
+      h.onclick = () => { const k = h.dataset.pzFold; pzFold[k] = !pzFold[k]; try { localStorage.setItem('pz_fold', JSON.stringify(pzFold)); } catch (e) {} pzApplyFold(); };
+    });
+    pzApplyFold();
+
+    // ── 이번 주 일정(일~토, 달력과 같은 주 기준) — 요일마다 그날 일정을 모아 보여준다.
+    function calRenderWeek() {
+      const host = document.getElementById('calWeek'); if (!host) return;
+      const base = new Date(calTodayDate.getFullYear(), calTodayDate.getMonth(), calTodayDate.getDate() - calTodayDate.getDay());
+      const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(base); d.setDate(base.getDate() + i); return d; });
+      const md = d => `${d.getMonth() + 1}/${d.getDate()}`;
+      document.getElementById('calWeekRange').textContent = `${md(days[0])} ~ ${md(days[6])}`;
+      const picked = [];
+      host.innerHTML = days.map(d => {
+        const date = calYmd(d.getFullYear(), d.getMonth(), d.getDate()), evs = calEventsOn(date), dow = d.getDay();
+        return `<div class="pz-wk-day ${date === CAL_TODAY ? 'today' : ''} ${date < CAL_TODAY ? 'past' : ''} ${evs.length ? '' : 'empty'}">
+          <div class="pz-wk-d ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}"><b>${calDOW[dow]}</b><span>${md(d)}</span></div>
+          <div class="pz-wk-evs">${evs.length ? evs.map(e => { picked.push(e); return `<button type="button" class="pz-wk-ev" data-cal-wk="${picked.length - 1}"><i style="background:${calCatColor(e.category)}"></i>${esc(calTitleWithPrefix(e))}</button>`; }).join('') : '<span class="pz-wk-none">일정 없음</span>'}</div>
+        </div>`;
+      }).join('');
+      host.querySelectorAll('[data-cal-wk]').forEach(b => { b.onclick = () => calOpenEvent(picked[Number(b.dataset.calWk)]); });
+    }
     function calRenderUpcoming() {
       const host = document.getElementById('calUpcoming'); if (!host) return;
-      const list = calUpcomingList(PZX.cal ? 10 : 3);
+      calRenderWeek();
+      const list = calUpcomingList(PZX.cal ? 30 : 10);
+      const cnt = document.getElementById('calUpCount'); if (cnt) cnt.textContent = list.length ? `${list.length}${list.length >= (PZX.cal ? 30 : 10) ? '+' : ''}건` : '';
       host.innerHTML = list.length ? list.map(({ e, date, d }, i) => `<div class="pz-up-row ${'c-cal'}" data-cal-up="${i}">
           <div class="pz-up-date"><b>${d.getMonth() + 1}/${d.getDate()}</b><span>${date === CAL_TODAY ? '오늘' : calDOW[d.getDay()] + '요일'}</span></div>
           <div class="pz-row-main" style="flex:1;min-width:0"><div class="pz-title">${esc(calTitleWithPrefix(e))}</div><div class="pz-sum">${esc([calRangeText(e), e.place].filter(Boolean).join(' · '))}</div></div>
           <span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category === '내일정' ? '내 일정' : e.category)}</span></div>`).join('')
         : '<div class="pz-empty">다가오는 일정이 없어요.</div>';
       host.querySelectorAll('[data-cal-up]').forEach(r => { r.onclick = () => calOpenEvent(list[Number(r.dataset.calUp)].e); });
-      document.getElementById('calFull').style.display = PZX.cal ? '' : 'none';
-      document.getElementById('calMoreHost').innerHTML = pzMoreBtn('cal', 0, '더보기 · 달력 보기 ›');
+      // 달력은 이제 항상 보임. 목록 아래 [더보기]는 10건 → 30건 펼치기(목록이 펼쳐져 있을 때만 의미 있음).
+      document.getElementById('calMoreHost').innerHTML = '';
+      if (list.length >= 10) host.insertAdjacentHTML('beforeend', pzMoreBtn('cal', 0, '더 많은 일정 보기 ›'));
     }
+    // 2026-10-04: 전도부 광고 → 게시판처럼(초록 머리띠 + 공지 번호·날짜 + 누르면 본문 펼침)
     function calRenderAds() {
       const el = document.getElementById('calAds'); if (!el) return;
       const ads = calSt.ads;
-      el.innerHTML = calSt.adErr ? `<div class="pz-empty" style="color:var(--color-error)">${esc(calSt.adErr)}</div>`
+      const head = `<div class="pz-board-h"><span>📌 전도부 게시판</span><small>${ads && ads.length ? `공지 ${ads.length}건` : ''}</small></div>`;
+      el.innerHTML = head + (calSt.adErr ? `<div class="pz-empty" style="color:var(--color-error)">${esc(calSt.adErr)}</div>`
         : !ads ? '<div class="pz-empty">불러오는 중...</div>'
-        : ads.length ? `<div class="pz-ad-list">${ads.slice(0, PZX.ad ? ads.length : 3).map(a => `<div class="cal-ad"><b>${esc(a.title)}</b>${a.body ? `<div>${esc(a.body)}</div>` : ''}</div>`).join('')}</div>` + pzMoreBtn('ad', ads.length)
-        : '<div class="pz-empty">등록된 광고가 없어요.</div>';
+        : ads.length ? `<div class="pz-board-list">${ads.slice(0, PZX.ad ? ads.length : 3).map((a, i) => `
+            <div class="pz-board-row" data-pz-ad>
+              <div class="pz-board-top"><span class="pz-board-tag">공지</span><b>${esc(a.title)}</b><time>${esc(String(a.updatedAt || '').slice(5, 10).replace('-', '.'))}</time></div>
+              ${a.body ? `<div class="pz-board-body">${esc(a.body)}</div>` : ''}
+            </div>`).join('')}</div>` + pzMoreBtn('ad', ads.length)
+        : '<div class="pz-empty">등록된 공지가 없어요.</div>');
+      el.querySelectorAll('[data-pz-ad]').forEach(r => { r.onclick = () => r.classList.toggle('open'); });
     }
     document.getElementById('calAddBtn').onclick = () => calOpenAddCategoryPicker();
 
