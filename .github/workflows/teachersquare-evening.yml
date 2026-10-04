@@ -1,0 +1,33 @@
+# 교사광장 텔레그램 봇 — 매일 저녁 9시(KST) 교사 참여율·등급 서머리 발송
+# Apps Script action 'tsEveningSummary' 호출(TeacherSquareBot.gs sendEveningSummary). 중복키 evening_날짜로 하루 한 번.
+name: teachersquare-evening-summary
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   # 12:00 UTC = 21:00 KST
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '기준 날짜 (yyyy-MM-dd, 비우면 오늘)'
+        required: false
+      force:
+        description: '이미 보낸 날짜도 다시 보내기'
+        type: boolean
+        default: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Apps Script
+        env:
+          KEY: ${{ secrets.TS_CRON_KEY }}
+          DATE: ${{ github.event.inputs.date }}
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          URL="https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec"
+          BODY=$(jq -nc --arg key "$KEY" --arg date "$DATE" --arg force "$FORCE" \
+            '{action:"tsEveningSummary", key:$key} + (if $date != "" then {date:$date} else {} end) + (if $force == "true" then {force:true} else {} end)')
+          RES=$(curl -sSL --retry 3 -H "Content-Type: text/plain" --data "$BODY" "$URL")
+          echo "$RES"
+          echo "$RES" | jq -e '.ok == true or .skipped == true' > /dev/null
