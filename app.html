@@ -5204,9 +5204,9 @@
     const attWhen = m => `${String(m.date || '').slice(5).replace('-', '/')}${m.start ? ' ' + m.start : ''}${m.end ? '~' + m.end : ''}`;
     const attAnsText = (q, v) => Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
     const attNowKst = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
-    // v2(10/05): 모임 부서·지역 — 서버 ATT_ORG_OPTIONS 값 그대로 보냄. 교역자·교자장·전체·기타는 지역 없이 한 부서,
+    // v2(10/05): 모임 부서·지역 — 서버 ATT_ORG_OPTIONS 값 그대로 보냄(교자장 연합은 사용자 요청으로 뺌). 교역자·전체·기타는 지역 없이 한 부서,
     // 자문·장년·부녀·청년은 1~12지역(부녀회만 '유아모' 추가). 표시는 서버 _attMeetLabel_과 같은 '부녀회 3지역' 형식.
-    const ATT_ORGS = [['', '선택 안 함'], ['전체', '전체 (모든 부서)'], ['교역자', '교역자'], ['자문', '자문회'], ['장년', '장년회'], ['부녀', '부녀회'], ['청년', '청년회'], ['교자장', '교자장 (교역자·자문회·장년회 합동)'], ['기타', '기타']];
+    const ATT_ORGS = [['', '선택 안 함'], ['전체', '전체 (모든 부서)'], ['교역자', '교역자'], ['자문', '자문회'], ['장년', '장년회'], ['부녀', '부녀회'], ['청년', '청년회'], ['기타', '기타']];
     const ATT_ORG_HAS_DISTRICT = ['자문', '장년', '부녀', '청년'];
     const attDistricts = org => ATT_ORG_HAS_DISTRICT.includes(org) ? [...Array.from({ length: 12 }, (_, i) => String(i + 1)), ...(org === '부녀' ? ['유아모'] : [])] : [];
     const attDistrictLabel = d => d == null || d === '' ? '' : /^\d+$/.test(String(d)) ? d + '지역' : String(d);
