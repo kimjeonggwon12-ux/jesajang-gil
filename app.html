@@ -222,6 +222,13 @@
     #sec-calendar .pz-search { flex:1; min-width:0; display:flex; align-items:center; gap:6px; height:40px; padding:0 14px; border-radius:999px; background:#F2F3F6; }
     #sec-calendar .pz-search input { flex:1; min-width:0; border:none; background:transparent; outline:none; font-size:14px; color:var(--dg-text); }
     #sec-calendar .pz-appbar-actions { display:flex; align-items:center; gap:10px; }
+    /* 2026-10-05: 사람 아이콘 옆 이름표(renderMeChips) — 이름 / 부서 · 직책 두 줄, 길면 말줄임 */
+    button[onclick="openAccountSheet()"] { align-items:center; gap:6px; }
+    .me-chip { display:flex; flex-direction:column; align-items:flex-end; line-height:1.2; text-align:right; max-width:150px; min-width:0; }
+    .me-chip b, .me-chip small { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .me-chip b { font-size:13px; font-weight:700; }
+    .me-chip small { font-size:11px; font-weight:500; opacity:.7; }
+    @media (max-width: 420px) { .me-chip { max-width:96px; } }
     #sec-calendar .pz-appbar-actions button { background:none; border:none; padding:0; color:var(--dg-text); cursor:pointer; display:flex; }
     #sec-calendar .pz-pills { display:flex; gap:6px; overflow-x:auto; padding:10px 0 10px; scrollbar-width:none; border-bottom:1px solid var(--dg-line); }
     #sec-calendar .pz-pills::-webkit-scrollbar { display:none; }
@@ -2003,6 +2010,7 @@
       document.getElementById('loginPanel').style.display = 'none';
       document.getElementById('appPanel').style.display = 'flex';
       updateAdminTabVisibility();
+      renderMeChips();     // 우선 이름만 — 명단을 받으면 부서·직책까지 다시 그림
       loadMyRosterRow();   // 명단에서 내 직책·부서를 확인해 관리자 탭 노출 결정
       enterFromHash();
       showInstallToastIfNeeded();
@@ -2211,6 +2219,26 @@
     let myRosterRow = null;      // 내 교사명단 행(getRoster에서 내 고유번호로 찾음)
     let myRosterLoaded = false;
     let myAdminListed = false;   // 2026-10-05: 관리자 명단(시트 "교관명단" 탭, 133명)에 있는지 — 백엔드 checkAdmin
+    let myAdminInfo = null;      // 관리자 명단 행 { name, dept, position } — 상단 이름표에 우선 사용
+
+    /**
+     * 2026-10-05: 우측 상단 사람 아이콘(내 계정 버튼) 옆 이름표 — "이름 / 부서 · 직책".
+     * 부서·직책은 관리자 명단(교관명단 탭)을 먼저 쓰고, 없으면 교사명단 행. 이름표도 버튼 안이라 누르면 내 계정 시트가 열린다.
+     */
+    function renderMeChips() {
+      const r = myRosterRow || {}, a = myAdminInfo || {};
+      const nm = a.name || r.name || App.name || '';
+      const dept = a.dept || r.dept || '';
+      const pos = a.position || r.position || (isOwnerSession() ? '관리자' : '');
+      const sub = [dept, pos].filter((v, i, arr) => v && arr.indexOf(v) === i).join(' · ');
+      const html = nm ? `<b>${esc(nm)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}` : '';
+      document.querySelectorAll('button[onclick="openAccountSheet()"]').forEach(btn => {
+        let chip = btn.querySelector('.me-chip');
+        if (!chip) { chip = document.createElement('span'); chip.className = 'me-chip'; btn.prepend(chip); }
+        chip.innerHTML = html;
+        chip.style.display = html ? '' : 'none';
+      });
+    }
 
     function isAdmin() {
       if (isOwnerSession()) return true;       // 앱 관리자(김정권)는 무조건 관리자 모드
@@ -2234,8 +2262,10 @@
       const mine = String(App.memberId || '').replace(/[^0-9]/g, '');
       myRosterRow = rows.find(r => String(r.memberId || '').replace(/[^0-9]/g, '') === mine) || null;
       myAdminListed = adminRes.status === 'fulfilled' && !!(adminRes.value && adminRes.value.isAdmin);
+      myAdminInfo = myAdminListed ? adminRes.value : null;
       myRosterLoaded = true;
       updateAdminTabVisibility();
+      renderMeChips();
       // 권한이 없는데 관리자 탭을 보고 있었다면 기본 탭으로 되돌린다.
       if (!isAdmin() && App.currentTab === 'admin') switchTab('activity');
     }
