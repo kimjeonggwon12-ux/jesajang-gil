@@ -5207,6 +5207,8 @@
     // 휴대폰 카메라로 찍거나 나의교실 [QR로 출석하기](앱 안 스캐너) → 설문 → 제출하면 그 응답대로 출석 기록.
     // 출석은 서버가 [시작-열림분 ~ 종료] 시간에만, 한 사람 1번만 받는다. 이름·부서·직책은 서버가 명단에서 채움.
     // ════════════════════════════════════════════════════════════════
+    // 출석 설문의 소속 부서 보기 — 교역자 포함 5개 부서(사용자 요청: 교역자도 출석 점검에 포함)
+    const ATT_DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
     const ATT_TYPES = [['choice', '객관식(하나 고르기)'], ['multi', '객관식(여러 개 고르기)'], ['text', '주관식(글로 쓰기)']];
     const attSt = { my: null, cur: null, ans: {}, busy: false, method: 'qr' };
     const attUrl = id => location.origin + location.pathname + '#attend=' + encodeURIComponent(id);
@@ -5475,7 +5477,7 @@
     function attAdmEdit(m) {
       const f = m ? { ...m, questions: (m.questions || []).map(q => ({ ...q, options: [...q.options] })) }
         : { title: '', date: attNowKst().slice(0, 10), start: '', end: '', place: '', openBefore: 30, status: '열림',
-            questions: [{ label: '', type: 'choice', options: [], required: false }] };
+            questions: [{ label: '소속 부서', type: 'choice', options: [...ATT_DEPTS], required: true }] };
       const draw = () => {
         openSheet(`<div class="att-sheet"><div class="att-title">${m ? '모임 수정' : '새 모임 만들기'}</div>
           <label class="cal-lbl">모임 이름 <span class="cal-req">*</span></label><input class="cal-inp" id="attFTitle" maxlength="80" value="${esc(f.title)}" placeholder="예) 10월 교사 교육">
@@ -5492,9 +5494,9 @@
                 <button type="button" class="att-x" data-qdel="${i}" title="문항 삭제">×</button></div>
               <div style="display:flex;gap:6px;margin-top:6px;align-items:center"><select class="cal-inp" data-qf="type" data-i="${i}" style="flex:1">${ATT_TYPES.map(([v, l]) => `<option value="${v}" ${q.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
                 <label class="att-req"><input type="checkbox" data-qf="required" data-i="${i}" ${q.required ? 'checked' : ''}> 필수</label></div>
-              ${q.type !== 'text' ? `<input class="cal-inp" data-qf="options" data-i="${i}" style="margin-top:6px" value="${esc(q.options.join(', '))}" placeholder="보기를 쉼표로 구분 (예: 자문회, 장년회, 부녀회, 청년회)">` : ''}
+              ${q.type !== 'text' ? `<input class="cal-inp" data-qf="options" data-i="${i}" style="margin-top:6px" value="${esc(q.options.join(', '))}" placeholder="보기를 쉼표로 구분 (예: 교역자, 자문회, 장년회, 부녀회, 청년회)">` : ''}
             </div>`).join('')}</div>
-          <button type="button" class="att-link" id="attFAddQ" style="margin-top:8px">+ 문항 추가</button>
+          <div style="display:flex;gap:16px;margin-top:8px"><button type="button" class="att-link" id="attFAddQ">+ 문항 추가</button><button type="button" class="att-link" id="attFAddDept">+ 소속 부서 문항(교역자 포함 5개 부서)</button></div>
           <div style="display:flex;gap:10px;margin-top:18px"><button type="button" class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button><button type="button" class="kko-btn-main" style="flex:2" id="attFSave">${m ? '수정 저장' : '모임 만들기'}</button></div>
         </div>`);
         const read = () => {
@@ -5510,6 +5512,7 @@
         document.querySelectorAll('#attFQs [data-qf="type"]').forEach(el => { el.onchange = () => { read(); draw(); }; });
         document.querySelectorAll('[data-qdel]').forEach(b => { b.onclick = () => { read(); f.questions.splice(Number(b.dataset.qdel), 1); draw(); }; });
         document.getElementById('attFAddQ').onclick = () => { read(); f.questions.push({ label: '', type: 'choice', options: [], required: false }); draw(); };
+        document.getElementById('attFAddDept').onclick = () => { read(); f.questions.push({ label: '소속 부서', type: 'choice', options: [...ATT_DEPTS], required: true }); draw(); };
         document.getElementById('attFSave').onclick = async () => {
           read();
           if (!f.title.trim()) return toast('모임 이름을 입력해 주세요.', true);
