@@ -2243,6 +2243,9 @@
     function updateAdminTabVisibility() {
       const btn = document.getElementById('adminTabBtn');
       if (btn) btn.style.display = isAdmin() ? '' : 'none';
+      // 2026-10-05: PC 상단 메뉴(#pzGnb/#dkGnb)는 하단 탭바를 복사해 그리므로, 권한 확인이 끝난 뒤에도 다시 그려야
+      // 관리자 메뉴가 나타난다(전에는 탭을 바꿔야만 갱신돼서 PC에서 관리자 탭이 안 보였음).
+      if (window.pzLayout) pzLayout();
     }
 
     // ════════════════════════════════════════════════════════════════
