@@ -605,6 +605,38 @@
     @keyframes tcCheckPop { 0%{transform:scale(0.6);opacity:0} 70%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
     .tc-check-anim { animation:tcCheckPop .35s ease-out; }
 
+    /* ══ 2026-10-05 QR 출석 시스템 ══ */
+    .att-survey-wrap { padding: 0 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+    .att-type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .att-type-btn { height: 56px; border-radius: 14px; border: 2px solid #E5E7EB;
+      background: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: all .15s ease; color: #374151; }
+    .att-type-btn.selected { border-color: var(--color-primary); background: #EEF2FF; color: var(--color-primary); }
+    .att-type-btn:active { transform: scale(0.97); }
+    .att-meeting-info { background: #F9FAFB; border-radius: 12px; padding: 12px 14px;
+      font-size: 13px; color: #6B7280; line-height: 1.6; }
+    .att-meeting-info strong { color: #111827; font-size: 15px; }
+    .att-submit-btn { width: 100%; height: 52px; border-radius: 14px; border: none;
+      background: var(--color-primary); color: #fff; font-size: 16px; font-weight: 800;
+      cursor: pointer; font-family: inherit; letter-spacing: -0.02em; }
+    .att-submit-btn:disabled { opacity: .5; cursor: default; }
+    .att-hist-row { display: flex; align-items: center; gap: 10px; padding: 10px 0;
+      border-bottom: 1px solid #F3F4F6; }
+    .att-hist-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+      border-radius: 999px; font-size: 11.5px; font-weight: 800; }
+    .att-hist-badge.정상출석 { background: #D1FAE5; color: #16A34A; }
+    .att-hist-badge.지각 { background: #FEF3C7; color: #D97706; }
+    .att-hist-badge.조퇴 { background: #FEE2E2; color: #DC2626; }
+    .att-hist-badge.기타 { background: #E5E7EB; color: #6B7280; }
+    .qr-meeting-card { border-radius: 18px; border: 1.5px solid #E5E7EB;
+      background: #fff; padding: 20px; margin: 0 16px 12px; }
+    .qr-display { display: flex; justify-content: center; padding: 16px 0; }
+    .qr-display img { width: 180px; height: 180px; border-radius: 8px; border: 1px solid #E5E7EB; }
+    .att-admin-btn { width: 100%; height: 52px; border-radius: 14px; border: 1.5px solid #E5E7EB;
+      background: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 8px; color: #374151; }
+    .att-admin-btn:active { transform: scale(0.97); }
+
     /* ── 2026-09-23 "다음 단계로" 안내 — 흐려서 안 보인다는 지적으로 대비 강화 ── */
     .next-step { background: var(--color-primary-light); border-radius: 14px;
       padding: 12px 14px; margin-top: 10px; }
@@ -1845,6 +1877,7 @@
           <button type="button" class="kko-tab" data-subtab="edu" onclick="adminSwitchSubTab('edu')">2️⃣ 교사 현황</button>
           <button type="button" class="kko-tab" data-subtab="connectAdmin" onclick="adminSwitchSubTab('connectAdmin')">3️⃣ 연결 현황 관리</button>
           <button type="button" class="kko-tab" data-subtab="calAdmin" onclick="adminSwitchSubTab('calAdmin')">4️⃣ 캘린더 관리</button>
+          <button type="button" class="kko-tab" data-subtab="attAdmin" onclick="adminSwitchSubTab('attAdmin')">5️⃣ 출석 관리</button>
         </div>
         <div id="admin-pane-edu" class="admin-pane"><div id="eduRoot"></div></div>
         <div id="admin-pane-dist" class="admin-pane"><div id="distRoot"></div></div>
@@ -1859,6 +1892,26 @@
             <button type="button" data-t="ads">전도부 광고</button>
           </div>
           <div id="calAdmRoot"><div class="text-center py-16"><span class="loading loading-spinner"></span></div></div>
+        </div>
+        <!-- 2026-10-05: 출석 관리 탭 -->
+        <div id="admin-pane-attAdmin" class="admin-pane" style="padding:16px">
+          <div style="display:flex;flex-direction:column;gap:12px;max-width:480px;margin:0 auto">
+            <div style="font-size:16px;font-weight:800;color:#111827;margin-bottom:4px">📋 QR 출석 관리</div>
+            <button class="att-admin-btn" onclick="openCreateMeetingSheet()">
+              ➕ 모임 만들기 (QR 생성)
+            </button>
+            <button class="att-admin-btn" onclick="openMeetingListSheet()">
+              📂 모임 목록 보기
+            </button>
+            <button class="att-admin-btn" onclick="openAttSummarySheet('','')">
+              📊 전체 출석 현황
+            </button>
+            <div style="font-size:12px;color:#9CA3AF;margin-top:8px;line-height:1.6">
+              · 모임을 만들면 QR이 생성됩니다<br>
+              · 교사들이 QR 스캔 → 출석 유형 선택 → 등록<br>
+              · 출석 즉시 텔레그램 알림 발송
+            </div>
+          </div>
         </div>
       </section>
     </div>
@@ -5017,11 +5070,11 @@
       const attDone = att.done;
       return `
         <div class="tc-wrap">
-          <button type="button" class="tc-card ${attDone ? 'done' : ''}" id="tcAttCard" onclick="tcOpenAttCheck()">
+          <button type="button" class="tc-card ${attDone ? 'done' : ''}" id="tcAttCard" onclick="openMyAttHistory()">
             <div class="tc-icon">${attDone ? '<span class="tc-check-anim">✅</span>' : '📋'}</div>
             <div class="tc-body">
               <div class="tc-label">이번 달 출석</div>
-              <div class="tc-main">${attDone ? '오늘 출석 완료!' : '출석 체크하기'}</div>
+              <div class="tc-main">${attDone ? '오늘 출석 완료!' : 'QR 스캔으로 출석 체크'}</div>
               <div class="tc-sub" id="tcAttSub">${tcAttSubText()}</div>
             </div>
             <div class="tc-arrow">${attDone ? '✓' : '›'}</div>
@@ -5081,6 +5134,238 @@
         }
       };
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // 2026-10-05 QR 출석 시스템
+    // ══════════════════════════════════════════════════════════════
+
+    // ── QR URL 파라미터 감지 → 출석 설문 자동 오픈 ──────────────
+    (function checkAttQrEntry() {
+      const p = new URLSearchParams(location.search);
+      if (p.get('att') !== '1') return;
+      const meetingId   = p.get('meetingId')   || '';
+      const meetingName = decodeURIComponent(p.get('meetingName') || '모임');
+      const dept        = decodeURIComponent(p.get('dept')        || '');
+      window.addEventListener('load', () => {
+        setTimeout(() => openAttSurveySheet({ meetingId, meetingName, dept }), 700);
+      });
+    })();
+
+    const ATT_TYPES = ['정상출석', '지각', '조퇴', '기타'];
+
+    // ── 출석 설문 바텀시트 ────────────────────────────────────────
+    function openAttSurveySheet(meeting) {
+      const doneKey = 'attDone_' + meeting.meetingId + '_' + MEMBER_ID;
+      if (localStorage.getItem(doneKey)) { toast('이미 출석 완료된 모임이에요 ✅'); return; }
+      window._attMeeting = meeting;
+      window._attType = '정상출석';
+      const renderBtns = () => ATT_TYPES.map(t =>
+        `<button class="att-type-btn${window._attType===t?' selected':''}" onclick="attSelectType('${t}')">${t}</button>`
+      ).join('');
+      openSheet('출석 체크', `
+        <div class="att-survey-wrap">
+          <div class="att-meeting-info">
+            <strong>${esc(meeting.meetingName)}</strong>
+            ${meeting.dept ? `<br>📌 ${esc(meeting.dept)}` : ''}
+          </div>
+          <div style="font-size:13px;font-weight:700;color:#9CA3AF">참석 유형 선택</div>
+          <div class="att-type-grid" id="attTypeBtns">${renderBtns()}</div>
+          <button id="attSubmitBtn" class="att-submit-btn" onclick="submitAttendance()">✅ 출석 등록하기</button>
+          <button type="button" onclick="closeSheet()" style="width:100%;height:40px;border:none;background:none;font-size:14px;color:#9CA3AF;cursor:pointer;font-family:inherit">나중에</button>
+        </div>`);
+    }
+    window.openAttSurveySheet = openAttSurveySheet;
+
+    window.attSelectType = function(type) {
+      window._attType = type;
+      document.querySelectorAll('.att-type-btn').forEach(b => {
+        b.classList.toggle('selected', b.textContent.trim() === type);
+      });
+    };
+
+    window.submitAttendance = async function() {
+      const btn = document.getElementById('attSubmitBtn');
+      if (!btn || btn.disabled) return;
+      btn.disabled = true; btn.textContent = '등록 중...';
+      const meeting = window._attMeeting || {};
+      const attType = window._attType || '정상출석';
+      try {
+        const res = await callApi({
+          action: 'recordAttendance',
+          meetingId: meeting.meetingId,
+          meetingName: meeting.meetingName,
+          dept: meeting.dept,
+          memberId: MEMBER_ID,
+          name: MY_NAME,
+          attType,
+          device: navigator.userAgent.slice(0, 80),
+        });
+        if (res && res.alreadyDone) { toast('이미 출석 완료된 모임이에요 ✅'); closeSheet(); return; }
+        if (res && !res.ok) throw new Error(res.error || '오류');
+        try { localStorage.setItem('attDone_' + meeting.meetingId + '_' + MEMBER_ID, '1'); } catch(e) {}
+        // 오늘 출석 완료 표시 (기존 Today Card 연동)
+        tcSetAttDone();
+        closeSheet();
+        toast(`✅ 출석 완료! (${attType})`);
+        if (typeof loadHomeDashboard === 'function') loadHomeDashboard();
+      } catch(err) {
+        toast('오류: ' + err.message, true);
+        btn.disabled = false; btn.textContent = '✅ 출석 등록하기';
+      }
+    };
+
+    // ── 내 출석 이력 ──────────────────────────────────────────────
+    async function openMyAttHistory() {
+      openSheet('내 출석 이력', `<div style="padding:32px 0;text-align:center;font-size:14px;color:#9CA3AF">불러오는 중...</div>`);
+      try {
+        const res = await callApi({ action: 'getMyAttendance', memberId: MEMBER_ID, limit: 30 });
+        const rows = (res && res.rows) || [];
+        const body = document.querySelector('.sheet-body') || document.querySelector('#appSheetHost');
+        const target = document.querySelector('.sheet-body');
+        if (!target) return;
+        if (!rows.length) {
+          target.innerHTML = '<div style="padding:32px;text-align:center;font-size:14px;color:#9CA3AF">출석 기록이 없어요<br><span style="font-size:12px">모임 QR을 스캔해서 출석 체크해 보세요</span></div>';
+          return;
+        }
+        target.innerHTML = `<div style="padding:0 16px 24px">
+          <div style="font-size:13px;color:#6B7280;margin-bottom:8px;padding-top:4px">총 <strong>${rows.length}회</strong> 출석</div>
+          ${rows.map(r => `
+            <div class="att-hist-row">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.meetingName)}</div>
+                <div style="font-size:12px;color:#9CA3AF;margin-top:2px">${esc(r.dept||'')}${r.dept?' · ':''}${esc(r.recordedAt||'')}</div>
+              </div>
+              <span class="att-hist-badge ${esc(r.attType)}">${esc(r.attType)}</span>
+            </div>`).join('')}
+        </div>`;
+      } catch(e) { toast('불러오기 실패: ' + e.message, true); }
+    }
+    window.openMyAttHistory = openMyAttHistory;
+
+    // ── 관리자: 모임 생성 + QR ────────────────────────────────────
+    function openCreateMeetingSheet() {
+      const depts = (typeof DEPTS5 !== 'undefined' ? DEPTS5 : ['전도부','자장부','청년부','장년부','기타']);
+      openSheet('모임 만들기', `
+        <div class="att-survey-wrap">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#9CA3AF;margin-bottom:6px">모임명</div>
+            <input id="newMtgName" type="text" placeholder="예: 10월 첫째 주 교사모임"
+              style="width:100%;height:44px;border-radius:10px;border:1.5px solid #E5E7EB;
+                padding:0 12px;font-size:15px;font-family:inherit;box-sizing:border-box;outline:none">
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#9CA3AF;margin-bottom:6px">부서</div>
+            <select id="newMtgDept"
+              style="width:100%;height:44px;border-radius:10px;border:1.5px solid #E5E7EB;
+                padding:0 12px;font-size:15px;font-family:inherit;background:#fff;box-sizing:border-box">
+              ${depts.map(d => `<option>${esc(d)}</option>`).join('')}
+              <option value="">전체 공통</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#9CA3AF;margin-bottom:6px">장소 (선택)</div>
+            <input id="newMtgPlace" type="text" placeholder="예: 2층 교육관"
+              style="width:100%;height:44px;border-radius:10px;border:1.5px solid #E5E7EB;
+                padding:0 12px;font-size:15px;font-family:inherit;box-sizing:border-box;outline:none">
+          </div>
+          <button class="att-submit-btn" onclick="doCreateMeeting()">📋 QR 생성하기</button>
+        </div>`);
+    }
+    window.openCreateMeetingSheet = openCreateMeetingSheet;
+
+    window.doCreateMeeting = async function() {
+      const name  = (document.getElementById('newMtgName')?.value || '').trim();
+      const dept  = document.getElementById('newMtgDept')?.value || '';
+      const place = (document.getElementById('newMtgPlace')?.value || '').trim();
+      if (!name) { toast('모임명을 입력해주세요', true); return; }
+      const btn = document.querySelector('.att-submit-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '생성 중...'; }
+      try {
+        const res = await callApi({
+          action: 'createMeeting',
+          meetingName: name, dept, place,
+          hostId: MEMBER_ID, hostName: MY_NAME,
+          scheduledAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+        });
+        if (!res || !res.ok) throw new Error(res?.error || '오류');
+        const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(res.qrUrl)}`;
+        const safeUrl = esc(res.qrUrl);
+        openSheet(`QR — ${esc(name)}`, `
+          <div style="padding:0 16px 24px">
+            <div class="qr-meeting-card">
+              <div style="font-size:17px;font-weight:800;color:#111827;margin-bottom:4px">${esc(name)}</div>
+              <div style="font-size:13px;color:#6B7280">${esc(dept)}${dept&&place?' · ':''}${esc(place)}</div>
+              <div class="qr-display"><img src="${qrImg}" alt="QR코드" style="width:180px;height:180px"></div>
+              <div style="font-size:11px;color:#9CA3AF;text-align:center;word-break:break-all;margin-top:4px">${safeUrl}</div>
+            </div>
+            <button onclick="navigator.clipboard?.writeText('${safeUrl}').then(()=>toast('URL 복사됨 📋'))"
+              class="att-admin-btn" style="margin-top:4px">🔗 URL 복사</button>
+            <button onclick="openAttSummarySheet('${esc(res.meetingId)}','${esc(name)}')"
+              class="att-admin-btn" style="margin-top:8px">📊 출석 현황 보기</button>
+          </div>`);
+      } catch(e) {
+        toast('오류: ' + e.message, true);
+        if (btn) { btn.disabled = false; btn.textContent = '📋 QR 생성하기'; }
+      }
+    };
+
+    // ── 관리자: 전체 출석 현황 ────────────────────────────────────
+    async function openAttSummarySheet(meetingId, meetingName) {
+      const title = meetingName ? `출석 현황 — ${meetingName}` : '전체 출석 현황';
+      openSheet(title, `<div style="padding:32px 0;text-align:center;font-size:14px;color:#9CA3AF">불러오는 중...</div>`);
+      try {
+        const res = await callApi({ action: 'getAttendanceSummary', meetingId: meetingId || undefined });
+        const rows = (res && res.rows) || [];
+        const target = document.querySelector('.sheet-body');
+        if (!target) return;
+        if (!rows.length) { target.innerHTML = '<div style="padding:32px;text-align:center;font-size:14px;color:#9CA3AF">출석 데이터가 없어요</div>'; return; }
+        const cnt = rows.reduce((a, r) => { a[r.attType] = (a[r.attType]||0)+1; return a; }, {});
+        target.innerHTML = `<div style="padding:0 16px 24px">
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+            <span style="font-size:13px;color:#6B7280">총 <strong>${rows.length}명</strong></span>
+            ${Object.entries(cnt).map(([t,n])=>`<span class="att-hist-badge ${esc(t)}">${esc(t)} ${n}</span>`).join('')}
+          </div>
+          ${rows.map(r => `
+            <div class="att-hist-row">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:700;color:#111827">${esc(r.name)}</div>
+                <div style="font-size:12px;color:#9CA3AF;margin-top:2px">${esc(r.dept||'')}${r.dept?' · ':''}${esc(r.recordedAt||'')}</div>
+              </div>
+              <span class="att-hist-badge ${esc(r.attType)}">${esc(r.attType)}</span>
+            </div>`).join('')}
+        </div>`;
+      } catch(e) { toast('불러오기 실패: ' + e.message, true); }
+    }
+    window.openAttSummarySheet = openAttSummarySheet;
+
+    // ── 관리자: 모임 목록 ─────────────────────────────────────────
+    async function openMeetingListSheet() {
+      openSheet('모임 목록', `<div style="padding:32px 0;text-align:center;font-size:14px;color:#9CA3AF">불러오는 중...</div>`);
+      try {
+        const res = await callApi({ action: 'getMeetingList', hostId: '' }); // 전체
+        const rows = (res && res.rows) || [];
+        const target = document.querySelector('.sheet-body');
+        if (!target) return;
+        if (!rows.length) {
+          target.innerHTML = `<div style="padding:32px;text-align:center;font-size:14px;color:#9CA3AF">
+            모임이 없어요<br><button class="att-submit-btn" style="margin-top:16px;width:auto;padding:0 24px" onclick="openCreateMeetingSheet()">➕ 모임 만들기</button>
+          </div>`;
+          return;
+        }
+        target.innerHTML = `<div style="padding:0 16px 24px">
+          ${rows.map(r => `
+            <div class="att-hist-row" style="cursor:pointer" onclick="openAttSummarySheet('${esc(r.meetingId)}','${esc(r.meetingName)}')">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:700;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.meetingName)}</div>
+                <div style="font-size:12px;color:#9CA3AF;margin-top:2px">${esc(r.dept||'')}${r.dept?' · ':''}${esc(r.scheduledAt||'')}</div>
+              </div>
+              <span style="font-size:13px;color:#D1D5DB">›</span>
+            </div>`).join('')}
+          <button class="att-submit-btn" style="margin-top:16px" onclick="openCreateMeetingSheet()">➕ 새 모임 만들기</button>
+        </div>`;
+      } catch(e) { toast('불러오기 실패: ' + e.message, true); }
+    }
+    window.openMeetingListSheet = openMeetingListSheet;
 
     function dashboardViewHtml() {
       if (home.loading) return `<div class="text-center py-16 text-sm text-base-content/40"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`;
