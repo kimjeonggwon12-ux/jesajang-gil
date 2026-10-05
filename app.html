@@ -5078,7 +5078,21 @@
       } catch(e) { return null; }
     }
     // 2026-10-05: 출석 칸은 아래 '📋 모임 출석' 카드(QR 카메라·출석 현황)와 겹쳐서 없앰 — 일정 칸만 남김
+    // 2026-10-05: 나의교실로 바로 들어오면 광장 일정(calSt.events)이 아직 없어 "일정 없음"으로 보이던 문제 —
+    // 일정을 직접 받아(광장과 같은 요청이라 저장본·중복 제거 공유) 일정 칸만 다시 그린다.
+    let tcEvRequested = false;
+    function tcEnsureEvents() {
+      if (tcEvRequested) return; tcEvRequested = true;
+      apiSWR({ action: 'getCalendarEvents', memberId: MEMBER_ID }, r => {
+        if (!r || r.error) return;
+        calSt.events = r.rows || [];
+        const el = document.querySelector('#homeContent .tc-wrap'); if (!el) return;
+        const tmp = document.createElement('div'); tmp.innerHTML = todayCardHtml();
+        const n = tmp.querySelector('.tc-wrap'); if (n) el.replaceWith(n);
+      }).catch(() => {});
+    }
     function todayCardHtml() {
+      tcEnsureEvents();
       const todayEv = tcTodayEvent();
       const nextEv = todayEv ? null : tcWeekNextEvent();
       const evCard = todayEv || nextEv;
