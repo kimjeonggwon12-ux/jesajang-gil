@@ -2210,10 +2210,12 @@
                              '교관', '총교관', '교육부'];   // 뒤 3개는 옛 데이터 호환
     let myRosterRow = null;      // 내 교사명단 행(getRoster에서 내 고유번호로 찾음)
     let myRosterLoaded = false;
+    let myAdminListed = false;   // 2026-10-05: 관리자 명단(시트 "교관명단" 탭, 133명)에 있는지 — 백엔드 checkAdmin
 
     function isAdmin() {
       if (isOwnerSession()) return true;       // 앱 관리자(김정권)는 무조건 관리자 모드
       if (!myRosterLoaded) return false;       // 아직 못 받았으면 숨김(받고 나서 다시 판정)
+      if (myAdminListed) return true;          // ④ 관리자 명단에 고유번호가 있는 사람
       const r = myRosterRow;
       if (!r) return false;
       if (ADMIN_POSITIONS.indexOf(String(r.position || '').trim()) !== -1) return true;
@@ -2224,14 +2226,14 @@
 
     /** 내 명단 행을 한 번 받아와 관리자 탭 노출을 결정한다. */
     async function loadMyRosterRow() {
-      try {
-        const res = await callApi({ action: 'getRoster' });
-        const rows = (res && res.rows) || [];
-        const mine = String(App.memberId || '').replace(/[^0-9]/g, '');
-        myRosterRow = rows.find(r => String(r.memberId || '').replace(/[^0-9]/g, '') === mine) || null;
-      } catch (e) {
-        myRosterRow = null;
-      }
+      const [rosterRes, adminRes] = await Promise.allSettled([
+        callApi({ action: 'getRoster' }),
+        callApi({ action: 'checkAdmin', memberId: App.memberId })
+      ]);
+      const rows = (rosterRes.status === 'fulfilled' && rosterRes.value && rosterRes.value.rows) || [];
+      const mine = String(App.memberId || '').replace(/[^0-9]/g, '');
+      myRosterRow = rows.find(r => String(r.memberId || '').replace(/[^0-9]/g, '') === mine) || null;
+      myAdminListed = adminRes.status === 'fulfilled' && !!(adminRes.value && adminRes.value.isAdmin);
       myRosterLoaded = true;
       updateAdminTabVisibility();
       // 권한이 없는데 관리자 탭을 보고 있었다면 기본 탭으로 되돌린다.
