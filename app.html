@@ -5047,14 +5047,6 @@
     }
 
     // ══ 2026-10-05 Today Card ══
-    // 2026-10-05(통합): 출석 칸은 QR 출석(attSt.my = getMyAttendance)과 연결 — 예전 localStorage(tc_att)·addActivity 방식은
-    // 서버에 없는 action이라 기록이 안 되는데도 "출석 완료"로 보이던 문제가 있어 교체.
-    function tcAttInfo() {
-      const d = attSt.my, today = todayStr(), month = today.slice(0, 7);
-      if (!d) return { done: false, month: null };
-      const recs = d.records || [];
-      return { done: recs.some(r => String(r.at).slice(0, 10) === today), month: recs.filter(r => String(r.at).slice(0, 7) === month).length };
-    }
     // 오늘 가장 가까운 일정 가져오기
     function tcTodayEvent() {
       try {
@@ -5085,26 +5077,16 @@
         return evs.length ? evs[0] : null;
       } catch(e) { return null; }
     }
+    // 2026-10-05: 출석 칸은 아래 '📋 모임 출석' 카드(QR 카메라·출석 현황)와 겹쳐서 없앰 — 일정 칸만 남김
     function todayCardHtml() {
-      const att = tcAttInfo();
       const todayEv = tcTodayEvent();
       const nextEv = todayEv ? null : tcWeekNextEvent();
       const evCard = todayEv || nextEv;
       const evLabel = todayEv ? '📅 오늘 일정' : '📅 이번 주 일정';
       const evMain = evCard ? esc(calTitleWithPrefix(evCard)) : '이번 주 전도 일정 없음';
       const evSub = evCard ? esc(calRangeText(evCard)) + (evCard.place ? ' · ' + esc(evCard.place) : '') : '광장에서 일정을 추가해 보세요';
-      const attDone = att.done;
       return `
         <div class="tc-wrap">
-          <button type="button" class="tc-card ${attDone ? 'done' : ''}" id="tcAttCard" onclick="tcOpenAttCheck()">
-            <div class="tc-icon">${attDone ? '<span class="tc-check-anim">✅</span>' : '📋'}</div>
-            <div class="tc-body">
-              <div class="tc-label">이번 달 출석</div>
-              <div class="tc-main">${attDone ? '오늘 출석 완료!' : '출석 체크하기'}</div>
-              <div class="tc-sub" id="tcAttSub">${tcAttSubText()}</div>
-            </div>
-            <div class="tc-arrow">${attDone ? '✓' : '›'}</div>
-          </button>
           <button type="button" class="tc-card" onclick="switchTab('calendar')">
             <div class="tc-icon">📅</div>
             <div class="tc-body">
@@ -5117,18 +5099,6 @@
         </div>
         <div class="act-divider" style="margin-top:6px"></div>`;
     }
-    function tcAttSubText() {
-      const i = tcAttInfo();
-      return i.month == null ? '출석 현황 불러오는 중' : i.month ? `이번 달 ${i.month}회 출석` : '모임에서 QR을 찍어 출석하세요';
-    }
-    function tcOpenAttCheck() { tcAttInfo().done ? attOpenMyList() : attOpenScanner(); }
-    // 출석 기록을 새로 받으면 Today Card 출석 칸만 다시 그림
-    function tcRenderAtt() {
-      const el = document.getElementById('tcAttCard'); if (!el) return;
-      const tmp = document.createElement('div'); tmp.innerHTML = todayCardHtml();
-      const n = tmp.querySelector('#tcAttCard'); if (n) el.replaceWith(n);
-    }
-
     function dashboardViewHtml() {
       if (home.loading) return `<div class="text-center py-16 text-sm text-base-content/40"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`;
       if (home.error) return `<div class="p-4"><div class="alert alert-error text-sm">⚠️ ${esc(home.error)}</div></div>`;
@@ -5236,7 +5206,7 @@
                ${past.slice(0, 3).map(m => `<div class="att-row"><span class="att-dot ${done.has(m.meetingId) ? 'on' : ''}">${done.has(m.meetingId) ? '✓' : '–'}</span><span class="att-row-t">${esc(m.title)}</span><time>${esc(String(m.date).slice(5).replace('-', '/'))}</time></div>`).join('')}`}
         </div>`;
     }
-    function attRenderCard() { const el = document.getElementById('attCard'); if (el) el.outerHTML = attCardHtml(); tcRenderAtt(); }
+    function attRenderCard() { const el = document.getElementById('attCard'); if (el) el.outerHTML = attCardHtml(); }
     function attOpenMyList() {
       const d = attSt.my; if (!d) return;
       const byM = {}; d.records.forEach(r => { byM[r.meetingId] = r; });
