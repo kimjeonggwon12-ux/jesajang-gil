@@ -1788,7 +1788,7 @@
           <div class="act-appbar-title">나의 교실</div>
           <div class="act-appbar-actions">
             <button type="button" id="actTierChip" onclick="openGrowthModal()" style="display:none;height:28px;padding:0 11px;border-radius:999px;font-size:12.5px;font-weight:700;align-items:center"></button>
-            <button type="button" title="알림">
+            <button type="button" title="알림 설정" onclick="openPushNotiSheet()">
               <svg class="lucide-i" style="width:22px;height:22px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>
             </button>
             <button type="button" title="내 계정" onclick="openAccountSheet()">
@@ -2328,6 +2328,83 @@
       window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(() => {}); });
     }
 
+    // ══ 2026-10-05: 브라우저 알림 권한 요청 + 일정 알림 예약 ══
+    const pushNoti = {
+      sw: null,
+      async init() {
+        if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
+        try { pushNoti.sw = await navigator.serviceWorker.ready; } catch(e) {}
+      },
+      async requestPermission() {
+        if (!('Notification' in window)) return 'unsupported';
+        if (Notification.permission === 'granted') return 'granted';
+        if (Notification.permission === 'denied') return 'denied';
+        const perm = await Notification.requestPermission();
+        return perm;
+      },
+      // 일정 D-1 알림 예약 (Service Worker 메시지 방식)
+      scheduleEventReminder(ev, hoursBeforeMs) {
+        if (!pushNoti.sw || Notification.permission !== 'granted') return;
+        const startDate = ev.startDate;
+        if (!startDate) return;
+        const fireAt = new Date(startDate + 'T09:00:00').getTime() - (hoursBeforeMs || 86400000);
+        const delayMs = fireAt - Date.now();
+        if (delayMs < 0 || delayMs > 7 * 24 * 60 * 60 * 1000) return; // 과거 또는 1주 초과 스킵
+        pushNoti.sw.active && pushNoti.sw.active.postMessage({
+          type: 'SCHEDULE_NOTIFICATION',
+          delayMs,
+          title: '📅 내일 일정 있어요',
+          body: `${esc(calTitleWithPrefix(ev))} · ${ev.place || ''}`,
+          url: './app.html#calendar',
+          tag: 'ev-' + (ev.eventId || startDate),
+        });
+      },
+      // 앱을 열 때 이번 주 일정 알림 예약
+      scheduleWeekEvents() {
+        if (!calSt.events || !calSt.events.length) return;
+        const sat = (() => { const d = new Date(calTodayDate); d.setDate(d.getDate() + (6 - d.getDay())); return calYmd(d.getFullYear(), d.getMonth(), d.getDate()); })();
+        calSt.events.filter(e => e.startDate >= CAL_TODAY && e.startDate <= sat).forEach(e => pushNoti.scheduleEventReminder(e));
+      },
+    };
+    pushNoti.init();
+
+    // 알림 권한 안내 버튼 (설정 섹션에서 호출)
+    async function openPushNotiSheet() {
+      const perm = Notification.permission;
+      if (perm === 'granted') {
+        toast('✅ 알림이 이미 켜져 있어요. 이번 주 일정을 예약합니다.');
+        pushNoti.scheduleWeekEvents();
+        return;
+      }
+      if (perm === 'denied') {
+        openSheet(`
+          <div style="font-size:20px;font-weight:800;margin-bottom:8px">🔕 알림 차단됨</div>
+          <div style="font-size:14px;color:#6B7280;line-height:1.7">브라우저에서 알림을 차단해 두셨어요.<br>
+          주소창 옆 자물쇠 아이콘 → 알림 → 허용으로 바꿔주세요.</div>
+          <button onclick="closeSheet()" style="width:100%;height:44px;margin-top:16px;border:none;background:#F3F4F6;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">확인</button>`);
+        return;
+      }
+      openSheet(`
+        <div style="font-size:22px;margin-bottom:8px">🔔</div>
+        <div style="font-size:20px;font-weight:800;margin-bottom:8px">전도 일정 알림 받기</div>
+        <div style="font-size:14px;color:#6B7280;line-height:1.7;margin-bottom:20px">
+          일정 하루 전 미리 알려드릴게요.<br>앱을 닫아도 브라우저가 켜져 있으면 받을 수 있어요.
+        </div>
+        <button type="button" id="pushPermBtn" style="width:100%;height:52px;border-radius:14px;border:none;background:var(--color-primary);color:#fff;font-size:16px;font-weight:800;cursor:pointer">✅ 알림 허용하기</button>
+        <button onclick="closeSheet()" style="width:100%;height:44px;margin-top:8px;border:none;background:none;font-size:14px;color:#9CA3AF;cursor:pointer">나중에</button>`);
+      document.getElementById('pushPermBtn').onclick = async () => {
+        const result = await pushNoti.requestPermission();
+        closeSheet();
+        if (result === 'granted') {
+          toast('🔔 알림이 켜졌어요! 이번 주 일정을 예약합니다.');
+          pushNoti.scheduleWeekEvents();
+        } else {
+          toast('알림 허용이 필요해요.', true);
+        }
+      };
+    }
+    window.openPushNotiSheet = openPushNotiSheet;
+
     // ════════════════════════════════════════════════════════════════
     // [SHARED] 관리자 접근 제어 (2026-09-23 신설 — 그 전까지는 전체 개방이었음)
     // ────────────────────────────────────────────────────────────────
@@ -2787,6 +2864,8 @@
         apiSWR({ action: 'getCalendarEvents', memberId: MEMBER_ID }, r => {
           if (r && !r.error) calSt.events = r.rows || [];
           calDrawCalendar(); calRenderUpcoming();
+          // 2026-10-05: 일정 로드 후 이번 주 일정 알림 자동 예약
+          if (Notification.permission === 'granted') pushNoti.scheduleWeekEvents();
         }, afterWrite).catch(() => { calDrawCalendar(); calRenderUpcoming(); }),
         apiSWR({ action: 'getCalendarAds' }, r => {
           if (r && r.error) calSt.adErr = r.error; else { calSt.ads = (r && r.rows) || []; calSt.adErr = ''; }
