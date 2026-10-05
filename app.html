@@ -1389,6 +1389,30 @@
     #sec-calendar .pz-board-top time { flex-shrink:0; font-size:12px; color:var(--ws-s); }
     #sec-calendar .pz-board-body { margin-top:6px; padding-left:2px; font-size:13.5px; line-height:1.55; color:#505050; white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
     #sec-calendar .pz-board-row.open .pz-board-body { display:block; -webkit-line-clamp:unset; }
+    /* 2026-10-05 전도부 게시판 질문·답변 (상세 시트는 #appSheetHost라 전역 클래스) */
+    #sec-calendar .pz-board-q { margin-top:6px; font-size:12px; font-weight:700; color:var(--ws-s); }
+    #sec-calendar .pz-board-q em { font-style:normal; color:#D94040; }
+    .adq-head { display:flex; align-items:center; gap:8px; margin-top:4px; }
+    .adq-title { font-size:18px; font-weight:800; line-height:1.35; letter-spacing:-0.02em; }
+    .adq-date { margin-top:4px; font-size:12.5px; color:#8A8A8A; }
+    .adq-body { margin-top:12px; font-size:14.5px; line-height:1.65; color:#333; white-space:pre-wrap; word-break:break-word; }
+    .adq-sec { margin:20px 0 4px; padding-top:14px; border-top:1px solid #EEE; font-size:15px; font-weight:800; }
+    .adq-item { padding:12px 0; border-bottom:1px solid #F2F2F2; }
+    .adq-meta { display:flex; align-items:baseline; gap:8px; font-size:13px; }
+    .adq-meta b { font-weight:800; }
+    .adq-meta span { font-size:11.5px; color:#9A9A9A; }
+    .adq-text { margin-top:4px; font-size:14px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
+    .adq-ans { margin-top:8px; padding:10px 12px; border-radius:10px; background:#EAF8F3; }
+    .adq-ans .adq-meta b { color:#00936E; }
+    .adq-wait { margin-top:6px; font-size:12.5px; color:#9A9A9A; }
+    .adq-acts { display:flex; justify-content:flex-end; gap:12px; margin-top:6px; }
+    .adq-link { border:none; background:none; padding:2px 0; font-size:12.5px; font-weight:700; color:#6B6B6B; cursor:pointer; }
+    .adq-link.adq-danger { color:#D94040; }
+    .adq-save { border:none; border-radius:10px; padding:0 14px; height:36px; background:#00AE82; color:#fff; font-size:14px; font-weight:800; cursor:pointer; }
+    .adq-save:disabled, .adq-link:disabled { opacity:.5; cursor:default; }
+    .adq-edit { margin-top:8px; }
+    .adq-edit textarea, .adq-new textarea { min-height:72px; resize:vertical; }
+    .adq-new { margin-top:14px; }
     @media (min-width: 1024px) {
       html.pz-dk #sec-calendar .pz-cal-layout { flex-direction:row; }
       html.pz-dk #sec-calendar .pz-cal-main { flex:1; }
@@ -2642,6 +2666,7 @@
         calSt.ads = (adRes && adRes.rows) || []; calSt.adErr = '';
       } catch (e) { calSt.adErr = e.message; }
       calDrawCalendar(); calRenderUpcoming(); calRenderAds();
+      adqLoad();   // 2026-10-05: 공지별 질문 수(게시판 줄의 💬 N) — 늦게 와도 게시판만 다시 그림
     }
     // 오늘부터 120일 안의 일정을 날짜순으로(반복 일정은 다음 한 번만)
     function calUpcomingList(max) {
@@ -2715,9 +2740,98 @@
             <div class="pz-board-row" data-pz-ad>
               <div class="pz-board-top"><span class="pz-board-tag">공지</span><b>${esc(a.title)}</b><time>${esc(String(a.updatedAt || '').slice(5, 10).replace('-', '.'))}</time></div>
               ${a.body ? `<div class="pz-board-body">${esc(a.body)}</div>` : ''}
+              <div class="pz-board-q">💬 질문 ${adqFor(a.adId).length}${adqFor(a.adId).some(q => !q.answer) ? ' · <em>답변 대기</em>' : ''}</div>
             </div>`).join('')}</div>` + pzMoreBtn('ad', ads.length)
         : '<div class="pz-empty">등록된 공지가 없어요.</div>');
-      el.querySelectorAll('[data-pz-ad]').forEach(r => { r.onclick = () => r.classList.toggle('open'); });
+      // 2026-10-05: 줄을 누르면 펼침 대신 상세 창(본문 전체 + 질문·답변)
+      el.querySelectorAll('[data-pz-ad]').forEach((r, i) => { r.onclick = () => adqOpen(ads[i].adId); });
+    }
+
+    // ============ 2026-10-05: 전도부 게시판 공지 — 댓글 질문 + 관리자 답변 ============
+    // 질문 등록은 누구나, 질문 수정·삭제와 답변(등록·수정·삭제)은 관리자(isAdmin)만. 서버도 같은 규칙으로 다시 검사한다.
+    const adqSt = { rows: null, openId: '', edit: '', del: '', busy: false };
+    const adqFor = adId => (adqSt.rows || []).filter(q => q.adId === adId);
+    async function adqLoad() {
+      try { const res = await callApi({ action: 'getAdQuestions' }); adqSt.rows = (res && res.rows) || []; } catch (e) { if (!adqSt.rows) adqSt.rows = []; }
+      calRenderAds();
+      if (adqSt.openId && document.getElementById('adqSheet')) adqRender();
+    }
+    function adqWhen(s) { s = String(s || ''); return s ? s.slice(5, 16).replace('-', '.') : ''; }
+    function adqOpen(adId) {
+      adqSt.openId = adId; adqSt.edit = ''; adqSt.del = '';
+      openSheet('<div id="adqSheet"></div>');
+      adqRender();
+      if (!adqSt.rows) adqLoad();
+    }
+    function adqRender() {
+      const host = document.getElementById('adqSheet'); if (!host) return;
+      const ad = (calSt.ads || []).find(a => a.adId === adqSt.openId);
+      if (!ad) { host.innerHTML = '<div class="pz-empty">공지를 찾을 수 없어요.</div>'; return; }
+      const admin = isAdmin(), qs = adqFor(ad.adId);
+      const editBox = (id, val, ph, saveLabel) => `<div class="adq-edit"><textarea class="cal-inp" id="adqEditTxt" maxlength="1500" placeholder="${esc(ph)}">${esc(val)}</textarea>
+          <div class="adq-acts"><button type="button" class="adq-link" data-adq-cancel>취소</button><button type="button" class="adq-save" data-adq-save="${esc(id)}">${esc(saveLabel)}</button></div></div>`;
+      const item = q => {
+        const eq = adqSt.edit === 'q:' + q.questionId, ea = adqSt.edit === 'a:' + q.questionId;
+        return `<div class="adq-item">
+          <div class="adq-meta"><b>${esc(q.authorName || '익명')}</b><span>${esc(adqWhen(q.createdAt))}${q.updatedAt ? ' · 수정됨' : ''}</span></div>
+          ${eq ? editBox('q:' + q.questionId, q.text, '질문 내용', '수정 저장') : `<div class="adq-text">${esc(q.text)}</div>`}
+          ${admin && !eq ? `<div class="adq-acts">
+              <button type="button" class="adq-link" data-adq-edit="a:${esc(q.questionId)}">${q.answer ? '답변 수정' : '답변하기'}</button>
+              <button type="button" class="adq-link" data-adq-edit="q:${esc(q.questionId)}">질문 수정</button>
+              <button type="button" class="adq-link adq-danger" data-adq-del="${esc(q.questionId)}">${adqSt.del === q.questionId ? '한 번 더 누르면 삭제' : '삭제'}</button></div>` : ''}
+          ${ea ? editBox('a:' + q.questionId, q.answer, '답변을 입력하세요 (비우고 저장하면 답변 삭제)', '답변 저장')
+            : q.answer ? `<div class="adq-ans"><div class="adq-meta"><b>↳ 답변 · ${esc(q.answererName || '관리자')}</b><span>${esc(adqWhen(q.answeredAt))}</span></div><div class="adq-text">${esc(q.answer)}</div></div>`
+            : '<div class="adq-wait">답변을 기다리고 있어요.</div>'}
+        </div>`;
+      };
+      host.innerHTML = `
+        <div class="adq-head"><span class="pz-board-tag" style="font-size:11.5px;font-weight:900;padding:3px 8px;border-radius:6px;background:#FFE9E9;color:#D94040">공지</span>
+          <div class="adq-title">${esc(ad.title)}</div></div>
+        <div class="adq-date">${esc(String(ad.updatedAt || '').slice(0, 10))} · 전도부</div>
+        ${ad.body ? `<div class="adq-body">${esc(ad.body)}</div>` : ''}
+        <div class="adq-sec">💬 질문 ${qs.length}개</div>
+        ${adqSt.rows === null ? '<div class="pz-empty">불러오는 중...</div>' : qs.length ? qs.map(item).join('') : '<div class="adq-wait" style="padding:6px 0 4px">아직 질문이 없어요. 궁금한 점을 남겨주세요.</div>'}
+        <div class="adq-new">
+          <textarea class="cal-inp" id="adqNewTxt" maxlength="1000" placeholder="이 공지에 대해 궁금한 점을 남겨주세요"></textarea>
+          <button type="button" class="adq-save" id="adqNewBtn" style="width:100%;margin-top:8px;height:44px">질문 등록</button>
+        </div>`;
+      host.querySelectorAll('[data-adq-edit]').forEach(b => { b.onclick = () => { adqSt.edit = b.dataset.adqEdit; adqSt.del = ''; adqRender(); document.getElementById('adqEditTxt')?.focus(); }; });
+      host.querySelectorAll('[data-adq-cancel]').forEach(b => { b.onclick = () => { adqSt.edit = ''; adqRender(); }; });
+      host.querySelectorAll('[data-adq-save]').forEach(b => { b.onclick = () => adqSaveEdit(b.dataset.adqSave); });
+      host.querySelectorAll('[data-adq-del]').forEach(b => { b.onclick = () => {
+        if (adqSt.del !== b.dataset.adqDel) { adqSt.del = b.dataset.adqDel; adqRender(); return; }
+        adqCall({ action: 'deleteAdQuestion', memberId: App.memberId, questionId: b.dataset.adqDel }, '질문을 삭제했어요.');
+      }; });
+      document.getElementById('adqNewBtn').onclick = () => {
+        const text = document.getElementById('adqNewTxt').value.trim();
+        if (!text) { toast('질문 내용을 입력해주세요.', true); return; }
+        adqCall({ action: 'saveAdQuestion', memberId: App.memberId, name: App.name, adId: ad.adId, text }, '질문을 등록했어요.');
+      };
+    }
+    function adqSaveEdit(key) {
+      const [kind, qid] = [key.slice(0, 1), key.slice(2)];
+      const text = (document.getElementById('adqEditTxt')?.value || '').trim();
+      if (kind === 'q') {
+        if (!text) { toast('질문 내용을 입력해주세요.', true); return; }
+        adqCall({ action: 'saveAdQuestion', memberId: App.memberId, name: App.name, questionId: qid, text }, '질문을 수정했어요.');
+      } else {
+        adqCall({ action: 'answerAdQuestion', memberId: App.memberId, name: App.name, questionId: qid, answer: text }, text ? '답변을 저장했어요.' : '답변을 삭제했어요.');
+      }
+    }
+    async function adqCall(payload, okMsg) {
+      if (adqSt.busy) return;
+      adqSt.busy = true;
+      document.querySelectorAll('#adqSheet button').forEach(b => { b.disabled = true; });
+      try {
+        const res = await callApi(payload);
+        if (res && res.error) throw new Error(res.error);
+        adqSt.edit = ''; adqSt.del = '';
+        toast(okMsg);
+        await adqLoad();
+      } catch (e) {
+        toast(e.message, true);
+        document.querySelectorAll('#adqSheet button').forEach(b => { b.disabled = false; });
+      } finally { adqSt.busy = false; }
     }
     document.getElementById('calAddBtn').onclick = () => calOpenAddCategoryPicker();
 
