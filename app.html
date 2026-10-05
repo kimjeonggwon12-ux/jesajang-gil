@@ -572,6 +572,39 @@
     /* ── 섹션 구분(당근은 굵은 회색 띠로 블록을 나눔) */
     #sec-activity .act-divider { height:8px; background:#F7F8F9; }
 
+    /* ══ 2026-10-05 Today Card — 나의교실 첫 화면 즉각적 가치 카드 ══ */
+    .tc-wrap { padding:14px 16px 4px; display:flex; flex-direction:column; gap:10px; }
+    .tc-card {
+      border-radius:18px; background:#fff; border:1.5px solid #F0F1F3;
+      padding:16px 18px; display:flex; align-items:center; gap:14px;
+      cursor:pointer; transition:transform .12s ease, box-shadow .12s ease;
+      box-shadow:0 1px 4px rgba(17,24,39,.06);
+    }
+    .tc-card:active { transform:scale(0.97); box-shadow:0 1px 2px rgba(17,24,39,.04); }
+    .tc-card.done { border-color:#D1FAE5; background:#F0FDF4; }
+    .tc-icon { font-size:26px; line-height:1; flex-shrink:0; width:38px; text-align:center; }
+    .tc-body { flex:1; min-width:0; }
+    .tc-label { font-size:13px; font-weight:700; color:#9CA3AF; letter-spacing:-0.01em; margin-bottom:3px; }
+    .tc-main { font-size:15.5px; font-weight:800; color:#111827; line-height:1.35; letter-spacing:-0.02em; }
+    .tc-card.done .tc-main { color:#16A34A; }
+    .tc-sub { font-size:13px; color:#6B7280; margin-top:3px; }
+    .tc-arrow { font-size:14px; color:#D1D5DB; flex-shrink:0; }
+    .tc-card.done .tc-arrow { color:#86EFAC; }
+    .tc-badge { display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:999px; font-size:11.5px; font-weight:800; background:var(--color-primary); color:#fff; margin-left:8px; vertical-align:middle; }
+    /* 출석 체크 버튼 */
+    .tc-att-btn {
+      width:100%; height:52px; border-radius:14px; border:none; font-size:16px; font-weight:800;
+      cursor:pointer; font-family:inherit; letter-spacing:-0.02em; transition:transform .12s ease;
+      display:flex; align-items:center; justify-content:center; gap:8px;
+    }
+    .tc-att-btn:active { transform:scale(0.97); }
+    .tc-att-btn.default { background:var(--color-primary); color:#fff; }
+    .tc-att-btn.done { background:#D1FAE5; color:#16A34A; cursor:default; }
+    .tc-att-section { padding:0 16px 10px; }
+    /* 오늘 완료 후 체크 표시 */
+    @keyframes tcCheckPop { 0%{transform:scale(0.6);opacity:0} 70%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+    .tc-check-anim { animation:tcCheckPop .35s ease-out; }
+
     /* ── 2026-09-23 "다음 단계로" 안내 — 흐려서 안 보인다는 지적으로 대비 강화 ── */
     .next-step { background: var(--color-primary-light); border-radius: 14px;
       padding: 12px 14px; margin-top: 10px; }
@@ -2603,22 +2636,53 @@
     }
     // 2026-09-22: 스탭/참석자 신청은 "공식·행사" 유형에만(부서/내일정은 정보 공유용, 신청 불필요).
     // 부서/내일정은 등록한 본인이면 삭제 가능(서버가 카테고리≠공식일 때 소유자 확인).
+    // 2026-10-05: 참석 의사 표시(교사 본인 참석 예정 여부) — localStorage에 일정ID별 보관.
+    function calAttIntentKey(ev) { return 'calatt_' + (ev.eventId || ev.title || '') + '_' + (ev.startDate || ''); }
+    function calGetAttIntent(ev) { try { return localStorage.getItem(calAttIntentKey(ev)) || ''; } catch(e) { return ''; } }
+    function calSetAttIntent(ev, v) { try { localStorage.setItem(calAttIntentKey(ev), v); } catch(e) {} }
     function calRenderEvent(loading) {
       const e = calCur, isOfficialEvent = e.category === '공식' && e.type === '행사';
       const isMineNonOfficial = e.category !== '공식' && sameIdClient(e.createdBy, MEMBER_ID);
+      const attIntent = calGetAttIntent(e);
+      const showAttIntent = e.category !== '내일정'; // 공식·부서 일정에서 참석 의사 표시
       openSheet(`
         <span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category)}${e.category === '공식' ? ' · ' + esc(e.type) : ''}${calPrefix(e) ? ' · ' + esc(calPrefix(e)) : ''}</span>
         <div style="font-size:21px;font-weight:800;margin:8px 0 4px">${esc(e.title)}</div>
         <div class="cal-hint">📅 ${esc(calRangeText(e))}${e.place ? ' · 📍 ' + esc(e.place) : ''}${e.dept ? ' · ' + esc(e.dept) : ''}</div>
         ${e.desc ? `<div style="margin-top:12px;font-size:14px;white-space:pre-wrap">${esc(e.desc)}</div>` : ''}
+        ${showAttIntent ? `
+        <div style="margin-top:16px">
+          <div style="font-size:13px;font-weight:700;color:#6B7280;margin-bottom:8px">참석 예정</div>
+          <div style="display:flex;gap:8px" id="calIntentBtns">
+            ${[['✅ 참석', 'yes'], ['🤔 미정', 'maybe'], ['❌ 불참', 'no']].map(([lbl, val]) => `
+            <button type="button" data-intent="${val}" style="flex:1;height:40px;border-radius:12px;border:1.5px solid ${attIntent===val ? 'var(--color-primary)' : '#E5E7EB'};background:${attIntent===val ? 'var(--color-primary-light)' : '#fff'};font-size:13.5px;font-weight:700;color:${attIntent===val ? 'var(--color-primary)' : '#374151'};cursor:pointer">${lbl}</button>`).join('')}
+          </div>
+        </div>` : ''}
         ${isOfficialEvent ? `
-        <div style="margin-top:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">
           <button class="kko-btn-main" id="calGoStaff">🙋 스탭·기능자 신청${calMine.staff ? ' (신청됨 · ' + esc(calMine.staff.dept) + ')' : ''}</button>
           <button class="kko-btn-outline" id="calGoAtt">👥 참석자 신청 <span style="font-weight:400">· 총 ${calMine.totalAttendees}명${calMine.attendees.length ? ' (내 섭외 ' + calMine.attendees.length + '명)' : ''}</span></button>
         </div>
         ${loading ? '<div class="cal-hint" style="text-align:center;margin-top:8px">내 신청 내역 확인 중...</div>' : ''}` : (e.category === '공식' ? '<div class="cal-hint" style="margin-top:14px">개강일은 안내용이에요.</div>' : '')}
         ${isMineNonOfficial ? '<button class="kko-btn-outline" id="calDelMine" style="margin-top:14px;color:var(--color-error);border-color:var(--color-error)">이 일정 삭제</button>' : ''}
         <div style="text-align:center;margin-top:12px"><button class="cal-hint" style="background:none;border:none;cursor:pointer" onclick="closeSheet()">닫기</button></div>`);
+      // 참석 의사 버튼 이벤트
+      const intentBtns = document.getElementById('calIntentBtns');
+      if (intentBtns) {
+        intentBtns.querySelectorAll('[data-intent]').forEach(btn => {
+          btn.onclick = () => {
+            calSetAttIntent(e, btn.dataset.intent);
+            const labels = { yes: '✅ 참석 예정으로 저장했어요', maybe: '🤔 미정으로 저장했어요', no: '❌ 불참으로 저장했어요' };
+            toast(labels[btn.dataset.intent] || '저장했어요');
+            intentBtns.querySelectorAll('[data-intent]').forEach(b => {
+              const on = b.dataset.intent === btn.dataset.intent;
+              b.style.borderColor = on ? 'var(--color-primary)' : '#E5E7EB';
+              b.style.background = on ? 'var(--color-primary-light)' : '#fff';
+              b.style.color = on ? 'var(--color-primary)' : '#374151';
+            });
+          };
+        });
+      }
       const s = document.getElementById('calGoStaff'); if (s) s.onclick = calOpenStaffForm;
       const a = document.getElementById('calGoAtt'); if (a) a.onclick = calOpenAttForm;
       const d = document.getElementById('calDelMine');
@@ -2767,11 +2831,17 @@
       const md = d => `${d.getMonth() + 1}/${d.getDate()}`;
       document.getElementById('calWeekRange').textContent = `${md(days[0])} ~ ${md(days[6])}`;
       const picked = [];
+      // 2026-10-05: 참석 의사 뱃지 포함 렌더링
+      const intentIcon = { yes: '✅', maybe: '🤔', no: '❌' };
       host.innerHTML = days.map(d => {
         const date = calYmd(d.getFullYear(), d.getMonth(), d.getDate()), evs = calEventsOn(date), dow = d.getDay();
         return `<div class="pz-wk-day ${date === CAL_TODAY ? 'today' : ''} ${date < CAL_TODAY ? 'past' : ''} ${evs.length ? '' : 'empty'}">
           <div class="pz-wk-d ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}"><b>${calDOW[dow]}</b><span>${md(d)}</span></div>
-          <div class="pz-wk-evs">${evs.length ? evs.map(e => { picked.push(e); return `<button type="button" class="pz-wk-ev" data-cal-wk="${picked.length - 1}"><i style="background:${calCatColor(e.category)}"></i>${esc(calTitleWithPrefix(e))}</button>`; }).join('') : '<span class="pz-wk-none">일정 없음</span>'}</div>
+          <div class="pz-wk-evs">${evs.length ? evs.map(e => {
+            const intent = calGetAttIntent(e);
+            picked.push(e);
+            return `<button type="button" class="pz-wk-ev" data-cal-wk="${picked.length - 1}"><i style="background:${calCatColor(e.category)}"></i><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(calTitleWithPrefix(e))}</span>${intent ? `<span style="font-size:11px;flex-shrink:0;margin-left:2px">${intentIcon[intent]||''}</span>` : ''}</button>`;
+          }).join('') : '<span class="pz-wk-none">일정 없음</span>'}</div>
         </div>`;
       }).join('');
       host.querySelectorAll('[data-cal-wk]').forEach(b => { b.onclick = () => calOpenEvent(picked[Number(b.dataset.calWk)]); });
@@ -4816,6 +4886,123 @@
       catch (e) {}
     }
 
+    // ══ 2026-10-05 Today Card ══
+    // 출석 상태: localStorage에 날짜와 함께 보관. 날짜가 달라지면 자동 초기화.
+    function tcGetAttStatus() {
+      try {
+        const v = JSON.parse(localStorage.getItem('tc_att') || '{}');
+        return v.date === todayStr() ? v : { date: todayStr(), done: false };
+      } catch(e) { return { date: todayStr(), done: false }; }
+    }
+    function tcSetAttDone() {
+      try { localStorage.setItem('tc_att', JSON.stringify({ date: todayStr(), done: true })); } catch(e) {}
+    }
+    // 오늘 가장 가까운 일정 가져오기
+    function tcTodayEvent() {
+      try {
+        const today = CAL_TODAY;
+        const evs = calSt.events.filter(e => calIsRepeat(e)
+          ? (e.startDate <= today && today <= e.repeatUntil && (e.repeatDays || []).includes(calTodayDate.getDay()))
+          : (e.startDate <= today && e.endDate >= today));
+        return evs[0] || null;
+      } catch(e) { return null; }
+    }
+    // 이번 주 다가오는 일정(오늘 포함 이번주 토요일까지)
+    function tcWeekNextEvent() {
+      try {
+        const today = CAL_TODAY;
+        const sat = (() => { const d = new Date(calTodayDate); d.setDate(d.getDate() + (6 - d.getDay())); return calYmd(d.getFullYear(), d.getMonth(), d.getDate()); })();
+        const evs = calSt.events.filter(e => {
+          if (calIsRepeat(e)) {
+            for (let i = 0; i <= 6; i++) {
+              const d = new Date(calTodayDate); d.setDate(d.getDate() + i);
+              const date = calYmd(d.getFullYear(), d.getMonth(), d.getDate());
+              if (date >= today && date <= sat && (e.repeatDays || []).includes(d.getDay())) return true;
+            }
+            return false;
+          }
+          return e.startDate <= sat && e.endDate >= today;
+        });
+        evs.sort((a, b) => (a.startDate > b.startDate ? 1 : -1));
+        return evs.length ? evs[0] : null;
+      } catch(e) { return null; }
+    }
+    function todayCardHtml() {
+      const att = tcGetAttStatus();
+      const todayEv = tcTodayEvent();
+      const nextEv = todayEv ? null : tcWeekNextEvent();
+      const evCard = todayEv || nextEv;
+      const evLabel = todayEv ? '📅 오늘 일정' : '📅 이번 주 일정';
+      const evMain = evCard ? esc(calTitleWithPrefix(evCard)) : '이번 주 전도 일정 없음';
+      const evSub = evCard ? esc(calRangeText(evCard)) + (evCard.place ? ' · ' + esc(evCard.place) : '') : '광장에서 일정을 추가해 보세요';
+      const attDone = att.done;
+      return `
+        <div class="tc-wrap">
+          <button type="button" class="tc-card ${attDone ? 'done' : ''}" id="tcAttCard" onclick="tcOpenAttCheck()">
+            <div class="tc-icon">${attDone ? '<span class="tc-check-anim">✅</span>' : '📋'}</div>
+            <div class="tc-body">
+              <div class="tc-label">이번 달 출석</div>
+              <div class="tc-main">${attDone ? '오늘 출석 완료!' : '출석 체크하기'}</div>
+              <div class="tc-sub" id="tcAttSub">${tcAttSubText()}</div>
+            </div>
+            <div class="tc-arrow">${attDone ? '✓' : '›'}</div>
+          </button>
+          <button type="button" class="tc-card" onclick="switchTab('calendar')">
+            <div class="tc-icon">📅</div>
+            <div class="tc-body">
+              <div class="tc-label">${evLabel}</div>
+              <div class="tc-main">${evMain}</div>
+              <div class="tc-sub">${evSub}</div>
+            </div>
+            <div class="tc-arrow">›</div>
+          </button>
+        </div>
+        <div class="act-divider" style="margin-top:6px"></div>`;
+    }
+    function tcAttSubText() {
+      // 이번 달 출석 횟수 — 활동 데이터에서 '선교센터 교사로 출석' 유형 카운트
+      try {
+        const rows = (home.monthlyActRes && home.monthlyActRes.rows) || [];
+        const cnt = rows.filter(r => (r.workType || '').includes('출석')).length;
+        return cnt > 0 ? `이번 달 ${cnt}회 출석` : '아직 출석 기록 없음';
+      } catch(e) { return '출석 현황 확인'; }
+    }
+    async function tcOpenAttCheck() {
+      const att = tcGetAttStatus();
+      if (att.done) { toast('오늘 이미 출석 체크했어요 ✅'); return; }
+      // 바텀시트로 출석 확인
+      openSheet(`
+        <div style="font-size:20px;font-weight:800;margin-bottom:6px">📋 출석 체크</div>
+        <div style="font-size:14px;color:#6B7280;margin-bottom:20px">오늘 선교센터에서 활동하셨나요?<br>출석을 기록하면 이번 달 현황에 반영됩니다.</div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:#374151">오늘 날짜: ${todayStr()}</div>
+        <button type="button" id="tcAttConfirmBtn" class="tc-att-btn default" style="width:100%">
+          ✅ 오늘 출석 체크하기
+        </button>
+        <button type="button" onclick="closeSheet()" style="width:100%;height:44px;margin-top:8px;border:none;background:none;font-size:14px;color:#9CA3AF;cursor:pointer">나중에</button>
+      `);
+      document.getElementById('tcAttConfirmBtn').onclick = async () => {
+        const btn = document.getElementById('tcAttConfirmBtn');
+        if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
+        try {
+          await callApi({
+            action: 'addActivity',
+            memberId: MEMBER_ID,
+            name: MY_NAME,
+            workType: '선교센터 교사로 출석',
+            date: todayStr(),
+            note: '앱 출석 체크',
+          });
+          tcSetAttDone();
+          closeSheet();
+          toast('출석 완료! ✅ 이번 달 출석에 반영됐어요');
+          loadHomeDashboard(); // 대시보드 새로고침
+        } catch(err) {
+          toast('오류: ' + err.message, true);
+          if (btn) { btn.disabled = false; btn.textContent = '✅ 오늘 출석 체크하기'; }
+        }
+      };
+    }
+
     function dashboardViewHtml() {
       if (home.loading) return `<div class="text-center py-16 text-sm text-base-content/40"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`;
       if (home.error) return `<div class="p-4"><div class="alert alert-error text-sm">⚠️ ${esc(home.error)}</div></div>`;
@@ -4823,6 +5010,7 @@
       // 블록 사이는 카드 테두리 대신 굵은 회색 띠(.act-divider)로 끊어 답답함을 없앤다.
       return `
         <div class="pb-6">
+          ${todayCardHtml()}
           ${encouragementBannerHtml()}
           ${coachReplyBannerHtml()}
           ${actHeroHtml()}
