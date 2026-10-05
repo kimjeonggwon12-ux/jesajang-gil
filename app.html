@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>교사 광장</title>
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest.json?v=grape1">
   <meta name="theme-color" content="#00AE82">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="교사 광장">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png?v=grape1">
+  <link rel="icon" type="image/png" href="icon-192.png?v=grape1">
   <!-- 2026-09-22: SPA 통합(app.html) — daisyUI/Tailwind/Chart.js는 문서 전체에 1회만 로드.
        이전 11개 파일이 각자 따로 로드하던 동일 CDN들을 여기 하나로 합쳤다. -->
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
@@ -1930,7 +1931,7 @@
     };
     function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     App.esc = esc;
-    async function callApi(payload) {
+    async function callApiOnce(payload) {
       const res = await fetch(App.PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
       // 2026-09-16(home.html)~: Apps Script가 간헐적으로 JSON 대신 HTML(구글 로그인/오류 페이지 등)을
       // 반환하는 경우가 있어 Content-Type을 먼저 확인해 사람이 읽는 에러 메시지로 통일한다.
@@ -1938,7 +1939,47 @@
       if (!ct.includes('application/json')) throw new Error('서버 연결 오류. 잠시 후 다시 시도해주세요.');
       return await res.json();
     }
+    // 2026-10-05 속도 개선: Apps Script는 요청마다 3~4초가 기본으로 걸리고, 동시에 여러 개를 보내면 가끔 하나가
+    // HTML 오류 페이지로 튕긴다. 그래서 ① 읽기 요청은 실패하면 0.6초 뒤 1번 다시 시도하고
+    // ② 같은 읽기 요청이 동시에 겹치면(같은 payload) 한 번만 보내 결과를 나눠 쓴다. 쓰기 요청은 중복 저장 위험이 있어 그대로.
+    const API_READ = /^(get|list|check|search)/;
+    const apiInflight = new Map();
+    function callApi(payload) {
+      if (!API_READ.test(String(payload && payload.action || ''))) return callApiOnce(payload);
+      const key = JSON.stringify(payload);
+      if (apiInflight.has(key)) return apiInflight.get(key);
+      const p = callApiOnce(payload)
+        .catch(() => new Promise(r => setTimeout(r, 600)).then(() => callApiOnce(payload)))
+        .finally(() => apiInflight.delete(key));
+      apiInflight.set(key, p);
+      return p;
+    }
     App.callApi = callApi;
+    // 2026-10-05: 지난번 받은 화면 먼저 보여주기(stale-while-revalidate).
+    // apiSWR(payload, apply): 이 기기에 저장된 지난 결과가 있으면 apply(지난결과, true)로 바로 그리고,
+    // 서버 결과가 오면 저장 후 apply(새결과, false)로 다시 그린다(내용이 같으면 다시 안 그림). 서버 결과를 돌려준다.
+    const SWR_PREFIX = 'swr1:';
+    function swrPeek(payload) { try { const v = localStorage.getItem(SWR_PREFIX + JSON.stringify(payload)); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+    function swrSave(payload, text) {
+      const k = SWR_PREFIX + JSON.stringify(payload);
+      try { localStorage.setItem(k, text); }
+      catch (e) {   // 저장 공간이 차면 저장해 둔 화면 기록만 비우고 한 번 더
+        try { Object.keys(localStorage).filter(x => x.startsWith(SWR_PREFIX)).forEach(x => localStorage.removeItem(x)); localStorage.setItem(k, text); } catch (e2) {}
+      }
+    }
+    async function apiSWR(payload, apply, skipCache) {   // skipCache: 방금 저장/삭제한 뒤라 지난 화면을 보이면 안 될 때
+      const cached = skipCache ? null : swrPeek(payload);
+      if (cached) { try { apply(cached, true); } catch (e) {} }
+      let fresh;
+      try { fresh = await callApi(payload); }
+      catch (e) { if (cached) return cached; throw e; }   // 지난 화면을 이미 보여줬으면 연결 오류는 조용히 넘김
+      if (fresh && !fresh.error) {
+        const text = JSON.stringify(fresh);
+        if (!cached || text !== JSON.stringify(cached)) { swrSave(payload, text); apply(fresh, false); }
+      } else if (!cached) apply(fresh, false);
+      return fresh;
+    }
+    App.apiSWR = apiSWR;
     function toast(msg, isErr) {
       const host = document.getElementById('appToastHost');
       host.innerHTML = `<div class="app-toast ${isErr ? 'err' : ''}">${esc(msg)}</div>`;
@@ -2104,7 +2145,7 @@
       }
 
       const saved = pdLoadSaved() || (pdIsOwnerDevice() ? { memberId: OWNER_ID, name: OWNER_NAME } : null);
-      pdLoadStats();   // 스플래시가 도는 2.8초 동안 미리 받아둔다
+      pdLoadStats(!!saved);   // 스플래시가 도는 2.8초 동안 미리 받아둔다(바로 입장하는 사람은 저장된 숫자만)
       setTimeout(() => {
         const splash = document.getElementById('pdSplash');
         const login = document.getElementById('pdLogin');
@@ -2127,32 +2168,40 @@
             pdEnterWithSpinner(saved.memberId, saved.name, '입장 중...');
           }
         }, 600); // .pd-screen transition(.6s)과 맞춤
-      }, 2800);
+      }, saved ? 1200 : 2800);   // 2026-10-05: 저장된 고유번호로 바로 들어가는 사람은 표지를 짧게(대기 시간 줄이기)
     }
 
     /**
      * 로그인 화면 상단 "전주교회 교사 현황" — getRoster 1회로 총원·등급 분포만 뽑는다.
      * 실패하면 조용히 숨긴 채로 둔다(입장을 막지 않기 위해 — 표지는 어디까지나 안내).
      */
-    async function pdLoadStats() {
+    // 2026-10-05 속도 개선: 표지 숫자 4개를 위해 앱을 열 때마다 명단 전체(600KB+)를 받던 것을,
+    // 이 기기에 숫자만 저장해 두고 바로 보여준 뒤 6시간이 지났을 때만 새로 받는다.
+    // 저장된 고유번호로 바로 입장하는 사람(skipFetch)은 표지를 거의 못 보므로 새로 받지 않는다.
+    const PD_STATS_KEY = 'pd_stats_v1', PD_STATS_TTL = 6 * 3600e3;
+    function pdShowStats(s) {
+      const row = document.getElementById('pdStatsRow');
+      const box = document.getElementById('pdStats');
+      if (!row || !box || !s || !s.total) return;
+      const cells = [['총 교사', s.total, 'total'], ['활동교사', s.act, 'act'], ['교사', s.teacher, ''], ['휴교사', s.rest, 'rest']];
+      row.innerHTML = cells.map(([label, n, cls]) =>
+        `<div class="pd-stat ${cls}"><b>${Number(n || 0).toLocaleString()}</b><span>${label}</span></div>`).join('');
+      box.style.display = 'block';
+    }
+    async function pdLoadStats(skipFetch) {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(PD_STATS_KEY) || 'null'); } catch (e) {}
+      if (saved) pdShowStats(saved);
+      if (skipFetch || (saved && Date.now() - saved.at < PD_STATS_TTL)) return;
       try {
         const res = await callApi({ action: 'getRoster' });
         const rows = (res && res.rows) || [];
         if (!rows.length) return;
         const by = {};
         rows.forEach(r => { const t = r.tier || '(미분류)'; by[t] = (by[t] || 0) + 1; });
-        const cells = [
-          ['총 교사', rows.length, 'total'],
-          ['활동교사', by['활동교사'] || 0, 'act'],
-          ['교사', by['교사'] || 0, ''],
-          ['휴교사', by['휴교사'] || 0, 'rest']
-        ];
-        const row = document.getElementById('pdStatsRow');
-        const box = document.getElementById('pdStats');
-        if (!row || !box) return;
-        row.innerHTML = cells.map(([label, n, cls]) =>
-          `<div class="pd-stat ${cls}"><b>${n.toLocaleString()}</b><span>${label}</span></div>`).join('');
-        box.style.display = 'block';
+        const s = { total: rows.length, act: by['활동교사'] || 0, teacher: by['교사'] || 0, rest: by['휴교사'] || 0, at: Date.now() };
+        try { localStorage.setItem(PD_STATS_KEY, JSON.stringify(s)); } catch (e) {}
+        pdShowStats(s);
       } catch (e) { /* 표지 장식이라 실패해도 무시 */ }
     }
 
@@ -2298,18 +2347,17 @@
 
     /** 내 명단 행을 한 번 받아와 관리자 탭 노출을 결정한다. */
     async function loadMyRosterRow() {
-      const [rosterRes, adminRes] = await Promise.allSettled([
-        callApi({ action: 'getRoster' }),
-        callApi({ action: 'checkAdmin', memberId: App.memberId })
-      ]);
-      const rows = (rosterRes.status === 'fulfilled' && rosterRes.value && rosterRes.value.rows) || [];
-      const mine = String(App.memberId || '').replace(/[^0-9]/g, '');
-      myRosterRow = rows.find(r => String(r.memberId || '').replace(/[^0-9]/g, '') === mine) || null;
-      myAdminListed = adminRes.status === 'fulfilled' && !!(adminRes.value && adminRes.value.isAdmin);
-      myAdminInfo = myAdminListed ? adminRes.value : null;
-      myRosterLoaded = true;
-      updateAdminTabVisibility();
-      renderMeChips();
+      // 2026-10-05: 명단 전체(getRoster, 600KB+) 대신 checkAdmin이 내 명단 행(roster)까지 돌려준다.
+      // 지난번 결과가 이 기기에 있으면 관리자 탭·이름표를 바로 그리고, 서버 결과로 다시 확인한다.
+      const apply = (res, cached) => {
+        if (!res || res.error) { if (!cached) { myRosterRow = null; myAdminListed = false; myAdminInfo = null; } }
+        else { myRosterRow = res.roster || null; myAdminListed = !!res.isAdmin; myAdminInfo = myAdminListed ? res : null; }
+        myRosterLoaded = true;
+        updateAdminTabVisibility();
+        renderMeChips();
+      };
+      try { await apiSWR({ action: 'checkAdmin', memberId: App.memberId }, apply); }
+      catch (e) { apply(null, false); }
       // 권한이 없는데 관리자 탭을 보고 있었다면 기본 탭으로 되돌린다.
       if (!isAdmin() && App.currentTab === 'admin') switchTab('activity');
     }
@@ -2668,14 +2716,19 @@
       };
     }
 
-    async function calLoadAll() {
+    async function calLoadAll(afterWrite) {
       adqLoad();   // 2026-10-05: 공지별 질문·답변 — 공지와 동시에 받기 시작(끝나면 게시판만 다시 그림)
-      try {
-        const [evRes, adRes] = await Promise.all([callApi({ action: 'getCalendarEvents', memberId: MEMBER_ID }), callApi({ action: 'getCalendarAds' })]);
-        calSt.events = (evRes && evRes.rows) || [];
-        calSt.ads = (adRes && adRes.rows) || []; calSt.adErr = '';
-      } catch (e) { calSt.adErr = e.message; }
-      calDrawCalendar(); calRenderUpcoming(); calRenderAds();
+      // 2026-10-05 속도 개선: 일정·공지는 지난번 받은 것을 먼저 그리고(apiSWR), 서버 결과가 오면 다시 그린다.
+      await Promise.all([
+        apiSWR({ action: 'getCalendarEvents', memberId: MEMBER_ID }, r => {
+          if (r && !r.error) calSt.events = r.rows || [];
+          calDrawCalendar(); calRenderUpcoming();
+        }, afterWrite).catch(() => { calDrawCalendar(); calRenderUpcoming(); }),
+        apiSWR({ action: 'getCalendarAds' }, r => {
+          if (r && r.error) calSt.adErr = r.error; else { calSt.ads = (r && r.rows) || []; calSt.adErr = ''; }
+          calRenderAds();
+        }, afterWrite).catch(e => { calSt.adErr = e.message; calRenderAds(); })
+      ]);
     }
     // 오늘부터 120일 안의 일정을 날짜순으로(반복 일정은 다음 한 번만)
     function calUpcomingList(max) {
@@ -2773,14 +2826,15 @@
             : '<div class="pz-qa-a wait"><i>A</i><span>답변 대기 중</span></div>'}`).join('')}
         <div class="pz-qa-more">💬 질문 ${qs.length}개${qs.length > ADQ_INLINE ? ' 전체 보기' : ''} · 질문하기 ›</div></div>`;
     }
-    async function adqLoad() {
-      // 처음 접속 때 다른 요청과 몰려 한 번 실패하는 경우가 있어 1번만 다시 시도
-      for (let t = 0; t < 2; t++) {
-        try { const res = await callApi({ action: 'getAdQuestions' }); if (res && res.error) throw new Error(res.error); adqSt.rows = (res && res.rows) || []; break; }
-        catch (e) { if (t === 1 && !adqSt.rows) adqSt.rows = []; }
-      }
-      calRenderAds();
-      if (adqSt.openId && document.getElementById('adqSheet')) adqRender();
+    async function adqLoad(afterWrite) {
+      // 지난번 받은 질문·답변을 먼저 그리고 서버 결과로 다시 그림(재시도는 callApi가 1번 해 줌)
+      const apply = r => {
+        if (r && !r.error) adqSt.rows = r.rows || [];
+        else if (!adqSt.rows) adqSt.rows = [];
+        calRenderAds();
+        if (adqSt.openId && document.getElementById('adqSheet')) adqRender();
+      };
+      try { await apiSWR({ action: 'getAdQuestions' }, apply, afterWrite); } catch (e) { apply(null); }
     }
     function adqWhen(s) { s = String(s || ''); return s ? s.slice(5, 16).replace('-', '.') : ''; }
     function adqOpen(adId) {
@@ -2853,7 +2907,7 @@
         if (res && res.error) throw new Error(res.error);
         adqSt.edit = ''; adqSt.del = '';
         toast(okMsg);
-        await adqLoad();
+        await adqLoad(true);
       } catch (e) {
         toast(e.message, true);
         document.querySelectorAll('#adqSheet button').forEach(b => { b.disabled = false; });
@@ -2952,7 +3006,7 @@
           const res = await callApi({ action: 'saveCalendarEvent', event: f, by: MEMBER_ID });
           if (res && res.error) throw new Error(res.error);
           toast('일정을 등록했어요!'); closeSheet();
-          calLoadAll();
+          calLoadAll(true);
         } catch (e) { toast(e.message, true); btn.disabled = false; }
       };
     }
@@ -3062,14 +3116,17 @@
       const monthKey = off => { const d = new Date(Date.now() + 9 * 3600e3); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + off); return d.toISOString().slice(0, 7); };
       const monthLabel = k => k ? `${Number(k.slice(5, 7))}월` : '';
       const DEPT_SHORT = { '교역자': '교', '자문회': '자', '장년회': '장', '부녀회': '부', '청년회': '청' };
-      async function loadMonthly(month, silent) {   // silent: 공감 뒤 조용히 다시 계산(깜빡임 없이)
+      async function loadMonthly(month, silent, useCache) {   // silent: 공감 뒤 조용히 다시 계산(깜빡임 없이), useCache: 첫 화면만 지난 결과 먼저
         M.month = month || M.month || monthKey(0);
         if (!silent) { M.loading = true; renderMonthly(); }
+        const payload = { action: 'getPlazaMonthly', memberId: MEMBER_ID, month: M.month };
         try {
-          const res = await callApi({ action: 'getPlazaMonthly', memberId: MEMBER_ID, month: M.month });
+          const res = useCache
+            ? await apiSWR(payload, (r, cached) => { if (r && !r.error && cached) { M.data = r; M.loading = false; renderMonthly(); } })
+            : await callApi(payload);
           if (res && res.error) throw new Error(res.error);
           M.data = res;
-        } catch (e) { M.data = { teachers: [], coupon: [], failed: true }; }
+        } catch (e) { if (!M.data || M.loading) M.data = { teachers: [], coupon: [], failed: true }; }
         M.loading = false; renderMonthly();
       }
       function monthTabs(sec) {
@@ -3118,17 +3175,23 @@
             + pzMoreBtn('hot', pop.length)
             : emptyHtml('☕', d.failed ? '잠시 후 다시 확인해 주세요.' : cur ? `${ml}에 공감을 받은 글이 아직 없어요.<br>첫 글을 올리고 커피 쿠폰 주인공이 되어 보세요!` : `${ml}엔 공감을 받은 글이 없었어요.`))}`;
       }
-      async function load(reset) {
+      async function load(reset, useCache) {   // useCache: 첫 화면만 — 지난번 받은 글 목록을 먼저 보여줌(2026-10-05 속도 개선)
         if (P.loading) return;
         P.loading = true;
         if (reset) { P.rows = []; P.total = 0; }
         renderLists();
-        try {
-          const res = await callApi({ action: 'listPlazaPosts', memberId: MEMBER_ID, category: P.cat, keyword: P.kw, offset: reset ? 0 : P.rows.length, limit: PZ_PAGE });
-          if (res && res.error) throw new Error(res.error);
+        const payload = { action: 'listPlazaPosts', memberId: MEMBER_ID, category: P.cat, keyword: P.kw, offset: reset ? 0 : P.rows.length, limit: PZ_PAGE };
+        const apply = (res, cached) => {
+          if (!res || res.error) return;
           P.rows = (reset ? [] : P.rows).concat(res.rows || []);
           P.total = res.total || 0;
           if (res.hot) P.hot = res.hot;
+          if (cached) { P.loading = false; renderLists(); P.loading = true; }   // 지난 목록을 그리는 동안에도 '더 보기' 중복 요청은 막아 둠
+        };
+        try {
+          const res = useCache && reset ? await apiSWR(payload, apply) : await callApi(payload);
+          if (res && res.error) throw new Error(res.error);
+          if (!(useCache && reset)) apply(res, false);
         } catch (e) { toast(e.message, true); }
         P.loading = false;
         renderLists();
@@ -3506,12 +3569,13 @@
       const C = { rows: [], loaded: false };
       const pzcName = p => String(p.title || '').slice(PZC_TAG.length).trim() || '(이름 없음)';
       const pzcMeaning = p => String(p.summary || '').replace(/^\s*담은\s*뜻\s*[:：]\s*/, '');
-      async function loadContest() {
+      async function loadContest(useCache) {
+        const payload = { action: 'listPlazaPosts', memberId: MEMBER_ID, keyword: PZC_TAG, offset: 0, limit: 50 };
+        const apply = r => { if (r && !r.error) { C.rows = (r.rows || []).filter(p => String(p.title || '').startsWith(PZC_TAG)); C.loaded = true; renderContest(); } };
         try {
-          const res = await callApi({ action: 'listPlazaPosts', memberId: MEMBER_ID, keyword: PZC_TAG, offset: 0, limit: 50 });
+          const res = useCache ? await apiSWR(payload, apply) : await callApi(payload);
           if (res && res.error) throw new Error(res.error);
-          C.rows = (res.rows || []).filter(p => String(p.title || '').startsWith(PZC_TAG));
-          C.loaded = true;
+          if (!useCache) apply(res);
         } catch (e) { /* 배너는 개수 없이도 동작 */ }
         renderContest();
       }
@@ -3618,8 +3682,8 @@
         const run = () => { const v = s.value.trim(); if (v === P.kw) return; P.kw = v; load(true); scrollToEl('pzFeedTitle'); };
         s.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); s.blur(); run(); } };
         s.onsearch = run;
-        load(true);
-        renderContest(); loadContest(); loadMonthly(monthKey(0));
+        load(true, true);
+        renderContest(); loadContest(true); loadMonthly(monthKey(0), false, true);
       };
     })();
 
@@ -3720,26 +3784,26 @@
     async function loadHomeDashboard() {
       home.loading = true; home.error = '';
       renderHome();
+      // 2026-10-05 속도 개선: 6개 요청 모두 이 기기에 저장된 지난 결과가 있으면 그것으로 먼저 화면을 그리고,
+      // 서버 결과가 오는 대로 해당 부분만 바꿔 다시 그린다(apiSWR). 저장된 게 하나도 없으면 예전처럼 다 받은 뒤 그림.
+      const sets = {
+        getMyTierStatus: r => { if (r && !r.error) home.tierStatus = r; },
+        getMyActivities: r => { home.monthlyActRes = (r && !r.error) ? r : { rows: [], roleCounts: {}, roleItemCounts: {} }; },
+        getMyGospelLeads: r => { home.gospelLeads = (r && r.rows) || []; },
+        getMyCenterLeads: r => { home.centerLeads = (r && r.rows) || []; },
+        getMyTargets: r => {
+          if (r && !r.error) { home.targets = r.rows || []; home.stages = r.stages || TARGET_STAGES_FALLBACK; }
+          else home.stages = TARGET_STAGES_FALLBACK;
+        },
+        getMyEncouragements: r => { home.encouragements = (r && r.rows) || []; }
+      };
+      const acts = Object.keys(sets);
+      const allCached = acts.every(a => swrPeek({ action: a, memberId }));
       try {
-        const [tierRes, actRes, gospelRes, centerRes, targetRes, encRes] = await Promise.all([
-          callApi({ action: 'getMyTierStatus', memberId }),
-          callApi({ action: 'getMyActivities', memberId }),
-          callApi({ action: 'getMyGospelLeads', memberId }),
-          callApi({ action: 'getMyCenterLeads', memberId }),
-          callApi({ action: 'getMyTargets', memberId }),
-          callApi({ action: 'getMyEncouragements', memberId })
-        ]);
-        if (tierRes && !tierRes.error) home.tierStatus = tierRes;
-        home.monthlyActRes = (actRes && !actRes.error) ? actRes : { rows: [], roleCounts: {}, roleItemCounts: {} };
-        home.gospelLeads = (gospelRes && gospelRes.rows) || [];
-        home.centerLeads = (centerRes && centerRes.rows) || [];
-        home.encouragements = (encRes && encRes.rows) || [];
-        if (targetRes && !targetRes.error) {
-          home.targets = targetRes.rows || [];
-          home.stages = targetRes.stages || TARGET_STAGES_FALLBACK;
-        } else {
-          home.stages = TARGET_STAGES_FALLBACK;
-        }
+        await Promise.all(acts.map(a => apiSWR({ action: a, memberId }, (r, cached) => {
+          sets[a](r);
+          if (allCached || !cached) { if (allCached) home.loading = false; if (!home.loading) renderHome(); }
+        })));
       } catch (e) {
         home.error = String(e);
       }
