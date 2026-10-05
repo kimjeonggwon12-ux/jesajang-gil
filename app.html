@@ -229,6 +229,8 @@
     .me-chip b { font-size:13px; font-weight:700; }
     .me-chip small { font-size:11px; font-weight:500; opacity:.7; }
     @media (max-width: 420px) { .me-chip { max-width:96px; } }
+    /* PC(1024px↑)에선 맨 위 헤더(공용 #dkNav, 광장은 자체 앱바)에만 — 섹션 머리줄의 이름표는 숨겨 중복 방지 */
+    @media (min-width: 1024px) { button[onclick="openAccountSheet()"]:not(.dk-acc):not(#sec-calendar button) .me-chip { display:none !important; } }
     #sec-calendar .pz-appbar-actions button { background:none; border:none; padding:0; color:var(--dg-text); cursor:pointer; display:flex; }
     #sec-calendar .pz-pills { display:flex; gap:6px; overflow-x:auto; padding:10px 0 10px; scrollbar-width:none; border-bottom:1px solid var(--dg-line); }
     #sec-calendar .pz-pills::-webkit-scrollbar { display:none; }
