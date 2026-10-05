@@ -1390,8 +1390,17 @@
     #sec-calendar .pz-board-body { margin-top:6px; padding-left:2px; font-size:13.5px; line-height:1.55; color:#505050; white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
     #sec-calendar .pz-board-row.open .pz-board-body { display:block; -webkit-line-clamp:unset; }
     /* 2026-10-05 전도부 게시판 질문·답변 (상세 시트는 #appSheetHost라 전역 클래스) */
-    #sec-calendar .pz-board-q { margin-top:6px; font-size:12px; font-weight:700; color:var(--ws-s); }
-    #sec-calendar .pz-board-q em { font-style:normal; color:#D94040; }
+    #sec-calendar .pz-board-qa { margin-top:10px; padding:10px 12px; border-radius:10px; background:#F7F8F9; display:flex; flex-direction:column; gap:6px; }
+    #sec-calendar .pz-qa-q, #sec-calendar .pz-qa-a { display:flex; gap:8px; align-items:flex-start; font-size:13px; line-height:1.5; color:#333; }
+    #sec-calendar .pz-qa-a { padding-left:14px; }
+    #sec-calendar .pz-qa-q i, #sec-calendar .pz-qa-a i { flex-shrink:0; width:18px; height:18px; margin-top:1px; border-radius:5px; font-style:normal; font-size:11px; font-weight:900; display:flex; align-items:center; justify-content:center; color:#fff; background:#5B6470; }
+    #sec-calendar .pz-qa-a i { background:var(--ws-g); }
+    #sec-calendar .pz-qa-q span, #sec-calendar .pz-qa-a span { min-width:0; white-space:pre-wrap; word-break:break-word; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+    #sec-calendar .pz-qa-q b, #sec-calendar .pz-qa-a b { font-weight:800; margin-right:2px; }
+    #sec-calendar .pz-qa-a b { color:#00936E; }
+    #sec-calendar .pz-qa-a.wait span { color:#D94040; font-weight:700; font-size:12.5px; }
+    #sec-calendar .pz-qa-a.wait i { background:#E0B4B4; }
+    #sec-calendar .pz-qa-more { font-size:12.5px; font-weight:800; color:var(--ws-g); }
     .adq-head { display:flex; align-items:center; gap:8px; margin-top:4px; }
     .adq-title { font-size:18px; font-weight:800; line-height:1.35; letter-spacing:-0.02em; }
     .adq-date { margin-top:4px; font-size:12.5px; color:#8A8A8A; }
@@ -2740,7 +2749,7 @@
             <div class="pz-board-row" data-pz-ad>
               <div class="pz-board-top"><span class="pz-board-tag">공지</span><b>${esc(a.title)}</b><time>${esc(String(a.updatedAt || '').slice(5, 10).replace('-', '.'))}</time></div>
               ${a.body ? `<div class="pz-board-body">${esc(a.body)}</div>` : ''}
-              <div class="pz-board-q">💬 질문 ${adqFor(a.adId).length}${adqFor(a.adId).some(q => !q.answer) ? ' · <em>답변 대기</em>' : ''}</div>
+              ${adqInlineHtml(a.adId)}
             </div>`).join('')}</div>` + pzMoreBtn('ad', ads.length)
         : '<div class="pz-empty">등록된 공지가 없어요.</div>');
       // 2026-10-05: 줄을 누르면 펼침 대신 상세 창(본문 전체 + 질문·답변)
@@ -2751,6 +2760,19 @@
     // 질문 등록은 누구나, 질문 수정·삭제와 답변(등록·수정·삭제)은 관리자(isAdmin)만. 서버도 같은 규칙으로 다시 검사한다.
     const adqSt = { rows: null, openId: '', edit: '', del: '', busy: false };
     const adqFor = adId => (adqSt.rows || []).filter(q => q.adId === adId);
+    // 2026-10-05(2차): 눌러야만 보이면 효과가 덜하다는 요청 — 게시판 목록에 공지마다 최근 질문 2개와 답변을 바로 펼쳐 보여준다.
+    const ADQ_INLINE = 2;
+    function adqInlineHtml(adId) {
+      if (adqSt.rows === null) return '';
+      const qs = adqFor(adId);
+      if (!qs.length) return '<div class="pz-board-qa"><div class="pz-qa-more">💬 궁금한 점이 있으면 질문하기 ›</div></div>';
+      const recent = qs.slice(-ADQ_INLINE);
+      return `<div class="pz-board-qa">${recent.map(q => `
+          <div class="pz-qa-q"><i>Q</i><span><b>${esc(q.authorName || '익명')}</b> ${esc(q.text)}</span></div>
+          ${q.answer ? `<div class="pz-qa-a"><i>A</i><span><b>${esc(q.answererName || '관리자')}</b> ${esc(q.answer)}</span></div>`
+            : '<div class="pz-qa-a wait"><i>A</i><span>답변 대기 중</span></div>'}`).join('')}
+        <div class="pz-qa-more">💬 질문 ${qs.length}개${qs.length > ADQ_INLINE ? ' 전체 보기' : ''} · 질문하기 ›</div></div>`;
+    }
     async function adqLoad() {
       try { const res = await callApi({ action: 'getAdQuestions' }); adqSt.rows = (res && res.rows) || []; } catch (e) { if (!adqSt.rows) adqSt.rows = []; }
       calRenderAds();
