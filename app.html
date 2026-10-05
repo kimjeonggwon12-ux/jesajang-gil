@@ -1505,6 +1505,11 @@
     /* 2026-10-05 v2: 모임 부서·지역 표시(텔레봇 알림의 [부녀회 3지역]과 같은 글자) */
     .att-org { display:inline-block; flex-shrink:0; font-size:11.5px; font-weight:900; padding:2px 8px; border-radius:999px; background:#EEE8FA; color:#5B3A8E; vertical-align:middle; }
     .att-org-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .att-toggle { display:flex; align-items:flex-start; gap:10px; margin-top:8px; padding:10px 12px; border:1.5px solid #E5E7EB; border-radius:12px; cursor:pointer; }
+    .att-toggle input { width:20px; height:20px; margin-top:2px; flex-shrink:0; accent-color:#00AE82; }
+    .att-toggle span { display:flex; flex-direction:column; gap:2px; font-size:14px; }
+    .att-toggle small { font-size:12px; color:#777; line-height:1.4; }
+    .att-toggle:has(input:checked) { border-color:#00AE82; background:#F2FBF8; }
     .att-org-chips .att-opt { min-height:36px; padding:0 12px; font-size:13.5px; }
     .att-filter2 { display:flex; gap:8px; margin-bottom:10px; } .att-filter2 select { flex:1; min-width:0; }
     .att-meet-btns { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
@@ -5199,7 +5204,7 @@
     // 출석 설문의 소속 부서 보기 — 교역자 포함 5개 부서(사용자 요청: 교역자도 출석 점검에 포함)
     const ATT_DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
     const ATT_TYPES = [['choice', '객관식(하나 고르기)'], ['multi', '객관식(여러 개 고르기)'], ['text', '주관식(글로 쓰기)']];
-    const attSt = { my: null, cur: null, ans: {}, busy: false, method: 'qr' };
+    const attSt = { my: null, cur: null, ans: {}, pick: { org: '', district: '', dept24: '' }, busy: false, method: 'qr' };
     const attUrl = id => location.origin + location.pathname + '#attend=' + encodeURIComponent(id);
     const attWhen = m => `${String(m.date || '').slice(5).replace('-', '/')}${m.start ? ' ' + m.start : ''}${m.end ? '~' + m.end : ''}`;
     const attAnsText = (q, v) => Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
@@ -5218,6 +5223,14 @@
       return label;
     }
     const attOrgTag = m => { const l = attMeetLabel(m); return l ? `<span class="att-org">${esc(l)}</span>` : ''; };
+    // v2.3(10/06): 참석자가 직접 고르는 '내 지역'·'24개 부서' — 모임마다 관리자가 켜고 끔(askDistrict/askDept).
+    // 지역: 모임 부서가 자장부청이면 그 부서로 고정하고 지역만, 교역자 모임은 안 물음, 그 밖엔 소속(교역자 포함 5개)부터 고름.
+    // 교역자는 한 부서라 지역 없음, 부녀회만 유아모. 서버 ATT_PICK_ORGS/ATT_DEPT24와 같은 값.
+    const ATT_PICK_ORGS = [['교역자', '교역자'], ['자문', '자문회'], ['장년', '장년회'], ['부녀', '부녀회'], ['청년', '청년회']];
+    const ATT_DEPT24 = ['총무부', '내무부', '기획부', '재정부', '교육부', '신학부', '해외선교부', '전도부', '문화부', '출판부', '정보통신부', '찬양부',
+      '섭외부', '국내선교부', '홍보부', '법무부', '감사부', '사업부', '체육부', '대학부', '봉사교통부', '건설부', '외교정책부', '보건후생복지부'];
+    const attFixedPickOrg = m => ATT_ORG_HAS_DISTRICT.includes(m.org) ? m.org : m.org === '교역자' ? null : '';
+    const attPickText = r => [attMeetLabel({ org: r.pickOrg, district: r.pickDistrict }), r.dept24].filter(Boolean).join(' · ');
 
     // ── 나의교실 '모임 출석' 카드 ──
     async function attLoadMy(afterWrite) {
@@ -5246,7 +5259,7 @@
       openSheet(`<div class="att-sheet"><div class="att-title">📋 내 모임 출석</div>
         ${d.meetings.map(m => { const r = byM[m.meetingId]; return `<div class="att-item">
           <div class="att-row" style="padding:0"><span class="att-dot ${r ? 'on' : ''}">${r ? '✓' : '–'}</span><span class="att-row-t"><b>${esc(m.title)}</b> ${attOrgTag(m)}</span><time>${esc(attWhen(m))}</time></div>
-          ${r ? `<div class="att-muted" style="margin:4px 0 0 30px">${esc(r.at.slice(5, 16).replace('-', '/'))} 출석${(m.questions || []).filter(q => attAnsText(q, r.answers[q.id])).map(q => ` · ${esc(q.label)}: ${esc(attAnsText(q, r.answers[q.id]))}`).join('')}</div>` : '<div class="att-muted" style="margin:4px 0 0 30px">결석</div>'}
+          ${r ? `<div class="att-muted" style="margin:4px 0 0 30px">${esc(r.at.slice(5, 16).replace('-', '/'))} 출석${attPickText(r) ? ' · ' + esc(attPickText(r)) : ''}${(m.questions || []).filter(q => attAnsText(q, r.answers[q.id])).map(q => ` · ${esc(q.label)}: ${esc(attAnsText(q, r.answers[q.id]))}`).join('')}</div>` : '<div class="att-muted" style="margin:4px 0 0 30px">결석</div>'}
         </div>`; }).join('')}</div>`);
     }
 
@@ -5259,7 +5272,31 @@
         if (res && res.error) throw new Error(res.error);
         attSt.cur = res;
       } catch (e) { attSt.cur = { error: e.message }; }
+      // 내 명단(부서·지역)으로 지역 선택을 미리 골라 둠 — 다르면 참석자가 바꾸면 됨
+      const r = myRosterRow || {}, org = String(r.dept || '').replace(/회$/, '');
+      attSt.pick = { org: ATT_PICK_ORGS.some(([v]) => v === org) ? org : '', district: '', dept24: '' };
+      const rd = String(r.region || '').replace(/\D/g, '');
+      if (attDistricts(attSt.pick.org).includes(String(Number(rd)))) attSt.pick.district = String(Number(rd));
       attRenderForm();
+    }
+    // 참석자 지역·24개 부서 선택 블록(모임에서 켠 것만)
+    function attPickHtml(m) {
+      const p = attSt.pick, fixed = attFixedPickOrg(m);
+      let h = '';
+      if (m.askDistrict && fixed !== null) {
+        const org = fixed || p.org;
+        h += `<div class="att-q"><div class="att-q-l">내 지역 <i>*</i></div>
+          ${fixed ? `<div class="att-muted" style="margin-bottom:6px">${esc(attMeetLabel({ org: fixed }))}</div>`
+            : `<div class="att-opts">${ATT_PICK_ORGS.map(([v, l]) => `<button type="button" class="att-opt ${p.org === v ? 'on' : ''}" data-att-porg="${v}">${l}</button>`).join('')}</div>`}
+          ${attDistricts(org).length ? `<div class="att-org-chips" style="margin-top:8px">${attDistricts(org).map(d => `<button type="button" class="att-opt ${p.district === d ? 'on' : ''}" data-att-pdist="${esc(d)}">${esc(attDistrictLabel(d))}</button>`).join('')}</div>`
+            : org === '교역자' ? '<div class="att-muted" style="margin-top:6px">교역자는 지역 구분 없이 한 부서로 출석해요.</div>' : ''}
+        </div>`;
+      }
+      if (m.askDept) {
+        h += `<div class="att-q"><div class="att-q-l">내 부서 <i>*</i> <small>(24개 부서)</small></div>
+          <div class="att-org-chips">${ATT_DEPT24.map(d => `<button type="button" class="att-opt ${p.dept24 === d ? 'on' : ''}" data-att-pdept="${esc(d)}">${esc(d)}</button>`).join('')}</div></div>`;
+      }
+      return h;
     }
     function attRenderForm() {
       const host = document.getElementById('attSheet'); if (!host || !attSt.cur) return;
@@ -5269,12 +5306,14 @@
       const head = `<div class="att-title">${esc(m.title)}</div>${attMeetLabel(m) ? `<div style="margin-top:4px">${attOrgTag(m)}</div>` : ''}<div class="att-muted">${esc(attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''}</div>`;
       if (c.mine) {
         host.innerHTML = head + `<div class="att-result"><div class="att-big">✅</div><b>출석 완료</b><div class="att-muted">${esc(c.mine.at.slice(5, 16).replace('-', '/'))}에 출석했어요.</div></div>
+          ${attPickText(c.mine) ? `<div class="att-ans"><span>내 지역·부서</span><b>${esc(attPickText(c.mine))}</b></div>` : ''}
           ${(m.questions || []).map(q => `<div class="att-ans"><span>${esc(q.label)}</span><b>${esc(attAnsText(q, c.mine.answers[q.id])) || '-'}</b></div>`).join('')}`;
         return;
       }
       if (!m.open) { host.innerHTML = head + `<div class="att-result"><div class="att-big">⏰</div><b>${esc(m.reason)}</b></div>`; return; }
       const a = attSt.ans;
       host.innerHTML = head + `<div class="att-who">👤 ${esc(App.name)} 님으로 출석합니다</div>
+        ${attPickHtml(m)}
         ${(m.questions || []).map(q => `<div class="att-q"><div class="att-q-l">${esc(q.label)}${q.required ? ' <i>*</i>' : ''}${q.type === 'multi' ? ' <small>(여러 개 선택)</small>' : ''}</div>
           ${q.type === 'text' ? `<textarea class="cal-inp" data-att-text="${esc(q.id)}" maxlength="500" placeholder="입력해 주세요">${esc(a[q.id] || '')}</textarea>`
             : `<div class="att-opts">${q.options.map(o => { const on = q.type === 'multi' ? (a[q.id] || []).includes(o) : a[q.id] === o; return `<button type="button" class="att-opt ${on ? 'on' : ''}" data-att-q="${esc(q.id)}" data-att-o="${esc(o)}">${esc(o)}</button>`; }).join('')}</div>`}
@@ -5287,16 +5326,27 @@
         attRenderForm();
       }; });
       host.querySelectorAll('[data-att-text]').forEach(t => { t.oninput = () => { a[t.dataset.attText] = t.value; }; });
+      const p = attSt.pick;
+      host.querySelectorAll('[data-att-porg]').forEach(b => { b.onclick = () => { if (p.org !== b.dataset.attPorg) { p.org = b.dataset.attPorg; p.district = ''; } attRenderForm(); }; });
+      host.querySelectorAll('[data-att-pdist]').forEach(b => { b.onclick = () => { p.district = p.district === b.dataset.attPdist ? '' : b.dataset.attPdist; attRenderForm(); }; });
+      host.querySelectorAll('[data-att-pdept]').forEach(b => { b.onclick = () => { p.dept24 = p.dept24 === b.dataset.attPdept ? '' : b.dataset.attPdept; attRenderForm(); }; });
       document.getElementById('attSubmit').onclick = attSubmit;
     }
     async function attSubmit() {
-      const m = attSt.cur.meeting, a = attSt.ans;
+      const m = attSt.cur.meeting, a = attSt.ans, p = attSt.pick;
+      const fixed = attFixedPickOrg(m), pOrg = fixed || p.org;
+      if (m.askDistrict && fixed !== null) {
+        if (!pOrg) { toast('소속(교역자·자문회·장년회·부녀회·청년회)을 골라 주세요.', true); return; }
+        if (pOrg !== '교역자' && !p.district) { toast('지역을 골라 주세요.', true); return; }
+      }
+      if (m.askDept && !p.dept24) { toast('부서(24개 부서 중 하나)를 골라 주세요.', true); return; }
       const miss = (m.questions || []).find(q => q.required && (!a[q.id] || (Array.isArray(a[q.id]) ? !a[q.id].length : !String(a[q.id]).trim())));
       if (miss) { toast(`"${miss.label}" 항목에 답해 주세요.`, true); return; }
       if (attSt.busy) return; attSt.busy = true;
       const btn = document.getElementById('attSubmit'); if (btn) { btn.disabled = true; btn.textContent = '제출 중...'; }
       try {
-        const res = await callApi({ action: 'submitAttendance', meetingId: m.meetingId, memberId: App.memberId, name: App.name, answers: a, method: attSt.method });
+        const res = await callApi({ action: 'submitAttendance', meetingId: m.meetingId, memberId: App.memberId, name: App.name, answers: a, method: attSt.method,
+          pickOrg: pOrg || '', pickDistrict: p.district, dept24: p.dept24 });
         if (res && res.error) throw new Error(res.error);
         attSt.cur.mine = res.record;
         toast(res.already ? '이미 출석한 모임이에요.' : '출석했어요!');
@@ -5399,7 +5449,7 @@
       if (!ms.length) return '<div class="att-empty">아직 만든 모임이 없어요.<br>[+ 새 모임 만들기]로 모임과 설문을 만들고 QR을 띄워 보세요.</div>';
       return ms.map(m => { const [st, cls] = attMeetState(m); return `<div class="att-meet">
           <div class="att-meet-h"><span class="att-badge ${cls}">${st}</span><b>${esc(m.title)}</b>${attOrgTag(m)}<span class="att-cnt">${m.count}명</span></div>
-          <div class="att-muted">${esc(attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''} · 설문 ${(m.questions || []).length}문항${m.start && m.openBefore ? ` · ${m.openBefore}분 전부터 출석` : ''}</div>
+          <div class="att-muted">${esc(attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''} · 설문 ${(m.questions || []).length}문항${m.askDistrict ? ' · 지역 선택' : ''}${m.askDept ? ' · 24부서 선택' : ''}${m.start && m.openBefore ? ` · ${m.openBefore}분 전부터 출석` : ''}</div>
           <div class="att-meet-btns">
             <button type="button" class="att-pri" data-att-act="qr" data-id="${esc(m.meetingId)}">QR 띄우기</button>
             <button type="button" data-att-act="detail" data-id="${esc(m.meetingId)}">출석 현황</button>
@@ -5417,15 +5467,24 @@
         const c = {}; q.options.forEach(o => { c[o] = 0; });
         recs.forEach(r => { const v = r.answers[q.id]; (Array.isArray(v) ? v : v ? [v] : []).forEach(x => { c[x] = (c[x] || 0) + 1; }); });
         return `<div class="att-tally"><b>${esc(q.label)}</b>${Object.entries(c).map(([o, n]) => `<span>${esc(o)} <em>${n}</em></span>`).join('')}</div>`;
-      }).join('');
+      }).join('') + attPickTallyHtml(m, recs);
       return `<button type="button" class="att-link" style="margin:4px 0 10px" data-att-act="back">‹ 모임 목록</button>
         <div class="att-title">${esc(m.title)} ${attOrgTag(m)}</div><div class="att-muted">${esc(attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''}</div>
         <div class="att-sum"><div><b>${recs.length}</b><span>출석</span></div>${Object.entries(byDept).map(([k, n]) => `<div><b>${n}</b><span>${esc(k)}</span></div>`).join('')}</div>
         ${tallies}
         <div class="att-meet-btns" style="margin:12px 0"><button type="button" class="att-pri" data-att-act="qr" data-id="${esc(m.meetingId)}">QR 띄우기</button><button type="button" data-att-act="csv" data-id="${esc(m.meetingId)}">⬇ 엑셀(CSV) 받기</button></div>
-        ${recs.length ? `<div class="att-table-wrap"><table class="att-table"><thead><tr><th>#</th><th>이름</th><th>부서</th><th>직책</th><th>출석 시각</th>${(m.questions || []).map(q => `<th>${esc(q.label)}</th>`).join('')}<th></th></tr></thead><tbody>
-          ${recs.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.dept)}</td><td>${esc(r.position)}</td><td>${esc(r.at.slice(11, 16))}</td>${(m.questions || []).map(q => `<td>${esc(attAnsText(q, r.answers[q.id]))}</td>`).join('')}<td><button type="button" class="att-x" data-att-act="delrec" data-id="${esc(r.recordId)}">${attAdm.delRec === r.recordId ? '삭제?' : '×'}</button></td></tr>`).join('')}
+        ${recs.length ? `<div class="att-table-wrap"><table class="att-table"><thead><tr><th>#</th><th>이름</th><th>부서</th><th>직책</th><th>출석 시각</th>${m.askDistrict ? '<th>내 지역</th>' : ''}${m.askDept ? '<th>24부서</th>' : ''}${(m.questions || []).map(q => `<th>${esc(q.label)}</th>`).join('')}<th></th></tr></thead><tbody>
+          ${recs.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.dept)}</td><td>${esc(r.position)}</td><td>${esc(r.at.slice(11, 16))}</td>${m.askDistrict ? `<td>${esc(attMeetLabel({ org: r.pickOrg, district: r.pickDistrict }))}</td>` : ''}${m.askDept ? `<td>${esc(r.dept24 || '')}</td>` : ''}${(m.questions || []).map(q => `<td>${esc(attAnsText(q, r.answers[q.id]))}</td>`).join('')}<td><button type="button" class="att-x" data-att-act="delrec" data-id="${esc(r.recordId)}">${attAdm.delRec === r.recordId ? '삭제?' : '×'}</button></td></tr>`).join('')}
         </tbody></table></div>` : '<div class="att-empty">아직 출석한 사람이 없어요.</div>'}`;
+    }
+    // 참석자가 고른 지역별·24부서별 인원(모임에서 켠 것만)
+    function attPickTallyHtml(m, recs) {
+      const one = (on, label, key) => {
+        if (!on || !recs.length) return '';
+        const c = {}; recs.forEach(r => { const k = key(r) || '미선택'; c[k] = (c[k] || 0) + 1; });
+        return `<div class="att-tally"><b>${label}</b>${Object.entries(c).map(([o, n]) => `<span>${esc(o)} <em>${n}</em></span>`).join('')}</div>`;
+      };
+      return one(m.askDistrict, '내 지역', r => attMeetLabel({ org: r.pickOrg, district: r.pickDistrict })) + one(m.askDept, '24부서', r => r.dept24);
     }
     function attAdmPeople() {
       const today = attNowKst().slice(0, 10);
@@ -5464,8 +5523,8 @@
       if (act === 'edit') { attAdmEdit(m); return; }
       if (act === 'csv') {
         const recs = d.records.filter(r => r.meetingId === id).sort((a, b) => a.at < b.at ? -1 : 1);
-        attCsv(`출석_${m.date}_${m.title}${attMeetLabel(m) ? '_' + attMeetLabel(m).replace(/ /g, '') : ''}.csv`, [['모임 부서·지역', '이름', '고유번호', '부서', '직책', '출석시각', ...(m.questions || []).map(q => q.label)]]
-          .concat(recs.map(r => [attMeetLabel(m), r.name, r.memberId, r.dept, r.position, r.at, ...(m.questions || []).map(q => attAnsText(q, r.answers[q.id]))])));
+        attCsv(`출석_${m.date}_${m.title}${attMeetLabel(m) ? '_' + attMeetLabel(m).replace(/ /g, '') : ''}.csv`, [['모임 부서·지역', '이름', '고유번호', '부서', '직책', '출석시각', ...(m.askDistrict ? ['내 지역'] : []), ...(m.askDept ? ['24부서'] : []), ...(m.questions || []).map(q => q.label)]]
+          .concat(recs.map(r => [attMeetLabel(m), r.name, r.memberId, r.dept, r.position, r.at, ...(m.askDistrict ? [attMeetLabel({ org: r.pickOrg, district: r.pickDistrict })] : []), ...(m.askDept ? [r.dept24 || ''] : []), ...(m.questions || []).map(q => attAnsText(q, r.answers[q.id]))])));
         return;
       }
       if (act === 'csvPeople') {
@@ -5495,9 +5554,10 @@
 
     // 모임 만들기/수정 — 설문 문항 편집 포함
     function attAdmEdit(m) {
-      const f = m ? { ...m, org: m.org || '', district: m.district == null ? '' : String(m.district), questions: (m.questions || []).map(q => ({ ...q, options: [...q.options] })) }
+      const f = m ? { ...m, org: m.org || '', district: m.district == null ? '' : String(m.district), questions: (m.questions || []).map(q => ({ ...q, options: [...q.options] })), askDistrict: !!m.askDistrict, askDept: !!m.askDept }
+        // v2.3: 새 모임은 '내 지역' 선택을 기본으로 켬(소속 5개 부서 고르기가 그 안에 있어 '소속 부서' 문항은 기본으로 안 넣음)
         : { title: '', date: attNowKst().slice(0, 10), start: '', end: '', place: '', openBefore: 30, status: '열림', org: '', district: '',
-            questions: [{ label: '소속 부서', type: 'choice', options: [...ATT_DEPTS], required: true }] };
+            askDistrict: true, askDept: false, questions: [] };
       const draw = () => {
         openSheet(`<div class="att-sheet"><div class="att-title">${m ? '모임 수정' : '새 모임 만들기'}</div>
           <label class="cal-lbl">모임 이름 <span class="cal-req">*</span></label><input class="cal-inp" id="attFTitle" maxlength="80" value="${esc(f.title)}" placeholder="예) 10월 교사 교육">
@@ -5507,6 +5567,11 @@
             <div class="att-org-chips">${attDistricts(f.org).map(d => `<button type="button" class="att-opt ${f.district === d ? 'on' : ''}" data-att-dist="${esc(d)}">${esc(attDistrictLabel(d))}</button>`).join('')}</div>`
             : f.org ? `<div class="att-muted" style="margin-top:4px">${f.org === '교역자' ? '교역자는 지역 구분 없이 한 부서로 출석을 받아요.' : '이 모임은 지역 구분 없이 출석을 받아요.'}</div>` : ''}
           ${attMeetLabel(f) ? `<div class="att-muted" style="margin-top:6px">텔레그램 알림 표시: <span class="att-org">${esc(attMeetLabel(f))}</span></div>` : ''}
+          <label class="cal-lbl">참석자에게 고르게 하기</label>
+          <label class="att-toggle"><input type="checkbox" id="attFAskDist" ${f.askDistrict ? 'checked' : ''}><span><b>내 지역 선택</b><small>${f.org === '교역자' ? '교역자 모임은 지역을 묻지 않아요(한 부서).'
+            : attFixedPickOrg(f) ? `${esc(attMeetLabel({ org: f.org }))} 1~12지역${f.org === '부녀' ? '·유아모' : ''} 중 고름`
+            : '소속(교역자·자문·장년·부녀·청년) → 1~12지역 고름 · 부녀회는 유아모 · 교역자는 지역 없음'}</small></span></label>
+          <label class="att-toggle"><input type="checkbox" id="attFAskDept" ${f.askDept ? 'checked' : ''}><span><b>24개 부서 선택</b><small>총무부·전도부·교육부 등 24개 부서 중 하나를 고름</small></span></label>
           <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">날짜 <span class="cal-req">*</span></label><input type="date" class="cal-inp" id="attFDate" value="${esc(f.date)}"></div>
             <div style="flex:1"><label class="cal-lbl">장소</label><input class="cal-inp" id="attFPlace" maxlength="80" value="${esc(f.place)}"></div></div>
           <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">시작</label><input type="time" class="cal-inp" id="attFStart" value="${esc(f.start)}"></div>
@@ -5529,6 +5594,7 @@
           f.title = document.getElementById('attFTitle').value; f.date = document.getElementById('attFDate').value; f.place = document.getElementById('attFPlace').value;
           f.start = document.getElementById('attFStart').value; f.end = document.getElementById('attFEnd').value; f.openBefore = Number(document.getElementById('attFBefore').value);
           f.org = document.getElementById('attFOrgSel').value;
+          f.askDistrict = document.getElementById('attFAskDist').checked; f.askDept = document.getElementById('attFAskDept').checked;
           if (!attDistricts(f.org).includes(f.district)) f.district = '';   // 부서를 바꾸면 맞지 않는 지역은 지움(예: 장년회에는 유아모 없음)
           document.querySelectorAll('#attFQs [data-qf]').forEach(el => {
             const q = f.questions[Number(el.dataset.i)], k = el.dataset.qf;
@@ -5539,6 +5605,14 @@
         };
         document.querySelectorAll('#attFQs [data-qf="type"]').forEach(el => { el.onchange = () => { read(); draw(); }; });
         document.getElementById('attFOrgSel').onchange = () => { read(); draw(); };
+        document.getElementById('attFAskDist').onchange = () => {
+          read();
+          // 지역 선택을 켜면 소속 고르기가 겹치는 기본 '소속 부서' 문항은 뺌
+          const i = f.questions.findIndex(q => q.label === '소속 부서' && q.options.join() === ATT_DEPTS.join());
+          if (f.askDistrict && i !== -1) { f.questions.splice(i, 1); toast("소속은 '내 지역 선택'에서 함께 고르므로 '소속 부서' 문항을 뺐어요."); }
+          draw();
+        };
+        document.getElementById('attFAskDept').onchange = () => { read(); };
         document.querySelectorAll('[data-att-dist]').forEach(b => { b.onclick = () => { read(); f.district = f.district === b.dataset.attDist ? '' : b.dataset.attDist; draw(); }; });
         document.querySelectorAll('[data-qdel]').forEach(b => { b.onclick = () => { read(); f.questions.splice(Number(b.dataset.qdel), 1); draw(); }; });
         document.getElementById('attFAddQ').onclick = () => { read(); f.questions.push({ label: '', type: 'choice', options: [], required: false }); draw(); };
