@@ -5047,15 +5047,13 @@
     }
 
     // ══ 2026-10-05 Today Card ══
-    // 출석 상태: localStorage에 날짜와 함께 보관. 날짜가 달라지면 자동 초기화.
-    function tcGetAttStatus() {
-      try {
-        const v = JSON.parse(localStorage.getItem('tc_att') || '{}');
-        return v.date === todayStr() ? v : { date: todayStr(), done: false };
-      } catch(e) { return { date: todayStr(), done: false }; }
-    }
-    function tcSetAttDone() {
-      try { localStorage.setItem('tc_att', JSON.stringify({ date: todayStr(), done: true })); } catch(e) {}
+    // 2026-10-05(통합): 출석 칸은 QR 출석(attSt.my = getMyAttendance)과 연결 — 예전 localStorage(tc_att)·addActivity 방식은
+    // 서버에 없는 action이라 기록이 안 되는데도 "출석 완료"로 보이던 문제가 있어 교체.
+    function tcAttInfo() {
+      const d = attSt.my, today = todayStr(), month = today.slice(0, 7);
+      if (!d) return { done: false, month: null };
+      const recs = d.records || [];
+      return { done: recs.some(r => String(r.at).slice(0, 10) === today), month: recs.filter(r => String(r.at).slice(0, 7) === month).length };
     }
     // 오늘 가장 가까운 일정 가져오기
     function tcTodayEvent() {
@@ -5088,7 +5086,7 @@
       } catch(e) { return null; }
     }
     function todayCardHtml() {
-      const att = tcGetAttStatus();
+      const att = tcAttInfo();
       const todayEv = tcTodayEvent();
       const nextEv = todayEv ? null : tcWeekNextEvent();
       const evCard = todayEv || nextEv;
@@ -5120,47 +5118,15 @@
         <div class="act-divider" style="margin-top:6px"></div>`;
     }
     function tcAttSubText() {
-      // 이번 달 출석 횟수 — 활동 데이터에서 '선교센터 교사로 출석' 유형 카운트
-      try {
-        const rows = (home.monthlyActRes && home.monthlyActRes.rows) || [];
-        const cnt = rows.filter(r => (r.workType || '').includes('출석')).length;
-        return cnt > 0 ? `이번 달 ${cnt}회 출석` : '아직 출석 기록 없음';
-      } catch(e) { return '출석 현황 확인'; }
+      const i = tcAttInfo();
+      return i.month == null ? '출석 현황 불러오는 중' : i.month ? `이번 달 ${i.month}회 출석` : '모임에서 QR을 찍어 출석하세요';
     }
-    async function tcOpenAttCheck() {
-      const att = tcGetAttStatus();
-      if (att.done) { toast('오늘 이미 출석 체크했어요 ✅'); return; }
-      // 바텀시트로 출석 확인
-      openSheet(`
-        <div style="font-size:20px;font-weight:800;margin-bottom:6px">📋 출석 체크</div>
-        <div style="font-size:14px;color:#6B7280;margin-bottom:20px">오늘 선교센터에서 활동하셨나요?<br>출석을 기록하면 이번 달 현황에 반영됩니다.</div>
-        <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:#374151">오늘 날짜: ${todayStr()}</div>
-        <button type="button" id="tcAttConfirmBtn" class="tc-att-btn default" style="width:100%">
-          ✅ 오늘 출석 체크하기
-        </button>
-        <button type="button" onclick="closeSheet()" style="width:100%;height:44px;margin-top:8px;border:none;background:none;font-size:14px;color:#9CA3AF;cursor:pointer">나중에</button>
-      `);
-      document.getElementById('tcAttConfirmBtn').onclick = async () => {
-        const btn = document.getElementById('tcAttConfirmBtn');
-        if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
-        try {
-          await callApi({
-            action: 'addActivity',
-            memberId: MEMBER_ID,
-            name: MY_NAME,
-            workType: '선교센터 교사로 출석',
-            date: todayStr(),
-            note: '앱 출석 체크',
-          });
-          tcSetAttDone();
-          closeSheet();
-          toast('출석 완료! ✅ 이번 달 출석에 반영됐어요');
-          loadHomeDashboard(); // 대시보드 새로고침
-        } catch(err) {
-          toast('오류: ' + err.message, true);
-          if (btn) { btn.disabled = false; btn.textContent = '✅ 오늘 출석 체크하기'; }
-        }
-      };
+    function tcOpenAttCheck() { tcAttInfo().done ? attOpenMyList() : attOpenScanner(); }
+    // 출석 기록을 새로 받으면 Today Card 출석 칸만 다시 그림
+    function tcRenderAtt() {
+      const el = document.getElementById('tcAttCard'); if (!el) return;
+      const tmp = document.createElement('div'); tmp.innerHTML = todayCardHtml();
+      const n = tmp.querySelector('#tcAttCard'); if (n) el.replaceWith(n);
     }
 
     function dashboardViewHtml() {
@@ -5268,7 +5234,7 @@
                ${past.slice(0, 3).map(m => `<div class="att-row"><span class="att-dot ${done.has(m.meetingId) ? 'on' : ''}">${done.has(m.meetingId) ? '✓' : '–'}</span><span class="att-row-t">${esc(m.title)}</span><time>${esc(String(m.date).slice(5).replace('-', '/'))}</time></div>`).join('')}`}
         </div>`;
     }
-    function attRenderCard() { const el = document.getElementById('attCard'); if (el) el.outerHTML = attCardHtml(); }
+    function attRenderCard() { const el = document.getElementById('attCard'); if (el) el.outerHTML = attCardHtml(); tcRenderAtt(); }
     function attOpenMyList() {
       const d = attSt.my; if (!d) return;
       const byM = {}; d.records.forEach(r => { byM[r.meetingId] = r; });
