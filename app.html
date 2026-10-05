@@ -2669,13 +2669,13 @@
     }
 
     async function calLoadAll() {
+      adqLoad();   // 2026-10-05: 공지별 질문·답변 — 공지와 동시에 받기 시작(끝나면 게시판만 다시 그림)
       try {
         const [evRes, adRes] = await Promise.all([callApi({ action: 'getCalendarEvents', memberId: MEMBER_ID }), callApi({ action: 'getCalendarAds' })]);
         calSt.events = (evRes && evRes.rows) || [];
         calSt.ads = (adRes && adRes.rows) || []; calSt.adErr = '';
       } catch (e) { calSt.adErr = e.message; }
       calDrawCalendar(); calRenderUpcoming(); calRenderAds();
-      adqLoad();   // 2026-10-05: 공지별 질문 수(게시판 줄의 💬 N) — 늦게 와도 게시판만 다시 그림
     }
     // 오늘부터 120일 안의 일정을 날짜순으로(반복 일정은 다음 한 번만)
     function calUpcomingList(max) {
@@ -2774,7 +2774,11 @@
         <div class="pz-qa-more">💬 질문 ${qs.length}개${qs.length > ADQ_INLINE ? ' 전체 보기' : ''} · 질문하기 ›</div></div>`;
     }
     async function adqLoad() {
-      try { const res = await callApi({ action: 'getAdQuestions' }); adqSt.rows = (res && res.rows) || []; } catch (e) { if (!adqSt.rows) adqSt.rows = []; }
+      // 처음 접속 때 다른 요청과 몰려 한 번 실패하는 경우가 있어 1번만 다시 시도
+      for (let t = 0; t < 2; t++) {
+        try { const res = await callApi({ action: 'getAdQuestions' }); if (res && res.error) throw new Error(res.error); adqSt.rows = (res && res.rows) || []; break; }
+        catch (e) { if (t === 1 && !adqSt.rows) adqSt.rows = []; }
+      }
       calRenderAds();
       if (adqSt.openId && document.getElementById('adqSheet')) adqRender();
     }
