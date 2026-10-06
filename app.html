@@ -5227,8 +5227,8 @@
     // 지역: 모임 부서가 자장부청이면 그 부서로 고정하고 지역만, 교역자 모임은 안 물음, 그 밖엔 소속(교역자 포함 5개)부터 고름.
     // 교역자는 한 부서라 지역 없음, 부녀회만 유아모. 서버 ATT_PICK_ORGS/ATT_DEPT24와 같은 값.
     const ATT_PICK_ORGS = [['교역자', '교역자'], ['자문', '자문회'], ['장년', '장년회'], ['부녀', '부녀회'], ['청년', '청년회']];
-    const ATT_DEPT24 = ['총무부', '내무부', '기획부', '재정부', '교육부', '신학부', '해외선교부', '전도부', '문화부', '출판부', '정보통신부', '찬양부',
-      '섭외부', '국내선교부', '홍보부', '법무부', '감사부', '사업부', '체육부', '대학부', '봉사교통부', '건설부', '외교정책부', '보건후생복지부'];
+    // 24개 부서 — 사용자가 준 순서·약칭 그대로(10/06). 지역·부서 모두 맨 뒤 '기타'를 고르면 직접 써서 '기타(글)'로 저장.
+    const ATT_DEPT24 = ['행서', '내무', '기획', '재정', '교육', '신학', '해선', '문화', '출판', '정통', '찬양', '섭외', '국선', '홍보', '법무', '건설', '체육', '사업', '후생', '봉교'];
     const attFixedPickOrg = m => ATT_ORG_HAS_DISTRICT.includes(m.org) ? m.org : m.org === '교역자' ? null : '';
     const attPickText = r => [attMeetLabel({ org: r.pickOrg, district: r.pickDistrict }), r.dept24].filter(Boolean).join(' · ');
 
@@ -5274,7 +5274,7 @@
       } catch (e) { attSt.cur = { error: e.message }; }
       // 내 명단(부서·지역)으로 지역 선택을 미리 골라 둠 — 다르면 참석자가 바꾸면 됨
       const r = myRosterRow || {}, org = String(r.dept || '').replace(/회$/, '');
-      attSt.pick = { org: ATT_PICK_ORGS.some(([v]) => v === org) ? org : '', district: '', dept24: '' };
+      attSt.pick = { org: ATT_PICK_ORGS.some(([v]) => v === org) ? org : '', district: '', dept24: '', districtEtc: '', dept24Etc: '' };
       const rd = String(r.region || '').replace(/\D/g, '');
       if (attDistricts(attSt.pick.org).includes(String(Number(rd)))) attSt.pick.district = String(Number(rd));
       attRenderForm();
@@ -5288,13 +5288,15 @@
         h += `<div class="att-q"><div class="att-q-l">내 지역 <i>*</i></div>
           ${fixed ? `<div class="att-muted" style="margin-bottom:6px">${esc(attMeetLabel({ org: fixed }))}</div>`
             : `<div class="att-opts">${ATT_PICK_ORGS.map(([v, l]) => `<button type="button" class="att-opt ${p.org === v ? 'on' : ''}" data-att-porg="${v}">${l}</button>`).join('')}</div>`}
-          ${attDistricts(org).length ? `<div class="att-org-chips" style="margin-top:8px">${attDistricts(org).map(d => `<button type="button" class="att-opt ${p.district === d ? 'on' : ''}" data-att-pdist="${esc(d)}">${esc(attDistrictLabel(d))}</button>`).join('')}</div>`
+          ${attDistricts(org).length ? `<div class="att-org-chips" style="margin-top:8px">${[...attDistricts(org), '기타'].map(d => `<button type="button" class="att-opt ${p.district === d ? 'on' : ''}" data-att-pdist="${esc(d)}">${esc(attDistrictLabel(d))}</button>`).join('')}</div>
+              ${p.district === '기타' ? `<input class="cal-inp" data-att-etc="districtEtc" maxlength="30" style="margin-top:8px" placeholder="지역을 직접 써 주세요" value="${esc(p.districtEtc)}">` : ''}`
             : org === '교역자' ? '<div class="att-muted" style="margin-top:6px">교역자는 지역 구분 없이 한 부서로 출석해요.</div>' : ''}
         </div>`;
       }
       if (m.askDept) {
         h += `<div class="att-q"><div class="att-q-l">내 부서 <i>*</i> <small>(24개 부서)</small></div>
-          <div class="att-org-chips">${ATT_DEPT24.map(d => `<button type="button" class="att-opt ${p.dept24 === d ? 'on' : ''}" data-att-pdept="${esc(d)}">${esc(d)}</button>`).join('')}</div></div>`;
+          <div class="att-org-chips">${[...ATT_DEPT24, '기타'].map(d => `<button type="button" class="att-opt ${p.dept24 === d ? 'on' : ''}" data-att-pdept="${esc(d)}">${esc(d)}</button>`).join('')}</div>
+          ${p.dept24 === '기타' ? `<input class="cal-inp" data-att-etc="dept24Etc" maxlength="30" style="margin-top:8px" placeholder="부서를 직접 써 주세요" value="${esc(p.dept24Etc)}">` : ''}</div>`;
       }
       return h;
     }
@@ -5329,6 +5331,7 @@
       const p = attSt.pick;
       host.querySelectorAll('[data-att-porg]').forEach(b => { b.onclick = () => { if (p.org !== b.dataset.attPorg) { p.org = b.dataset.attPorg; p.district = ''; } attRenderForm(); }; });
       host.querySelectorAll('[data-att-pdist]').forEach(b => { b.onclick = () => { p.district = p.district === b.dataset.attPdist ? '' : b.dataset.attPdist; attRenderForm(); }; });
+      host.querySelectorAll('[data-att-etc]').forEach(t => { t.oninput = () => { p[t.dataset.attEtc] = t.value; }; });
       host.querySelectorAll('[data-att-pdept]').forEach(b => { b.onclick = () => { p.dept24 = p.dept24 === b.dataset.attPdept ? '' : b.dataset.attPdept; attRenderForm(); }; });
       document.getElementById('attSubmit').onclick = attSubmit;
     }
@@ -5338,15 +5341,17 @@
       if (m.askDistrict && fixed !== null) {
         if (!pOrg) { toast('소속(교역자·자문회·장년회·부녀회·청년회)을 골라 주세요.', true); return; }
         if (pOrg !== '교역자' && !p.district) { toast('지역을 골라 주세요.', true); return; }
+        if (pOrg !== '교역자' && p.district === '기타' && !p.districtEtc.trim()) { toast('지역 기타 칸에 직접 써 주세요.', true); return; }
       }
       if (m.askDept && !p.dept24) { toast('부서(24개 부서 중 하나)를 골라 주세요.', true); return; }
+      if (m.askDept && p.dept24 === '기타' && !p.dept24Etc.trim()) { toast('부서 기타 칸에 직접 써 주세요.', true); return; }
       const miss = (m.questions || []).find(q => q.required && (!a[q.id] || (Array.isArray(a[q.id]) ? !a[q.id].length : !String(a[q.id]).trim())));
       if (miss) { toast(`"${miss.label}" 항목에 답해 주세요.`, true); return; }
       if (attSt.busy) return; attSt.busy = true;
       const btn = document.getElementById('attSubmit'); if (btn) { btn.disabled = true; btn.textContent = '제출 중...'; }
       try {
         const res = await callApi({ action: 'submitAttendance', meetingId: m.meetingId, memberId: App.memberId, name: App.name, answers: a, method: attSt.method,
-          pickOrg: pOrg || '', pickDistrict: p.district, dept24: p.dept24 });
+          pickOrg: pOrg || '', pickDistrict: p.district, dept24: p.dept24, pickDistrictEtc: p.districtEtc, dept24Etc: p.dept24Etc });
         if (res && res.error) throw new Error(res.error);
         attSt.cur.mine = res.record;
         toast(res.already ? '이미 출석한 모임이에요.' : '출석했어요!');
@@ -5571,7 +5576,7 @@
           <label class="att-toggle"><input type="checkbox" id="attFAskDist" ${f.askDistrict ? 'checked' : ''}><span><b>내 지역 선택</b><small>${f.org === '교역자' ? '교역자 모임은 지역을 묻지 않아요(한 부서).'
             : attFixedPickOrg(f) ? `${esc(attMeetLabel({ org: f.org }))} 1~12지역${f.org === '부녀' ? '·유아모' : ''} 중 고름`
             : '소속(교역자·자문·장년·부녀·청년) → 1~12지역 고름 · 부녀회는 유아모 · 교역자는 지역 없음'}</small></span></label>
-          <label class="att-toggle"><input type="checkbox" id="attFAskDept" ${f.askDept ? 'checked' : ''}><span><b>24개 부서 선택</b><small>총무부·전도부·교육부 등 24개 부서 중 하나를 고름</small></span></label>
+          <label class="att-toggle"><input type="checkbox" id="attFAskDept" ${f.askDept ? 'checked' : ''}><span><b>24개 부서 선택</b><small>행서·내무·기획·교육 등 부서 중 하나를 고름 · 기타는 직접 쓰기</small></span></label>
           <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">날짜 <span class="cal-req">*</span></label><input type="date" class="cal-inp" id="attFDate" value="${esc(f.date)}"></div>
             <div style="flex:1"><label class="cal-lbl">장소</label><input class="cal-inp" id="attFPlace" maxlength="80" value="${esc(f.place)}"></div></div>
           <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">시작</label><input type="time" class="cal-inp" id="attFStart" value="${esc(f.start)}"></div>
