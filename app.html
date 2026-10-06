@@ -7802,6 +7802,8 @@ function renderRequiredEduTab(body) {
       return m ? m[1] : '';
     }
     const vdDate = d => String(d || '').replace(/-/g, '.');
+    // 2026-10-06: 한 영상이 여러 파트에 같이 들어갈 수 있음(서버가 '소양,상담'으로 줌)
+    const vdParts = v => String((v && v.part) || '').split(',').filter(Boolean);
     async function vdLoad(skipCache) {
       const apply = r => { if (r && !r.error) { vdState.videos = r.videos || []; vdState.err = ''; vdRender(); } };
       try { await apiSWR({ action: 'getVideos' }, apply, skipCache); }
@@ -7814,7 +7816,7 @@ function renderRequiredEduTab(body) {
           <div class="vd-info">
             <div class="vd-t">${esc(v.title)}</div>
             ${v.description ? `<div class="vd-d">${esc(v.description)}</div>` : ''}
-            <div class="vd-m"><span class="vd-tag">${esc(v.part)}</span>${esc(vdDate(v.uploadDate))}</div>
+            <div class="vd-m">${vdParts(v).map(p => `<span class="vd-tag">${esc(p)}</span>`).join('')}${esc(vdDate(v.uploadDate))}</div>
             ${adm ? `<div class="vd-adm"><button type="button" data-vd-edit="${esc(v.id)}">수정</button><button type="button" class="vd-del" data-vd-del="${esc(v.id)}">${vdState.del === v.id ? '한 번 더 누르면 삭제' : '삭제'}</button></div>` : ''}
           </div>
         </div>`;
@@ -7829,19 +7831,19 @@ function renderRequiredEduTab(body) {
           : '<div class="text-center py-16"><span class="loading loading-spinner"></span></div>';
         return;
       }
-      const cnt = p => all.filter(v => v.part === p).length;
+      const cnt = p => all.filter(v => vdParts(v).includes(p)).length;
       const chips = `<div class="vd-chips">${[['', '전체']].concat(VIDEO_PARTS.map(([p]) => [p, p])).map(([k, l]) =>
         `<button type="button" class="${vdState.part === k ? 'on' : ''}" data-vd-part="${esc(k)}">${esc(l)}${k ? ` <em>${cnt(k)}</em>` : ''}</button>`).join('')}</div>`;
       const addBtn = adm ? `<button type="button" class="vd-add" data-vd-new="1">+ 영상 등록</button>` : '';
       let html;
       if (!vdState.part) {
         html = `<div class="vd-head"><div><b>영상 모둠</b><span>파트를 눌러 영상을 보세요 · 전체 ${all.length}개</span></div>${addBtn}</div>
-          <div class="vd-parts">${VIDEO_PARTS.map(([p, ic, sub]) => { const first = all.find(v => v.part === p); return `<button type="button" class="vd-part" data-vd-part="${esc(p)}">
+          <div class="vd-parts">${VIDEO_PARTS.map(([p, ic, sub]) => { const first = all.find(v => vdParts(v).includes(p)); return `<button type="button" class="vd-part" data-vd-part="${esc(p)}">
               <div class="vd-part-art">${first ? `<img src="${vdThumb(first.videoId)}" alt="" loading="lazy">` : ''}<span>${ic}</span></div>
               <div class="vd-part-txt"><b>${esc(p)}</b><small>${esc(sub)}</small><em>영상 ${cnt(p)}개 ›</em></div></button>`; }).join('')}</div>
           ${all.length ? `<div class="vd-sub">🆕 최근 올라온 영상</div><div class="vd-grid">${all.slice(0, 4).map(vdCardHtml).join('')}</div>` : ''}`;
       } else {
-        const list = all.filter(v => v.part === vdState.part);
+        const list = all.filter(v => vdParts(v).includes(vdState.part));
         const def = VIDEO_PARTS.find(([p]) => p === vdState.part) || [vdState.part, '🎬', ''];
         html = `<div class="vd-head"><div><b>${def[1]} ${esc(def[0])}</b><span>${esc(def[2])} · 영상 ${list.length}개</span></div>${addBtn}</div>
           ${list.length ? `<div class="vd-grid">${list.map(vdCardHtml).join('')}</div>` : `<div class="vd-empty">아직 등록된 ${esc(def[0])} 영상이 없어요.${adm ? '<br>[+ 영상 등록]으로 유튜브 주소를 넣어 보세요.' : ''}</div>`}`;
@@ -7865,12 +7867,12 @@ function renderRequiredEduTab(body) {
     function vdPlay(v) {
       if (!v) return;
       const ov = document.createElement('div'); ov.className = 'vd-ov';
-      ov.innerHTML = `<div class="vd-ov-bar"><button type="button" class="vd-ov-x" aria-label="닫기">‹ 닫기</button><span>${esc(v.part)}</span></div>
+      ov.innerHTML = `<div class="vd-ov-bar"><button type="button" class="vd-ov-x" aria-label="닫기">‹ 닫기</button><span>${esc(vdParts(v).join(' · '))}</span></div>
         <div class="vd-ov-in">
           <div class="vd-frame"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.videoId)}?autoplay=1&rel=0&playsinline=1" title="${esc(v.title)}"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
           <div class="vd-ov-t">${esc(v.title)}</div>
-          <div class="vd-ov-m">${esc(v.part)} · ${esc(vdDate(v.uploadDate))}</div>
+          <div class="vd-ov-m">${esc(vdParts(v).join(' · '))} · ${esc(vdDate(v.uploadDate))}</div>
           ${v.description ? `<div class="vd-ov-d">${esc(v.description)}</div>` : ''}
           <a class="vd-ov-yt" href="https://www.youtube.com/watch?v=${encodeURIComponent(v.videoId)}" target="_blank" rel="noopener">유튜브 앱에서 보기 ↗</a>
           <div class="vd-ov-hint">영상이 재생되지 않으면(퍼가기 금지·비공개 영상) 위 버튼으로 유튜브에서 열어 주세요.</div>
@@ -7884,14 +7886,14 @@ function renderRequiredEduTab(body) {
     // 관리자: 영상 등록·수정 — 유튜브 주소를 붙이면 썸네일·제목을 미리 채움
     function vdEdit(v) {
       if (!isAdmin()) return;
-      const f = v ? { ...v, url: 'https://youtu.be/' + v.videoId }
-        : { url: '', title: '', part: vdState.part || '', description: '', uploadDate: attNowKst().slice(0, 10) };
+      const f = v ? { ...v, url: 'https://youtu.be/' + v.videoId, parts: vdParts(v) }
+        : { url: '', title: '', parts: vdState.part ? [vdState.part] : [], description: '', uploadDate: attNowKst().slice(0, 10) };
       openSheet(`<div class="vd-form"><div class="att-title">${v ? '영상 수정' : '영상 등록'}</div>
         <label class="cal-lbl">유튜브 주소 <span class="cal-req">*</span></label>
         <input class="cal-inp" id="vdFUrl" value="${esc(f.url)}" placeholder="https://youtu.be/... 또는 youtube.com/watch?v=..." autocomplete="off">
         <div id="vdFPrev" class="vd-prev"></div>
-        <label class="cal-lbl">파트 <span class="cal-req">*</span></label>
-        <div class="att-org-chips" id="vdFParts">${VIDEO_PARTS.map(([p, ic]) => `<button type="button" class="att-opt ${f.part === p ? 'on' : ''}" data-p="${esc(p)}">${ic} ${esc(p)}</button>`).join('')}</div>
+        <label class="cal-lbl">파트 <span class="cal-req">*</span> <span class="att-muted" style="font-weight:400">(여러 개 고를 수 있어요)</span></label>
+        <div class="att-org-chips" id="vdFParts">${VIDEO_PARTS.map(([p, ic]) => `<button type="button" class="att-opt ${f.parts.includes(p) ? 'on' : ''}" data-p="${esc(p)}">${ic} ${esc(p)}</button>`).join('')}</div>
         <label class="cal-lbl">제목 <span class="cal-req">*</span></label>
         <input class="cal-inp" id="vdFTitle" maxlength="120" value="${esc(f.title)}" placeholder="주소를 넣으면 자동으로 채워져요">
         <label class="cal-lbl">간단 설명 <span class="att-muted" style="font-weight:400">(50자 이내)</span></label>
@@ -7918,19 +7920,21 @@ function renderRequiredEduTab(body) {
       urlEl.oninput = () => { clearTimeout(urlEl._t); urlEl._t = setTimeout(preview, 400); };
       if (f.url) preview();
       document.querySelectorAll('#vdFParts [data-p]').forEach(b => { b.onclick = () => {
-        f.part = b.dataset.p; document.querySelectorAll('#vdFParts [data-p]').forEach(x => x.classList.toggle('on', x === b));
+        const p = b.dataset.p;
+        f.parts = f.parts.includes(p) ? f.parts.filter(x => x !== p) : VIDEO_PARTS.map(([x]) => x).filter(x => x === p || f.parts.includes(x));
+        b.classList.toggle('on', f.parts.includes(p));
       }; });
       document.getElementById('vdFSave').onclick = async () => {
         const id = vdIdFrom(urlEl.value);
         if (!id) return toast('유튜브 주소를 확인해 주세요.', true);
-        if (!f.part) return toast('파트를 골라 주세요.', true);
+        if (!f.parts.length) return toast('파트를 하나 이상 골라 주세요.', true);
         const btn = document.getElementById('vdFSave'); btn.disabled = true;
         try {
-          const res = await callApi({ action: 'saveVideo', memberId: App.memberId, name: App.name, video: { id: v ? v.id : '', url: id, part: f.part,
-            title: titleEl.value.trim(), description: document.getElementById('vdFDesc').value.trim(), uploadDate: document.getElementById('vdFDate').value } });
+          const res = await callApi({ action: 'saveVideo', memberId: App.memberId, name: App.name, video: { id: v ? v.id : '', url: id, parts: f.parts,
+            title: /^https?:|youtu.?be/i.test(titleEl.value.trim()) ? '' : titleEl.value.trim(), description: document.getElementById('vdFDesc').value.trim(), uploadDate: document.getElementById('vdFDate').value } });
           if (res && res.error) throw new Error(res.error);
           toast(v ? '영상을 수정했어요.' : '영상을 등록했어요.'); closeSheet();
-          vdState.part = f.part; vdLoad(true);
+          if (vdState.part && !f.parts.includes(vdState.part)) vdState.part = f.parts[0]; vdLoad(true);
         } catch (e) { toast(e.message, true); btn.disabled = false; }
       };
     }
