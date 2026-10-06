@@ -1207,7 +1207,8 @@
 
     /* ① 스플래시 */
     #pdSplash { z-index: 20; align-items: center; justify-content: center;
-      background: linear-gradient(135deg, #14C79A, var(--color-primary)); }
+      /* 2026-10-06(사용자 요청): 입장 표지는 처음의 포도색 정체성으로 — 보라 배경 + 하얀 포도알(앱 안쪽은 초록 그대로) */
+      background: linear-gradient(135deg, #7B5CD6 0%, #5B3A9E 55%, #45287F 100%); }
     .pd-bunch { position: relative; width: 64px; height: 64px; margin-bottom: 24px; }
     .pd-dot { width: 20px; height: 20px; border-radius: 50%; background: #fff; position: absolute;
       box-shadow: inset -3px -3px 6px rgba(0,0,0,.1); }
@@ -1242,6 +1243,10 @@
     /* 2026-10-06: 처음 오는 사람 — 표지 아래에 흰 입력 카드(고유번호·이름)를 띄움. 로그인 화면으로 넘어가지 않음 */
     #pdSplash.pd-with-form { justify-content: flex-start; padding: max(56px, 9vh) 22px 28px; overflow-y: auto; }
     #pdSplash.pd-with-form .pd-conn { display: none; }
+    #pdSplash .pd-enter { background: #5B3A9E; }
+    #pdSplash .pd-input:focus { border-color: #7B5CD6; box-shadow: 0 0 0 4px #EEE8FA; }
+    #pdSplash .pd-loading span { color: #5B3A9E; }
+    #pdSplash .pd-loading i { border-top-color: #5B3A9E; }
     #pdSplash.pd-with-form .pd-tagline { margin-bottom: 26px; }
     #pdSplash #pdForm { width: 100%; max-width: 400px; background: #fff; border-radius: 22px; padding: 24px 20px 14px;
       box-shadow: 0 12px 32px rgba(0,0,0,.14); animation: pdFadeUp .6s ease-out forwards; }
