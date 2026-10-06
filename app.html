@@ -1184,6 +1184,13 @@
     .pd-conn i:nth-child(2) { width: 32px; }
     .pd-conn i:nth-child(1), .pd-conn i:nth-child(3) { width: 6px; }
 
+    /* 2026-10-06: 처음 오는 사람 — 표지 아래에 흰 입력 카드(고유번호·이름)를 띄움. 로그인 화면으로 넘어가지 않음 */
+    #pdSplash.pd-with-form { justify-content: flex-start; padding: max(56px, 9vh) 22px 28px; overflow-y: auto; }
+    #pdSplash.pd-with-form .pd-conn { display: none; }
+    #pdSplash.pd-with-form .pd-tagline { margin-bottom: 26px; }
+    #pdSplash #pdForm { width: 100%; max-width: 400px; background: #fff; border-radius: 22px; padding: 24px 20px 14px;
+      box-shadow: 0 12px 32px rgba(0,0,0,.14); animation: pdFadeUp .6s ease-out forwards; }
+
     /* ② 로그인 */
     #pdLogin { z-index: 10; justify-content: center; padding: 0 28px; background: #fff; }
     #pdLoginContent { transform: translateY(-20px); transition: transform .7s ease-out; }
@@ -1588,6 +1595,17 @@
        앱 컬럼(--app-max-width) 대신 화면 전체 폭. 위 = 상단 메뉴 헤더, 본문 = 가운데 1200px 컨테이너에
        대문 배너 / 바로가기 아이콘 / 2단(왼쪽 일정·인기글, 오른쪽 광고·이름 공모) / 이달의 교사 5칸 / 이야기 2열. */
     .pz-hero, .pz-gnb { display:none; }
+    /* 2026-10-06(사용자 요청): 휴대폰에서도 광장 첫머리에 대문 배너(PC 배너의 작은 판) — 데이터보다 광장 인사가 먼저 보이게 */
+    html:not(.pz-dk) #sec-calendar .pz-hero { display:flex; align-items:center; gap:12px; margin:4px 0 6px; padding:20px 18px; border-radius:18px; background:linear-gradient(120deg,#EAF8F3 0%,#D5F1E7 60%,#C2EADC 100%); }
+    html:not(.pz-dk) .pz-hero-txt { flex:1; min-width:0; }
+    html:not(.pz-dk) .pz-hero-eye { font-size:12.5px; font-weight:800; color:var(--ws-g); }
+    html:not(.pz-dk) .pz-hero-title { margin:6px 0 0; font-size:21px; font-weight:900; line-height:1.35; letter-spacing:-0.04em; color:var(--ws-t); word-break:keep-all; }
+    html:not(.pz-dk) .pz-hero-sub { margin:6px 0 0; font-size:13px; line-height:1.5; color:#505756; word-break:keep-all; }
+    html:not(.pz-dk) .pz-hero-btns { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+    html:not(.pz-dk) .pz-hero-go, html:not(.pz-dk) .pz-hero-see { height:40px; padding:0 14px; border-radius:12px; font-size:14px; font-weight:800; cursor:pointer; }
+    html:not(.pz-dk) .pz-hero-go { border:none; background:var(--ws-g); color:#fff; }
+    html:not(.pz-dk) .pz-hero-see { border:1px solid rgba(0,0,0,.08); background:#fff; color:var(--ws-t); }
+    html:not(.pz-dk) .pz-hero-art { width:64px; height:64px; flex-shrink:0; align-self:flex-start; border-radius:50%; background:rgba(255,255,255,.7); display:flex; align-items:center; justify-content:center; font-size:34px; }
     @media (min-width: 1024px) {
       html.pz-dk { --app-max-width: 100vw; }
       html.pz-dk #appPanel { box-shadow:none; }
@@ -1721,25 +1739,23 @@
         <h1 class="pd-hello">반가워요~ 👋<br>우리가 연결될 때, 더 많은 열매를 맺어요.</h1>
         <p class="pd-welcome">복음방 교사들의 커뮤니티, <b>교사 광장</b>에 오신 것을 환영해요.</p>
 
-        <!-- 2026-09-23: 로그인 화면에 전주교회 교사 현황 요약(getRoster 1회 호출).
-             입장 전에도 "지금 우리 교회 교사가 몇 명이고 몇 명이 활동 중인지"가 보이게. -->
-        <div class="pd-stats" id="pdStats" style="display:none">
-          <div class="pd-stats-t">전주교회 교사 현황</div>
-          <div class="pd-stats-row" id="pdStatsRow"></div>
-        </div>
+        <!-- 2026-10-06(사용자 요청): 로그인 화면의 '전주교회 교사 현황' 숫자는 앞으로 보이지 않게 뺌 -->
 
         <!-- 저장된 고유번호가 있을 때만 보임 -->
         <div class="pd-saved" id="pdSaved" style="display:none">
           <span>🍇</span><span id="pdSavedText"></span>
         </div>
 
-        <div class="pd-field">
-          <label class="pd-label" for="memberId">고유번호</label>
-          <input type="text" id="memberId" class="pd-input" placeholder="13자리 (- 생략)" autocomplete="off" inputmode="numeric" />
-        </div>
+        <!-- 2026-10-06: 이 입력 묶음(#pdForm)은 처음 오는 사람에게 표지 화면 아래에 그대로 붙여 보여 준다(pdBoot) -->
+        <div id="pdForm">
+        <!-- 2026-10-06(사용자 요청): 표지에서 이름 → 고유번호(비밀번호 역할) 순서로 입력 -->
         <div class="pd-field">
           <label class="pd-label" for="name">이름</label>
-          <input type="text" id="name" class="pd-input" placeholder="이름을 입력하고 Enter를 누르세요" autocomplete="off" />
+          <input type="text" id="name" class="pd-input" placeholder="이름" autocomplete="off" enterkeyhint="next" />
+        </div>
+        <div class="pd-field">
+          <label class="pd-label" for="memberId">고유번호 <small style="font-weight:600;color:#9CA3AF">(비밀번호 대신)</small></label>
+          <input type="text" id="memberId" class="pd-input" placeholder="13자리 숫자 (- 생략)" autocomplete="off" inputmode="numeric" enterkeyhint="go" />
         </div>
 
         <!-- 2026-09-23: Enter만으로 들어가는 구조라 "들어갈 방법"이 안 보인다는 지적.
@@ -1750,6 +1766,7 @@
         <div class="pd-foot">
           <p>처음 오셨나요? <a href="#" onclick="return false">교사 등록 안내</a></p>
           <button type="button" class="pd-forget" id="pdForget" style="display:none">저장된 고유번호 지우기</button>
+        </div>
         </div>
       </div>
     </div>
@@ -2228,7 +2245,7 @@
       const eb = document.getElementById('pdEnterBtn'); if (eb) eb.style.display = 'none';
       if (lt && msg) lt.textContent = msg;
       setTimeout(() => {
-        if (lt) lt.textContent = '나의 교실로 이동합니다!';
+        if (lt) lt.textContent = '광장으로 이동합니다!';
         setTimeout(() => pdEnter(id, nm), 350);
       }, 550);
     }
@@ -2265,30 +2282,24 @@
       }
 
       const saved = pdLoadSaved() || (pdIsOwnerDevice() ? { memberId: OWNER_ID, name: OWNER_NAME } : null);
-      pdLoadStats(!!saved);   // 스플래시가 도는 2.8초 동안 미리 받아둔다(바로 입장하는 사람은 저장된 숫자만)
-      setTimeout(() => {
-        const splash = document.getElementById('pdSplash');
-        const login = document.getElementById('pdLogin');
-        const content = document.getElementById('pdLoginContent');
-        splash.style.opacity = '0';
-
+      // 2026-10-06(사용자 요청): 한 번 로그인한 사람은 "우리가 연결될 때…" 로그인 화면이 필요 없음 →
+      // 표지를 조금 더 길게(2.2초) 보여 준 뒤 로그인 화면 없이 바로 광장으로 들어간다.
+      if (saved) {
         setTimeout(() => {
-          splash.style.display = 'none';
-          login.classList.remove('pd-hide');
-          setTimeout(() => content.classList.add('pd-settled'), 50);
-
-          if (saved) {
-            // 저장된 고유번호 — 입력칸을 채워두고 바로 입장
-            document.getElementById('memberId').value = saved.memberId;
-            document.getElementById('name').value = saved.name;
-            const box = document.getElementById('pdSaved');
-            document.getElementById('pdSavedText').innerHTML =
-              '<b>' + esc(saved.name) + '</b>님으로 입장합니다';
-            box.style.display = 'flex';
-            pdEnterWithSpinner(saved.memberId, saved.name, '입장 중...');
-          }
-        }, 600); // .pd-screen transition(.6s)과 맞춤
-      }, saved ? 1200 : 2800);   // 2026-10-05: 저장된 고유번호로 바로 들어가는 사람은 표지를 짧게(대기 시간 줄이기)
+          const splash = document.getElementById('pdSplash');
+          splash.style.opacity = '0';
+          setTimeout(() => pdEnter(saved.memberId, saved.name), 600);   // .pd-screen transition(.6s)과 맞춤
+        }, 2200);
+        return;
+      }
+      // 처음 오는 사람: 표지 애니메이션이 끝나면 같은 화면 아래에 고유번호·이름 입력 카드를 붙인다(로그인 화면으로 안 넘어감)
+      setTimeout(() => {
+        const splash = document.getElementById('pdSplash'), form = document.getElementById('pdForm');
+        splash.classList.add('pd-with-form');
+        splash.appendChild(form);
+        // PC에서만 바로 입력칸에 커서(휴대폰은 키보드가 표지를 가려서 누를 때 뜨게)
+        if (window.innerWidth >= 1024) setTimeout(() => { const el = document.getElementById('name'); if (el) el.focus(); }, 300);
+      }, 1600);
     }
 
     /**
@@ -2332,7 +2343,12 @@
       });
       ['memberId', 'name'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.addEventListener('keypress', e => { if (e.key === 'Enter') startSession(); });
+        if (el) el.addEventListener('keypress', e => {
+          if (e.key !== 'Enter') return;
+          const idEl = document.getElementById('memberId');
+          if (id === 'name' && !idEl.value.trim()) { idEl.focus(); return; }   // 이름 다음은 고유번호
+          startSession();
+        });
       });
       const forget = document.getElementById('pdForget');
       if (forget) {
@@ -2655,7 +2671,10 @@
       if (EMBED_PLAZA) { switchTab('calendar'); return; }
       const am = h.match(/^attend=([A-Za-z0-9_-]+)/);   // 2026-10-05: 출석 QR(app.html#attend=모임ID)
       if (am) { switchTab('activity'); attOpen(decodeURIComponent(am[1]), 'qr'); return; }
-      switchTab(TAB_IDS.includes(h) ? h : 'calendar');
+      // 2026-10-06(사용자 요청): 들어가면 항상 광장. 주소의 #탭은 지난번에 보던 화면이 남은 것이라 무시하고,
+      // 옛 관리자 페이지가 보내는 #admin 링크만 그대로 따른다.
+      switchTab(h === 'admin' ? 'admin' : 'calendar');
+      const sc = document.getElementById('appSections'); if (sc) sc.scrollTop = 0;
     }
     // 2026-09-22: 섹션 간 인계 — 예전엔 iframe 에 ?chatWith=/?heartsStage= 같은 URL 파라미터를
     // 실어 방을 새로 열었지만, SPA에선 섹션이 다시 로드되지 않으므로 공유 상태로 대체한다.
