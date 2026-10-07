@@ -10,12 +10,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&text=%EA%B0%80%EC%B9%98%EC%9E%88%EA%B5%90%EC%82%AC%EA%B4%91%EC%9E%A5%ED%95%9C%EC%98%81%ED%98%BC%EC%9D%84%EC%82%B4%EB%A6%AC%EB%8A%94%EC%A7%84%EC%9D%98%EB%9E%91%EC%84%B8%EC%83%81%EC%97%90%EC%84%9C%EC%86%8C%EC%A4%91%EC%9D%BC%EC%9D%80%EB%9E%8C%EC%9D%B4%EB%8B%A4.%2C&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Liu+Jian+Mao+Cao&text=%E7%86%99&display=swap" rel="stylesheet">
-  <meta name="theme-color" content="#00AE82">
+  <!-- 2026-10-07: 입장 표지 동안 상태바를 책상 색으로(안드로이드 시작 화면과 이어지게), 입장하면 pdEnter()가 초록으로 -->
+  <meta name="theme-color" content="#EEE9E0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="교사 광장">
-  <link rel="apple-touch-icon" href="icon-192.png?v=grape1">
-  <link rel="icon" type="image/png" href="icon-192.png?v=grape1">
+  <meta name="apple-mobile-web-app-title" content="교사광장">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=book1">
+  <link rel="icon" type="image/png" href="icon-192.png?v=book1">
   <!-- 2026-09-22: SPA 통합(app.html) — daisyUI/Tailwind/Chart.js는 문서 전체에 1회만 로드.
        이전 11개 파일이 각자 따로 로드하던 동일 CDN들을 여기 하나로 합쳤다. -->
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
@@ -2446,6 +2447,7 @@
 
     /** 실제 입장 — 세션 변수 4개를 채우고 앱 화면으로 전환한다(기존 로직 그대로). */
     function pdEnter(id, nm) {
+      try { document.querySelector('meta[name="theme-color"]').content = '#00AE82'; } catch (e) {}   // 표지(책상 색) → 앱(초록)
       App.memberId = id; App.name = nm;
       MEMBER_ID = id; MY_NAME = nm; memberId = id; name = nm;
       document.getElementById('loginPanel').style.display = 'none';
