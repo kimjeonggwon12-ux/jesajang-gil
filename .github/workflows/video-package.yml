@@ -1,0 +1,45 @@
+# 교재와 영상 — 영상 녹취·요약·교안·나눔질문·퀴즈·전도문구 자동 생성
+# Apps Script action 'vtAuto'(VideoBackend.gs) 호출. 30분마다 밀린 영상을 차례로 만든다(한 번에 1~2개).
+# 구글 서버에서는 유튜브가 영상 길이 조회를 막아서(429) 여기 GitHub 러너가 길이를 재서 넘김(10분 넘는 영상 구간 나누기용).
+# Gemini 무료 한도를 다 쓰면 그날은 멈추고, 한도가 풀리면 다음 실행에서 이어 감.
+name: video-package
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'   # 30분마다(정각은 GitHub 예약이 붐벼서 비켜 둠)
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Make transcripts & packages
+        env:
+          KEY: ${{ secrets.TS_CRON_KEY }}
+        run: |
+          URL="https://script.google.com/macros/s/AKfycbyXJtQEWGdF6PKv2qstTp3ZgjhMSWfmUShh4uw8Km9LDJjj78WLmGO89HHE0Eb3M5lW/exec"
+          for round in 1 2; do
+            PEEK=$(curl -sSL --retry 2 --max-time 120 -H "Content-Type: text/plain" \
+              --data "$(jq -nc --arg key "$KEY" '{action:"vtAuto", key:$key, peek:true}')" "$URL")
+            echo "$PEEK" | jq -e '.ok == true' > /dev/null || { echo "$PEEK" | head -c 500; exit 1; }
+            N=$(echo "$PEEK" | jq '.pending | length')
+            echo "남은 영상: $N"
+            [ "$N" = "0" ] && exit 0
+            # 처음 시작하는 영상 3개의 길이(초)를 유튜브에서 잼
+            DURS='{}'
+            for vid in $(echo "$PEEK" | jq -r '[.pending[] | select(.started | not)][:3][].videoId'); do
+              SEC=$(curl -sL --max-time 20 -H 'Accept-Language: ko' "https://www.youtube.com/watch?v=$vid" | grep -o '"lengthSeconds":"[0-9]*"' | head -1 | grep -o '[0-9][0-9]*')
+              echo "길이 $vid: ${SEC:-모름}"
+              if [ -n "$SEC" ]; then DURS=$(echo "$DURS" | jq -c --arg v "$vid" --argjson s "$SEC" '. + {($v): $s}'); fi
+            done
+            RES=$(curl -sSL --max-time 420 -H "Content-Type: text/plain" \
+              --data "$(jq -nc --arg key "$KEY" --argjson d "$DURS" '{action:"vtAuto", key:$key, durations:$d}')" "$URL")
+            echo "$RES" | jq . 2>/dev/null || { echo "$RES" | head -c 500; exit 1; }
+            # 한도 초과면 이번 실행은 여기서 끝
+            if echo "$RES" | jq -e '[.steps[]? | test("한도")] | any' > /dev/null; then echo "Gemini 한도 초과 — 다음 실행에서 이어 감"; exit 0; fi
+          done

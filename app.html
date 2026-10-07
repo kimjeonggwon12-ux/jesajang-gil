@@ -951,8 +951,9 @@
     .vt-note { font-size:13px; line-height:1.6; color:#6B7280; margin-top:6px; }
     .vt-prog { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:14px; font-weight:700; color:#00936E; }
     .vt-make { width:100%; height:46px; margin-top:12px; border:none; border-radius:12px; background:#00AE82; color:#fff; font-size:15px; font-weight:800; cursor:pointer; }
-    .vt-tabs { display:flex; gap:6px; }
-    .vt-tabs button { flex:1; height:42px; border:1.5px solid #E5E7EB; border-radius:11px; background:#fff; font-size:14.5px; font-weight:800; color:#555; cursor:pointer; }
+    .vt-tabs { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 -4px; padding:0 4px 2px; }
+    .vt-tabs::-webkit-scrollbar { display:none; }
+    .vt-tabs button { flex:0 0 auto; padding:0 14px; white-space:nowrap; height:42px; border:1.5px solid #E5E7EB; border-radius:11px; background:#fff; font-size:14.5px; font-weight:800; color:#555; cursor:pointer; }
     .vt-tabs button.on { border-color:#00AE82; background:#E8F7F2; color:#00936E; }
     .vt-acts { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
     .vt-acts button { height:34px; padding:0 12px; border:1px solid #DADDE1; border-radius:9px; background:#fff; font-size:13px; font-weight:700; color:#333; cursor:pointer; }
@@ -966,6 +967,10 @@
     .vt-body blockquote { margin:0 0 10px; padding:6px 10px; border-left:3px solid #00AE82; background:#F3FBF8; color:#4B5563; font-size:13.5px; border-radius:0 8px 8px 0; }
     .vt-body hr { border:none; border-top:1px dashed #E5E7EB; margin:14px 0; }
     .vt-ts { display:inline-block; padding:0 6px; margin-right:2px; border:none; border-radius:6px; background:#E8F7F2; color:#00936E; font:inherit; font-size:.85em; font-weight:800; cursor:pointer; }
+    .vt-msg { margin:10px 0; padding:12px 14px; border:1px solid #E5E7EB; border-radius:12px; background:#FAFAFA; }
+    .vt-msg b { display:block; font-size:14px; font-weight:900; color:#00936E; }
+    .vt-msg p { margin:6px 0 10px; font-size:14.5px; line-height:1.7; color:#222; }
+    .vt-msg button { height:34px; padding:0 12px; border:none; border-radius:9px; background:#FEE500; color:#191919; font-size:13px; font-weight:800; cursor:pointer; }
     .vt-foot { display:flex; flex-direction:column; align-items:flex-start; gap:6px; margin-top:12px; padding-top:10px; border-top:1px solid #F0F0F0; font-size:12px; color:#9CA3AF; }
     .vt-link { padding:0; border:none; background:none; font-size:13.5px; font-weight:800; color:#00936E; cursor:pointer; }
     .vt-redo { color:#9CA3AF; font-weight:700; font-size:12.5px; }
@@ -8087,41 +8092,59 @@ function tbSearchRender() {
       vtRender(v.id);
       vtFetch(v).then(() => vtRender(v.id));
     }
+    // 2026-10-07 자료 패키지 탭 — [키, 탭 이름, 문서 제목]. 서버 VideoBackend.gs VT_PKG와 같은 키.
+    const VT_TABS = [['summary', '📌 요약', '요약'], ['transcript', '📝 녹취', '녹취 전문'], ['lesson', '📘 교안', '교안'],
+      ['share', '💬 나눔 질문', '나눔 질문'], ['quiz', '✅ 퀴즈', '확인 퀴즈'], ['outreach', '💌 전도 문구', '카톡 전도 문구']];
+    const VT_AUTO_SKIP = /음악|ASMR|BGM|playlist|플레이리스트/i;   // 서버 VT_AUTO_SKIP과 같게 — 자동으로 안 만드는 영상
+    // 탭 글 — AI가 따라 쓴 형식 안내 줄([교안 — ...]) 지우고, 전도 문구의 [영상 링크]는 실제 주소로
+    function vtText(v, r, key) {
+      const t = key === 'summary' ? r.summary : key === 'transcript' ? r.transcript : ((r.pkg || {})[key] || '');
+      return String(t || '').replace(/^\[[^\]\n]*—[^\]\n]*\]\s*\n/, '').replace(/\[영상 ?링크\]/g, 'https://youtu.be/' + v.videoId).trim();
+    }
     function vtRender(id) {
       const mt = vtState.mounts[id];
       if (!mt || !mt.box.isConnected) return;
       const { v, box, ifr } = mt;
       const r = vtState.cache[id], run = vtState.running[id], adm = isAdmin();
+      const head = '<div class="vt-head">📝 녹취·교안 자료</div>';
+      const has = !!(r && r.exists && (r.summary || r.transcript));
+      const prog = run ? `<div class="vt-prog"><span class="loading loading-spinner loading-sm"></span><span>${esc(run.msg)}</span></div>
+          <div class="vt-note" style="margin-bottom:10px;">영상 길이에 따라 몇 분 걸려요. 이 화면을 닫아도 앱을 켜 두면 계속 만들어요.</div>` : '';
       let html;
-      if (run) {
-        html = `<div class="vt-head">📝 녹취·요약</div>
-          <div class="vt-prog"><span class="loading loading-spinner loading-sm"></span><span>${esc(run.msg)}</span></div>
-          <div class="vt-note">영상 길이에 따라 몇 분 걸려요. 이 화면을 닫아도 앱을 켜 두면 계속 만들어요.</div>`;
+      if (run && !has) {
+        html = head + prog;
       } else if (!r) {
-        html = `<div class="vt-head">📝 녹취·요약</div><div class="vt-note">불러오는 중...</div>`;
+        html = `${head}<div class="vt-note">불러오는 중...</div>`;
       } else if (r.fetchErr) {
-        html = `<div class="vt-head">📝 녹취·요약</div><div class="vt-note">${esc(r.fetchErr)}</div>`;
-      } else if (!r.exists) {
-        html = `<div class="vt-head">📝 녹취·요약</div>
-          <div class="vt-note">이 영상의 녹취·요약이 아직 없어요.${adm ? '' : ' 관리자가 만들면 이곳에서 보고 받을 수 있어요.'}</div>
-          ${adm ? `<button type="button" class="vt-make" data-vt="make">✨ 녹취·요약 만들기</button>
-          <div class="vt-note">AI가 영상을 보고 들으며 흐름에 따라 소제목을 나눠 녹취하고, 요약을 만들어요.</div>` : ''}`;
-      } else if (r.status !== '완료') {
-        html = `<div class="vt-head">📝 녹취·요약</div>
-          <div class="vt-note">만드는 도중에 멈췄어요 (녹취 ${r.done}/${r.segs} 구간).${r.error ? '<br>' + esc(r.error) : ''}</div>
-          ${adm ? `<button type="button" class="vt-make" data-vt="resume">▶ 이어서 만들기</button>` : ''}`;
+        html = `${head}<div class="vt-note">${esc(r.fetchErr)}</div>`;
+      } else if (!r.exists || !(r.summary || r.transcript)) {
+        const skip = VT_AUTO_SKIP.test(v.title);
+        html = `${head}
+          <div class="vt-note">${skip ? '말 없는 음악 영상이라 자동으로 만들지 않아요.'
+            : '녹취·요약·교안·나눔 질문·퀴즈·전도 문구를 AI가 <b>자동으로 만들고 있어요.</b> 새 영상은 보통 1~2시간 안에 준비돼요.'}</div>
+          ${adm && r.error ? `<div class="vt-note">최근 오류: ${esc(r.error)}</div>` : ''}
+          ${adm ? `<button type="button" class="vt-make" data-vt="make">✨ 지금 바로 만들기</button>` : ''}`;
       } else {
-        const tab = vtState.tab, text = tab === 'summary' ? r.summary : r.transcript;
-        html = `<div class="vt-tabs">${[['summary', '📌 요약'], ['transcript', '📝 녹취 전문']].map(([k, l]) =>
-            `<button type="button" class="${tab === k ? 'on' : ''}" data-vt-tab="${k}">${l}</button>`).join('')}</div>
-          <div class="vt-acts">
+        const tab = VT_TABS.some(t => t[0] === vtState.tab) ? vtState.tab : 'summary';
+        const text = vtText(v, r, tab);
+        let bodyHtml;
+        if (!text) {
+          bodyHtml = `<p class="vt-note">이 자료는 자동으로 만드는 중이에요. 조금 뒤에 다시 열어 보세요.${adm && r.error ? '<br>최근 오류: ' + esc(r.error) : ''}</p>
+            ${adm ? `<button type="button" class="vt-make" data-vt="make">✨ 지금 바로 만들기</button>` : ''}`;
+        } else if (tab === 'outreach') {
+          // 전도 문구는 문구마다 따로 복사(카톡에 하나씩 보냄)
+          bodyHtml = vtMsgs(text).map((m, i) => `<div class="vt-msg"><b>${esc(m.title)}</b><p>${esc(m.body).replace(/\n/g, '<br>')}</p>
+            <button type="button" data-vt-msg="${i}">📋 이 문구 복사</button></div>`).join('');
+        } else bodyHtml = vtMd(text, true);
+        html = `${prog}<div class="vt-tabs">${VT_TABS.map(([k, l]) => `<button type="button" class="${tab === k ? 'on' : ''}" data-vt-tab="${k}">${l}</button>`).join('')}</div>
+          ${text ? `<div class="vt-acts">
             <button type="button" data-vt="doc">⬇ 워드로 받기</button>
             <button type="button" data-vt="copy">📋 교안으로 복사</button>
-          </div>
-          <div class="vt-body">${text ? vtMd(text, true) : '<p class="vt-note">내용이 없어요.</p>'}</div>
+          </div>` : ''}
+          <div class="vt-body">${bodyHtml}</div>
           <div class="vt-foot">
-            <button type="button" class="vt-link" data-vt="docAll">⬇ 요약+녹취 한 파일로 받기 (워드)</button>
-            <span>AI가 받아 적은 글이라 성경 구절·이름이 틀릴 수 있어요.</span>
+            <button type="button" class="vt-link" data-vt="docAll">⬇ 전체 자료 한 파일로 받기 (워드)</button>
+            <span>AI가 만든 자료라 성경 구절·이름이 틀릴 수 있어요. 쓰기 전에 한 번 확인해 주세요.</span>
             ${adm ? `<button type="button" class="vt-link vt-redo" data-vt="redo">${vtState.redo === id ? '한 번 더 누르면 처음부터 다시 만들어요' : '↻ 다시 만들기'}</button>` : ''}
           </div>`;
       }
@@ -8132,14 +8155,29 @@ function tbSearchRender() {
               ifr.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*'); } catch (e) {}
         ifr.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }; });
-      box.querySelectorAll('[data-vt]').forEach(b => { b.onclick = () => {
-        const k = b.dataset.vt;
-        if (k === 'make' || k === 'resume') vtRun(v, {});
-        else if (k === 'redo') { if (vtState.redo !== id) { vtState.redo = id; vtRender(id); return; } vtState.redo = ''; vtRun(v, { restart: true }); }
-        else if (k === 'doc') vtDownload(v, vtState.tab);
-        else if (k === 'docAll') vtDownload(v, 'all');
-        else if (k === 'copy') vtCopy(v, vtState.tab);
+      box.querySelectorAll('[data-vt-msg]').forEach(b => { b.onclick = () => {
+        const m = vtMsgs(vtText(v, r, 'outreach'))[Number(b.dataset.vtMsg)];
+        if (m) (navigator.clipboard ? navigator.clipboard.writeText(m.body) : Promise.reject()).then(() => toast('문구를 복사했어요. 카톡에 붙여 넣으세요.'), () => toast('복사하지 못했어요.', true));
       }; });
+      box.querySelectorAll('[data-vt]').forEach(b => { b.onclick = () => {
+        const k = b.dataset.vt, tab = VT_TABS.some(t => t[0] === vtState.tab) ? vtState.tab : 'summary';
+        if (k === 'make') vtRun(v, {});
+        else if (k === 'redo') { if (vtState.redo !== id) { vtState.redo = id; vtRender(id); return; } vtState.redo = ''; vtRun(v, { restart: true }); }
+        else if (k === 'doc') vtDownload(v, tab);
+        else if (k === 'docAll') vtDownload(v, 'all');
+        else if (k === 'copy') vtCopy(v, tab);
+      }; });
+    }
+    // 전도 문구 글 → [{ title, body }] (### 소제목마다 한 문구)
+    function vtMsgs(text) {
+      const out = [];
+      String(text || '').split('\n').forEach(line => {
+        const m = line.trim().match(/^#{2,4}\s+(.*)$/);
+        if (m) out.push({ title: m[1].replace(/\*\*/g, ''), body: '' });
+        else if (out.length) out[out.length - 1].body += line.replace(/\*\*(.+?)\*\*/g, '$1') + '\n';
+      });
+      out.forEach(m => { m.body = m.body.trim(); });
+      return out.filter(m => m.body);
     }
     async function vtRun(v, opts) {
       if (vtState.running[v.id]) return;
@@ -8156,25 +8194,30 @@ function tbSearchRender() {
         try { res = await callApi(body); } catch (e) { res = { error: e.message, busy: true }; }
         first = false;
         if (res && res.error) {
-          if (res.busy && busy < 3) { busy++; set(`AI가 붐벼요. 20초 뒤 다시 시도할게요 (${busy}/3)`); await new Promise(r => setTimeout(r, 20000)); set('다시 녹취하는 중...'); continue; }
-          toast(res.error, true); break;
+          if (res.busy && !res.quota && busy < 3) {
+            busy++;
+            set(res.other ? `자동 작업이 이 영상을 만들고 있어요. 30초 뒤 다시 확인할게요 (${busy}/3)` : `AI가 붐벼요. 20초 뒤 다시 시도할게요 (${busy}/3)`);
+            await new Promise(r => setTimeout(r, res.other ? 30000 : 20000)); set('다시 만드는 중...'); continue;
+          }
+          if (!res.other) toast(res.error, true);
+          break;
         }
         busy = 0;
         if (res.status === '완료') { ok = true; break; }
-        set(res.done >= res.segs ? '녹취 완료 — 요약 만드는 중...' : `녹취하는 중... ${res.done}/${res.segs} 구간 완료`);
+        set(res.step === '녹취' && res.done < res.segs ? `녹취하는 중... ${res.done}/${res.segs} 구간 완료` : '요약·교안·나눔 질문·퀴즈·전도 문구 만드는 중... (1분쯤)');
+        if (res.step !== '녹취' || res.done >= res.segs) vtFetch(v).then(() => vtRender(id));   // 녹취·요약은 먼저 보여 줌
       }
       delete vtState.running[id];
       await vtFetch(v);
       vtRender(id);
-      if (ok) toast(`'${v.title.slice(0, 20)}' 녹취·요약이 완성됐어요.`);
+      if (ok) toast(`'${String(v.title || '새 영상').slice(0, 20)}' 녹취·교안 자료가 완성됐어요.`);
     }
     // 2026-10-07 교안 모양 — 복사·워드 받기 공용. 영상 제목을 맨 위에 굵게, ## 큰 제목은 Ⅰ.Ⅱ.Ⅲ., ### 소제목은 1. 2. 3.
     // 번호, 목록은 •. html(워드·한글·구글문서·메모에 붙이면 굵게)과 plain(카톡 등 서식 없는 곳용) 두 가지를 같이 만듦.
     const VT_ROMAN = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ', 'Ⅶ', 'Ⅷ', 'Ⅸ', 'Ⅹ', 'Ⅺ', 'Ⅻ'];
     function vtLesson(v, kind) {
       const r = vtState.cache[v.id] || {};
-      const secs = kind === 'all' ? [['요약', r.summary], ['녹취 전문', r.transcript]]
-        : [[kind === 'summary' ? '요약' : '녹취 전문', kind === 'summary' ? r.summary : r.transcript]];
+      const secs = VT_TABS.filter(t => kind === 'all' || t[0] === kind).map(t => [t[2], vtText(v, r, t[0])]).filter(x => x[1]);
       const meta = `${vdParts(v).join(' · ')} · ${vdDate(v.uploadDate)} · https://youtu.be/${v.videoId}`;
       const F = "font-family:'맑은 고딕','Malgun Gothic',sans-serif;";
       const hi = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
@@ -8205,8 +8248,9 @@ function tbSearchRender() {
           }
           if (m && m[1].length === 3) {
             sub++;
-            html += `<p style="margin:12px 0 4px;font-size:12pt;font-weight:bold;">${sub}. ${hi(m[2])}</p>`;
-            plain.push('', `▶ ${sub}. ${pl(m[2])}`); return;
+            const no3 = /^\d+[.)]\s/.test(m[2]) ? '' : sub + '. ';   // 퀴즈처럼 이미 번호가 있으면 그대로
+            html += `<p style="margin:12px 0 4px;font-size:12pt;font-weight:bold;">${no3}${hi(m[2])}</p>`;
+            plain.push('', `▶ ${no3}${pl(m[2])}`); return;
           }
           if (m) { html += `<p style="margin:8px 0 4px;font-weight:bold;">· ${hi(m[2])}</p>`; plain.push(`· ${pl(m[2])}`); return; }
           if (t.startsWith('>')) {
@@ -8244,7 +8288,7 @@ function tbSearchRender() {
       const doc = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="UTF-8"><meta name="ProgId" content="Word.Document"><title>${esc(v.title)}</title></head>
 <body>${vtLesson(v, kind).html}</body></html>`;
-      const label = kind === 'all' ? '요약+녹취' : kind === 'summary' ? '요약' : '녹취전문';
+      const label = kind === 'all' ? '전체자료' : ((VT_TABS.find(t => t[0] === kind) || [])[2] || kind).replace(/ /g, '');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob(['﻿' + doc], { type: 'application/msword;charset=utf-8' }));
       a.download = sanitizeFilename(`${v.title}_${label}.doc`);
@@ -8303,6 +8347,12 @@ function tbSearchRender() {
           if (res && res.error) throw new Error(res.error);
           toast(v ? '영상을 수정했어요.' : '영상을 등록했어요.'); closeSheet();
           if (vdState.part && !f.parts.includes(vdState.part)) vdState.part = f.parts[0]; vdLoad(true);
+          // 2026-10-07: 새 영상(또는 주소를 바꾼 영상)은 녹취·교안 자료를 바로 만들기 시작(뒤에서 진행 — 끊겨도 30분마다 자동 작업이 이어 감)
+          const newTitle = /^https?:|youtu.?be/i.test(titleEl.value.trim()) ? '' : titleEl.value.trim();
+          if (res && res.id && (!v || v.videoId !== id) && !VT_AUTO_SKIP.test(newTitle)) {
+            toast('녹취·교안 자료를 만들기 시작했어요. 2~3분쯤 걸려요.');
+            vtRun({ id: res.id, videoId: id, title: newTitle || (v && v.title) || '새 영상', part: f.parts.join(','), uploadDate: '' }, { restart: !!v });
+          }
         } catch (e) { toast(e.message, true); btn.disabled = false; }
       };
     }
