@@ -6,6 +6,10 @@
   <title>교사 광장</title>
   <!-- 2026-10-06: manifest 주소는 설치 때와 같은 "manifest.json" 그대로(쿼리를 붙이면 안드로이드에 이미 깔린 앱이 아이콘 갱신을 못 함). 아이콘 교체는 manifest 안의 icon 주소 ?v= 로 -->
   <link rel="manifest" href="manifest.json">
+  <!-- 2026-10-07 표지 책 글꼴: 본문 바탕체(Noto Serif KR), 熙 사인(Liu Jian Mao Cao) — 표지에 쓰는 글자만 받음 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&text=%EA%B0%80%EC%B9%98%EC%9E%88%EA%B5%90%EC%82%AC%EA%B4%91%EC%9E%A5%ED%95%9C%EC%98%81%ED%98%BC%EC%9D%84%EC%82%B4%EB%A6%AC%EB%8A%94%EC%A7%84%EC%9D%98%EB%9E%91%EC%84%B8%EC%83%81%EC%97%90%EC%84%9C%EC%86%8C%EC%A4%91%EC%9D%BC%EC%9D%80%EB%9E%8C%EC%9D%B4%EB%8B%A4.%2C&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Liu+Jian+Mao+Cao&text=%E7%86%99&display=swap" rel="stylesheet">
   <meta name="theme-color" content="#00AE82">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1252,51 +1256,134 @@
     .pd-screen { position: absolute; inset: 0; display: flex; flex-direction: column; transition: opacity .6s ease-in-out; }
     .pd-screen.pd-hide { opacity: 0; pointer-events: none; z-index: -1; }
 
-    /* ① 스플래시 */
-    #pdSplash { z-index: 20; align-items: center; justify-content: center;
-      /* 2026-10-06(사용자 요청): 입장 표지는 처음의 포도색 정체성으로 — 보라 배경 + 하얀 포도알(앱 안쪽은 초록 그대로) */
-      background: linear-gradient(135deg, #7B5CD6 0%, #5B3A9E 55%, #45287F 100%); }
-    .pd-bunch { position: relative; width: 64px; height: 64px; margin-bottom: 24px; }
-    .pd-dot { width: 20px; height: 20px; border-radius: 50%; background: #fff; position: absolute;
-      box-shadow: inset -3px -3px 6px rgba(0,0,0,.1); }
-    .pd-leaf { width: 24px; height: 16px; background: var(--color-leaf); border-radius: 20px 0 20px 0;
-      position: absolute; top: -12px; right: 14px; transform-origin: bottom left;
-      animation: pdLeafGrow .6s cubic-bezier(.34,1.56,.64,1) forwards; animation-delay: 1s; opacity: 0; }
-    /* 흩어진 포도알이 가운데로 모여 한 송이가 된다 — "연결"의 시각적 은유 */
-    @keyframes pdGather1 { 0% { transform: translate(-50px,-50px) scale(0); opacity: 0; } 100% { transform: translate(0,0) scale(1); opacity: 1; } }
-    @keyframes pdGather2 { 0% { transform: translate(0,-60px) scale(0); opacity: 0; }    100% { transform: translate(0,0) scale(1); opacity: 1; } }
-    @keyframes pdGather3 { 0% { transform: translate(50px,-50px) scale(0); opacity: 0; }  100% { transform: translate(0,0) scale(1); opacity: 1; } }
-    @keyframes pdGather4 { 0% { transform: translate(-40px,30px) scale(0); opacity: 0; }  100% { transform: translate(0,0) scale(1); opacity: 1; } }
-    @keyframes pdGather5 { 0% { transform: translate(40px,30px) scale(0); opacity: 0; }   100% { transform: translate(0,0) scale(1); opacity: 1; } }
-    @keyframes pdGather6 { 0% { transform: translate(0,60px) scale(0); opacity: 0; }      100% { transform: translate(0,0) scale(1); opacity: 1; } }
-    @keyframes pdLeafGrow { 0% { transform: scale(0) rotate(-20deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
-    .pd-d1 { top: 0;    left: 0;    animation: pdGather1 .8s cubic-bezier(.16,1,.3,1) forwards; }
-    .pd-d2 { top: 0;    left: 22px; animation: pdGather2 .8s cubic-bezier(.16,1,.3,1) forwards; animation-delay: .1s; opacity: 0; }
-    .pd-d3 { top: 0;    left: 44px; animation: pdGather3 .8s cubic-bezier(.16,1,.3,1) forwards; animation-delay: .2s; opacity: 0; }
-    .pd-d4 { top: 20px; left: 11px; animation: pdGather4 .8s cubic-bezier(.16,1,.3,1) forwards; animation-delay: .3s; opacity: 0; }
-    .pd-d5 { top: 20px; left: 33px; animation: pdGather5 .8s cubic-bezier(.16,1,.3,1) forwards; animation-delay: .4s; opacity: 0; }
-    .pd-d6 { top: 40px; left: 22px; animation: pdGather6 .8s cubic-bezier(.16,1,.3,1) forwards; animation-delay: .5s; opacity: 0; }
-    @keyframes pdFadeUp { 0% { opacity: 0; transform: translateY(15px); } 100% { opacity: 1; transform: translateY(0); } }
-    .pd-fade { animation: pdFadeUp .8s ease-out forwards; opacity: 0; }
-    .pd-fade.d1 { animation-delay: 1.2s; }
-    .pd-fade.d2 { animation-delay: 1.4s; }
-    .pd-title { font-size: 38px; white-space: nowrap; font-weight: 900; color: #fff; letter-spacing: -0.05em; margin: 0 0 4px; }
-    .pd-tagline { font-size: 15px; font-weight: 500; color: rgba(255,255,255,.9); letter-spacing: .02em; margin: 0 0 32px; }
-    .pd-conn { position: absolute; bottom: 48px; display: flex; gap: 8px; opacity: .5; }
-    .pd-conn i { display: block; height: 6px; border-radius: 3px; background: #fff; }
-    .pd-conn i:nth-child(2) { width: 32px; }
-    .pd-conn i:nth-child(1), .pd-conn i:nth-child(3) { width: 6px; }
+    /* ① 스플래시 — 2026-10-07 「교사 광장」 표지(3차 시안, 아직 배포 전): 밝은 책상 위의 책.
+       흩어진 이야기(빛 알갱이)가 모여 책이 되고 → 녹색 린넨 표지의 뚫린 창으로 "한 영혼을 살리는 진리의 사랑"이 비침
+       → 표지가 살짝 들렸다가 천천히 열림(빛·그늘이 함께 움직임) → 살구색 첫 장: 어록, 바로 아래 熙 사인, 창 자리 문구.
+       책은 제자리에서만 열림(좌우로 안 움직임) — 왼쪽 면(표지 안쪽)은 휴대폰에선 화면 밖으로 살짝 잘림.
+       흐름은 pdPlayBook(): bk-gather → bk-open → bk-title. 글꼴 Noto Serif KR(본문)·Liu Jian Mao Cao(熙 흘림 사인, 글자만 받아옴). */
+    #pdSplash { z-index: 20; align-items: center; justify-content: center; color: #2B2622; overflow: hidden;
+      background:
+        radial-gradient(ellipse 70% 55% at 22% 0%, rgba(255,252,245,.95) 0%, rgba(255,252,245,0) 70%),
+        radial-gradient(ellipse 120% 90% at 50% 45%, rgba(0,0,0,0) 55%, rgba(110,90,65,.16) 100%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' stitchTiles='stitch' baseFrequency='.85' numOctaves='3' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .3 0 0 0 0 .24 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+        linear-gradient(170deg, #EEE9E0 0%, #E5DED2 100%); }
+    .pd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-    /* 2026-10-06: 처음 오는 사람 — 표지 아래에 흰 입력 카드(고유번호·이름)를 띄움. 로그인 화면으로 넘어가지 않음 */
-    #pdSplash.pd-with-form { justify-content: flex-start; padding: max(56px, 9vh) 22px 28px; overflow-y: auto; }
-    #pdSplash.pd-with-form .pd-conn { display: none; }
-    #pdSplash .pd-enter { background: #5B3A9E; }
-    #pdSplash .pd-input:focus { border-color: #7B5CD6; box-shadow: 0 0 0 4px #EEE8FA; }
-    #pdSplash .pd-loading span { color: #5B3A9E; }
-    #pdSplash .pd-loading i { border-top-color: #5B3A9E; }
-    #pdSplash.pd-with-form .pd-tagline { margin-bottom: 26px; }
-    #pdSplash #pdForm { width: 100%; max-width: 400px; background: #fff; border-radius: 22px; padding: 24px 20px 14px;
-      box-shadow: 0 12px 32px rgba(0,0,0,.14); animation: pdFadeUp .6s ease-out forwards; }
+    .bk-stage { --bw: min(64vw, 290px); --bh: calc(var(--bw) * 1.42); position: relative; z-index: 1;
+      width: 100%; height: calc(var(--bh) + 26px); display: flex; justify-content: center; align-items: flex-start;
+      transition: transform .9s cubic-bezier(.22,1,.36,1), opacity .7s ease; }
+    /* 이야기 알갱이 — pdSparks()가 캔버스에 그림(사방에서 점점 빨라지며 휘감겨 창으로) */
+    .bk-spark-cv { position: absolute; left: 0; top: 0; z-index: 7; pointer-events: none; }
+    /* 다 모이는 순간 창에서 빛이 피어올랐다 가라앉음 */
+    .bk-bloom { position: absolute; left: 50%; top: calc(var(--bh) * .615); width: calc(var(--bw) * 1.6); height: calc(var(--bw) * 1.6); translate: -50% -50%;
+      border-radius: 50%; pointer-events: none; z-index: 6; opacity: 0; scale: .3; mix-blend-mode: screen;
+      background: radial-gradient(circle, rgba(255,246,225,.95) 0%, rgba(255,214,150,.55) 22%, rgba(255,200,130,0) 60%); }
+    .bk-gather .bk-bloom { animation: bkBloom 2.4s linear 1.4s forwards; }
+    @keyframes bkBloom { 0% { opacity: 0; scale: .35; } 25% { opacity: 1; scale: .95; } 100% { opacity: 0; scale: 1.35; } }
+
+    .bk-book { position: relative; width: var(--bw); height: var(--bh); opacity: 0; scale: .94; filter: blur(5px) brightness(1.25);
+      transition: opacity 1.1s ease .45s, scale 1.4s cubic-bezier(.22,1,.36,1) .45s, filter 1.3s ease .45s; }
+    .bk-gather .bk-book { opacity: 1; scale: 1; filter: none; }
+    /* 책상에 드리운 그림자(오른쪽 면 아래). 왼쪽 면 그림자는 표지 안쪽(.bk-endpaper)이 스스로 가짐 — 책은 좌우로 움직이지 않음 */
+    .bk-shadow { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 4px;
+      box-shadow: 0 2px 3px rgba(40,30,20,.18), 10px 22px 34px rgba(70,52,32,.30);
+      }
+    .bk-edge { position: absolute; top: 4px; bottom: 4px; right: -5px; width: 5px; border-radius: 0 2px 2px 0;
+      background: repeating-linear-gradient(90deg, #E6CDBA 0 1px, #F7E7DA 1px 2px); }
+
+    .bk-leaf { position: absolute; inset: 0; transform-origin: left center; transform-style: preserve-3d; transform: perspective(2200px) rotateY(0); }
+    .bk-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; }
+    .bk-back { transform: rotateY(180deg); }
+    .bk-cover { z-index: 5; } .bk-base { z-index: 1; }
+    /* 표지: 살짝 들렸다(0.5s) 머뭇거린 뒤 천천히 넘어감 */
+    /* 한 곡선으로 — 서서히 출발해 흐르듯 넘어가고 끝에서 부드럽게 내려앉음(구간을 나누면 구간마다 멈칫함) */
+    .bk-open .bk-cover { animation: bkCoverOpen 3.2s cubic-bezier(.5,0,.3,1) forwards; }
+    @keyframes bkCoverOpen { 0% { transform: perspective(2200px) rotateY(0); } 100% { transform: perspective(2200px) rotateY(-180deg); } }
+
+    /* 표지 앞 — 짙은 녹색 린넨(가로·세로 올이 보이는 천 + 잔결 노이즈) */
+    /* 창 = 진짜 구멍(마스크로 도려냄 — 첫 장 .bk-win-txt와 같은 자리). 표지가 기울면 구멍도 함께 기울고 뒤 글자는 제자리 */
+    .bk-cover .bk-front { -webkit-mask: linear-gradient(#000 0 0) 0 0 / 100% 100% no-repeat, linear-gradient(#000 0 0) 50% 62.92% / 82% 11% no-repeat;
+      -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) 0 0 / 100% 100% no-repeat, linear-gradient(#000 0 0) 50% 62.92% / 82% 11% no-repeat; mask-composite: exclude;
+      border-radius: 2px 5px 5px 2px; background-color: #2E483D;
+      background-image:
+        linear-gradient(150deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,.16) 100%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640'%3E%3Cfilter id='h'%3E%3CfeTurbulence type='fractalNoise' stitchTiles='stitch' baseFrequency='.012 .95' numOctaves='2' seed='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 -.9 .55'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23h)' opacity='.55'/%3E%3C/svg%3E"),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640'%3E%3Cfilter id='v'%3E%3CfeTurbulence type='fractalNoise' stitchTiles='stitch' baseFrequency='.95 .012' numOctaves='2' seed='5'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -.9 .62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23v)' opacity='.6'/%3E%3C/svg%3E"),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' stitchTiles='stitch' baseFrequency='1.6' numOctaves='2' seed='9'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+    .bk-cover .bk-front::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 13px; z-index: 1;
+      background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,.05) 60%, rgba(255,255,255,.08) 75%, rgba(0,0,0,0)); }
+    /* 넘어가는 동안 표지 앞은 점점 어두워지고(빛에서 멀어짐), 안쪽 면지는 어두웠다 밝아짐 */
+    .bk-cover .bk-front::after, .bk-cover .bk-back::after { content: ''; position: absolute; inset: 0; background: #1A120A; opacity: 0; pointer-events: none; z-index: 4; }
+    .bk-open .bk-cover .bk-front::after { animation: bkShadeF 3.2s cubic-bezier(.5,0,.3,1) forwards; }
+    .bk-open .bk-cover .bk-back::after { animation: bkShadeB 3.2s cubic-bezier(.5,0,.3,1) forwards; }
+    @keyframes bkShadeF { 0% { opacity: 0; } 100% { opacity: .6; } }
+    @keyframes bkShadeB { 0% { opacity: .5; } 100% { opacity: 0; } }
+    .bk-ctitle { position: absolute; left: 13%; top: 10%; z-index: 2; font-family: 'Noto Serif KR', serif; font-size: calc(var(--bw) * .062); font-weight: 600;
+      letter-spacing: .16em; color: #D8C590; text-shadow: 0 1px 0 rgba(0,0,0,.4); white-space: nowrap; }
+    /* 구멍 가장자리 — 판지 두께(구멍 안쪽은 마스크로 비고, 바깥 테두리 선만 보임) */
+    .bk-window { position: absolute; left: 9%; right: 9%; top: 56%; height: 11%; z-index: 2; pointer-events: none;
+      box-shadow: -1px -1px 0 rgba(0,0,0,.45), 1.5px 1.5px 0 rgba(214,205,186,.55), 0 0 0 2.5px rgba(0,0,0,.08); }
+    .bk-cmark { position: absolute; left: 13%; bottom: 8%; z-index: 2; width: calc(var(--bw) * .08); height: auto; opacity: .85; }
+
+    /* 첫 장(살구색 종이) — 어록 위, 창 자리에 문구, 아래에 熙 사인 */
+    .bk-paper { background-color: #F2B995; color: #2E2722; font-family: 'Noto Serif KR', serif; text-align: center;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 60% 30%, rgba(255,240,225,.35), rgba(255,240,225,0) 70%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' stitchTiles='stitch' baseFrequency='1.1' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .4 0 0 0 0 .2 0 0 0 0 .1 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E"); }
+    .bk-r { border-radius: 1px 5px 5px 1px; box-shadow: inset 16px 0 20px -14px rgba(90,45,20,.35); }
+    .bk-quote { position: absolute; left: 10%; right: 10%; top: 15%; margin: 0; font-size: calc(var(--bw) * .047); font-weight: 400; line-height: 1.95; letter-spacing: -.01em; color: #3A302A; }
+    .bk-win-txt { position: absolute; left: 9%; right: 9%; top: 56%; height: 11%; display: flex; align-items: center; justify-content: center; }
+    .bk-win-txt::before { content: ''; position: absolute; inset: 0; box-shadow: inset 3px 4px 6px rgba(40,20,5,.32); transition: opacity 1.4s ease .2s; }
+    .bk-open .bk-win-txt::before { opacity: 0; }
+    .bk-win-txt span { font-family: 'Noto Serif KR', serif; font-size: calc(var(--bw) * .052); font-weight: 600; line-height: 1.2; letter-spacing: .02em; color: #2E2722; white-space: nowrap; text-align: center; }
+    .bk-sign { position: absolute; left: 0; right: 0; top: 29%; font-family: 'Liu Jian Mao Cao', 'Noto Serif KR', serif; font-size: calc(var(--bw) * .18); line-height: 1;
+      color: #241E1A; rotate: -7deg; opacity: .92; }
+    /* 표지가 넘어갈 때 첫 장 위를 스치는 그림자 */
+    .bk-cast { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(90deg, rgba(50,25,10,.4), rgba(50,25,10,0) 75%); }
+    .bk-open .bk-cast { animation: bkCast 3.2s cubic-bezier(.5,0,.3,1) forwards; }
+    @keyframes bkCast { 0% { opacity: .85; } 100% { opacity: 0; } }
+    /* 표지 안쪽(왼쪽 면) — 살구색 면지 + 창 구멍(책상이 보임) */
+    .bk-endpaper { -webkit-mask: linear-gradient(#000 0 0) 0 0 / 100% 100% no-repeat, linear-gradient(#000 0 0) 50% 62.92% / 82% 11% no-repeat;
+      -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) 0 0 / 100% 100% no-repeat, linear-gradient(#000 0 0) 50% 62.92% / 82% 11% no-repeat; mask-composite: exclude;
+      border-radius: 5px 1px 1px 5px; background-color: #EFB28D; box-shadow: inset -16px 0 20px -14px rgba(90,45,20,.38);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' stitchTiles='stitch' baseFrequency='1.1' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .4 0 0 0 0 .2 0 0 0 0 .1 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E"); }
+    .bk-back-shadow { border-radius: 5px 1px 1px 5px; box-shadow: -6px 18px 30px rgba(70,52,32,.22); }   /* 펼친 왼쪽 면이 책상에 드리우는 그림자 */
+
+    .pd-brand { position: relative; z-index: 1; text-align: center; margin-top: 18px; opacity: 0; translate: 0 8px; transition: opacity 1.2s ease, translate 1.2s cubic-bezier(.22,1,.36,1); }
+    .bk-title .pd-brand { opacity: 1; translate: 0 0; }
+    #pdSplash .pd-title { font-size: 24px; font-weight: 800; color: #2B2622; letter-spacing: -0.04em; margin: 0; white-space: nowrap; }
+    #pdSplash .pd-tagline { margin: 6px 0 0; font-size: 13px; font-weight: 500; color: #7A6F63; letter-spacing: -0.01em; }
+    /* 다시 오는 사람 — 첫 장 쪽으로 다가가며 밝아지고 앱으로 */
+    #pdSplash::after { content: ''; position: absolute; inset: 0; background: #FBF8F2; opacity: 0; pointer-events: none; transition: opacity .6s ease .1s; z-index: 4; }
+    #pdSplash.bk-enter::after { opacity: 1; }
+    #pdSplash.bk-enter .bk-stage { transform: scale(1.25); transition: transform .75s cubic-bezier(.55,0,.75,.3); }
+    .pd-replay { position: absolute; z-index: 5; right: 14px; bottom: 14px; height: 34px; padding: 0 12px; border: 1px solid #D6CDBE; border-radius: 999px;
+      background: rgba(255,255,255,.7); color: #5E554B; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bk-book, .bk-stage, .pd-brand, .bk-shadow { transition: none !important; }
+      .bk-open .bk-cover { animation: none; transform: perspective(2200px) rotateY(-180deg); }
+      .bk-spark-cv, .bk-cast, .bk-bloom { display: none; }
+    }
+
+    /* 2026-10-06: 처음 오는 사람 — 표지 아래에 입력 카드(이름·고유번호)를 띄움. 로그인 화면으로 넘어가지 않음.
+       2026-10-07(3차): 책을 주인공으로 크게, 카드는 작게. "처음 오셨나요?·저장된 번호 지우기" 안내는 뺌(사용자 요청) */
+    #pdSplash.pd-with-form { justify-content: flex-start; padding: max(22px, 3.5vh) 0 20px; overflow-y: auto; overflow-x: hidden; }
+    #pdSplash.pd-with-form .bk-stage { transition: transform 1.1s cubic-bezier(.33,0,.2,1); transform: scale(.86); margin: calc(var(--bh) * -.06) 0 calc(var(--bh) * -.12); }
+    #pdSplash.pd-with-form .pd-brand { margin-top: 8px; margin-bottom: 14px; }
+    #pdSplash #pdForm { position: relative; z-index: 1; width: calc(100% - 56px); max-width: 330px; background: rgba(255,255,255,.92); border-radius: 16px; padding: 16px 16px 4px;
+      box-shadow: 0 10px 28px rgba(80,60,40,.16); animation: pdFadeUp .9s cubic-bezier(.33,0,.2,1) .55s both; }   /* 책·제목이 거의 다 올라간 뒤 이어서(겹치지 않게) */
+    #pdSplash .pd-field { margin-bottom: 10px; }
+    #pdSplash .pd-label { font-size: 12px; margin: 0 0 5px 2px; color: #5E554B; }
+    #pdSplash .pd-input { height: 44px; padding-top: 0; padding-bottom: 0; font-size: 15px; border-radius: 11px; background: #F3F0EA; }
+    #pdSplash .pd-input:focus { background: #fff; border-color: #2E483D; box-shadow: 0 0 0 3px #E2EBE6; }
+    #pdSplash .pd-enter { height: 46px; margin-top: 8px; border-radius: 11px; font-size: 15px; background: #2E483D; }
+    #pdSplash .pd-loading { height: 30px; margin-top: 4px; }
+    #pdSplash .pd-loading span { color: #2E483D; }
+    #pdSplash .pd-loading i { border-top-color: #2E483D; }
+    #pdForm .pd-foot { display: none; }
+    @keyframes pdFadeUp { 0% { opacity: 0; transform: translateY(15px); } 100% { opacity: 1; transform: translateY(0); } }
 
     /* ② 로그인 */
     #pdLogin { z-index: 10; justify-content: center; padding: 0 28px; background: #fff; }
@@ -1820,16 +1907,40 @@
        자동으로 채워지고 바로 입장합니다(아래 PD_KEY / pdBoot 참고). -->
   <div id="loginPanel" style="display:none">
 
-    <!-- ① 스플래시 -->
+    <!-- ① 스플래시 — 2026-10-07 「교사 광장」 3차 시안: 밝은 책상 위 녹색 린넨 책. 창으로 첫 장의 문구가 비치고, 천천히 열리면 어록과 熙 사인. 시간은 pdPlayBook() -->
     <div id="pdSplash" class="pd-screen">
-      <div class="pd-bunch">
-        <div class="pd-leaf"></div>
-        <div class="pd-dot pd-d1"></div><div class="pd-dot pd-d2"></div><div class="pd-dot pd-d3"></div>
-        <div class="pd-dot pd-d4"></div><div class="pd-dot pd-d5"></div><div class="pd-dot pd-d6"></div>
+      <div class="bk-stage" id="bkStage">
+        <div class="bk-bloom"></div>
+        <div class="bk-book">
+          <div class="bk-shadow"></div>
+          <div class="bk-edge"></div>
+          <!-- 첫 장 -->
+          <div class="bk-leaf bk-base">
+            <div class="bk-face bk-paper bk-r">
+              <p class="bk-quote">세상에서 가장 가치있는 일은<br>사람의 영혼을 살리는 일이다.</p>
+              <div class="bk-sign">熙</div>
+              <div class="bk-win-txt"><span>한 영혼을 살리는 진리의 사랑</span></div>
+              <div class="bk-cast"></div>
+            </div>
+          </div>
+          <!-- 표지: 앞=녹색 린넨(창), 뒤=살구색 면지(창 구멍) -->
+          <div class="bk-leaf bk-cover">
+            <div class="bk-face bk-front">
+              <div class="bk-ctitle">교사광장</div>
+              <div class="bk-window"></div>
+              <svg class="bk-cmark" viewBox="0 0 48 48" fill="none" stroke="#D8C590" stroke-width="2.6" stroke-linecap="round">
+                <circle cx="24" cy="24" r="7"/><path d="M24 7v6M24 35v6M7 24h6M35 24h6M12 12l4.2 4.2M31.8 31.8l4.2 4.2M12 36l4.2-4.2M31.8 16.2l4.2-4.2"/>
+              </svg>
+            </div>
+            <div class="bk-face bk-back bk-back-shadow"></div>
+            <div class="bk-face bk-back bk-endpaper"></div>
+          </div>
+        </div>
       </div>
-      <h1 class="pd-title pd-fade d1">교사 광장</h1>
-      <p class="pd-tagline pd-fade d2">알알이 맺히는 따뜻한 동행</p>
-      <div class="pd-conn pd-fade d2"><i></i><i></i><i></i></div>
+      <div class="pd-brand">
+        <h1 class="pd-title">교사광장</h1>
+        <p class="pd-tagline">계시 말씀을 가르치는 교사들의 이야기</p>
+      </div>
     </div>
 
     <!-- ② 로그인 -->
@@ -2377,6 +2488,74 @@
       pdEnterWithSpinner(id, nm, '입장 중...');
     }
 
+    /**
+     * 2026-10-07 「교사 광장」 표지(3차) — 멈춤 없이 이어지는 한 흐름:
+     *   이야기 알갱이(캔버스)가 사방에서 점점 빨라지며 휘감겨 창으로 빨려 듦(0~2s)
+     *   → 다 모일 무렵 창이 환해지며(bk-gather 1.5s~ 빛 피어오름) 그대로 표지가 열리기 시작(bk-open 1.75s, 3.2초 한 곡선)
+     *   → 표지가 내려앉는 동안 제목(bk-title 3.3s) → 처음 오는 사람은 4.1s에 책이 올라가며 입장 카드, 다시 오는 사람은 4.7s에 입장.
+     * 알갱이는 CSS 키프레임(구간마다 감속해서 멈칫함) 대신 requestAnimationFrame으로 그림. 움직임 줄이기 설정이면 바로 펼친 모습.
+     */
+    const PD_BOOK_TIMERS = [];
+    let pdBookDone = null, pdSparkRaf = 0;
+    function pdSparks(sp) {
+      cancelAnimationFrame(pdSparkRaf);
+      let cv = document.getElementById('bkSparkCv');
+      if (!cv) { cv = document.createElement('canvas'); cv.id = 'bkSparkCv'; cv.className = 'bk-spark-cv'; sp.appendChild(cv); }
+      const dpr = Math.min(2, window.devicePixelRatio || 1), W = sp.clientWidth, H = sp.clientHeight;
+      cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // 모이는 곳 = 표지 창 한가운데
+      const st = sp.getBoundingClientRect(), bk = sp.querySelector('.bk-book').getBoundingClientRect();
+      const tx = bk.left - st.left + bk.width / 2, ty = bk.top - st.top + bk.height * .615;
+      const ps = Array.from({ length: 64 }, () => {
+        const a = Math.random() * Math.PI * 2, r = 210 + Math.random() * 280;
+        return { a, r, s: 1.2 + Math.random() * 2.6, d: Math.random() * 380, t: 1350 + Math.random() * 500, tw: (Math.random() < .5 ? -1 : 1) * (0.9 + Math.random() * 0.8) };
+      });
+      const t0 = performance.now();
+      const frame = now => {
+        const el = now - t0; let alive = false;
+        g.clearRect(0, 0, W, H);
+        for (const p of ps) {
+          const k = (el - p.d) / p.t;
+          if (k < 0) { alive = true; continue; }
+          if (k >= 1) continue;
+          alive = true;
+          const e = k * k * (1.6 - 0.6 * k);              // 처음엔 천천히, 갈수록 빨라짐(중간에 멈춤 없음)
+          const r = p.r * (1 - e), ang = p.a + p.tw * e;    // 반지름이 줄며 휘감김
+          const x = tx + Math.cos(ang) * r, y = ty + Math.sin(ang) * r * 1.2;
+          g.globalAlpha = Math.min(1, k / .15) * (k > .85 ? (1 - k) / .15 : 1);
+          g.shadowBlur = 10; g.shadowColor = 'rgba(240,165,70,.75)';
+          g.fillStyle = '#F4B55C';
+          g.beginPath(); g.arc(x, y, p.s * (1 - e * .45), 0, Math.PI * 2); g.fill();
+        }
+        if (alive) pdSparkRaf = requestAnimationFrame(frame); else g.clearRect(0, 0, W, H);
+      };
+      pdSparkRaf = requestAnimationFrame(frame);
+    }
+    function pdPlayBook(done, doneAt) {
+      const sp = document.getElementById('pdSplash');
+      PD_BOOK_TIMERS.splice(0).forEach(clearTimeout);
+      sp.classList.remove('bk-gather', 'bk-open', 'bk-title', 'bk-enter');
+      void sp.offsetWidth;
+      pdBookDone = done || null;
+      const steps = [['bk-gather', 30], ['bk-open', 1750], ['bk-title', 3300]];
+      if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        steps.forEach(([c]) => sp.classList.add(c));
+        if (done) PD_BOOK_TIMERS.push(setTimeout(pdFinishBook, 900));
+        return;
+      }
+      pdSparks(sp);
+      steps.forEach(([c, ms]) => PD_BOOK_TIMERS.push(setTimeout(() => sp.classList.add(c), ms)));
+      if (done) PD_BOOK_TIMERS.push(setTimeout(pdFinishBook, doneAt || 4200));
+    }
+    function pdFinishBook() {
+      PD_BOOK_TIMERS.splice(0).forEach(clearTimeout);
+      const sp = document.getElementById('pdSplash');
+      ['bk-gather', 'bk-open', 'bk-title'].forEach(c => sp.classList.add(c));
+      const f = pdBookDone; pdBookDone = null;
+      if (f) f();
+    }
+
     /** 스플래시를 띄우고, 끝나면 저장값 유무에 따라 분기 */
     function pdBoot() {
       const panel = document.getElementById('loginPanel');
@@ -2389,25 +2568,42 @@
         return;
       }
 
-      const saved = pdLoadSaved() || (pdIsOwnerDevice() ? { memberId: OWNER_ID, name: OWNER_NAME } : null);
-      // 2026-10-06(사용자 요청): 한 번 로그인한 사람은 "우리가 연결될 때…" 로그인 화면이 필요 없음 →
-      // 표지를 조금 더 길게(2.2초) 보여 준 뒤 로그인 화면 없이 바로 광장으로 들어간다.
+      // 2026-10-07: 표지 미리보기(app.html?cover) — 저장된 로그인이 있어도 입장하지 않고 표지+입력 카드를 보여 주고, [다시 보기]로 반복
+      const preview = /[?&]cover\b/.test(location.search);
+      const saved = preview ? null : (pdLoadSaved() || (pdIsOwnerDevice() ? { memberId: OWNER_ID, name: OWNER_NAME } : null));
+      // 2026-10-06(사용자 요청): 한 번 로그인한 사람은 로그인 화면 없이 표지만 보고 바로 들어간다.
+      // 2026-10-07: 표지가 내려앉을 무렵 바로 밝아지며 입장(멈춤 없이), 화면을 누르면 바로 넘어감
       if (saved) {
-        setTimeout(() => {
-          const splash = document.getElementById('pdSplash');
-          splash.style.opacity = '0';
-          setTimeout(() => pdEnter(saved.memberId, saved.name), 600);   // .pd-screen transition(.6s)과 맞춤
-        }, 2200);
+        const splash = document.getElementById('pdSplash');
+        splash.onclick = () => { splash.onclick = null; pdFinishBook(); };
+        pdPlayBook(() => {
+          splash.onclick = null;
+          splash.classList.add('bk-enter');
+          setTimeout(() => pdEnter(saved.memberId, saved.name), 700);
+        }, 4700);
         return;
       }
-      // 처음 오는 사람: 표지 애니메이션이 끝나면 같은 화면 아래에 고유번호·이름 입력 카드를 붙인다(로그인 화면으로 안 넘어감)
-      setTimeout(() => {
+      // 처음 오는 사람: 표지가 내려앉는 동안 책이 위로 올라가며 이름·고유번호 입력 카드가 나타남(멈춤 없이 이어짐)
+      pdPlayBook(() => {
         const splash = document.getElementById('pdSplash'), form = document.getElementById('pdForm');
+        // 카드가 붙으면 책이 가운데→위로 자리를 옮기는데, 툭 튀지 않게 옛 자리에서 미끄러져 올라가게(FLIP)
+        const moving = [document.getElementById('bkStage'), splash.querySelector('.pd-brand')];
+        const before = moving.map(el => el.getBoundingClientRect().top);
         splash.classList.add('pd-with-form');
         splash.appendChild(form);
+        moving.forEach((el, i) => {
+          const dy = before[i] - el.getBoundingClientRect().top;
+          if (el.animate) el.animate([{ translate: `0 ${dy}px` }, { translate: '0 0' }], { duration: 1100, easing: 'cubic-bezier(.33,0,.2,1)' });
+        });
+        if (preview && !document.getElementById('pdReplay')) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.id = 'pdReplay'; b.className = 'pd-replay'; b.textContent = '↻ 표지 다시 보기';
+          b.onclick = () => { splash.classList.remove('pd-with-form'); document.getElementById('pdLoginContent').appendChild(form); pdBoot(); };
+          splash.appendChild(b);
+        }
         // PC에서만 바로 입력칸에 커서(휴대폰은 키보드가 표지를 가려서 누를 때 뜨게)
-        if (window.innerWidth >= 1024) setTimeout(() => { const el = document.getElementById('name'); if (el) el.focus(); }, 300);
-      }, 1600);
+        if (window.innerWidth >= 1024 && !preview) setTimeout(() => { const el = document.getElementById('name'); if (el) el.focus(); }, 300);
+      }, 4100);
     }
 
     /**
