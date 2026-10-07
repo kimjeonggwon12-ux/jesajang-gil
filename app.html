@@ -8116,8 +8116,7 @@ function tbSearchRender() {
             `<button type="button" class="${tab === k ? 'on' : ''}" data-vt-tab="${k}">${l}</button>`).join('')}</div>
           <div class="vt-acts">
             <button type="button" data-vt="doc">⬇ 워드로 받기</button>
-            <button type="button" data-vt="txt">⬇ 텍스트로 받기</button>
-            <button type="button" data-vt="copy">📋 복사</button>
+            <button type="button" data-vt="copy">📋 교안으로 복사</button>
           </div>
           <div class="vt-body">${text ? vtMd(text, true) : '<p class="vt-note">내용이 없어요.</p>'}</div>
           <div class="vt-foot">
@@ -8137,13 +8136,9 @@ function tbSearchRender() {
         const k = b.dataset.vt;
         if (k === 'make' || k === 'resume') vtRun(v, {});
         else if (k === 'redo') { if (vtState.redo !== id) { vtState.redo = id; vtRender(id); return; } vtState.redo = ''; vtRun(v, { restart: true }); }
-        else if (k === 'doc') vtDownload(v, vtState.tab, 'doc');
-        else if (k === 'txt') vtDownload(v, vtState.tab, 'txt');
-        else if (k === 'docAll') vtDownload(v, 'all', 'doc');
-        else if (k === 'copy') {
-          const t = vtState.tab === 'summary' ? r.summary : r.transcript;
-          (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요.'), () => toast('복사하지 못했어요.', true));
-        }
+        else if (k === 'doc') vtDownload(v, vtState.tab);
+        else if (k === 'docAll') vtDownload(v, 'all');
+        else if (k === 'copy') vtCopy(v, vtState.tab);
       }; });
     }
     async function vtRun(v, opts) {
@@ -8173,31 +8168,86 @@ function tbSearchRender() {
       vtRender(id);
       if (ok) toast(`'${v.title.slice(0, 20)}' 녹취·요약이 완성됐어요.`);
     }
-    function vtDownload(v, kind, fmt) {
-      const r = vtState.cache[v.id];
-      if (!r || !r.exists) return;
+    // 2026-10-07 교안 모양 — 복사·워드 받기 공용. 영상 제목을 맨 위에 굵게, ## 큰 제목은 Ⅰ.Ⅱ.Ⅲ., ### 소제목은 1. 2. 3.
+    // 번호, 목록은 •. html(워드·한글·구글문서·메모에 붙이면 굵게)과 plain(카톡 등 서식 없는 곳용) 두 가지를 같이 만듦.
+    const VT_ROMAN = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ', 'Ⅴ', 'Ⅵ', 'Ⅶ', 'Ⅷ', 'Ⅸ', 'Ⅹ', 'Ⅺ', 'Ⅻ'];
+    function vtLesson(v, kind) {
+      const r = vtState.cache[v.id] || {};
       const secs = kind === 'all' ? [['요약', r.summary], ['녹취 전문', r.transcript]]
         : [[kind === 'summary' ? '요약' : '녹취 전문', kind === 'summary' ? r.summary : r.transcript]];
-      const label = kind === 'all' ? '요약+녹취' : secs[0][0].replace(' ', '');
-      const url = 'https://www.youtube.com/watch?v=' + v.videoId;
-      const meta = `${vdParts(v).join(' · ')} · ${vdDate(v.uploadDate)} · ${url}`;
-      let blob, ext;
-      if (fmt === 'txt') {
-        const txt = [v.title, meta, ''].concat(secs.map(([h, t]) => `■ ${h}\n\n${t}`)).join('\n\n');
-        blob = new Blob(['﻿' + txt], { type: 'text/plain;charset=utf-8' }); ext = 'txt';
-      } else {
-        // 워드가 여는 HTML(.doc) — 교재 단원 받기(downloadUnitAsWord)와 같은 방식
-        const html = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8"><meta name="ProgId" content="Word.Document"><title>${esc(v.title)}</title>
-<style>body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;font-size:11pt;line-height:1.6}h1{font-size:18pt;margin:0 0 4pt}h2{font-size:15pt;margin:18pt 0 6pt;color:#00936E}h3{font-size:13pt;margin:14pt 0 4pt}h4{font-size:11.5pt;margin:10pt 0 4pt}p{margin:0 0 8pt}blockquote{margin:0 0 8pt 12pt;color:#555}.sub{font-size:9.5pt;color:#666;margin:0 0 16pt}.sec{font-size:16pt;font-weight:bold;border-bottom:2px solid #00AE82;margin:24pt 0 8pt;padding-bottom:4pt}</style></head>
-<body><h1>${esc(v.title)}</h1><p class="sub">${esc(meta)}</p>
-${secs.map(([h, t]) => `<div class="sec">${esc(h)}</div>${vtMd(t, false)}`).join('\n')}
-</body></html>`;
-        blob = new Blob(['﻿' + html], { type: 'application/msword;charset=utf-8' }); ext = 'doc';
+      const meta = `${vdParts(v).join(' · ')} · ${vdDate(v.uploadDate)} · https://youtu.be/${v.videoId}`;
+      const F = "font-family:'맑은 고딕','Malgun Gothic',sans-serif;";
+      const hi = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+      const pl = s => String(s).replace(/\*\*(.+?)\*\*/g, '$1');
+      let html = `<div style="${F}font-size:11pt;line-height:1.7;color:#111;">
+        <p style="margin:0 0 4px;font-size:18pt;font-weight:bold;">${esc(v.title)}</p>
+        <p style="margin:0 0 14px;font-size:9.5pt;color:#666;">${esc(meta)}</p>`;
+      const plain = [`📖 ${v.title}`, meta];
+      secs.forEach(([label, text]) => {
+        html += `<p style="margin:18px 0 8px;padding-bottom:4px;font-size:15pt;font-weight:bold;border-bottom:2px solid #00AE82;">${esc(label)}</p>`;
+        plain.push('', `【 ${label} 】`);
+        let big = 0, sub = 0, list = false;
+        const para = x => { const last = plain[plain.length - 1]; if (last !== '' && last !== '──────────' && !/^▶ /.test(last)) plain.push(''); plain.push(x); };   // 문단 사이 빈 줄
+        const endList = () => { if (list) { html += '</ul>'; list = false; } };
+        String(text || '').split('\n').forEach(line => {
+          const t = line.trim();
+          if (/^[-*] /.test(t)) {
+            if (!list) { html += '<ul style="margin:0 0 10px;padding-left:22px;">'; list = true; }
+            html += `<li style="margin:2px 0;">${hi(t.slice(2))}</li>`; plain.push(`• ${pl(t.slice(2))}`); return;
+          }
+          endList();
+          if (!t || /^-{3,}$/.test(t)) return;
+          const m = t.match(/^(#{1,4})\s+(.*)$/);
+          if (m && m[1].length <= 2) {
+            const no = (VT_ROMAN[big] || big + 1) + '.'; big++; sub = 0;
+            html += `<p style="margin:18px 0 6px;font-size:13.5pt;font-weight:bold;color:#00936E;">${no} ${hi(m[2])}</p>`;
+            plain.push('', `${no} ${pl(m[2])}`, '──────────'); return;
+          }
+          if (m && m[1].length === 3) {
+            sub++;
+            html += `<p style="margin:12px 0 4px;font-size:12pt;font-weight:bold;">${sub}. ${hi(m[2])}</p>`;
+            plain.push('', `▶ ${sub}. ${pl(m[2])}`); return;
+          }
+          if (m) { html += `<p style="margin:8px 0 4px;font-weight:bold;">· ${hi(m[2])}</p>`; plain.push(`· ${pl(m[2])}`); return; }
+          if (t.startsWith('>')) {
+            const q = t.replace(/^>\s?/, '');
+            html += `<p style="margin:0 0 10px;padding:4px 10px;border-left:3px solid #00AE82;background:#F3FBF8;color:#444;">${hi(q)}</p>`;
+            para(`※ ${pl(q)}`); return;
+          }
+          html += `<p style="margin:0 0 10px;">${hi(t)}</p>`; para(pl(t));
+        });
+        endList();
+      });
+      html += '</div>';
+      return { html, plain: plain.join('\n').replace(/\n{3,}/g, '\n\n').trim() };
+    }
+    // 서식 있는 글 + 일반 글을 같이 복사 → 워드·한글·구글문서엔 굵게, 카톡엔 번호·기호로 정리된 글이 붙음
+    async function vtCopy(v, kind) {
+      const { html, plain } = vtLesson(v, kind);
+      try {
+        if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+          await navigator.clipboard.write([new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([plain], { type: 'text/plain' })
+          })]);
+        } else { await navigator.clipboard.writeText(plain); }
+        toast('교안 모양으로 복사했어요. 붙여 넣어 보세요.');
+      } catch (e) {
+        try { await navigator.clipboard.writeText(plain); toast('복사했어요.'); }
+        catch (e2) { toast('복사하지 못했어요.', true); }
       }
+    }
+    // 워드가 여는 HTML(.doc) — 교재 단원 받기(downloadUnitAsWord)와 같은 방식, 내용은 복사와 같은 교안 모양
+    function vtDownload(v, kind) {
+      const r = vtState.cache[v.id];
+      if (!r || !r.exists) return;
+      const doc = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8"><meta name="ProgId" content="Word.Document"><title>${esc(v.title)}</title></head>
+<body>${vtLesson(v, kind).html}</body></html>`;
+      const label = kind === 'all' ? '요약+녹취' : kind === 'summary' ? '요약' : '녹취전문';
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = sanitizeFilename(`${v.title}_${label}.${ext}`);
+      a.href = URL.createObjectURL(new Blob(['﻿' + doc], { type: 'application/msword;charset=utf-8' }));
+      a.download = sanitizeFilename(`${v.title}_${label}.doc`);
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
