@@ -944,6 +944,31 @@
     .vd-ov-d { margin:12px 16px 0; font-size:14px; line-height:1.6; color:#D4D4D4; }
     .vd-ov-yt { display:inline-flex; align-items:center; height:42px; margin:18px 16px 0; padding:0 16px; border-radius:10px; background:#FF0033; color:#fff; font-size:14px; font-weight:800; text-decoration:none; }
     .vd-ov-hint { margin:10px 16px 0; font-size:12px; color:#8A8A8A; }
+    /* 2026-10-07 영상 녹취·서머리 — 재생 화면 아래 흰 종이 카드 */
+    .vt-box { margin:22px 16px 0; padding:16px; border-radius:16px; background:#fff; color:#111; }
+    .vt-box:empty { display:none; }
+    .vt-head { font-size:16px; font-weight:900; margin-bottom:6px; }
+    .vt-note { font-size:13px; line-height:1.6; color:#6B7280; margin-top:6px; }
+    .vt-prog { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:14px; font-weight:700; color:#00936E; }
+    .vt-make { width:100%; height:46px; margin-top:12px; border:none; border-radius:12px; background:#00AE82; color:#fff; font-size:15px; font-weight:800; cursor:pointer; }
+    .vt-tabs { display:flex; gap:6px; }
+    .vt-tabs button { flex:1; height:42px; border:1.5px solid #E5E7EB; border-radius:11px; background:#fff; font-size:14.5px; font-weight:800; color:#555; cursor:pointer; }
+    .vt-tabs button.on { border-color:#00AE82; background:#E8F7F2; color:#00936E; }
+    .vt-acts { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+    .vt-acts button { height:34px; padding:0 12px; border:1px solid #DADDE1; border-radius:9px; background:#fff; font-size:13px; font-weight:700; color:#333; cursor:pointer; }
+    .vt-body { margin-top:12px; padding-top:4px; border-top:1px solid #F0F0F0; font-size:14.5px; line-height:1.75; color:#222; word-break:keep-all; overflow-wrap:anywhere; }
+    .vt-body h2 { margin:18px 0 6px; font-size:17px; font-weight:900; color:#00936E; }
+    .vt-body h3 { margin:16px 0 6px; font-size:16px; font-weight:900; }
+    .vt-body h4 { margin:12px 0 4px; font-size:15px; font-weight:800; }
+    .vt-body p { margin:0 0 10px; }
+    .vt-body ul { margin:0 0 10px; padding-left:20px; list-style:disc; }
+    .vt-body li { margin:3px 0; }
+    .vt-body blockquote { margin:0 0 10px; padding:6px 10px; border-left:3px solid #00AE82; background:#F3FBF8; color:#4B5563; font-size:13.5px; border-radius:0 8px 8px 0; }
+    .vt-body hr { border:none; border-top:1px dashed #E5E7EB; margin:14px 0; }
+    .vt-ts { display:inline-block; padding:0 6px; margin-right:2px; border:none; border-radius:6px; background:#E8F7F2; color:#00936E; font:inherit; font-size:.85em; font-weight:800; cursor:pointer; }
+    .vt-foot { display:flex; flex-direction:column; align-items:flex-start; gap:6px; margin-top:12px; padding-top:10px; border-top:1px solid #F0F0F0; font-size:12px; color:#9CA3AF; }
+    .vt-link { padding:0; border:none; background:none; font-size:13.5px; font-weight:800; color:#00936E; cursor:pointer; }
+    .vt-redo { color:#9CA3AF; font-weight:700; font-size:12.5px; }
     /* ===== SECTION CSS: admin =====
        edu-dashboard.html(1️⃣교사현황) + district-dashboard.html(2️⃣부서별활동관리) 흡수.
        두 원본 모두 [data-theme="jesagil"]/:root(--color-*)/.lucide-i/html,body/body/
@@ -7987,19 +8012,194 @@ function tbSearchRender() {
       const ov = document.createElement('div'); ov.className = 'vd-ov';
       ov.innerHTML = `<div class="vd-ov-bar"><button type="button" class="vd-ov-x" aria-label="닫기">‹ 닫기</button><span>${esc(vdParts(v).join(' · '))}</span></div>
         <div class="vd-ov-in">
-          <div class="vd-frame"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.videoId)}?autoplay=1&rel=0&playsinline=1" title="${esc(v.title)}"
+          <div class="vd-frame"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.videoId)}?autoplay=1&rel=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}" title="${esc(v.title)}"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
           <div class="vd-ov-t">${esc(v.title)}</div>
           <div class="vd-ov-m">${esc(vdParts(v).join(' · '))} · ${esc(vdDate(v.uploadDate))}</div>
           ${v.description ? `<div class="vd-ov-d">${esc(v.description)}</div>` : ''}
           <a class="vd-ov-yt" href="https://www.youtube.com/watch?v=${encodeURIComponent(v.videoId)}" target="_blank" rel="noopener">유튜브 앱에서 보기 ↗</a>
           <div class="vd-ov-hint">영상이 재생되지 않으면(퍼가기 금지·비공개 영상) 위 버튼으로 유튜브에서 열어 주세요.</div>
+          <div class="vt-box"></div>
         </div>`;
       document.body.appendChild(ov);
       const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
       const onKey = e => { if (e.key === 'Escape') close(); };
       document.addEventListener('keydown', onKey);
       ov.querySelector('.vd-ov-x').onclick = close;
+      // 2026-10-07: 플레이어에게 영상 길이를 물어봄(녹취 구간 나누기용 — 구글 서버에선 유튜브가 막아서 못 잼)
+      const ifr = ov.querySelector('iframe');
+      vtState.curVid = v.videoId;
+      ifr.addEventListener('load', () => {
+        const ping = () => { try { ifr.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'); } catch (e) {} };
+        ping(); setTimeout(ping, 1500); setTimeout(ping, 4000);
+      });
+      vtMount(v, ov.querySelector('.vt-box'), ifr);
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 2026-10-07 영상 녹취·서머리 — 재생 화면 아래 [요약 | 녹취 전문] + 워드/텍스트 받기·복사.
+    // 만들기는 관리자만(서버 VideoBackend.gs videoTranscribe — Gemini가 영상을 직접 보고 들음).
+    // 서버는 한 번에 한 단계(10분 구간 하나 녹취 또는 서머리)만 하므로 '완료'가 될 때까지 반복 호출.
+    // 녹취의 [mm:ss]를 누르면 위 플레이어가 그 장면으로 이동.
+    // ════════════════════════════════════════════════════════════════
+    const vtState = { cache: {}, running: {}, tab: 'summary', dur: {}, curVid: '', redo: '', mounts: {} };
+    window.addEventListener('message', e => {
+      if (!/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(e.origin)) return;
+      let d; try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (err) { return; }
+      const info = d && d.info;
+      if (!info || !(info.duration > 0)) return;
+      const vid = (info.videoData && info.videoData.video_id) || vtState.curVid;
+      if (vid) vtState.dur[vid] = info.duration;
+    });
+    // 녹취·요약 글(마크다운 비슷) → HTML. 원문 조각마다 esc 하므로 안전. seek=true면 [mm:ss]를 누를 수 있게.
+    function vtMd(text, seek) {
+      const inline = s => {
+        let h = esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+        if (seek) h = h.replace(/\[((?:\d{1,2}:)?\d{1,2}:\d{2})\]/g, (m, t) => {
+          const sec = t.split(':').reduce((a, x) => a * 60 + Number(x), 0);
+          return `<button type="button" class="vt-ts" data-sec="${sec}">${t}</button>`;
+        });
+        return h;
+      };
+      let html = '', list = false;
+      String(text || '').split('\n').forEach(line => {
+        const t = line.trim();
+        if (/^[-*] /.test(t)) { if (!list) { html += '<ul>'; list = true; } html += `<li>${inline(t.slice(2))}</li>`; return; }
+        if (list) { html += '</ul>'; list = false; }
+        if (!t) return;
+        if (/^-{3,}$/.test(t)) { html += '<hr>'; return; }
+        const m = t.match(/^(#{1,4})\s+(.*)$/);
+        if (m) { const n = Math.min(4, m[1].length + 1); html += `<h${n}>${inline(m[2])}</h${n}>`; return; }
+        if (t.startsWith('>')) { html += `<blockquote>${inline(t.replace(/^>\s?/, ''))}</blockquote>`; return; }
+        html += `<p>${inline(t)}</p>`;
+      });
+      if (list) html += '</ul>';
+      return html;
+    }
+    async function vtFetch(v) {
+      try {
+        const r = await callApi({ action: 'getVideoTranscript', id: v.id });
+        if (r && !r.error) vtState.cache[v.id] = r;
+      } catch (e) { if (!vtState.cache[v.id]) vtState.cache[v.id] = { fetchErr: e.message }; }
+    }
+    function vtMount(v, box, ifr) {
+      vtState.mounts[v.id] = { v, box, ifr };
+      vtRender(v.id);
+      vtFetch(v).then(() => vtRender(v.id));
+    }
+    function vtRender(id) {
+      const mt = vtState.mounts[id];
+      if (!mt || !mt.box.isConnected) return;
+      const { v, box, ifr } = mt;
+      const r = vtState.cache[id], run = vtState.running[id], adm = isAdmin();
+      let html;
+      if (run) {
+        html = `<div class="vt-head">📝 녹취·요약</div>
+          <div class="vt-prog"><span class="loading loading-spinner loading-sm"></span><span>${esc(run.msg)}</span></div>
+          <div class="vt-note">영상 길이에 따라 몇 분 걸려요. 이 화면을 닫아도 앱을 켜 두면 계속 만들어요.</div>`;
+      } else if (!r) {
+        html = `<div class="vt-head">📝 녹취·요약</div><div class="vt-note">불러오는 중...</div>`;
+      } else if (r.fetchErr) {
+        html = `<div class="vt-head">📝 녹취·요약</div><div class="vt-note">${esc(r.fetchErr)}</div>`;
+      } else if (!r.exists) {
+        html = `<div class="vt-head">📝 녹취·요약</div>
+          <div class="vt-note">이 영상의 녹취·요약이 아직 없어요.${adm ? '' : ' 관리자가 만들면 이곳에서 보고 받을 수 있어요.'}</div>
+          ${adm ? `<button type="button" class="vt-make" data-vt="make">✨ 녹취·요약 만들기</button>
+          <div class="vt-note">AI가 영상을 보고 들으며 흐름에 따라 소제목을 나눠 녹취하고, 요약을 만들어요.</div>` : ''}`;
+      } else if (r.status !== '완료') {
+        html = `<div class="vt-head">📝 녹취·요약</div>
+          <div class="vt-note">만드는 도중에 멈췄어요 (녹취 ${r.done}/${r.segs} 구간).${r.error ? '<br>' + esc(r.error) : ''}</div>
+          ${adm ? `<button type="button" class="vt-make" data-vt="resume">▶ 이어서 만들기</button>` : ''}`;
+      } else {
+        const tab = vtState.tab, text = tab === 'summary' ? r.summary : r.transcript;
+        html = `<div class="vt-tabs">${[['summary', '📌 요약'], ['transcript', '📝 녹취 전문']].map(([k, l]) =>
+            `<button type="button" class="${tab === k ? 'on' : ''}" data-vt-tab="${k}">${l}</button>`).join('')}</div>
+          <div class="vt-acts">
+            <button type="button" data-vt="doc">⬇ 워드로 받기</button>
+            <button type="button" data-vt="txt">⬇ 텍스트로 받기</button>
+            <button type="button" data-vt="copy">📋 복사</button>
+          </div>
+          <div class="vt-body">${text ? vtMd(text, true) : '<p class="vt-note">내용이 없어요.</p>'}</div>
+          <div class="vt-foot">
+            <button type="button" class="vt-link" data-vt="docAll">⬇ 요약+녹취 한 파일로 받기 (워드)</button>
+            <span>AI가 받아 적은 글이라 성경 구절·이름이 틀릴 수 있어요.</span>
+            ${adm ? `<button type="button" class="vt-link vt-redo" data-vt="redo">${vtState.redo === id ? '한 번 더 누르면 처음부터 다시 만들어요' : '↻ 다시 만들기'}</button>` : ''}
+          </div>`;
+      }
+      box.innerHTML = html;
+      box.querySelectorAll('[data-vt-tab]').forEach(b => { b.onclick = () => { vtState.tab = b.dataset.vtTab; vtRender(id); }; });
+      box.querySelectorAll('.vt-ts').forEach(b => { b.onclick = () => {
+        try { ifr.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [Number(b.dataset.sec), true] }), '*');
+              ifr.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*'); } catch (e) {}
+        ifr.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }; });
+      box.querySelectorAll('[data-vt]').forEach(b => { b.onclick = () => {
+        const k = b.dataset.vt;
+        if (k === 'make' || k === 'resume') vtRun(v, {});
+        else if (k === 'redo') { if (vtState.redo !== id) { vtState.redo = id; vtRender(id); return; } vtState.redo = ''; vtRun(v, { restart: true }); }
+        else if (k === 'doc') vtDownload(v, vtState.tab, 'doc');
+        else if (k === 'txt') vtDownload(v, vtState.tab, 'txt');
+        else if (k === 'docAll') vtDownload(v, 'all', 'doc');
+        else if (k === 'copy') {
+          const t = vtState.tab === 'summary' ? r.summary : r.transcript;
+          (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('복사했어요.'), () => toast('복사하지 못했어요.', true));
+        }
+      }; });
+    }
+    async function vtRun(v, opts) {
+      if (vtState.running[v.id]) return;
+      const id = v.id, set = msg => { vtState.running[id] = { msg }; vtRender(id); };
+      set('준비 중...');
+      // 플레이어가 아직 길이를 안 알려 줬으면 잠깐 기다림(긴 영상을 10분씩 나누는 데 필요)
+      for (let i = 0; i < 6 && !vtState.dur[v.videoId]; i++) await new Promise(r => setTimeout(r, 500));
+      let first = true, busy = 0, ok = false;
+      set('AI가 영상을 보며 녹취하는 중... (짧은 영상도 2~3분 걸려요)');
+      while (true) {
+        const body = { action: 'videoTranscribe', memberId: App.memberId, id };
+        if (first) { if (opts.restart) body.restart = true; if (vtState.dur[v.videoId]) body.duration = Math.round(vtState.dur[v.videoId]); }
+        let res;
+        try { res = await callApi(body); } catch (e) { res = { error: e.message, busy: true }; }
+        first = false;
+        if (res && res.error) {
+          if (res.busy && busy < 3) { busy++; set(`AI가 붐벼요. 20초 뒤 다시 시도할게요 (${busy}/3)`); await new Promise(r => setTimeout(r, 20000)); set('다시 녹취하는 중...'); continue; }
+          toast(res.error, true); break;
+        }
+        busy = 0;
+        if (res.status === '완료') { ok = true; break; }
+        set(res.done >= res.segs ? '녹취 완료 — 요약 만드는 중...' : `녹취하는 중... ${res.done}/${res.segs} 구간 완료`);
+      }
+      delete vtState.running[id];
+      await vtFetch(v);
+      vtRender(id);
+      if (ok) toast(`'${v.title.slice(0, 20)}' 녹취·요약이 완성됐어요.`);
+    }
+    function vtDownload(v, kind, fmt) {
+      const r = vtState.cache[v.id];
+      if (!r || !r.exists) return;
+      const secs = kind === 'all' ? [['요약', r.summary], ['녹취 전문', r.transcript]]
+        : [[kind === 'summary' ? '요약' : '녹취 전문', kind === 'summary' ? r.summary : r.transcript]];
+      const label = kind === 'all' ? '요약+녹취' : secs[0][0].replace(' ', '');
+      const url = 'https://www.youtube.com/watch?v=' + v.videoId;
+      const meta = `${vdParts(v).join(' · ')} · ${vdDate(v.uploadDate)} · ${url}`;
+      let blob, ext;
+      if (fmt === 'txt') {
+        const txt = [v.title, meta, ''].concat(secs.map(([h, t]) => `■ ${h}\n\n${t}`)).join('\n\n');
+        blob = new Blob(['﻿' + txt], { type: 'text/plain;charset=utf-8' }); ext = 'txt';
+      } else {
+        // 워드가 여는 HTML(.doc) — 교재 단원 받기(downloadUnitAsWord)와 같은 방식
+        const html = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8"><meta name="ProgId" content="Word.Document"><title>${esc(v.title)}</title>
+<style>body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;font-size:11pt;line-height:1.6}h1{font-size:18pt;margin:0 0 4pt}h2{font-size:15pt;margin:18pt 0 6pt;color:#00936E}h3{font-size:13pt;margin:14pt 0 4pt}h4{font-size:11.5pt;margin:10pt 0 4pt}p{margin:0 0 8pt}blockquote{margin:0 0 8pt 12pt;color:#555}.sub{font-size:9.5pt;color:#666;margin:0 0 16pt}.sec{font-size:16pt;font-weight:bold;border-bottom:2px solid #00AE82;margin:24pt 0 8pt;padding-bottom:4pt}</style></head>
+<body><h1>${esc(v.title)}</h1><p class="sub">${esc(meta)}</p>
+${secs.map(([h, t]) => `<div class="sec">${esc(h)}</div>${vtMd(t, false)}`).join('\n')}
+</body></html>`;
+        blob = new Blob(['﻿' + html], { type: 'application/msword;charset=utf-8' }); ext = 'doc';
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = sanitizeFilename(`${v.title}_${label}.${ext}`);
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
     // 관리자: 영상 등록·수정 — 유튜브 주소를 붙이면 썸네일·제목을 미리 채움
     function vdEdit(v) {
