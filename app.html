@@ -877,6 +877,23 @@
     .tb-mode { display:flex; gap:6px; padding:12px 16px 0; background:var(--color-bg); }
     .tb-mode button { flex:1; height:44px; border:1.5px solid #E5E7EB; border-radius:12px; background:#fff; font-size:15px; font-weight:800; color:#555; cursor:pointer; }
     .tb-mode button.on { border-color:#00AE82; background:#00AE82; color:#fff; }
+    /* 2026-10-07 교재·영상 통합 검색 */
+    .tb-search { position:relative; padding:10px 16px 0; background:var(--color-bg); }
+    .tb-search input { width:100%; height:44px; padding:0 40px; border:1.5px solid #E5E7EB; border-radius:12px; background:#fff; font-size:15px; color:#111; outline:none; -webkit-appearance:none; appearance:none; }
+    .tb-search input::-webkit-search-cancel-button { display:none; }
+    .tb-search input:focus { border-color:#00AE82; }
+    .tb-search .tb-s-ic { position:absolute; left:30px; top:32px; transform:translateY(-50%); color:#9CA3AF; pointer-events:none; }
+    .tb-search .tb-s-x { position:absolute; right:24px; top:32px; transform:translateY(-50%); width:30px; height:30px; border:none; border-radius:50%; background:#EEE; color:#666; font-size:14px; cursor:pointer; }
+    .ts-sec { margin:4px 2px 10px; font-size:15px; font-weight:900; color:#111; }
+    .ts-sec span { font-weight:600; font-size:13px; color:#9CA3AF; margin-left:4px; }
+    .ts-list { background:#fff; border:1px solid #EDEDED; border-radius:14px; overflow:hidden; margin-bottom:22px; }
+    .ts-row { display:block; width:100%; padding:12px 14px; border:none; border-bottom:1px solid #F0F0F0; background:#fff; text-align:left; cursor:pointer; }
+    .ts-row:last-child { border-bottom:none; }
+    .ts-row:hover { background:#F7FBF9; }
+    .ts-row b { display:block; font-size:14.5px; font-weight:800; color:#111; line-height:1.4; }
+    .ts-row small { display:block; margin-top:2px; font-size:12px; color:#767676; }
+    .ts-row p { margin:6px 0 0; font-size:13px; line-height:1.55; color:#4D5159; }
+    .ts-hit { background:#FFF3A3; color:inherit; padding:0 1px; border-radius:3px; }
     .vd-chips { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 -4px 14px; padding:0 4px; }
     .vd-chips button { flex-shrink:0; height:36px; padding:0 14px; border:1.5px solid #DADDE1; border-radius:999px; background:#fff; font-size:13.5px; font-weight:700; color:#444; cursor:pointer; white-space:nowrap; }
     .vd-chips button em { font-style:normal; color:#9CA3AF; font-weight:600; }
@@ -7484,6 +7501,7 @@ const COURSE_TABS = [
 ];
 
 let tbState = {
+  q: '',                 // 2026-10-07: 교재·영상 통합 검색어(비어 있으면 평소 화면)
   mode: 'book',          // 2026-10-06: 'book'(교재) | 'video'(영상) — 교재와 영상 탭 위 전환
   tab: 'reqEdu',          // reqEdu | teacherQuality | counseling | noFaith | gospelRoom (5개 테마 탭)
   memberId: '',          // mount()에서 공유 세션(memberId/MY_NAME)으로 채움
@@ -7572,12 +7590,21 @@ const TAB_DEFS = [
 
 function tbRender() {
   const root = document.getElementById('tbRoot');
+  // 검색어 입력 중 서버 응답으로 다시 그려져도 입력창 포커스·커서를 그대로 유지
+  const prevInp = document.getElementById('tbSearchInp');
+  const hadFocus = prevInp && document.activeElement === prevInp;
+  const caret = hadFocus ? prevInp.selectionStart : null;
   root.innerHTML = `
     <div class="kko-header">
       <span class="kko-title">교재와 영상</span>
     </div>
     <div class="tb-mode">${[['book', '📖 교재'], ['video', '▶ 영상']].map(([k, l]) => `<button type="button" class="${tbState.mode === k ? 'on' : ''}" data-tb-mode="${k}">${l}</button>`).join('')}</div>
-    <div class="flex overflow-x-auto gap-2 px-4 py-3" style="scrollbar-width:none; background:var(--color-bg);${tbState.mode === 'video' ? 'display:none;' : ''}">
+    <div class="tb-search">
+      <svg class="tb-s-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="tbSearchInp" type="search" enterkeyhint="search" autocomplete="off" lang="ko" placeholder="교재·영상 검색 (예: 비유, 상담, 계시록)" value="${esc(tbState.q)}">
+      <button type="button" class="tb-s-x" id="tbSearchX" aria-label="검색어 지우기" style="${tbState.q ? '' : 'display:none;'}">✕</button>
+    </div>
+    <div id="tbCats" class="flex overflow-x-auto gap-2 px-4 py-3" style="scrollbar-width:none; background:var(--color-bg);${tbState.mode === 'video' || tbState.q.trim() ? 'display:none;' : ''}">
       ${TAB_DEFS.map(t => {
         const active = tbState.tab === t.key;
         const style = active
@@ -7592,8 +7619,22 @@ function tbRender() {
     btn.onclick = () => { tbState.tab = btn.dataset.tab; tbRender(); };
   });
   document.querySelectorAll('[data-tb-mode]').forEach(btn => {
-    btn.onclick = () => { tbState.mode = btn.dataset.tbMode; tbRender(); if (tbState.mode === 'video' && !vdState.videos) vdLoad(); };
+    btn.onclick = () => { tbState.mode = btn.dataset.tbMode; tbState.q = ''; tbRender(); if (tbState.mode === 'video' && !vdState.videos) vdLoad(); };
   });
+  const inp = document.getElementById('tbSearchInp');
+  inp.oninput = () => {
+    const was = !!tbState.q.trim();
+    tbState.q = inp.value;
+    document.getElementById('tbSearchX').style.display = tbState.q ? '' : 'none';
+    document.getElementById('tbCats').style.display = (tbState.mode === 'video' || tbState.q.trim()) ? 'none' : '';
+    if (tbState.q.trim() && !vdState.videos) vdLoad();   // 영상 목록을 아직 안 받았으면 같이 받아 둠
+    if (tbState.q.trim()) tbSearchRender();
+    else if (was) tbRender();                             // 검색어를 다 지우면 원래 화면으로
+  };
+  inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };   // 폰 자판 내리기
+  document.getElementById('tbSearchX').onclick = () => { tbState.q = ''; tbRender(); };
+  if (hadFocus) { inp.focus(); try { inp.setSelectionRange(caret, caret); } catch (e) {} }
+  if (tbState.q.trim()) { tbSearchRender(); return; }
   if (tbState.mode === 'video') { vdRender(); return; }
 
   // 2026-09-22: 원래 id가 'body'라 AI 섹션의 같은 id와 충돌했다(위 aiBody 주석 참고).
@@ -7793,6 +7834,75 @@ function renderRequiredEduTab(body) {
 }
 
 
+// ════════════════════════════════════════════════════════════════
+// 2026-10-07 교재·영상 통합 검색 — 서버 호출 없이 이미 받은 교재(getCourseList 전체)와
+// 영상(getVideos)을 앱 안에서 거른다. 띄어쓰기로 나눈 낱말이 모두 들어간 것만(띄어쓰기 무시).
+// 교재는 단원명·교재명·본문, 영상은 제목·설명·파트를 본다. 결과를 누르면 교재는 해당 탭의
+// 단원을 펼쳐 주고, 영상은 바로 재생.
+// ════════════════════════════════════════════════════════════════
+function tsTerms(q) { return String(q || '').toLowerCase().split(/\s+/).filter(Boolean); }
+function tsMatch(text, terms) {
+  const h = String(text || '').toLowerCase().replace(/\s+/g, '');
+  return terms.every(t => h.includes(t));
+}
+// 찾은 낱말을 노란 칠로 — 원문을 쪼개서 조각마다 esc 하므로 안전
+function tsHi(text, terms) {
+  const s = String(text || '');
+  if (!terms.length) return esc(s);
+  const re = new RegExp('(' + terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+  return s.split(re).map((p, i) => i % 2 ? `<mark class="ts-hit">${esc(p)}</mark>` : esc(p)).join('');
+}
+// 본문에서 처음 걸린 곳 앞뒤로 잘라 미리보기
+function tsSnippet(text, terms) {
+  const s = String(text || '').replace(/\s+/g, ' ').trim();
+  const low = s.toLowerCase();
+  let at = -1;
+  terms.forEach(t => { const i = low.indexOf(t); if (i >= 0 && (at < 0 || i < at)) at = i; });
+  if (at < 0) return '';
+  const a = Math.max(0, at - 30), b = Math.min(s.length, at + 70);
+  return (a ? '…' : '') + tsHi(s.slice(a, b), terms) + (b < s.length ? '…' : '');
+}
+function tbSearchRender() {
+  const body = document.getElementById('tbBody');
+  if (!body) return;
+  const terms = tsTerms(tbState.q);
+  if (!terms.length) { tbRender(); return; }
+  const inTitle = u => tsMatch(u.unitName + ' ' + u.courseName, terms);
+  const units = tbState.courses.filter(u => tsMatch(u.unitName + ' ' + u.courseName + ' ' + u.category + ' ' + u.content, terms));
+  // 제목에 걸린 단원을 본문에만 걸린 단원보다 위로
+  units.sort((x, y) => (inTitle(y) - inTitle(x)) || String(x.courseName).localeCompare(String(y.courseName)) || (x.order - y.order));
+  const vids = vdState.videos ? vdState.videos.filter(v => tsMatch(v.title + ' ' + (v.description || '') + ' ' + v.part, terms)) : null;
+  const MAX = 50;
+  const vidHtml = vids === null
+    ? (vdState.err ? '' : `<div class="ts-sec">▶ 영상 <span>불러오는 중...</span></div>`)
+    : vids.length ? `<div class="ts-sec">▶ 영상 <span>${vids.length}개</span></div><div class="vd-grid" style="margin-bottom:22px;">${vids.map(vdCardHtml).join('')}</div>` : '';
+  const bookHtml = tbState.loading && !tbState.courses.length
+    ? `<div class="ts-sec">📖 교재 <span>불러오는 중...</span></div>`
+    : units.length ? `<div class="ts-sec">📖 교재 <span>${units.length}단원${units.length > MAX ? ` · 앞의 ${MAX}개만 표시` : ''}</span></div>
+      <div class="ts-list">${units.slice(0, MAX).map(u => {
+        const snip = inTitle(u) ? '' : tsSnippet(u.content, terms);
+        return `<button type="button" class="ts-row" data-ts-unit="${esc(u.courseId)}">
+          <b>${tsHi(u.unitName, terms)}</b>
+          <small>${esc(u.category || '')} · ${tsHi(u.courseName, terms)}</small>
+          ${snip ? `<p>${snip}</p>` : ''}</button>`;
+      }).join('')}</div>` : '';
+  const none = !units.length && vids && !vids.length && !tbState.loading;
+  body.innerHTML = `<div class="kko-fade-in">
+    ${none ? `<div class="vd-empty">'${esc(tbState.q.trim())}'(으)로 찾은 교재·영상이 없어요.<br>다른 낱말로 찾아 보세요.</div>` : vidHtml + bookHtml}
+  </div>`;
+  body.querySelectorAll('[data-ts-unit]').forEach(b => { b.onclick = () => {
+    const u = tbState.courses.find(c => c.courseId === b.dataset.tsUnit);
+    if (!u) return;
+    const tab = COURSE_TABS.find(t => t.category === u.category);
+    tbState.q = ''; tbState.mode = 'book'; if (tab) tbState.tab = tab.key; tbState.expanded = u.courseId;
+    tbRender();
+    const row = document.querySelector(`#tbBody .unit-row-head[data-course="${CSS.escape(u.courseId)}"]`);
+    if (row) row.scrollIntoView({ block: 'start' });
+  }; });
+  body.querySelectorAll('[data-vd-play]').forEach(c => { c.onclick = e => { if (e.target.closest('.vd-adm')) return; vdPlay(vdState.videos.find(v => v.id === c.dataset.vdPlay)); }; });
+  body.querySelectorAll('[data-vd-edit]').forEach(b => { b.onclick = () => vdEdit(vdState.videos.find(v => v.id === b.dataset.vdEdit)); });
+}
+
     // ════════════════════════════════════════════════════════════════
     // 2026-10-06 교재와 영상 — 영상 모둠(말씀광장 wordsquare.org 영상 탭 구조)
     // 파트 카드 → 파트별 영상 목록(썸네일·제목·등록일) → 앱 안 재생(youtube-nocookie 임베드).
@@ -7830,6 +7940,7 @@ function renderRequiredEduTab(body) {
     }
     function vdRender() {
       const body = document.getElementById('tbBody');
+      if (tbState.q.trim()) { tbSearchRender(); return; }   // 검색 중이면 검색 결과를 갱신
       if (!body || tbState.mode !== 'video') return;
       const all = vdState.videos;
       const adm = isAdmin();
