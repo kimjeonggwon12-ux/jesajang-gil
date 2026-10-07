@@ -1906,6 +1906,8 @@
     /* ===== 2026-10-07 화면 정리(사용자: "뭐가 뭔지 모르겠다, 간결하게") ===== */
     .go-home-btn { display:none !important; }                 /* [홈으로]는 이름표 → 내 계정 창 안에 있음 */
     #tierBadge, #actTierChip { display:none !important; }      /* 등급은 나의교실 맨 위 등급 카드 하나로 */
+    /* 2026-10-07: 나의교실 — PC에서 양옆으로 퍼지지 않게 가운데 좁은 폭(등급 카드 맨 위, 오늘 일정 카드 삭제) */
+    @media (min-width:1024px) { #sec-activity .act-appbar, #homeContent { max-width:720px; margin-left:auto !important; margin-right:auto !important; } }
     .hdr-me { margin-left:auto; display:flex; align-items:center; gap:6px; background:none; border:none; padding:0; cursor:pointer; color:inherit; }
     @media (min-width:1024px) { .hdr-me { display:none !important; } }   /* PC는 맨 위 공용 메뉴에 이름표가 있음 */
     #sec-ai .kko-header .hdr-me, #sec-textbook .kko-header .hdr-me { color:#111; }
@@ -5531,10 +5533,9 @@
       // 블록 사이는 카드 테두리 대신 굵은 회색 띠(.act-divider)로 끊어 답답함을 없앤다.
       return `
         <div class="pb-6">
-          ${todayCardHtml()}
+          ${actHeroHtml()}
           ${encouragementBannerHtml()}
           ${coachReplyBannerHtml()}
-          ${actHeroHtml()}
           ${attCardHtml()}
           ${myActivityViewHtml()}
           <div class="act-divider"></div>
