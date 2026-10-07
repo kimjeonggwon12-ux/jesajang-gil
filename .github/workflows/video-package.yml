@@ -33,7 +33,7 @@ jobs:
             # 처음 시작하는 영상 3개의 길이(초)를 유튜브에서 잼
             DURS='{}'
             for vid in $(echo "$PEEK" | jq -r '[.pending[] | select(.started | not)][:3][].videoId'); do
-              SEC=$(curl -sL --max-time 20 -H 'Accept-Language: ko' "https://www.youtube.com/watch?v=$vid" | grep -o '"lengthSeconds":"[0-9]*"' | head -1 | grep -o '[0-9][0-9]*')
+              SEC=$(curl -sL --max-time 20 -H 'Accept-Language: ko' "https://www.youtube.com/watch?v=$vid" | grep -o '"lengthSeconds":"[0-9]*"' | head -1 | grep -o '[0-9][0-9]*' || true)
               echo "길이 $vid: ${SEC:-모름}"
               if [ -n "$SEC" ]; then DURS=$(echo "$DURS" | jq -c --arg v "$vid" --argjson s "$SEC" '. + {($v): $s}'); fi
             done
