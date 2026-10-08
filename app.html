@@ -5693,9 +5693,11 @@
     // ── QR → 설문 → 출석 ──
     // 2026-10-08: 출석 요청 자동 재시도. 같은 사람이 두 번 내도 서버가 '이미 출석'으로 돌려줘서 안전.
     // 입력 잘못(지역을 골라 주세요 등)·시간 아님 같은 '진짜 오류'는 다시 보내지 않음.
-    const ATT_RETRY_RE = /서버 연결 오류|Failed to fetch|Load failed|NetworkError|network|too many|Service invoked|timed? ?out|시간 초과|Exceeded|Lock|잠금|Rate|503|502|500|429/i;
+    // 2026-10-08 부하 시험: 구글이 '동시 호출이 너무 많음: 스프레드시트'(한글)·'Exception: …'으로도 거절함 → 이것도 재시도
+    const ATT_RETRY_RE = /서버 연결 오류|Failed to fetch|Load failed|NetworkError|network|too many|Service invoked|timed? ?out|시간 초과|Exceeded|Lock|잠금|Rate|503|502|500|429|동시 호출|너무 많|simultaneous|invocations|^Exception:/i;
     async function attApi(payload, onWait) {
-      const waits = [1500, 2500, 3500, 5000, 6500, 8000, 10000, 12000, 14000];
+      // 400명 부하 시험: 몰리면 서버가 순서대로 처리하느라 몇 분 걸릴 수 있음 → 실패로 끝내지 않고 약 3분까지 기다렸다 다시 보냄
+      const waits = [1500, 2500, 3500, 5000, 6500, 8000, 10000, 12000, 14000, 15000, 15000, 15000, 15000, 15000, 15000];
       for (let i = 0; ; i++) {
         let res, err;
         try { res = await callApiOnce(payload); } catch (e) { err = e; }
@@ -5712,7 +5714,7 @@
       openSheet('<div class="att-sheet" id="attSheet"><div class="att-muted" style="padding:30px 0;text-align:center">출석 정보를 불러오는 중...</div></div>');
       try {
         const res = await attApi({ action: 'getAttendMeeting', meetingId, memberId: App.memberId }, n => {
-          const el = document.querySelector('#attSheet .att-muted'); if (el) el.textContent = `접속이 몰려 다시 불러오는 중... (${n})`;
+          const el = document.querySelector('#attSheet .att-muted'); if (el) el.textContent = `접속이 몰려 순서대로 불러오고 있어요... (${n}) 창을 닫지 말고 기다려 주세요`;
         });
         if (res && res.error) throw new Error(res.error);
         attSt.cur = res;
@@ -5806,7 +5808,7 @@
         pickOrgEtc: p.orgEtc, pickDistrictEtc: p.districtEtc, dept24Etc: p.dept24Etc };
       try {
         // 2026-10-08: 연결 실패(Failed)·서버 혼잡(retry)까지 자동 재시도(attApi, 최대 약 1분)
-        const res = await attApi(attPayload, n => { if (btn) btn.textContent = `접속이 몰려 다시 보내는 중... (${n})`; });
+        const res = await attApi(attPayload, n => { if (btn) btn.textContent = `접속이 몰려 순서대로 처리하고 있어요... (${n})`; });
         if (res && res.error) throw new Error(res.error);
         attSt.cur.mine = res.record;
         toast(res.already ? '이미 출석했어요.' : '출석했어요!');
