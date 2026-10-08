@@ -3138,7 +3138,7 @@
     // 2026-10-09 새 글 알림 — 전도부 게시판(광고·공지 새로 올라오거나 고쳐짐, 전도부 공식 일정 새로 등록)과
     // 교사 이야기(사례)·교사 마당(그 밖의 글) — 다른 사람이 쓴 새 글. 이 기기에서 마지막으로 그 쪽을 본 때(localStorage 'pz_seen_v1') 이후 것만 셈.
     // 표시: 쪽 탭 빨간 숫자, 아래 탭 '광장' 빨간 점, 위쪽 알림 띠(누르면 그 쪽으로), 목록의 NEW.
-    // 앱이 열려 있는 동안 5분마다 확인하고, 화면이 꺼져(백그라운드) 있으면 폰 알림(알림 허용한 경우).
+    // 앱이 열려 있는 동안 10분마다 확인하고, 화면이 꺼져(백그라운드) 있으면 폰 알림(알림 허용한 경우).
     // ⚠️ 앱을 완전히 닫으면 알림이 오지 않음(서버 푸시 없음) — 다시 열면 바로 배지로 보임.
     // ════════════════════════════════════════════════════════════════
     const pzNew = (() => {
@@ -3203,8 +3203,10 @@
       }
       function start() {
         checkStories(false);
-        setInterval(() => { checkStories(true); if (typeof calLoadAll === 'function') calLoadAll(true).catch(() => {}); }, 5 * 60e3);   // 5분마다(앱이 열려 있는 동안)
-        document.addEventListener('visibilitychange', () => { if (!document.hidden) checkStories(true); });
+        // 2026-10-08 저녁: 출석 몰림(300명) 때 서버 부담을 줄이려고 — 10분마다(사람마다 시각을 흩뜨림), 화면이 꺼져 있으면 건너뜀, 요청 1개만(일정·공지는 앱을 다시 열 때)
+        setTimeout(() => setInterval(() => { if (!document.hidden) checkStories(true); }, 10 * 60e3), Math.random() * 10 * 60e3);
+        let lastVis = Date.now();   // 화면을 다시 켤 때는 5분에 한 번까지만
+        document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - lastVis > 5 * 60e3) { lastVis = Date.now(); checkStories(true); } });
       }
       return { isNew, count, board, checkStories, opened, start, pageOfPost };
     })();
