@@ -2380,7 +2380,7 @@
     App.toast = toast;
     // [SHARED] 바텀시트 — calendar/connect 등 여러 섹션이 각자 갖고 있던 거의 동일한
     // openSheet()/closeSheet()를 여기 1곳으로 통합(각 섹션은 이제 자기 정의를 지우고 이 전역을 그대로 씀).
-    function closeSheet() { document.getElementById('appSheetHost').innerHTML = ''; }
+    function closeSheet() { document.getElementById('appSheetHost').innerHTML = ''; if (App.qrOnly) attLeaveQrOnly(); }
     function openSheet(html) {
       const h = document.getElementById('appSheetHost');
       // 2026-09-23: 신청서처럼 긴 시트에서 빠져나갈 방법이 없다는 지적 —
@@ -2489,8 +2489,20 @@
       document.getElementById('appPanel').style.display = 'flex';
       updateAdminTabVisibility();
       renderMeChips();     // 우선 이름만 — 명단을 받으면 부서·직책까지 다시 그림
+      // 2026-10-08: 출석 QR(#attend=)로 들어온 첫 화면 = '출석 전용' — 서버 요청을 출석 2번(모임 정보·제출)만.
+      // 400명이 한꺼번에 찍으면 1인당 13번(나의교실·명단·알림…)씩 5,000번이 몰려 구글 동시 실행 한도(약 30)에 걸려 'Failed'.
+      // 나머지는 출석 창을 닫을 때(attLeaveQrOnly) 불러옴.
+      if (/^#attend=/.test(location.hash || '')) { App.qrOnly = true; enterFromHash(); return; }
       loadMyRosterRow();   // 명단에서 내 직책·부서를 확인해 관리자 탭 노출 결정
       enterFromHash();
+      showInstallToastIfNeeded();
+    }
+    function attLeaveQrOnly() {
+      if (!App.qrOnly) return;
+      App.qrOnly = false;
+      history.replaceState(null, '', location.pathname + location.search);
+      loadMyRosterRow();
+      switchTab('activity');
       showInstallToastIfNeeded();
     }
 
@@ -3032,7 +3044,7 @@
       // 2026-09-30: 기본 진입 = 광장(교사 광장 컨셉 강화, 사용자 요청). 해시가 있으면 그 탭.
       if (EMBED_PLAZA) { switchTab('calendar'); return; }
       const am = h.match(/^attend=([A-Za-z0-9_-]+)/);   // 2026-10-05: 출석 QR(app.html#attend=모임ID)
-      if (am) { switchTab('activity'); attOpen(decodeURIComponent(am[1]), 'qr'); return; }
+      if (am) { if (!App.qrOnly) switchTab('activity'); attOpen(decodeURIComponent(am[1]), 'qr'); return; }
       // 2026-10-06(사용자 요청): 들어가면 항상 광장. 주소의 #탭은 지난번에 보던 화면이 남은 것이라 무시하고,
       // 옛 관리자 페이지가 보내는 #admin 링크만 그대로 따른다.
       switchTab(h === 'admin' ? 'admin' : 'calendar');
@@ -5679,16 +5691,34 @@
     }
 
     // ── QR → 설문 → 출석 ──
+    // 2026-10-08: 출석 요청 자동 재시도. 같은 사람이 두 번 내도 서버가 '이미 출석'으로 돌려줘서 안전.
+    // 입력 잘못(지역을 골라 주세요 등)·시간 아님 같은 '진짜 오류'는 다시 보내지 않음.
+    const ATT_RETRY_RE = /서버 연결 오류|Failed to fetch|Load failed|NetworkError|network|too many|Service invoked|timed? ?out|시간 초과|Exceeded|Lock|잠금|Rate|503|502|500|429/i;
+    async function attApi(payload, onWait) {
+      const waits = [1500, 2500, 3500, 5000, 6500, 8000, 10000, 12000, 14000];
+      for (let i = 0; ; i++) {
+        let res, err;
+        try { res = await callApiOnce(payload); } catch (e) { err = e; }
+        const msg = err ? String(err.message || err) : (res && res.error ? String(res.error) : '');
+        if (!err && !(res && res.retry) && !(res && res.error && ATT_RETRY_RE.test(msg))) return res;   // res.retry = 서버가 바쁨(잠금 실패)
+        if (i >= waits.length) { if (err) throw err; return res; }
+        const w = Math.round(waits[i] * (0.6 + Math.random() * 0.8));   // 다 같이 동시에 다시 보내지 않게 조금씩 흩뜨림
+        if (onWait) onWait(i + 1, w);
+        await new Promise(r => setTimeout(r, w));
+      }
+    }
     async function attOpen(meetingId, method) {
       attSt.cur = null; attSt.ans = {}; attSt.method = method || 'qr';
       openSheet('<div class="att-sheet" id="attSheet"><div class="att-muted" style="padding:30px 0;text-align:center">출석 정보를 불러오는 중...</div></div>');
       try {
-        const res = await callApi({ action: 'getAttendMeeting', meetingId, memberId: App.memberId });
+        const res = await attApi({ action: 'getAttendMeeting', meetingId, memberId: App.memberId }, n => {
+          const el = document.querySelector('#attSheet .att-muted'); if (el) el.textContent = `접속이 몰려 다시 불러오는 중... (${n})`;
+        });
         if (res && res.error) throw new Error(res.error);
         attSt.cur = res;
       } catch (e) { attSt.cur = { error: e.message }; }
       // 내 명단(부서·지역)으로 지역 선택을 미리 골라 둠 — 다르면 참석자가 바꾸면 됨
-      const r = myRosterRow || {}, org = String(r.dept || '').replace(/회$/, '');
+      const r = myRosterRow || (attSt.cur && attSt.cur.me) || {}, org = String(r.dept || '').replace(/회$/, '');
       attSt.pick = { org: ATT_PICK_ORGS.some(([v]) => v === org) ? org : '', district: '', dept24: '', orgEtc: '', districtEtc: '', dept24Etc: '' };
       const rd = String(r.region || '').replace(/\D/g, '');
       if (attDistricts(attSt.pick.org).includes(String(Number(rd)))) attSt.pick.district = String(Number(rd));
@@ -5775,25 +5805,18 @@
         pickOrg: regionPicked ? pOrg : '', pickDistrict: regionPicked ? p.district : '', dept24: m.askDept ? p.dept24 : '',
         pickOrgEtc: p.orgEtc, pickDistrictEtc: p.districtEtc, dept24Etc: p.dept24Etc };
       try {
-        let res = null;
-        const MAX_RETRY = 5;
-        for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
-          if (btn) btn.textContent = attempt > 1 ? `제출 중... (${attempt}/${MAX_RETRY})` : '제출 중...';
-          res = await callApiOnce(attPayload);  // callApiOnce: 중복 방지를 위해 dedup 없는 직접 호출
-          if (res && res.retry) {
-            // 서버가 바쁨 → 1~3초 랜덤 대기 후 재시도 (동시 재시도 분산)
-            if (attempt < MAX_RETRY) await new Promise(r => setTimeout(r, 800 + Math.random() * 2000));
-            continue;
-          }
-          break; // 성공 또는 실제 오류 → 루프 종료
-        }
-        if (res && res.retry) throw new Error('서버가 혼잡해요. 잠시 후 다시 눌러 주세요.');
+        // 2026-10-08: 연결 실패(Failed)·서버 혼잡(retry)까지 자동 재시도(attApi, 최대 약 1분)
+        const res = await attApi(attPayload, n => { if (btn) btn.textContent = `접속이 몰려 다시 보내는 중... (${n})`; });
         if (res && res.error) throw new Error(res.error);
         attSt.cur.mine = res.record;
-        toast(res.already ? '이미 출석한 모임이에요.' : '출석했어요!');
+        toast(res.already ? '이미 출석했어요.' : '출석했어요!');
         attRenderForm();
-        attLoadMy(true);
-      } catch (e) { toast(e.message, true); if (btn) { btn.disabled = false; btn.textContent = '✔ 출석 제출'; } }
+        if (!App.qrOnly) attLoadMy(true);
+      } catch (e) {
+        const net = ATT_RETRY_RE.test(String(e.message || ''));
+        toast(net ? '접속이 너무 몰려 있어요. 잠시 뒤 [출석 제출]을 한 번 더 눌러 주세요.' : e.message, true);
+        if (btn) { btn.disabled = false; btn.textContent = '✔ 출석 제출'; }
+      }
       attSt.busy = false;
     }
 
