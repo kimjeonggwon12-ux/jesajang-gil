@@ -1684,6 +1684,9 @@
     .att-title { font-size:19px; font-weight:800; letter-spacing:-0.02em; margin-top:2px; }
     .att-item { padding:10px 0; border-bottom:1px solid #F2F2F2; }
     .att-who { margin:14px 0 4px; padding:10px 12px; border-radius:10px; background:#F5F7F8; font-size:13.5px; font-weight:700; }
+    .att-late { display:inline-block; margin:8px 0 2px; padding:5px 12px; border-radius:999px; background:#E3F6EF; color:#0A7A5C; font-size:14px; font-weight:800; }
+    .att-late.is-late { background:#FDECEC; color:#C62828; }
+    .att-late-td { color:#C62828; font-weight:700; }
     .att-q { margin-top:16px; }
     .att-q-l { font-size:14.5px; font-weight:800; margin-bottom:8px; }
     .att-q-l i { color:#D94040; font-style:normal; }
@@ -2672,12 +2675,12 @@
     // 2026-10-05 속도 개선: 표지 숫자 4개를 위해 앱을 열 때마다 명단 전체(600KB+)를 받던 것을,
     // 이 기기에 숫자만 저장해 두고 바로 보여준 뒤 6시간이 지났을 때만 새로 받는다.
     // 저장된 고유번호로 바로 입장하는 사람(skipFetch)은 표지를 거의 못 보므로 새로 받지 않는다.
-    const PD_STATS_KEY = 'pd_stats_v1', PD_STATS_TTL = 6 * 3600e3;
+    const PD_STATS_KEY = 'pd_stats_v2', PD_STATS_TTL = 6 * 3600e3;
     function pdShowStats(s) {
       const row = document.getElementById('pdStatsRow');
       const box = document.getElementById('pdStats');
       if (!row || !box || !s || !s.total) return;
-      const cells = [['총 교사', s.total, 'total'], ['활동교사', s.act, 'act'], ['교사', s.teacher, ''], ['휴교사', s.rest, 'rest']];
+      const cells = [['총 교사', s.total, 'total'], ['정교사·우수', s.act, 'act'], ['활동교사', s.teacher, ''], ['휴교사', s.rest, 'rest']];   // 2026-10-09 등급 개편
       row.innerHTML = cells.map(([label, n, cls]) =>
         `<div class="pd-stat ${cls}"><b>${Number(n || 0).toLocaleString()}</b><span>${label}</span></div>`).join('');
       box.style.display = 'block';
@@ -2693,7 +2696,7 @@
         if (!rows.length) return;
         const by = {};
         rows.forEach(r => { const t = r.tier || '(미분류)'; by[t] = (by[t] || 0) + 1; });
-        const s = { total: rows.length, act: by['활동교사'] || 0, teacher: by['교사'] || 0, rest: by['휴교사'] || 0, at: Date.now() };
+        const s = { total: rows.length, act: (by['정교사'] || 0) + (by['우수교사'] || 0), teacher: by['활동교사'] || 0, rest: by['휴교사'] || 0, at: Date.now() };
         try { localStorage.setItem(PD_STATS_KEY, JSON.stringify(s)); } catch (e) {}
         pdShowStats(s);
       } catch (e) { /* 표지 장식이라 실패해도 무시 */ }
@@ -4566,8 +4569,8 @@
 
     const TIER_BADGE_STYLE = {
       '휴교사':   { icon: '⚪', bg: '#E0E0E0', fg: '#555555' },
-      '교사':     { icon: '🟡', bg: '#FFE58A', fg: '#6B4E00' },
-      '활동교사': { icon: '🟢', bg: '#BFEBD3', fg: '#11623B' },
+      '활동교사': { icon: '🟡', bg: '#FFE58A', fg: '#6B4E00' },
+      '정교사':   { icon: '🟢', bg: '#BFEBD3', fg: '#11623B' },
       '우수교사': { icon: '🟣', bg: '#6B21A8', fg: '#FFFFFF' }
     };
     function updateTierBadge() {
@@ -4646,7 +4649,7 @@
     // 사용자 요청: 앱이 내 등급을 알아보고 어떤 교사인지 친절히 알려주고,
     // 내 상황에 맞게 어떤 기능을 쓰고 어떤 활동을 하면 좋을지 제시할 것.
     // 특히 휴교사는 사연(환경/실력/기회/시간)별로 갈리므로 유형을 고르게 한다.
-    // 목표는 한 칸 올라가는 것 — 휴교사 → 교사 → 활동교사 → 우수교사.
+    // 목표는 한 칸 올라가는 것 — 휴교사 → 활동교사 → 정교사 → 우수교사. (2026-10-09 등급 개편: 옛 교사=활동교사, 옛 활동교사=정교사)
     //
     // ⚠️ 여기 제안은 전부 앱 안에 실제로 있는 기능만 가리킵니다(탭 이름 = switchTab 키).
     //    기능 이름을 바꾸면 이 표의 문구도 같이 고칠 것.
@@ -4654,16 +4657,16 @@
     const TIER_GUIDE = {
       '휴교사': {
         who: '지금은 잠시 쉬어가는 중이에요.',
-        why: '최근 3개월 활동이 5건 미만이면 휴교사가 됩니다. 5건을 채우면 바로 교사로 돌아와요.',
-        goal: '교사로 복귀하기'
-      },
-      '교사': {
-        who: '복음방 교사로 활동하고 계세요.',
-        why: '최근 1년 안에 센터 등록 1명을 이루면 활동교사가 됩니다.',
-        goal: '활동교사 되기'
+        why: '최근 3개월 활동이 5건 미만이면 휴교사가 됩니다. 5건을 채우면 바로 활동교사로 돌아와요.',
+        goal: '활동교사로 복귀하기'
       },
       '활동교사': {
-        who: '열매를 맺고 계신 활동교사예요.',
+        who: '복음방 교사로 활동하고 계세요.',
+        why: '최근 1년 안에 센터 등록 1명을 이루면 정교사가 됩니다.',
+        goal: '정교사 되기'
+      },
+      '정교사': {
+        who: '열매를 맺고 계신 정교사예요.',
         why: '최근 1년 안에 센터 등록 2명이 되면 우수교사가 됩니다.',
         goal: '우수교사 되기'
       },
@@ -5725,8 +5728,18 @@
       const rd = String(r.region || '').replace(/\D/g, '');
       if (attDistricts(attSt.pick.org).includes(String(Number(rd)))) attSt.pick.district = String(Number(rd));
       attRenderForm();
+      // 2026-10-09: 소속·지역은 고르지 않음(서버가 교사명단으로 채움). 설문이 없는 모임은 QR을 찍으면 바로 출석 완료.
+      const c = attSt.cur;
+      if (c && !c.error && !c.mine && c.meeting && c.meeting.open && !(c.meeting.questions || []).length) attSubmit();
     }
-    // 참석자 지역·24개 부서 선택 블록(모임에서 켠 것만)
+    // 2026-10-09: 내 부서·지역·직책(교사명단 기준) — 참석자가 고르지 않고 보기만
+    function attWhoHtml(rec) {
+      const me = (attSt.cur && attSt.cur.me) || {};
+      const where = rec ? attPickText(rec) : (me.label || '');
+      const parts = [where, me.position].filter(Boolean);
+      return parts.length ? `<div class="att-ans"><span>내 부서·지역</span><b>${esc(parts.join(' · '))}</b></div>` : '';
+    }
+    // 참석자 지역·24개 부서 선택 블록(모임에서 켠 것만) — 2026-10-09부터 화면에서 안 씀(서버가 명단으로 채움)
     // v2.4(10/06): 지역·24부서 둘 다 골라도 되고 하나만 골라도 제출됨 — 자기에게 해당하는 것만. 같은 칩을 다시 누르면 선택 해제.
     function attPickHtml(m) {
       const p = attSt.pick, fixed = attFixedPickOrg(m);
@@ -5757,20 +5770,24 @@
       const m = c.meeting;
       const head = `<div class="att-title">${esc(m.title)}</div>${attMeetLabel(m) ? `<div style="margin-top:4px">${attOrgTag(m)}</div>` : ''}<div class="att-muted">${esc(attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''}</div>`;
       if (c.mine) {
-        host.innerHTML = head + `<div class="att-result"><div class="att-big">✅</div><b>출석 완료</b><div class="att-muted">${esc(c.mine.at.slice(5, 16).replace('-', '/'))}에 출석했어요.</div></div>
-          ${attPickText(c.mine) ? `<div class="att-ans"><span>내 지역·부서</span><b>${esc(attPickText(c.mine))}</b></div>` : ''}
+        const late = /지각/.test(c.mine.late || '');
+        host.innerHTML = head + `<div class="att-result"><div class="att-big">${late ? '⏰' : '✅'}</div><b>출석 완료</b>
+          ${c.mine.late ? `<div class="att-late ${late ? 'is-late' : ''}">${late ? esc(c.mine.late) + '입니다.' : '정상 출석'}</div>` : ''}
+          <div class="att-muted">${esc(c.mine.at.slice(5, 16).replace('-', '/'))}에 출석했어요.</div></div>
+          ${attWhoHtml(c.mine)}
           ${(m.questions || []).map(q => `<div class="att-ans"><span>${esc(q.label)}</span><b>${esc(attAnsText(q, c.mine.answers[q.id])) || '-'}</b></div>`).join('')}`;
         return;
       }
       if (!m.open) { host.innerHTML = head + `<div class="att-result"><div class="att-big">⏰</div><b>${esc(m.reason)}</b></div>`; return; }
       const a = attSt.ans;
       host.innerHTML = head + `<div class="att-who">👤 ${esc(App.name)} 님으로 출석합니다</div>
-        ${attPickHtml(m)}
+        ${attWhoHtml(null)}
+        ${c.me && c.me.late && /지각/.test(c.me.late) ? `<div class="att-late is-late" style="margin-top:8px">지금 출석하면 ${esc(c.me.late)}이에요.</div>` : ''}
         ${(m.questions || []).map(q => `<div class="att-q"><div class="att-q-l">${esc(q.label)}${q.required ? ' <i>*</i>' : ''}${q.type === 'multi' ? ' <small>(여러 개 선택)</small>' : ''}</div>
           ${q.type === 'text' ? `<textarea class="cal-inp" data-att-text="${esc(q.id)}" maxlength="500" placeholder="입력해 주세요">${esc(a[q.id] || '')}</textarea>`
             : `<div class="att-opts">${q.options.map(o => { const on = q.type === 'multi' ? (a[q.id] || []).includes(o) : a[q.id] === o; return `<button type="button" class="att-opt ${on ? 'on' : ''}" data-att-q="${esc(q.id)}" data-att-o="${esc(o)}">${esc(o)}</button>`; }).join('')}</div>`}
         </div>`).join('')}
-        <button type="button" class="kko-btn-main" id="attSubmit" style="width:100%;margin-top:18px">✔ 출석 제출</button>`;
+        <button type="button" class="kko-btn-main" id="attSubmit" style="width:100%;margin-top:18px">${(m.questions || []).length ? '✔ 설문 내고 출석' : '✔ 출석하기'}</button>`;
       host.querySelectorAll('[data-att-o]').forEach(b => { b.onclick = () => {
         const q = m.questions.find(x => x.id === b.dataset.attQ), o = b.dataset.attO;
         if (q.type === 'multi') { const s = new Set(a[q.id] || []); s.has(o) ? s.delete(o) : s.add(o); a[q.id] = [...s]; }
@@ -5787,37 +5804,27 @@
     }
     async function attSubmit() {
       const m = attSt.cur.meeting, a = attSt.ans, p = attSt.pick;
-      const fixed = attFixedPickOrg(m), askRegion = m.askDistrict && fixed !== null;
-      const pOrg = askRegion ? fixed || p.org : '';
-      // 지역 쪽: 고정 소속 모임은 지역을 골라야 '고름', 아니면 소속을 고르면 '고름'(자장부청은 지역까지)
-      const regionPicked = askRegion && (fixed ? !!p.district : !!p.org);
-      if (regionPicked && p.org === '기타' && !fixed && !p.orgEtc.trim()) { toast('소속 기타 칸에 직접 써 주세요.', true); return; }
-      if (regionPicked && ATT_ORG_HAS_DISTRICT.includes(pOrg) && !p.district) { toast('지역을 골라 주세요.', true); return; }
-      if (regionPicked && p.district === '기타' && !p.districtEtc.trim()) { toast('지역 기타 칸에 직접 써 주세요.', true); return; }
-      if (m.askDept && p.dept24 === '기타' && !p.dept24Etc.trim()) { toast('부서 기타 칸에 직접 써 주세요.', true); return; }
-      if ((askRegion || m.askDept) && !regionPicked && !(m.askDept && p.dept24)) {
-        toast((askRegion && m.askDept ? '지역이나 부서 중 해당하는 것을' : askRegion ? '지역을' : '부서를') + ' 골라 주세요.', true); return;
-      }
+      // 2026-10-09: 소속·지역·24부서는 고르지 않음 — 빈 값으로 보내면 서버가 교사명단 부서·지역으로 채움
       const miss = (m.questions || []).find(q => q.required && (!a[q.id] || (Array.isArray(a[q.id]) ? !a[q.id].length : !String(a[q.id]).trim())));
       if (miss) { toast(`"${miss.label}" 항목에 답해 주세요.`, true); return; }
       if (attSt.busy) return; attSt.busy = true;
       const btn = document.getElementById('attSubmit'); if (btn) { btn.disabled = true; btn.textContent = '제출 중...'; }
       // v3: 동시 접속 400명 대비 — 서버가 busy(lock 획득 실패)를 반환하면 최대 5회 재시도
       const attPayload = { action: 'submitAttendance', meetingId: m.meetingId, memberId: App.memberId, name: App.name, answers: a, method: attSt.method,
-        pickOrg: regionPicked ? pOrg : '', pickDistrict: regionPicked ? p.district : '', dept24: m.askDept ? p.dept24 : '',
-        pickOrgEtc: p.orgEtc, pickDistrictEtc: p.districtEtc, dept24Etc: p.dept24Etc };
+        pickOrg: '', pickDistrict: '', dept24: '' };
       try {
         // 2026-10-08: 연결 실패(Failed)·서버 혼잡(retry)까지 자동 재시도(attApi, 최대 약 1분)
         const res = await attApi(attPayload, n => { if (btn) btn.textContent = `접속이 몰려 순서대로 처리하고 있어요... (${n})`; });
         if (res && res.error) throw new Error(res.error);
         attSt.cur.mine = res.record;
-        toast(res.already ? '이미 출석했어요.' : '출석했어요!');
+        toast(res.already ? '이미 출석했어요.' : /지각/.test(res.record && res.record.late || '') ? res.record.late + '입니다.' : '정상 출석했어요!');
         attRenderForm();
         if (!App.qrOnly) attLoadMy(true);
       } catch (e) {
         const net = ATT_RETRY_RE.test(String(e.message || ''));
         toast(net ? '접속이 너무 몰려 있어요. 잠시 뒤 [출석 제출]을 한 번 더 눌러 주세요.' : e.message, true);
-        if (btn) { btn.disabled = false; btn.textContent = '✔ 출석 제출'; }
+        if (btn) { btn.disabled = false; btn.textContent = (m.questions || []).length ? '✔ 설문 내고 출석' : '✔ 출석하기'; }
+        else attRenderForm();   // 자동 출석이 실패하면 [출석하기] 버튼을 보여 줌
       }
       attSt.busy = false;
     }
@@ -5938,9 +5945,9 @@
         <div class="att-title">${esc(m.title)} ${attOrgTag(m)}</div><div class="att-muted">${esc(attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''}</div>
         <div class="att-sum"><div><b>${recs.length}</b><span>출석</span></div>${Object.entries(byDept).map(([k, n]) => `<div><b>${n}</b><span>${esc(k)}</span></div>`).join('')}</div>
         ${tallies}
-        <div class="att-meet-btns" style="margin:12px 0"><button type="button" class="att-pri" data-att-act="qr" data-id="${esc(m.meetingId)}">QR 띄우기</button><button type="button" data-att-act="csv" data-id="${esc(m.meetingId)}">⬇ 엑셀(CSV) 받기</button></div>
-        ${recs.length ? `<div class="att-table-wrap"><table class="att-table"><thead><tr><th>#</th><th>이름</th><th>부서</th><th>직책</th><th>출석 시각</th>${m.askDistrict ? '<th>내 지역</th>' : ''}${m.askDept ? '<th>24부서</th>' : ''}${(m.questions || []).map(q => `<th>${esc(q.label)}</th>`).join('')}<th></th></tr></thead><tbody>
-          ${recs.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.dept)}</td><td>${esc(r.position)}</td><td>${esc(r.at.slice(11, 16))}</td>${m.askDistrict ? `<td>${esc(attMeetLabel({ org: r.pickOrg, district: r.pickDistrict }))}</td>` : ''}${m.askDept ? `<td>${esc(r.dept24 || '')}</td>` : ''}${(m.questions || []).map(q => `<td>${esc(attAnsText(q, r.answers[q.id]))}</td>`).join('')}<td><button type="button" class="att-x" data-att-act="delrec" data-id="${esc(r.recordId)}">${attAdm.delRec === r.recordId ? '삭제?' : '×'}</button></td></tr>`).join('')}
+        <div class="att-meet-btns" style="margin:12px 0"><button type="button" class="att-pri" data-att-act="qr" data-id="${esc(m.meetingId)}">QR 띄우기</button><button type="button" data-att-act="xlsx" data-id="${esc(m.meetingId)}">⬇ 마감 명단 엑셀</button><button type="button" data-att-act="sendtg" data-id="${esc(m.meetingId)}">📨 텔레봇방으로 보내기</button><button type="button" data-att-act="csv" data-id="${esc(m.meetingId)}">CSV</button></div>
+        ${recs.length ? `<div class="att-table-wrap"><table class="att-table"><thead><tr><th>#</th><th>이름</th><th>부서</th><th>직책</th><th>출석 시각</th><th>출석 상태</th>${m.askDistrict ? '<th>내 지역</th>' : ''}${m.askDept ? '<th>24부서</th>' : ''}${(m.questions || []).map(q => `<th>${esc(q.label)}</th>`).join('')}<th></th></tr></thead><tbody>
+          ${recs.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.dept)}</td><td>${esc(r.position)}</td><td>${esc(r.at.slice(11, 16))}</td><td class="${/지각/.test(r.late || '') ? 'att-late-td' : ''}">${esc(r.late || '')}</td>${m.askDistrict ? `<td>${esc(attMeetLabel({ org: r.pickOrg, district: r.pickDistrict }))}</td>` : ''}${m.askDept ? `<td>${esc(r.dept24 || '')}</td>` : ''}${(m.questions || []).map(q => `<td>${esc(attAnsText(q, r.answers[q.id]))}</td>`).join('')}<td><button type="button" class="att-x" data-att-act="delrec" data-id="${esc(r.recordId)}">${attAdm.delRec === r.recordId ? '삭제?' : '×'}</button></td></tr>`).join('')}
         </tbody></table></div>` : '<div class="att-empty">아직 출석한 사람이 없어요.</div>'}`;
     }
     // 참석자가 고른 지역별·24부서별 인원(모임에서 켠 것만)
@@ -5989,8 +5996,24 @@
       if (act === 'edit') { attAdmEdit(m); return; }
       if (act === 'csv') {
         const recs = d.records.filter(r => r.meetingId === id).sort((a, b) => a.at < b.at ? -1 : 1);
-        attCsv(`출석_${m.date}_${m.title}${attMeetLabel(m) ? '_' + attMeetLabel(m).replace(/ /g, '') : ''}.csv`, [['모임 부서·지역', '이름', '고유번호', '부서', '직책', '출석시각', ...(m.askDistrict ? ['내 지역'] : []), ...(m.askDept ? ['24부서'] : []), ...(m.questions || []).map(q => q.label)]]
-          .concat(recs.map(r => [attMeetLabel(m), r.name, r.memberId, r.dept, r.position, r.at, ...(m.askDistrict ? [attMeetLabel({ org: r.pickOrg, district: r.pickDistrict })] : []), ...(m.askDept ? [r.dept24 || ''] : []), ...(m.questions || []).map(q => attAnsText(q, r.answers[q.id]))])));
+        attCsv(`출석_${m.date}_${m.title}${attMeetLabel(m) ? '_' + attMeetLabel(m).replace(/ /g, '') : ''}.csv`, [['모임 부서·지역', '이름', '고유번호', '부서', '직책', '출석시각', '출석 상태', ...(m.askDistrict ? ['내 지역'] : []), ...(m.askDept ? ['24부서'] : []), ...(m.questions || []).map(q => q.label)]]
+          .concat(recs.map(r => [attMeetLabel(m), r.name, r.memberId, r.dept, r.position, r.at, r.late || '', ...(m.askDistrict ? [attMeetLabel({ org: r.pickOrg, district: r.pickDistrict })] : []), ...(m.askDept ? [r.dept24 || ''] : []), ...(m.questions || []).map(q => attAnsText(q, r.answers[q.id]))])));
+        return;
+      }
+      // 2026-10-09: 마감 명단 엑셀(고유번호 완성형·직책·교자장부청 박스·지각) — 서버가 만든 파일을 받거나 텔레봇방으로 보냄
+      if (act === 'xlsx' || act === 'sendtg') {
+        toast(act === 'xlsx' ? '마감 명단 엑셀을 만드는 중...' : '텔레봇방으로 보내는 중...');
+        try {
+          const res = await callApi({ action: 'attSendClosing', memberId: App.memberId, meetingId: id, dryRun: act === 'xlsx' });
+          if (res && res.error) throw new Error(res.error);
+          if (act === 'sendtg') { toast('텔레봇방으로 보냈어요.'); return; }
+          const bin = atob(res.base64), u8 = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+          a.download = res.fileName; document.body.appendChild(a); a.click();
+          setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        } catch (e) { toast(e.message, true); }
         return;
       }
       if (act === 'csvPeople') {
@@ -6158,8 +6181,8 @@
     // 그 정의는 죽은 코드라 삭제됐으므로 여기 connect 전용으로 새로 둠(이름 충돌 방지 위해 CN_ 접두사).
     const CN_TIER_STYLE = {
       '우수교사': { icon: '🏆', bg: '#FEF3C7', fg: '#92400E' },
-      '활동교사': { icon: '🟢', bg: '#D1FAE5', fg: '#065F46' },
-      '교사':     { icon: '',   bg: '#F3F4F6', fg: '#6B7280' },
+      '정교사':   { icon: '🟢', bg: '#D1FAE5', fg: '#065F46' },
+      '활동교사': { icon: '',   bg: '#F3F4F6', fg: '#6B7280' },
       '휴교사':   { icon: '',   bg: '#F3F4F6', fg: '#9CA3AF' }
     };
     function cnTierBadgeHtml(tier) {
@@ -8714,9 +8737,9 @@ function tbSearchRender() {
     function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
     // 활동 섹션(home.html)의 roleShortLabel과 이름이 겹치지만 로직이 다름(협력교사만 축약, 나머지는 그대로 통과) — 별도 이름 사용.
     function adminRoleShortLabel(role) { return role === '협력교사' ? '협력' : role; }
-    const TIER_ORDER = ['휴교사', '교사', '활동교사', '우수교사'];
-    const TIER_TEXT_COLOR = { '휴교사': 'text-base-content/50', '교사': 'text-primary', '활동교사': 'text-accent', '우수교사': 'text-secondary' };
-    const TIER_CHART_COLOR = { '휴교사': '#9ca3af', '교사': '#4f46e5', '활동교사': '#059669', '우수교사': '#d97706' };
+    const TIER_ORDER = ['휴교사', '활동교사', '정교사', '우수교사'];
+    const TIER_TEXT_COLOR = { '휴교사': 'text-base-content/50', '활동교사': 'text-primary', '정교사': 'text-accent', '우수교사': 'text-secondary' };
+    const TIER_CHART_COLOR = { '휴교사': '#9ca3af', '활동교사': '#4f46e5', '정교사': '#059669', '우수교사': '#d97706' };
     const AI_ANALYSIS_SECTIONS = ['📊 전체 활동 패턴', '🏆 강세 지역/항목', '⚠️ 보완 필요 지역/항목', '💡 다음 달 제안'];
     function parseAiSections(text) {
       const sections = {};
@@ -9720,7 +9743,7 @@ function buildRosterStats() {
 // 2026-09-23: 막대그래프 제거 요청 — 부서×등급을 표로 본다.
 // 행 = 교역자/자문회/장년회/부녀회/청년회, 열 = 총 / 휴 / 교 / 활 / 우.
 // (짧은 머리글은 폰에서 한 줄에 들어가게 하려는 것 — title 속성에 원래 이름을 넣어둠)
-const TIER_SHORT = { '휴교사': '휴', '교사': '교', '활동교사': '활', '우수교사': '우' };
+const TIER_SHORT = { '휴교사': '휴', '활동교사': '활', '정교사': '정', '우수교사': '우' };
 
 function renderRosterSection() {
   if (roster.length === 0) return '';
@@ -9759,7 +9782,7 @@ function renderRosterSection() {
         </tbody>
       </table>
     </div>
-    <div class="text-xs text-base-content/40 mt-2">휴 = 휴교사 · 교 = 교사 · 활 = 활동교사 · 우 = 우수교사</div>
+    <div class="text-xs text-base-content/40 mt-2">휴 = 휴교사 · 활 = 활동교사 · 정 = 정교사 · 우 = 우수교사</div>
   `;
   return sectionCard('secondary', '🏢', '부서별 교사 현황 (교·자·장·부·청)', `교사명단 등록 ${roster.length}명 기준 (부서/교사구분은 시트 값을 그대로 사용)`, body);
 }
@@ -9963,7 +9986,7 @@ function regionOnlyLabel(dept, region) {
   return (dept === '교역자') ? '전체' : (dept || '전체');
 }
 
-const TIER_BADGE = { '우수교사': 'badge-secondary', '활동교사': 'badge-accent', '교사': 'badge-primary', '휴교사': 'badge-ghost' };
+const TIER_BADGE = { '우수교사': 'badge-secondary', '정교사': 'badge-accent', '활동교사': 'badge-primary', '휴교사': 'badge-ghost' };
 
 const TEACHER_VIEW = false; // 2026-09-22: 별도 URL 라우트 없이 아래 탭 버튼(👥 교사 명단)으로 진입
 const TEACHER_LIST_TAB = '__teacherList__'; // state.dept 의 특수값 — "👥 교사 명단" 탭(전체 교사 flat list)
@@ -10817,6 +10840,7 @@ function orgSummarySectionHtml() {
                 <div class="text-base-content/50">총 교사 수</div><div class="text-right font-medium">${o.totalTeachers}명</div>
                 <div class="text-base-content/50">휴교사</div><div class="text-right font-medium">${(tc['휴교사']||0)}명 <span class="text-base-content/30">(${pct(tc['휴교사']||0, o.totalTeachers)}%)</span></div>
                 <div class="text-base-content/50">활동교사</div><div class="text-right font-medium">${(tc['활동교사']||0)}명 <span class="text-base-content/30">(${pct(tc['활동교사']||0, o.totalTeachers)}%)</span></div>
+                <div class="text-base-content/50">정교사</div><div class="text-right font-medium">${(tc['정교사']||0)}명 <span class="text-base-content/30">(${pct(tc['정교사']||0, o.totalTeachers)}%)</span></div>
                 <div class="text-base-content/50">우수교사</div><div class="text-right font-medium">${(tc['우수교사']||0)}명 <span class="text-base-content/30">(${pct(tc['우수교사']||0, o.totalTeachers)}%)</span></div>
               </div>
             </div>
@@ -10877,7 +10901,7 @@ function byRegionSectionHtml(byRegion) {
       </div>
       <div class="bg-info/10 border border-info/30 rounded-lg p-3 text-[11px] text-base-content/70 leading-relaxed mb-2">
         ℹ️ 지금 보고 있는 부서 안에서 <b>지역별로</b> 교사 현황을 나눠 보여드립니다. 지역마다 총 교사 수,
-        등급별 인원(휴교사·교사·활동교사·우수교사, 각 인원과 비율), 이번 달 활동한 교사 수(활동자),
+        등급별 인원(휴교사·활동교사·정교사·우수교사, 각 인원과 비율), 이번 달 활동한 교사 수(활동자),
         이번 달 총 활동 건수, 승급 대상자 수가 나옵니다. 우리 지역이 다른 지역과 비교해 활동이 활발한
         편인지, 등급이 잘 유지되고 있는지 확인하실 때 이 표를 보시면 됩니다.
       </div>
@@ -10988,12 +11012,12 @@ function byRegionChartsHtml(byRegion) {
   return `
     <div class="card card-border bg-base-100 shadow-sm">
       <div class="card-body p-3">
-        <div class="text-xs font-medium text-base-content/60 mb-2">${ICONS.barChart2} 지역별 교사 구분 비율 — 지역 한 세트당 휴교사·교사·활동교사·우수교사 4개 막대(색상 구분)</div>
+        <div class="text-xs font-medium text-base-content/60 mb-2">${ICONS.barChart2} 지역별 교사 구분 비율 — 지역 한 세트당 휴교사·활동교사·정교사·우수교사 4개 막대(색상 구분)</div>
         <div class="bg-info/10 border border-info/30 rounded-lg p-3 text-[11px] text-base-content/70 leading-relaxed mb-3">
-          ℹ️ 지역마다 교사 등급 분포를 막대 4개(휴교사·교사·활동교사·우수교사, 색깔로 구분)로 나란히
+          ℹ️ 지역마다 교사 등급 분포를 막대 4개(휴교사·활동교사·정교사·우수교사, 색깔로 구분)로 나란히
           비교할 수 있는 그래프입니다. 각 막대의 길이는 <b>그 지역 전체 교사 중 그 등급이 차지하는 비율(%)</b>을
           뜻합니다 — 인원 수가 아니라 비율이라, 교사 수가 다른 지역끼리도 바로 비교할 수 있습니다.
-          활동교사·우수교사 막대가 길수록 활동이 활발한 지역이고, 휴교사 막대가 길면 관리가 더 필요한
+          정교사·우수교사 막대가 길수록 활동이 활발한 지역이고, 휴교사 막대가 길면 관리가 더 필요한
           지역입니다. 지역별 막대를 나란히 비교해 보시면 어느 지역에 더 신경 써야 할지 한눈에 파악하실 수
           있습니다.
         </div>
@@ -11012,7 +11036,7 @@ function renderRegionCharts(byRegion) {
   if (!byRegion || byRegion.length === 0) return;
   const labels = byRegion.map(r => regionOnlyLabel(state.dept, r.region));
 
-  // 지역(세트)마다 휴교사·교사·활동교사·우수교사 4개 막대를 나란히(그룹) 표시 — 한 지역 안에서
+  // 지역(세트)마다 휴교사·활동교사·정교사·우수교사 4개 막대를 나란히(그룹) 표시 — 한 지역 안에서
   // 전 교사의 등급 분포 추이를 한눈에 비교하는 지표(지역장·중간관리자용). stacked 아님(그룹 막대).
   const c3 = document.getElementById('chart-tier-stack');
   if (c3) regionCharts.push(new Chart(c3, {
