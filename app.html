@@ -1300,6 +1300,11 @@
     /* 표지: 살짝 들렸다(0.5s) 머뭇거린 뒤 천천히 넘어감 */
     /* 한 곡선으로 — 서서히 출발해 흐르듯 넘어가고 끝에서 부드럽게 내려앉음(구간을 나누면 구간마다 멈칫함) */
     .bk-open .bk-cover { animation: bkCoverOpen 3.2s cubic-bezier(.5,0,.3,1) forwards; }
+    /* 2026-10-08: 출석 QR로 처음 온 사람 — 움직임 없이 마지막 모습(펼친 책 + 입장 카드) 바로 */
+    #pdSplash.bk-instant, #pdSplash.bk-instant * , #pdSplash.bk-instant *::before, #pdSplash.bk-instant *::after { transition: none !important; animation: none !important; }
+    #pdSplash.bk-instant .bk-cover { transform: perspective(2200px) rotateY(-180deg); }
+    #pdSplash.bk-instant .bk-cover .bk-back::after, #pdSplash.bk-instant .bk-cast, #pdSplash.bk-instant .bk-bloom, #pdSplash.bk-instant .bk-win-txt::before { opacity: 0 !important; }
+    #pdSplash.bk-instant .bk-spark-cv { display: none; }
     @keyframes bkCoverOpen { 0% { transform: perspective(2200px) rotateY(0); } 100% { transform: perspective(2200px) rotateY(-180deg); } }
 
     /* 표지 앞 — 짙은 녹색 린넨(가로·세로 올이 보이는 천 + 잔결 노이즈) */
@@ -2576,7 +2581,7 @@
         if (done) PD_BOOK_TIMERS.push(setTimeout(pdFinishBook, 900));
         return;
       }
-      pdSparks(sp);
+      if (!sp.classList.contains('bk-instant')) pdSparks(sp);
       steps.forEach(([c, ms]) => PD_BOOK_TIMERS.push(setTimeout(() => sp.classList.add(c), ms)));
       if (done) PD_BOOK_TIMERS.push(setTimeout(pdFinishBook, doneAt || 4200));
     }
@@ -2603,6 +2608,14 @@
       // 2026-10-07: 표지 미리보기(app.html?cover) — 저장된 로그인이 있어도 입장하지 않고 표지+입력 카드를 보여 주고, [다시 보기]로 반복
       const preview = /[?&]cover\b/.test(location.search);
       const saved = preview ? null : (pdLoadSaved() || (pdIsOwnerDevice() ? { memberId: OWNER_ID, name: OWNER_NAME } : null));
+      // 2026-10-08(사용자 요청): 출석 QR(#attend=모임ID)로 들어오면 표지를 건너뜀 —
+      // 로그인해 둔 사람은 바로 출석 제출 화면(enterFromHash → attOpen), 처음 오는 사람은 애니메이션 없이 입장 카드부터.
+      const qrAttend = !preview && /^#attend=/.test(location.hash || '');
+      if (qrAttend && saved) {
+        panel.style.display = 'none';
+        pdEnter(saved.memberId, saved.name);
+        return;
+      }
       // 2026-10-06(사용자 요청): 한 번 로그인한 사람은 로그인 화면 없이 표지만 보고 바로 들어간다.
       // 2026-10-07: 표지가 내려앉을 무렵 바로 밝아지며 입장(멈춤 없이), 화면을 누르면 바로 넘어감
       if (saved) {
@@ -2615,6 +2628,7 @@
         }, 4700);
         return;
       }
+      if (qrAttend) document.getElementById('pdSplash').classList.add('bk-instant');
       // 처음 오는 사람: 표지가 내려앉는 동안 책이 위로 올라가며 이름·고유번호 입력 카드가 나타남(멈춤 없이 이어짐)
       pdPlayBook(() => {
         const splash = document.getElementById('pdSplash'), form = document.getElementById('pdForm');
@@ -2625,7 +2639,7 @@
         splash.appendChild(form);
         moving.forEach((el, i) => {
           const dy = before[i] - el.getBoundingClientRect().top;
-          if (el.animate) el.animate([{ translate: `0 ${dy}px` }, { translate: '0 0' }], { duration: 1100, easing: 'cubic-bezier(.33,0,.2,1)' });
+          if (el.animate && !splash.classList.contains('bk-instant')) el.animate([{ translate: `0 ${dy}px` }, { translate: '0 0' }], { duration: 1100, easing: 'cubic-bezier(.33,0,.2,1)' });
         });
         if (preview && !document.getElementById('pdReplay')) {
           const b = document.createElement('button');
@@ -2636,6 +2650,7 @@
         // PC에서만 바로 입력칸에 커서(휴대폰은 키보드가 표지를 가려서 누를 때 뜨게)
         if (window.innerWidth >= 1024 && !preview) setTimeout(() => { const el = document.getElementById('name'); if (el) el.focus(); }, 300);
       }, 4100);
+      if (qrAttend) pdFinishBook();   // 출석 QR로 처음 온 사람: 표지를 펼친 모습으로 바로 두고 입장 카드부터
     }
 
     /**
