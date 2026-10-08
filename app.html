@@ -5770,10 +5770,24 @@
       if (miss) { toast(`"${miss.label}" 항목에 답해 주세요.`, true); return; }
       if (attSt.busy) return; attSt.busy = true;
       const btn = document.getElementById('attSubmit'); if (btn) { btn.disabled = true; btn.textContent = '제출 중...'; }
+      // v3: 동시 접속 400명 대비 — 서버가 busy(lock 획득 실패)를 반환하면 최대 5회 재시도
+      const attPayload = { action: 'submitAttendance', meetingId: m.meetingId, memberId: App.memberId, name: App.name, answers: a, method: attSt.method,
+        pickOrg: regionPicked ? pOrg : '', pickDistrict: regionPicked ? p.district : '', dept24: m.askDept ? p.dept24 : '',
+        pickOrgEtc: p.orgEtc, pickDistrictEtc: p.districtEtc, dept24Etc: p.dept24Etc };
       try {
-        const res = await callApi({ action: 'submitAttendance', meetingId: m.meetingId, memberId: App.memberId, name: App.name, answers: a, method: attSt.method,
-          pickOrg: regionPicked ? pOrg : '', pickDistrict: regionPicked ? p.district : '', dept24: m.askDept ? p.dept24 : '',
-          pickOrgEtc: p.orgEtc, pickDistrictEtc: p.districtEtc, dept24Etc: p.dept24Etc });
+        let res = null;
+        const MAX_RETRY = 5;
+        for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+          if (btn) btn.textContent = attempt > 1 ? `제출 중... (${attempt}/${MAX_RETRY})` : '제출 중...';
+          res = await callApiOnce(attPayload);  // callApiOnce: 중복 방지를 위해 dedup 없는 직접 호출
+          if (res && res.retry) {
+            // 서버가 바쁨 → 1~3초 랜덤 대기 후 재시도 (동시 재시도 분산)
+            if (attempt < MAX_RETRY) await new Promise(r => setTimeout(r, 800 + Math.random() * 2000));
+            continue;
+          }
+          break; // 성공 또는 실제 오류 → 루프 종료
+        }
+        if (res && res.retry) throw new Error('서버가 혼잡해요. 잠시 후 다시 눌러 주세요.');
         if (res && res.error) throw new Error(res.error);
         attSt.cur.mine = res.record;
         toast(res.already ? '이미 출석한 모임이에요.' : '출석했어요!');
