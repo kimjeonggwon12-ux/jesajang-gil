@@ -493,7 +493,7 @@
     .cal-dow { text-align:center; font-size:12px; font-weight:700; color:var(--color-text-sub); padding:6px 0; }
     .cal-dow.sun, .cal-day.sun .cal-num { color:#D94040; }
     .cal-dow.sat, .cal-day.sat .cal-num { color:#2F6FDE; }
-    .cal-day { min-height:70px; border-top:1px solid var(--color-border); padding:3px 2px; cursor:pointer; overflow:hidden; }
+    .cal-day { min-height:104px; border-top:1px solid var(--color-border); padding:3px 2px; cursor:pointer; overflow:hidden; }   /* 2026-10-09: 70→104px, 일정 4개까지 */
     .cal-day.out { opacity:.35; }
     .cal-num { font-size:12px; font-weight:600; width:22px; height:22px; line-height:22px; text-align:center; border-radius:50%; display:inline-block; margin-left:1px; }
     .cal-day.today .cal-num { background:var(--color-primary); color:#fff !important; }
@@ -1569,6 +1569,25 @@
     #sec-calendar .pz-pill { flex:1 0 64px; flex-direction:column; gap:6px; height:auto; padding:0; border:none; border-radius:0; background:none; font-size:12px; font-weight:600; color:#505050; }
     #sec-calendar .pz-pill .pz-q-ic { width:48px; height:48px; border-radius:50%; background:#F5F5F5; display:flex; align-items:center; justify-content:center; font-size:22px; line-height:1; }
     #sec-calendar .pz-pill:active .pz-q-ic { background:var(--ws-gb); }
+    /* 2026-10-09 광장 3쪽: 전도부 게시판 / 전도 이야기 / 소소한 마당 — 알약 대신 쪽 탭, 빨간 숫자 = 새 글 */
+    #sec-calendar .pz-pills.pz-pages { gap:6px; padding:12px 0 10px; justify-content:flex-start; }
+    #sec-calendar .pz-pg { position:relative; flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; gap:5px; height:42px; padding:0 8px; border-radius:12px; border:1px solid var(--ws-l); background:#fff; font-size:14px; font-weight:800; color:#505050; cursor:pointer; white-space:nowrap; }
+    #sec-calendar .pz-pg.etc { flex:0 1 auto; font-weight:600; font-size:13px; color:#767676; background:#FAFAFA; }
+    #sec-calendar .pz-pg.on { background:var(--ws-g); border-color:var(--ws-g); color:#fff; }
+    #sec-calendar .pz-pg b.pz-badge { position:absolute; top:-6px; right:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#E5322D; color:#fff; font-size:11px; line-height:18px; font-weight:800; }
+    .pz-wrap[data-page="board"] [data-pz-pg]:not([data-pz-pg="board"]),
+    .pz-wrap[data-page="story"] [data-pz-pg]:not([data-pz-pg="story"]),
+    .pz-wrap[data-page="etc"] [data-pz-pg]:not([data-pz-pg="etc"]) { display:none !important; }
+    .pz-new { display:inline-block; margin-left:5px; padding:0 5px; border-radius:4px; background:#E5322D; color:#fff; font-size:10px; font-weight:800; line-height:16px; vertical-align:middle; }
+    .pz-newbar { position:fixed; left:50%; top:68px; transform:translateX(-50%); z-index:60; padding:9px 16px; border-radius:999px; background:#191F28; color:#fff; font-size:13.5px; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,.18); cursor:pointer; white-space:nowrap; }
+    .pz-story-ev { margin-top:18px; padding:16px; border-radius:16px; background:linear-gradient(135deg,#E8F8F1,#FFF7E0); border:1px solid #D7EFE4; }
+    .pz-story-ev b.t { display:block; font-size:16px; font-weight:800; color:#191F28; }
+    .pz-story-ev p { margin:4px 0 10px; font-size:13px; color:#505050; line-height:1.5; }
+    .pz-story-ev .bar { height:8px; border-radius:4px; background:#fff; overflow:hidden; }
+    .pz-story-ev .bar i { display:block; height:100%; background:var(--ws-g, #00AE82); border-radius:4px; }
+    .pz-story-ev .row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; font-size:12.5px; color:#505050; }
+    .pz-story-ev button { height:36px; padding:0 14px; border:none; border-radius:10px; background:var(--ws-g, #00AE82); color:#fff; font-size:13.5px; font-weight:800; cursor:pointer; }
+    #plazaDot { display:none; position:absolute; top:-2px; right:-4px; width:9px; height:9px; border-radius:50%; background:#E5322D; border:1.5px solid #fff; }
     /* 모둠 제목: 아이콘 타일 없이 크고 굵은 검은 글씨 + 오른쪽 회색 글자 버튼 */
     #sec-calendar .pz-wrap { padding:0 16px 110px; }
     #sec-calendar .pz-sec-title { margin:34px 2px 14px; }
@@ -1756,7 +1775,7 @@
       html.pz-dk #sec-calendar .pz-cal-layout { flex-direction:row; }
       html.pz-dk #sec-calendar .pz-cal-main { flex:1; }
       html.pz-dk #sec-calendar .pz-week { width:340px; flex-shrink:0; border-top:none; border-left:1px solid var(--ws-l); }
-      html.pz-dk #sec-calendar .cal-day { min-height:92px; }
+      html.pz-dk #sec-calendar .cal-day { min-height:138px; }
       html.pz-dk #sec-calendar .cal-chip { font-size:11.5px; line-height:17px; }
     }
 
@@ -2126,11 +2145,12 @@
             </aside>
            </div>
           </div>
-          <div class="pz-sec-title c-ad" id="pzAdTitle"><span class="pz-sec-ic">📢</span><span class="pz-sec-txt">전도부 광고</span></div>
+          <div class="pz-sec-title c-ad" id="pzAdTitle"><span class="pz-sec-ic">📢</span><span class="pz-sec-txt">광고·공지</span></div>
           <div class="pz-box c-ad pz-board" id="calAds"><div class="pz-empty">불러오는 중...</div></div>
           <div id="pzTom"></div>
           <div class="pz-sec-title c-tom" id="pzContestTitle"><span class="pz-sec-ic">🏷️</span><span class="pz-sec-txt">앱 이름 공모</span></div>
           <div id="pzContest"></div>
+          <div id="pzStoryEv"></div>
           <div class="pz-sec-title c-hot" id="pzHotTitle"><span class="pz-sec-ic">🔥</span><span class="pz-sec-txt" id="pzHotLabel">지금 뜨는 교사 이야기</span><small class="pz-cup-chip">☕ 커피 쿠폰</small></div>
           <div class="pz-box c-hot" id="pzHot"><div class="pz-empty">불러오는 중...</div></div>
           <div class="pz-sec-title c-all" id="pzFeedTitle"><span class="pz-sec-ic" id="pzFeedIc">📌</span><span class="pz-sec-txt" id="pzFeedLabel">교사 광장</span><small id="pzFeedCount"></small></div>
@@ -2230,7 +2250,7 @@
            관리자 탭은 isAdmin()이 true일 때만 노출(현재는 라이브 코드와 동일하게 임시 전체 개방 —
            복구 지점은 isAdmin() 함수 주석 참고). -->
       <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="광장">
-        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span id="plazaDot"></span></span>
         <span class="tab-label">광장</span>
       </button>
       <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="나의교실">
@@ -2975,7 +2995,24 @@
     // 이달의 교사 / 교사 이야기] 순서로 옮기고, 앱바에 상단 메뉴(하단 탭바와 같은 탭)를 붙인다. 모바일 폭이 되면 원래 순서로 되돌린다.
     // 노드를 옮기기만 하므로(id 유지) 각 모둠을 그리는 코드는 그대로다.
     const PZ_DK_MQ = window.matchMedia('(min-width: 1024px)');
-    const PZ_ORDER = ['pzHero', 'pzCalTitle', 'pzCalBox', 'pzAdTitle', 'calAds', 'pzTom', 'pzContestTitle', 'pzContest', 'pzHotTitle', 'pzHot', 'pzFeedTitle', 'pzFeedTabs', 'pzFeed'];
+    const PZ_ORDER = ['pzHero', 'pzCalTitle', 'pzCalBox', 'pzAdTitle', 'calAds', 'pzTom', 'pzContestTitle', 'pzContest', 'pzStoryEv', 'pzHotTitle', 'pzHot', 'pzFeedTitle', 'pzFeedTabs', 'pzFeed'];
+    // 2026-10-09 광장 3쪽(사용자 요청: 전도부 게시판·전도 이야기가 메인, 나머지는 소소한 것) — 모둠마다 어느 쪽에 속하는지
+    const PZ_PAGE_OF = { pzHero: 'board', pzCalTitle: 'board', pzCalBox: 'board', pzAdTitle: 'board', calAds: 'board',
+      pzStoryEv: 'story', pzHotTitle: 'story', pzHot: 'story', pzFeedTitle: 'story', pzFeedTabs: 'story', pzFeed: 'story',
+      pzTom: 'etc', pzContestTitle: 'etc', pzContest: 'etc' };
+    const PZ_PAGES = [['board', '📢', '전도부 게시판'], ['story', '📖', '전도 이야기'], ['etc', '🎁', '소소한 마당']];
+    let pzPage = (() => { try { const v = localStorage.getItem('pz_page'); return PZ_PAGES.some(p => p[0] === v) ? v : 'board'; } catch (e) { return 'board'; } })();
+    function pzSetPage(page, keepScroll) {
+      if (!PZ_PAGES.some(p => p[0] === page)) page = 'board';
+      pzPage = page; try { localStorage.setItem('pz_page', page); } catch (e) {}
+      const wrap = document.querySelector('#sec-calendar .pz-wrap'); if (!wrap) return;
+      Object.entries(PZ_PAGE_OF).forEach(([id, pg]) => { const n = document.getElementById(id); if (n) n.dataset.pzPg = pg; });
+      wrap.dataset.page = page;
+      document.querySelectorAll('#pzPills [data-pz-page]').forEach(b => b.classList.toggle('on', b.dataset.pzPage === page));
+      if (!keepScroll) { const sc = document.getElementById('appSections'); if (sc) sc.scrollTop = 0; }
+      if (window.pzNew) pzNew.opened(page);
+    }
+    window.pzSetPage = pzSetPage;
     // 상단 메뉴: 하단 탭바에서 지금 보이는 탭만(관리자 탭은 관리자일 때만) 가져오고, 지금 탭을 표시한다.
     function fillGnb(gnb) {
       if (!gnb) return;
@@ -2991,14 +3028,10 @@
       const dk = PZ_DK_MQ.matches && !EMBED_PLAZA;
       document.documentElement.classList.toggle('pz-dk', dk);
       if (dk) {
-        let cols = wrap.querySelector('.pz-dk-cols');
-        if (!cols) { cols = document.createElement('div'); cols.className = 'pz-dk-cols'; cols.innerHTML = '<div class="pz-dk-main"></div><div class="pz-dk-side"></div>'; }
-        const main = cols.firstElementChild, side = cols.lastElementChild;
-        // 2026-10-04: 전도 일정(달력+이번 주)은 한 줄 전체로 넓게, 그 아래 2단(왼쪽 인기글 | 오른쪽 게시판·이름 공모)
-        wrap.append(el('pzHero'), pills, el('pzCalTitle'), el('pzCalBox'), cols);
-        main.append(el('pzHotTitle'), el('pzHot'));
-        side.append(el('pzAdTitle'), el('calAds'), el('pzContestTitle'), el('pzContest'));
-        wrap.append(el('pzTom'), el('pzFeedTitle'), el('pzFeedTabs'), el('pzFeed'));
+        // 2026-10-09: 광장이 3쪽으로 나뉘어 PC도 쪽마다 한 줄 전체폭(예전 2단 배치는 뺌)
+        wrap.append(pills);
+        PZ_ORDER.forEach(id => { const n = el(id); if (n) wrap.append(n); });
+        wrap.querySelector('.pz-dk-cols')?.remove();
         let gnb = el('pzGnb');
         if (!gnb) { gnb = document.createElement('nav'); gnb.id = 'pzGnb'; gnb.className = 'pz-gnb'; bar.querySelector('.pz-logo').after(gnb); }
         fillGnb(gnb);
@@ -3089,6 +3122,79 @@
     function goHome() { switchTab('activity'); }
 
     // ════════════════════════════════════════════════════════════════
+    // 2026-10-09 새 글 알림 — 전도부 게시판(광고·공지 새로 올라오거나 고쳐짐, 전도부 공식 일정 새로 등록)과
+    // 전도 이야기(다른 사람이 쓴 새 글). 이 기기에서 마지막으로 그 쪽을 본 때(localStorage 'pz_seen_v1') 이후 것만 셈.
+    // 표시: 쪽 탭 빨간 숫자, 아래 탭 '광장' 빨간 점, 위쪽 알림 띠(누르면 그 쪽으로), 목록의 NEW.
+    // 앱이 열려 있는 동안 5분마다 확인하고, 화면이 꺼져(백그라운드) 있으면 폰 알림(알림 허용한 경우).
+    // ⚠️ 앱을 완전히 닫으면 알림이 오지 않음(서버 푸시 없음) — 다시 열면 바로 배지로 보임.
+    // ════════════════════════════════════════════════════════════════
+    const pzNew = (() => {
+      const KEY = 'pz_seen_v1', nowKst = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 19).replace('T', ' ');
+      let seen = null;
+      const load = () => { if (seen) return seen; try { seen = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+        if (!seen) { seen = { board: nowKst(), story: nowKst(), ev: [] }; save(); } return seen; };   // 처음엔 지금부터 셈(옛 글로 알림 폭탄 안 나게)
+      const save = () => { try { localStorage.setItem(KEY, JSON.stringify(seen)); } catch (e) {} };
+      const cnt = { board: 0, story: 0 }, openedAt = {};   // openedAt: 그 쪽을 열기 직전의 '마지막 본 때' — NEW 표시 기준
+      let stories = [], lastNotified = { board: 0, story: 0 };
+      function isNew(page, at) { const s = load(); const base = openedAt[page] || s[page]; return !!at && String(at) > String(base); }
+      function count(page) { return cnt[page] || 0; }
+      function paint(fromPoll) {
+        const tot = cnt.board + cnt.story;
+        const dot = document.getElementById('plazaDot'); if (dot) dot.style.display = tot ? 'block' : 'none';
+        if (window.pzRenderPills) pzRenderPills();
+        ['board', 'story'].forEach(pg => {
+          if (cnt[pg] > lastNotified[pg] && (fromPoll || lastNotified[pg] === 0) && !(App.currentTab === 'calendar' && pzPage === pg)) {
+            const label = pg === 'board' ? '전도부 게시판' : '전도 이야기';
+            bar(`🔔 ${label}에 새 글 ${cnt[pg]}개`, pg);
+            if (document.hidden && 'Notification' in window && Notification.permission === 'granted' && pushNoti.sw && pushNoti.sw.active)
+              pushNoti.sw.active.postMessage({ type: 'SCHEDULE_NOTIFICATION', delayMs: 0, title: `🔔 ${label} 새 글 ${cnt[pg]}개`, body: '교사광장에서 확인해 보세요.', url: './app.html#calendar', tag: 'pz-new-' + pg });
+          }
+          lastNotified[pg] = cnt[pg];
+        });
+      }
+      function bar(text, pg) {
+        document.querySelector('.pz-newbar')?.remove();
+        const b = document.createElement('div'); b.className = 'pz-newbar'; b.textContent = text + ' ›';
+        b.onclick = () => { b.remove(); switchTab('calendar'); pzSetPage(pg); };
+        document.body.appendChild(b); setTimeout(() => b.remove(), 7000);
+      }
+      function board() {
+        const s = load(), evSeen = new Set(s.ev || []);
+        const ads = (calSt.ads || []).filter(a => isNew('board', a.updatedAt)).length;
+        const offi = (calSt.events || []).filter(e => e.category === '공식' && e.eventId && !evSeen.has(e.eventId));
+        if (!s.ev || !s.ev.length) { s.ev = (calSt.events || []).filter(e => e.category === '공식' && e.eventId).map(e => e.eventId); save(); cnt.board = ads; }   // 처음엔 지금 있는 일정은 본 것으로
+        else cnt.board = ads + offi.length;
+        if (App.currentTab === 'calendar' && pzPage === 'board') { opened('board'); return; }
+        paint(false);
+      }
+      async function checkStories(fromPoll) {
+        try {
+          const r = await callApiOnce({ action: 'listPlazaPosts', memberId: MEMBER_ID, category: '', keyword: '', offset: 0, limit: 30 });
+          if (!r || r.error) return;
+          stories = r.rows || [];
+          cnt.story = stories.filter(p => !p.isMine && isNew('story', p.createdAt)).length;
+          if (App.currentTab === 'calendar' && pzPage === 'story') { opened('story'); return; }
+          paint(fromPoll);
+        } catch (e) {}
+      }
+      function opened(page) {   // 그 쪽을 보면 '본 것'으로 — NEW 표시는 이번에 연 동안 유지
+        if (page !== 'board' && page !== 'story') return;
+        const s = load();
+        if (!openedAt[page]) openedAt[page] = s[page];
+        s[page] = nowKst();
+        if (page === 'board') s.ev = [...new Set((s.ev || []).concat((calSt.events || []).filter(e => e.category === '공식' && e.eventId).map(e => e.eventId)))].slice(-800);
+        save(); cnt[page] = 0; lastNotified[page] = 0; paint(false);
+      }
+      function start() {
+        checkStories(false);
+        setInterval(() => { checkStories(true); if (typeof calLoadAll === 'function') calLoadAll(true).catch(() => {}); }, 5 * 60e3);   // 5분마다(앱이 열려 있는 동안)
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) checkStories(true); });
+      }
+      return { isNew, count, board, checkStories, opened, start };
+    })();
+    window.pzNew = pzNew;
+
+    // ════════════════════════════════════════════════════════════════
     // ===== SECTION: calendar ===== (원본: calendar-room.html)
     // 공유 esc/callApi/toast/openSheet/closeSheet/DEPTS5/ATT_ROLES/STAGES/MEMBER_ID/MY_NAME 재사용.
     // 원본의 PROXY_URL/qs/MEMBER_ID/MY_NAME/esc/toast/callApi/closeSheet/openSheet 로컬 정의는
@@ -3122,9 +3228,13 @@
     const CAL_WD = ['일', '월', '화', '수', '목', '금', '토'];
     const calDow = ymd => { const [y, m, d] = String(ymd).split('-').map(Number); return new Date(y, m - 1, d).getDay(); };
     const calIsRepeat = e => Array.isArray(e.repeatDays) && e.repeatDays.length > 0 && !!e.repeatUntil;
+    // 2026-10-09: 전도부가 올린 공식(교회) 일정을 맨 위로 — '+N개'에 가려지지 않게. 그다음 부서, 내 일정.
+    const CAL_RANK = { '공식': 0, '부서': 1, '내일정': 2 };
     const calEventsOn = date => calSt.events.filter(e => calIsRepeat(e)
       ? (e.startDate <= date && date <= e.repeatUntil && e.repeatDays.includes(calDow(date)))
-      : (e.startDate <= date && date <= e.endDate));
+      : (e.startDate <= date && date <= e.endDate))
+      .map((e, i) => [e, i]).sort((a, b) => ((CAL_RANK[a[0].category] ?? 3) - (CAL_RANK[b[0].category] ?? 3)) || a[1] - b[1]).map(x => x[0]);
+    const CAL_CHIPS = 4;
     function calRangeText(e) {
       if (calIsRepeat(e)) return `매주 ${e.repeatDays.map(d => CAL_WD[d]).join('·')}요일 (${e.startDate} ~ ${e.repeatUntil})`;
       return e.startDate === e.endDate ? e.startDate : `${e.startDate} ~ ${e.endDate}`;
@@ -3165,8 +3275,8 @@
         const dow = d.getDay();
         cells.push(`<div class="cal-day ${d.getMonth() !== calSt.m ? 'out' : ''} ${date === CAL_TODAY ? 'today' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}" data-date="${date}">
           <span class="cal-num">${d.getDate()}</span>
-          ${evs.slice(0, 2).map(e => `<span class="cal-chip ${calEvClass(e)}">${calIsRepeat(e) ? '↻' : ''}${calPrefix(e) ? `<b class="cal-pfx">${esc(calPrefix(e))}</b>` : ''}${esc(e.title)}</span>`).join('')}
-          ${evs.length > 2 ? `<span class="cal-more">+${evs.length - 2}</span>` : ''}
+          ${evs.slice(0, CAL_CHIPS).map(e => `<span class="cal-chip ${calEvClass(e)}">${calIsRepeat(e) ? '↻' : ''}${calPrefix(e) ? `<b class="cal-pfx">${esc(calPrefix(e))}</b>` : ''}${esc(e.title)}</span>`).join('')}
+          ${evs.length > CAL_CHIPS ? `<span class="cal-more">+${evs.length - CAL_CHIPS}</span>` : ''}
         </div>`);
         if (i === 34 && new Date(calSt.y, calSt.m, 1 - startOffset + 35).getMonth() !== calSt.m) break;
       }
@@ -3378,13 +3488,13 @@
       await Promise.all([
         apiSWR({ action: 'getCalendarEvents', memberId: MEMBER_ID }, r => {
           if (r && !r.error) calSt.events = r.rows || [];
-          calDrawCalendar(); calRenderUpcoming(); pzRenderEvents();
+          calDrawCalendar(); calRenderUpcoming(); pzRenderEvents(); if (window.pzNew) pzNew.board();
           // 2026-10-05: 일정 로드 후 이번 주 일정 알림 자동 예약
           if (Notification.permission === 'granted') pushNoti.scheduleWeekEvents();
         }, afterWrite).catch(() => { calDrawCalendar(); calRenderUpcoming(); pzRenderEvents(); }),
         apiSWR({ action: 'getCalendarAds' }, r => {
           if (r && r.error) calSt.adErr = r.error; else { calSt.ads = (r && r.rows) || []; calSt.adErr = ''; }
-          calRenderAds();
+          calRenderAds(); if (window.pzNew) pzNew.board();
         }, afterWrite).catch(e => { calSt.adErr = e.message; calRenderAds(); })
       ]);
     }
@@ -3459,12 +3569,12 @@
     function calRenderAds() {
       const el = document.getElementById('calAds'); if (!el) return;
       const ads = calSt.ads;
-      const head = `<div class="pz-board-h"><span>📌 전도부 게시판</span><small>${ads && ads.length ? `공지 ${ads.length}건` : ''}</small></div>`;
+      const head = `<div class="pz-board-h"><span>📌 광고·공지</span><small>${ads && ads.length ? `공지 ${ads.length}건` : ''}</small></div>`;
       el.innerHTML = head + (calSt.adErr ? `<div class="pz-empty" style="color:var(--color-error)">${esc(calSt.adErr)}</div>`
         : !ads ? '<div class="pz-empty">불러오는 중...</div>'
         : ads.length ? `<div class="pz-board-list">${ads.slice(0, PZX.ad ? ads.length : 3).map((a, i) => `
             <div class="pz-board-row" data-pz-ad>
-              <div class="pz-board-top"><span class="pz-board-tag">공지</span><b>${esc(a.title)}</b><time>${esc(String(a.updatedAt || '').slice(5, 10).replace('-', '.'))}</time></div>
+              <div class="pz-board-top"><span class="pz-board-tag">공지</span><b>${esc(a.title)}${window.pzNew && pzNew.isNew('board', a.updatedAt) ? '<span class="pz-new">NEW</span>' : ''}</b><time>${esc(String(a.updatedAt || '').slice(5, 10).replace('-', '.'))}</time></div>
               ${a.body ? `<div class="pz-board-body">${esc(a.body)}</div>` : ''}
               ${adqInlineHtml(a.adId)}
             </div>`).join('')}</div>` + pzMoreBtn('ad', ads.length)
@@ -3694,8 +3804,8 @@
       // 주제마다 아이콘·색(CSS .c-*)·안내문 — 배너·카드·칩이 모두 이걸 쓴다
       const PZ_META = {
         hot: { ic: '🔥', cls: 'c-hot', t: '지금 뜨는 이야기', g: '최근 2주간 공감·댓글을 많이 받은 이야기 TOP 5예요.' },
-        '': { ic: '📌', cls: 'c-all', t: '교사 광장', g: '교사들이 올린 모든 이야기를 한곳에서 볼 수 있어요.' },
-        '사례': { ic: '🎯', cls: 'c-case', t: '사례', g: '전도·교육에서 잘된 경험도, 아쉬웠던 경험도 나누고 함께 배워요.' },
+        '': { ic: '📌', cls: 'c-all', t: '모든 이야기', g: '교사들이 올린 모든 이야기를 한곳에서 볼 수 있어요.' },
+        '사례': { ic: '🎯', cls: 'c-case', t: '전도 이야기', g: '전도하며 열매 맺은 이야기, 아쉬웠던 경험까지 — 서로의 경험이 다음 열매의 길잡이가 돼요.' },
         '질문': { ic: '🙋', cls: 'c-q', t: '질문', g: '궁금한 점을 묻고 선배 교사들의 답을 들어봐요. (어플이 불편한 점은 불편신고에)' },
         '불편신고': { ic: '🛠️', cls: 'c-bug', t: '불편신고', g: '어플을 쓰다 불편하거나 안 되는 점을 알려 주세요. 어떤 화면에서 무엇을 했는지 적어 주시면 빨리 고칠 수 있어요.' }
       };
@@ -3705,7 +3815,7 @@
         return m ? `<div class="pz-guide ${m.cls}"><span class="pz-guide-ic">💬</span><span>${esc(m.g)}</span></div>` : '';
       }
       const PZ_PAGE = 20;
-      const P = { cat: '', kw: '', rows: [], hot: [], total: 0, loading: false, mounted: false, detail: null, sort: 'asc', ovOpen: false };
+      const P = { cat: '사례', kw: '', caseTotal: null, rows: [], hot: [], total: 0, loading: false, mounted: false, detail: null, sort: 'asc', ovOpen: false };
       const $ = id => document.getElementById(id);
       const ICON_LIKE = '<svg class="lucide-i" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
       const ICON_CMT = '<svg class="lucide-i" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
@@ -3743,8 +3853,10 @@
         // 2026-09-30: '✍️ 글쓰기' 알약 삭제(우측 하단 FAB와 중복). 2차: 알약 아이콘 삭제, 이달의 교사·커피 쿠폰 추가.
         // 2026-10-01(3차): 알약 = 모둠 이동 탭(화면 순서 그대로). 글쓰기는 오른쪽 아래 버튼 하나.
         // 2026-10-04: 말씀광장처럼 동그라미 아이콘 + 아래 글자 바로가기로 표시.
-        const secs = [['cal', '📅', '전도 일정'], ['ad', '📢', '광고'], ['tom', '🏅', '이달의 교사'], ['contest', '🏷️', '이름 공모'], ['hot', '🔥', '인기글'], ['feed', '📌', '이야기']];
-        $('pzPills').innerHTML = secs.map(([k, ic, l]) => `<button type="button" class="pz-pill" data-pz-go="${k}"><span class="pz-q-ic">${ic}</span><span>${esc(l)}</span></button>`).join('');
+        // 2026-10-09: 알약 = 광장 3쪽 탭(전도부 게시판 / 전도 이야기 / 소소한 마당). 빨간 숫자 = 아직 안 본 새 글.
+        $('pzPills').classList.add('pz-pages');
+        $('pzPills').innerHTML = PZ_PAGES.map(([k, ic, l]) => { const n = window.pzNew ? pzNew.count(k) : 0;
+          return `<button type="button" class="pz-pg ${k === 'etc' ? 'etc' : ''} ${k === pzPage ? 'on' : ''}" data-pz-page="${k}">${ic} ${esc(l)}${n ? `<b class="pz-badge">${n > 99 ? '99+' : n}</b>` : ''}</button>`; }).join('');
       }
       function scrollToEl(id) {
         const el = $(id), sec = $('appSections');
@@ -3753,20 +3865,20 @@
         sec.scrollTo({ top: el.getBoundingClientRect().top - sec.getBoundingClientRect().top + sec.scrollTop - (bar ? bar.offsetHeight : 0) - 4, behavior: 'smooth' });
       }
       // 2026-10-04: PC 2열 배치에선 접힌 상태에서 6개(3줄) 보여 줘야 열이 맞는다.
-      const pzFeedN = () => document.documentElement.classList.contains('pz-dk') ? 6 : 3;
+      const pzFeedN = () => document.documentElement.classList.contains('pz-dk') ? 12 : 8;   // 2026-10-09: 전도 이야기 쪽이라 더 많이
       function renderLists() {
         const m = P.kw ? { ic: '🔍', cls: 'c-all', t: `'${P.kw}' 검색 결과` } : PZ_META[P.cat] || PZ_META[''];
         $('pzFeedTitle').className = 'pz-sec-title ' + m.cls;
         $('pzFeedIc').textContent = m.ic;
         $('pzFeedLabel').textContent = m.t;
         $('pzFeedCount').textContent = P.total ? `${P.total}개` : '';
-        $('pzFeedTabs').innerHTML = [['', '전체']].concat(PZ_CATS.map(c => [c, c])).map(([k, l]) =>
+        $('pzFeedTabs').innerHTML = [['사례', '전도 이야기'], ['', '전체'], ['질문', '질문'], ['불편신고', '불편신고']].map(([k, l]) =>
           `<button type="button" class="${(PZ_META[k] || {}).cls || ''}${!P.kw && k === P.cat ? ' on' : ''}" data-pz-pill="${esc(k)}">${esc(l)}</button>`).join('');
         const rows = P.rows;
         $('pzFeed').innerHTML = (P.kw ? '' : `<div class="pz-box">${guideHtml(P.cat)}</div>`) + (rows.length
           ? rows.slice(0, PZX.feed ? rows.length : pzFeedN()).map(p => `<div class="pz-row ${PZ_CAT_CLS[p.category] || ''}" data-pz-open="${esc(p.postId)}">
               <div class="pz-row-main">
-                <div class="pz-row-top">${catHtml(p.category, p.title)}<span class="pz-ago">${esc(ago(p.createdAt))}</span></div>
+                <div class="pz-row-top">${catHtml(p.category, p.title)}${window.pzNew && !p.isMine && pzNew.isNew('story', p.createdAt) ? '<span class="pz-new">NEW</span>' : ''}<span class="pz-ago">${esc(ago(p.createdAt))}</span></div>
                 <div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div>
                 <div class="pz-row-foot"><div class="pz-who">${avaHtml(p.name, '', 'xs')}<span><b>${esc(p.name)}</b>${p.region ? ' · ' + esc(p.region) : ''}</span></div>${cntHtml(p)}</div>
               </div>
@@ -3774,6 +3886,18 @@
           : (P.loading ? emptyHtml('⏳', '불러오는 중...') : P.kw || P.cat ? emptyHtml('🔍', '조건에 맞는 이야기가 없어요.') : emptyHtml('✏️', '아직 올라온 이야기가 없어요.<br>전도하며 겪은 사례와 사연을 나눠주세요!')));
         const more = $('pzMoreBtn'); if (more) more.onclick = () => load(false);
       }
+
+      // 2026-10-09 전도 이야기 이벤트 — 성공 사례 100개 모으기(사용자: 이벤트 기간에 100개쯤, 앞으로 주기적으로 올라옴)
+      const PZ_STORY_GOAL = 100;
+      function renderStoryEv() {
+        const el = $('pzStoryEv'); if (!el) return;
+        const n = P.caseTotal, pct = n == null ? 0 : Math.min(100, Math.round(n / PZ_STORY_GOAL * 100));
+        el.innerHTML = `<div class="pz-story-ev"><b class="t">🎉 전도 성공 사례 100개 모으기</b>
+          <p>전도하며 열매 맺은 이야기를 나눠 주세요. 한 사람의 경험이 다른 교사의 다음 열매가 됩니다.</p>
+          <div class="bar"><i style="width:${pct}%"></i></div>
+          <div class="row"><span>${n == null ? '모인 이야기 세는 중...' : `지금까지 <b>${n}</b>개 / 목표 ${PZ_STORY_GOAL}개`}</span><button type="button" data-pz-write-case>✍️ 내 이야기 올리기</button></div></div>`;
+      }
+      window.pzRenderPills = () => renderPills();
 
       // ── 이달의 교사(부서별 1명) + 이달의 인기글 커피 쿠폰 (2026-09-30, getPlazaMonthly) ──
       const M = { month: '', data: null, loading: false };
@@ -3849,6 +3973,7 @@
           if (!res || res.error) return;
           P.rows = (reset ? [] : P.rows).concat(res.rows || []);
           P.total = res.total || 0;
+          if (P.cat === '사례' && !P.kw) { P.caseTotal = P.total; renderStoryEv(); }
           if (res.hot) P.hot = res.hot;
           if (cached) { P.loading = false; renderLists(); P.loading = true; }   // 지난 목록을 그리는 동안에도 '더 보기' 중복 요청은 막아 둠
         };
@@ -4321,7 +4446,9 @@
         const delC = e.target.closest('[data-pz-delcmt]'); if (delC) { deleteComment(delC.dataset.pzDelcmt); return; }
         if (e.target.closest('[data-pz-tofeed]')) { ovClose(); setTimeout(() => scrollToEl('pzFeedTitle'), 250); return; }
         const open = e.target.closest('[data-pz-open]'); if (open) { const id = open.dataset.pzOpen; openPost(id); return; }
-        const go = e.target.closest('[data-pz-go]'); if (go) { scrollToEl(PZ_SEC_ID[go.dataset.pzGo]); return; }
+        const pg = e.target.closest('[data-pz-page]'); if (pg) { pzSetPage(pg.dataset.pzPage); return; }
+        if (e.target.closest('[data-pz-write-case]')) { openWrite(null, '사례'); return; }
+        const go = e.target.closest('[data-pz-go]'); if (go) { const id = PZ_SEC_ID[go.dataset.pzGo]; if (PZ_PAGE_OF[id] && PZ_PAGE_OF[id] !== pzPage) pzSetPage(PZ_PAGE_OF[id], true); scrollToEl(id); return; }
         const mo = e.target.closest('[data-pz-more]');
         if (mo) {
           const k = mo.dataset.pzMore; PZX[k] = !PZX[k];
@@ -4340,8 +4467,8 @@
 
       window.pzMount = function () {
         if (P.mounted) return; P.mounted = true;
-        renderPills();
-        $('pzFab').onclick = () => openWrite(null);
+        renderPills(); pzSetPage(pzPage, true); renderStoryEv(); pzNew.start();
+        $('pzFab').onclick = () => openWrite(null, pzPage === 'story' ? (P.cat || '사례') : '');
         const s = $('pzSearch');
         const run = () => { const v = s.value.trim(); if (v === P.kw) return; P.kw = v; load(true); scrollToEl('pzFeedTitle'); };
         s.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); s.blur(); run(); } };
