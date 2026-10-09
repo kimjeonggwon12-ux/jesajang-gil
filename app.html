@@ -769,6 +769,9 @@
     #sec-connect .cn-sum-row { display:flex; gap:6px; margin-top:10px; }
     #sec-connect .cn-sum-c { flex:1 1 0; min-width:0; text-align:center; padding:8px 0; border-radius:10px; background:#F2FBF7; }
     #sec-connect .cn-sum-c em { display:block; font-style:normal; font-size:12.5px; font-weight:700; color:#6B7280; }
+    #sec-connect button.cn-sum-c { border:1.5px solid transparent; cursor:pointer; font:inherit; }
+    #sec-connect .cn-sum-c.on { background:#00AE82; border-color:#00AE82; }
+    #sec-connect .cn-sum-c.on em, #sec-connect .cn-sum-c.on b { color:#fff; }
     #sec-connect .cn-sum-c b { display:block; margin-top:2px; font-size:18px; font-weight:800; color:#111; }
     #sec-connect .cn-sec-sub { font-size:14.5px; color:var(--dg-text-sub); margin-top:5px; margin-bottom:18px; line-height:1.5; }
     #sec-connect .cn-req { color:var(--color-error); font-weight:700; }
@@ -6404,7 +6407,7 @@
       tab: 'card',
       prevTab: 'card', // 채팅 종료 후 돌아갈 탭(대화함 목록이 없어져서 필요)
       card: { loaded: false, loading: true, exists: false, dept: '', region: '', saving: false, f: emptyCard() },
-      find: { role: '', item: '', region: '', tag: '', schedule: '', keyword: '', rows: [], all: null, regions: [], loading: false, loaded: false, error: '' },
+      find: { dept: '', role: '', item: '', region: '', tag: '', schedule: '', keyword: '', rows: [], all: null, regions: [], loading: false, loaded: false, error: '' },
       board: { role: '', item: '', region: '', schedule: '', keyword: '', dept: '', rows: [], regions: [], loading: false, loaded: false, error: '' },
       chat: { active: null, messages: [], input: '', sending: false, timer: null, lastKey: '' }
     };
@@ -6656,16 +6659,25 @@
     async function loadFind() {
       const q = S.find; q.loading = true; q.error = ''; if (S.tab === 'find') cnRender();
       try {
-        const res = await callApi({ action: 'searchConnectCards', memberId: MEMBER_ID, role: q.role, region: q.region, tag: q.tag, schedule: q.schedule, keyword: q.keyword });
+        // 2026-10-09: 서버는 한 번에 최대 100명(기본 30명)만 준다 → total 만큼 offset 으로 이어 받는다.
+        //             (예전엔 기본 30명만 받아서 요약·목록에서 오래된 신청자가 빠졌음)
+        const base = { action: 'searchConnectCards', memberId: MEMBER_ID, role: q.role, region: q.region, tag: q.tag, schedule: q.schedule, keyword: q.keyword, limit: 100 };
+        const res = await callApi(Object.assign({ offset: 0 }, base));
         if (res && res.error) throw new Error(res.error);
         let rows = res.rows || [];
+        while (rows.length < (res.total || 0)) {
+          const more = await callApi(Object.assign({ offset: rows.length }, base));
+          if (!more || more.error || !(more.rows || []).length) break;
+          rows = rows.concat(more.rows);
+        }
+        // 조건 없이 받은 목록 = 전체 활동신청자 → 배너 아래 부서별 요약에 쓴다(부서·항목 필터는 앱에서 거르므로 무관).
+        if (![q.role, q.region, q.tag, q.schedule, String(q.keyword || '').trim()].some(Boolean)) q.all = rows;
+        if (q.dept) rows = rows.filter(r => cnSumDeptIdx(r.dept) === CN_SUM_DEPTS.findIndex(x => x[0] === q.dept));
         // 2026-09-23: 백엔드 searchConnectCards 는 role 파라미터를 1개만 받는다.
         // 4역할은 서버에서 거르고, 11항목은 받아온 명함의 roles 배열에서 여기서 거른다
         // (명함은 역할과 항목을 같은 roles 배열에 함께 담는다 — CARD_ROLES 참고).
         if (q.item) rows = rows.filter(r => (r.roles || []).indexOf(q.item) !== -1);
         q.rows = rows; if (res.regions && res.regions.length) q.regions = res.regions;
-        // 2026-10-09: 조건 없이 받은 목록 = 전체 활동신청자 → 배너 아래 부서별 요약에 쓴다.
-        if (![q.role, q.item, q.region, q.tag, q.schedule, String(q.keyword || '').trim()].some(Boolean)) q.all = rows;
       } catch (e) { q.error = e.message; }
       q.loading = false; q.loaded = true;
       if (S.tab === 'find') { const keepFocus = document.activeElement && document.activeElement.id === 'fKeyword'; cnRender(); if (keepFocus) { const k = document.getElementById('fKeyword'); if (k) { k.focus(); k.setSelectionRange(k.value.length, k.value.length); } } }
@@ -6685,7 +6697,7 @@
            백엔드 searchConnectCards 의 role 파라미터는 값 1개만 받으므로,
            역할은 서버에 보내고(후보를 줄이고) 항목은 받아온 목록에서 걸러낸다. -->
       <!-- 2026-10-07: 드롭다운 5개가 화면 위쪽 절반을 차지 → 검색칸 옆 [필터]로 접음(고른 조건 수 표시) -->
-      <div class="cn-fbar"><input id="fKeyword" class="kko-input" placeholder="이름·소개·자격증 검색" value="${esc(q.keyword)}"><button type="button" id="fTgl" class="cn-ftg${q.fOpen ? ' on' : ''}${[q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' has' : ''}">필터${[q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' <em>' + [q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length + '</em>' : ''} ${q.fOpen ? '▴' : '▾'}</button></div>
+      <div class="cn-fbar"><input id="fKeyword" class="kko-input" placeholder="이름·소개·자격증 검색" value="${esc(q.keyword)}"><button type="button" id="fTgl" class="cn-ftg${q.fOpen ? ' on' : ''}${[q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' has' : ''}">필터${[q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' <em>' + [q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length + '</em>' : ''} ${q.fOpen ? '▴' : '▾'}</button></div>
       ${q.fOpen ? `<div class="cn-fbox">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${cnSelHtml('fRole', '4역할 전체', CN_ROLE_PARTS, q.role)}
@@ -6693,7 +6705,8 @@
         ${cnSelHtml('fRegion', '지역 전체', q.regions, q.region)}
         ${cnSelHtml('fTag', '태그 전체', tagOpts, q.tag)}
       </div>
-      <div style="margin-top:8px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        ${cnSelHtml('fDept', '부서 전체', CN_SUM_DEPTS.map(x => x[0]), q.dept).replace(/>(교|자|장|부|청)</g, (m, c) => '>' + CN_SUM_DEPTS.find(x => x[0] === c)[1] + (c === '교' ? '' : '회') + '<')}
         ${cnSelHtml('fSched', '일정 전체', ['언제나', '상의', '등록'], q.schedule).replace('>언제나<', '>✨ 언제나 가능<').replace('>상의<', '>💬 상의 후 결정<').replace('>등록<', '>📅 일정 등록<')}
       </div></div>` : ''}
       <div class="cn-hint" style="margin:10px 0">${q.loading ? '검색 중...' : `${q.rows.length}명`}</div>
@@ -6702,11 +6715,12 @@
     }
     // 2026-10-09: 활동신청자 요약 — 총 N명 + 교·자·장·부·청 부서별 인원(조건 없이 받은 전체 기준).
     const CN_SUM_DEPTS = [['교', '교역자'], ['자', '자문'], ['장', '장년'], ['부', '부녀'], ['청', '청년']];
+    function cnSumDeptIdx(dept) { const d = String(dept || ''); return CN_SUM_DEPTS.findIndex(x => d.indexOf(x[1]) === 0 || d === x[0]); }
     function cnFindSumHtml(all) {
       if (!all) return '';
       const cnt = CN_SUM_DEPTS.map(() => 0); let etc = 0;
-      all.forEach(r => { const d = String(r.dept || ''); const i = CN_SUM_DEPTS.findIndex(x => d.indexOf(x[1]) === 0 || d === x[0]); if (i >= 0) cnt[i]++; else etc++; });
-      return `<div class="cn-sum"><div class="cn-sum-tot"><span>지금 활동 신청</span><b>총 ${all.length}명</b></div><div class="cn-sum-row">${CN_SUM_DEPTS.map((x, i) => `<div class="cn-sum-c"><em>${x[0]}</em><b>${cnt[i]}</b></div>`).join('')}${etc ? `<div class="cn-sum-c"><em>기타</em><b>${etc}</b></div>` : ''}</div></div>`;
+      all.forEach(r => { const i = cnSumDeptIdx(r.dept); if (i >= 0) cnt[i]++; else etc++; });
+      return `<div class="cn-sum"><div class="cn-sum-tot"><span>지금 활동 신청</span><b>총 ${all.length}명</b></div><div class="cn-sum-row">${CN_SUM_DEPTS.map((x, i) => `<button type="button" class="cn-sum-c${S.find.dept === x[0] ? ' on' : ''}" data-sumdept="${x[0]}"><em>${x[0]}</em><b>${cnt[i]}</b></button>`).join('')}${etc ? `<div class="cn-sum-c"><em>기타</em><b>${etc}</b></div>` : ''}</div></div>`;
     }
     // 2026-09-22: 검색 목록 카드에 교사 등급·부서 뱃지 추가(사용자 지시서 항목3①).
     function profileCardHtml(r, i) {
@@ -6729,11 +6743,11 @@
         q[key] = e.target.value;
         if (key === 'role' && q.item && !cnItemsForRole(q.role).includes(q.item)) q.item = '';
         loadFind(); }; };
-      on('fRole', 'role'); on('fItem', 'item'); on('fRegion', 'region'); on('fTag', 'tag'); on('fSched', 'schedule');
+      on('fDept', 'dept'); on('fRole', 'role'); on('fItem', 'item'); on('fRegion', 'region'); on('fTag', 'tag'); on('fSched', 'schedule');
       { const tg = document.getElementById('fTgl'); if (tg) tg.onclick = () => { q.fOpen = !q.fOpen; cnRender(); }; }
       const k = document.getElementById('fKeyword');
       if (k) { k.oninput = e => { q.keyword = e.target.value; }; k.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) loadFind(); }; k.onchange = () => loadFind(); }
-      v.onclick = e => { const c = e.target.closest('[data-card]'); if (c && !e.target.closest('img.zoomable')) openProfile(S.find.rows[Number(c.dataset.card)]); };
+      v.onclick = e => { const sd = e.target.closest('[data-sumdept]'); if (sd) { q.dept = q.dept === sd.dataset.sumdept ? '' : sd.dataset.sumdept; loadFind(); return; } const c = e.target.closest('[data-card]'); if (c && !e.target.closest('img.zoomable')) openProfile(S.find.rows[Number(c.dataset.card)]); };
     }
     function cnDetailRow(label, val) { return val ? `<div style="margin-top:12px"><div class="cn-hint" style="margin:0">${label}</div><div style="font-size:15px;white-space:pre-wrap">${esc(val)}</div></div>` : ''; }
     // 2026-09-22: 상세 프로필에도 교사 등급·부서 뱃지 추가(사용자 지시서 항목3①).
