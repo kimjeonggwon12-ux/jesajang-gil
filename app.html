@@ -6672,11 +6672,11 @@
         }
         // 조건 없이 받은 목록 = 전체 활동신청자 → 배너 아래 부서별 요약에 쓴다(부서·항목 필터는 앱에서 거르므로 무관).
         if (![q.role, q.region, q.tag, q.schedule, String(q.keyword || '').trim()].some(Boolean)) q.all = rows;
-        if (q.dept) rows = rows.filter(r => cnSumDeptIdx(r.dept) === CN_SUM_DEPTS.findIndex(x => x[0] === q.dept));
         // 2026-09-23: 백엔드 searchConnectCards 는 role 파라미터를 1개만 받는다.
         // 4역할은 서버에서 거르고, 11항목은 받아온 명함의 roles 배열에서 여기서 거른다
         // (명함은 역할과 항목을 같은 roles 배열에 함께 담는다 — CARD_ROLES 참고).
         if (q.item) rows = rows.filter(r => (r.roles || []).indexOf(q.item) !== -1);
+        q.base = rows; rows = cnDeptRows(rows);
         q.rows = rows; if (res.regions && res.regions.length) q.regions = res.regions;
       } catch (e) { q.error = e.message; }
       q.loading = false; q.loaded = true;
@@ -6715,6 +6715,9 @@
     }
     // 2026-10-09: 활동신청자 요약 — 총 N명 + 교·자·장·부·청 부서별 인원(조건 없이 받은 전체 기준).
     const CN_SUM_DEPTS = [['교', '교역자'], ['자', '자문'], ['장', '장년'], ['부', '부녀'], ['청', '청년']];
+    // 부서는 앱에서만 거른다 → 바꿀 때 서버 재요청 없이 바로 다시 그림.
+    function cnDeptRows(rows) { const q = S.find; return q.dept ? rows.filter(r => cnSumDeptIdx(r.dept) === CN_SUM_DEPTS.findIndex(x => x[0] === q.dept)) : rows; }
+    function cnSetDept(d) { const q = S.find; q.dept = d; if (q.base) { q.rows = cnDeptRows(q.base); cnRender(); } else loadFind(); }
     function cnSumDeptIdx(dept) { const d = String(dept || ''); return CN_SUM_DEPTS.findIndex(x => d.indexOf(x[1]) === 0 || d === x[0]); }
     function cnFindSumHtml(all) {
       if (!all) return '';
@@ -6743,11 +6746,17 @@
         q[key] = e.target.value;
         if (key === 'role' && q.item && !cnItemsForRole(q.role).includes(q.item)) q.item = '';
         loadFind(); }; };
-      on('fDept', 'dept'); on('fRole', 'role'); on('fItem', 'item'); on('fRegion', 'region'); on('fTag', 'tag'); on('fSched', 'schedule');
+      { const fd = document.getElementById('fDept'); if (fd) fd.onchange = e => cnSetDept(e.target.value); }
+      on('fRole', 'role'); on('fItem', 'item'); on('fRegion', 'region'); on('fTag', 'tag'); on('fSched', 'schedule');
       { const tg = document.getElementById('fTgl'); if (tg) tg.onclick = () => { q.fOpen = !q.fOpen; cnRender(); }; }
       const k = document.getElementById('fKeyword');
       if (k) { k.oninput = e => { q.keyword = e.target.value; }; k.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) loadFind(); }; k.onchange = () => loadFind(); }
-      v.onclick = e => { const sd = e.target.closest('[data-sumdept]'); if (sd) { q.dept = q.dept === sd.dataset.sumdept ? '' : sd.dataset.sumdept; loadFind(); return; } const c = e.target.closest('[data-card]'); if (c && !e.target.closest('img.zoomable')) openProfile(S.find.rows[Number(c.dataset.card)]); };
+      // 2026-10-09: 요약 칸(교·자·장·부·청) 누르면 그 부서만, 같은 칸·총원·빈 곳을 누르면 다시 전체.
+      v.onclick = e => {
+        const sd = e.target.closest('[data-sumdept]'); if (sd) { cnSetDept(q.dept === sd.dataset.sumdept ? '' : sd.dataset.sumdept); return; }
+        const c = e.target.closest('[data-card]');
+        if (q.dept && !c && !e.target.closest('input,select,button,a,label,.cn-fbox')) { cnSetDept(''); return; }
+        if (c && !e.target.closest('img.zoomable')) openProfile(S.find.rows[Number(c.dataset.card)]); };
     }
     function cnDetailRow(label, val) { return val ? `<div style="margin-top:12px"><div class="cn-hint" style="margin:0">${label}</div><div style="font-size:15px;white-space:pre-wrap">${esc(val)}</div></div>` : ''; }
     // 2026-09-22: 상세 프로필에도 교사 등급·부서 뱃지 추가(사용자 지시서 항목3①).
