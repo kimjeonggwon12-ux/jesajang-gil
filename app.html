@@ -6876,16 +6876,17 @@
            백엔드 searchConnectCards 의 role 파라미터는 값 1개만 받으므로,
            역할은 서버에 보내고(후보를 줄이고) 항목은 받아온 목록에서 걸러낸다. -->
       <!-- 2026-10-07: 드롭다운 5개가 화면 위쪽 절반을 차지 → 검색칸 옆 [필터]로 접음(고른 조건 수 표시) -->
-      <div class="cn-fbar"><input id="fKeyword" class="kko-input" placeholder="이름·소개·자격증 검색" value="${esc(q.keyword)}"><button type="button" id="fTgl" class="cn-ftg${q.fOpen ? ' on' : ''}${[q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' has' : ''}">필터${[q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' <em>' + [q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length + '</em>' : ''} ${q.fOpen ? '▴' : '▾'}</button></div>
+      <!-- 2026-10-10(사용자 요청): 부서·지역 드롭다운은 접지 않고 맨 앞(검색칸 위)에 — 나머지 4개(역할·항목·태그·일정)만 [필터] 안에 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        ${cnSelHtml('fDept', '부서 전체', CN_SUM_DEPTS.map(x => x[0]), q.dept).replace(/>(교|자|장|부|청)</g, (m, c) => '>' + CN_SUM_DEPTS.find(x => x[0] === c)[1] + (c === '교' ? '' : '회') + '<')}
+        ${cnSelHtml('fRegion', '지역 전체', q.regions, q.region)}
+      </div>
+      <div class="cn-fbar"><input id="fKeyword" class="kko-input" placeholder="이름·소개·자격증 검색" value="${esc(q.keyword)}"><button type="button" id="fTgl" class="cn-ftg${q.fOpen ? ' on' : ''}${[q.role, q.item, q.tag, q.schedule].filter(Boolean).length ? ' has' : ''}">필터${[q.role, q.item, q.tag, q.schedule].filter(Boolean).length ? ' <em>' + [q.role, q.item, q.tag, q.schedule].filter(Boolean).length + '</em>' : ''} ${q.fOpen ? '▴' : '▾'}</button></div>
       ${q.fOpen ? `<div class="cn-fbox">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${cnSelHtml('fRole', '4역할 전체', CN_ROLE_PARTS, q.role)}
         ${cnSelHtml('fItem', '항목 전체', cnItemsForRole(q.role), q.item)}
-        ${cnSelHtml('fRegion', '지역 전체', q.regions, q.region)}
         ${cnSelHtml('fTag', '태그 전체', tagOpts, q.tag)}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        ${cnSelHtml('fDept', '부서 전체', CN_SUM_DEPTS.map(x => x[0]), q.dept).replace(/>(교|자|장|부|청)</g, (m, c) => '>' + CN_SUM_DEPTS.find(x => x[0] === c)[1] + (c === '교' ? '' : '회') + '<')}
         ${cnSelHtml('fSched', '일정 전체', ['언제나', '상의', '등록'], q.schedule).replace('>언제나<', '>✨ 언제나 가능<').replace('>상의<', '>💬 상의 후 결정<').replace('>등록<', '>📅 일정 등록<')}
       </div></div>` : ''}
       <div class="cn-hint" style="margin:10px 0">${q.loading ? '검색 중...' : `${q.rows.length}명`}</div>
