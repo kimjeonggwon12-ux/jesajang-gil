@@ -185,7 +185,23 @@
     #bottomTabBar .tab .tab-icon svg { width: 26px; height: 26px; }
     #bottomTabBar .tab.tab-active .tab-icon { background: #E3F6EF; }
     #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #connectDot { top: 3px !important; right: 9px !important; }
-    #appSections { padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px)); }
+    #appSections { padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+    /* 2026-10-10(사용자 요청 "딱 봐도 메인스럽게"): 하단 메인 탭 강조 — 위가 둥근 흰 받침 + 위쪽 그림자,
+       아이콘마다 동그란 버튼(연회색), 지금 탭은 초록 원 + 흰 아이콘 + 살짝 떠오름. */
+    #bottomTabBar { height: calc(70px + env(safe-area-inset-bottom, 0px)); border-top: none; border-radius: 22px 22px 0 0;
+      box-shadow: 0 -6px 22px rgba(20, 40, 30, .10), 0 -1px 0 rgba(0, 0, 0, .04); }
+    #bottomTabBar .tab { color: #4D5159; }
+    #bottomTabBar .tab .tab-icon { width: 46px; max-width: 46px; height: 46px; border-radius: 50%; background: #F1F3F5;
+      transition: background .18s ease, transform .18s ease, box-shadow .18s ease; }
+    #bottomTabBar .tab .tab-icon svg { width: 24px; height: 24px; stroke-width: 2.2; }
+    #bottomTabBar .tab.tab-active { color: #fff; }
+    #bottomTabBar .tab.tab-active .tab-icon { background: var(--color-primary, #00AE82); transform: translateY(-5px);
+      box-shadow: 0 7px 16px rgba(0, 174, 130, .38); animation: none; }
+    #bottomTabBar .tab.tab-active .tab-icon svg rect[fill="currentColor"] { stroke: var(--color-primary, #00AE82); }   /* 교재·영상: 흰 화면 + 초록 재생 */
+    #bottomTabBar .tab.tab-active .tab-icon svg path[fill="#fff"] { fill: var(--color-primary, #00AE82); }
+    #bottomTabBar .tab:active .tab-icon { transform: scale(.92); }
+    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #connectDot { top: 1px !important; right: 1px !important; }
+    @media (max-width: 359px) { #bottomTabBar .tab .tab-icon { width: 42px; max-width: 42px; height: 42px; } }
     /* 방 이름표: 탭을 누르면 좌상단에 [초록 네모 방 아이콘 + 굵은 방 이름] — 하단 아이콘과 같은 그림이라 어느 방인지 바로 앎 */
     .room-ic { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:30px; height:30px; border-radius:9px; background:var(--color-primary, #00AE82); color:#fff; margin-right:8px; vertical-align:middle; }
     .room-ic svg { width:19px; height:19px; stroke:#fff; }
@@ -1542,7 +1558,7 @@
       .modal .modal-box { max-width: var(--app-max-width); }
 
       /* PC에서 마우스 hover 피드백(터치엔 없던 것 — 모바일 영향 없음) */
-      #bottomTabBar .tab:hover { color: var(--color-primary); }
+      #bottomTabBar .tab:hover { color: var(--color-primary); } #bottomTabBar .tab.tab-active:hover { color: #fff; }
 
       /* ── 넓은 화면에서 "쫙 펼쳐져 배열이 깨지는" 것 방지 ──
          컬럼 자체는 900px까지 넓어지지만, 탭바 아이콘과 헤더 내용까지 그 폭을
@@ -6876,14 +6892,12 @@
            백엔드 searchConnectCards 의 role 파라미터는 값 1개만 받으므로,
            역할은 서버에 보내고(후보를 줄이고) 항목은 받아온 목록에서 걸러낸다. -->
       <!-- 2026-10-07: 드롭다운 5개가 화면 위쪽 절반을 차지 → 검색칸 옆 [필터]로 접음(고른 조건 수 표시) -->
-      <!-- 2026-10-10(사용자 요청): 부서·지역 드롭다운은 접지 않고 맨 앞(검색칸 위)에 — 나머지 4개(역할·항목·태그·일정)만 [필터] 안에 -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        ${cnSelHtml('fDept', '부서 전체', CN_SUM_DEPTS.map(x => x[0]), q.dept).replace(/>(교|자|장|부|청)</g, (m, c) => '>' + CN_SUM_DEPTS.find(x => x[0] === c)[1] + (c === '교' ? '' : '회') + '<')}
-        ${cnSelHtml('fRegion', '지역 전체', q.regions, q.region)}
-      </div>
-      <div class="cn-fbar"><input id="fKeyword" class="kko-input" placeholder="이름·소개·자격증 검색" value="${esc(q.keyword)}"><button type="button" id="fTgl" class="cn-ftg${q.fOpen ? ' on' : ''}${[q.role, q.item, q.tag, q.schedule].filter(Boolean).length ? ' has' : ''}">필터${[q.role, q.item, q.tag, q.schedule].filter(Boolean).length ? ' <em>' + [q.role, q.item, q.tag, q.schedule].filter(Boolean).length + '</em>' : ''} ${q.fOpen ? '▴' : '▾'}</button></div>
+      <!-- 2026-10-10(사용자 요청): 접는 [필터]는 그대로, 펼쳤을 때 부서·지역을 맨 앞에 -->
+      <div class="cn-fbar"><input id="fKeyword" class="kko-input" placeholder="이름·소개·자격증 검색" value="${esc(q.keyword)}"><button type="button" id="fTgl" class="cn-ftg${q.fOpen ? ' on' : ''}${[q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' has' : ''}">필터${[q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' <em>' + [q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length + '</em>' : ''} ${q.fOpen ? '▴' : '▾'}</button></div>
       ${q.fOpen ? `<div class="cn-fbox">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        ${cnSelHtml('fDept', '부서 전체', CN_SUM_DEPTS.map(x => x[0]), q.dept).replace(/>(교|자|장|부|청)</g, (m, c) => '>' + CN_SUM_DEPTS.find(x => x[0] === c)[1] + (c === '교' ? '' : '회') + '<')}
+        ${cnSelHtml('fRegion', '지역 전체', q.regions, q.region)}
         ${cnSelHtml('fRole', '4역할 전체', CN_ROLE_PARTS, q.role)}
         ${cnSelHtml('fItem', '항목 전체', cnItemsForRole(q.role), q.item)}
         ${cnSelHtml('fTag', '태그 전체', tagOpts, q.tag)}
