@@ -1955,9 +1955,12 @@
     #actTabs { position:sticky; top:56px; z-index:19; padding:6px 16px 12px; background:#fff; border-bottom:1px solid #EDEDED; }
     .act-pages[data-act-page="attend"] > [data-ap]:not([data-ap="attend"]),
     .act-pages[data-act-page="targets"] > [data-ap]:not([data-ap="targets"]),
-    .act-pages[data-act-page="history"] > [data-ap]:not([data-ap="history"]) { display:none; }
+    .act-pages[data-act-page="history"] > [data-ap]:not([data-ap="history"]),
+    .act-pages[data-act-page="edu"] > [data-ap]:not([data-ap="edu"]) { display:none; }
     .act-pages > [data-ap="history"] { padding-top:8px; }
-    .act-pages[data-act-page="attend"] ~ #act-fab { display:none; }   /* + 활동 기록 버튼은 내 활동·활동 기록에서만 */
+    #actTabs > button { flex:1 1 auto; padding:0 4px; font-size:14px; }   /* 네 칸 */
+    html.pz-dk #actTabs > button { font-size:16px; }
+    .act-pages[data-act-page="attend"] ~ #act-fab, .act-pages[data-act-page="edu"] ~ #act-fab { display:none; }   /* + 활동 기록 버튼은 내 활동·활동 기록에서만 */
     /* 출석 탭: QR 버튼 + 출석·지각·결석 요약 + 모임 전체 목록 */
     .att-sum { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:12px 0 4px; }
     .att-sum div { padding:10px 4px; border-radius:12px; background:#F5F7F8; text-align:center; font-size:12.5px; font-weight:700; color:#666; }
@@ -2024,6 +2027,10 @@
     .l2 > button > b.l2-badge { position:absolute; top:-6px; right:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#E5322D; color:#fff; font-size:11px; line-height:18px; font-weight:800; }
     @media (min-width:1024px) { #sec-activity .act-appbar, #actTabs, #homeContent { max-width:720px; margin-left:auto !important; margin-right:auto !important; } }
     .hdr-me { margin-left:auto; display:flex; align-items:center; gap:6px; background:none; border:none; padding:0; cursor:pointer; color:inherit; }
+    .hdr-home { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:30px; height:30px; margin-left:auto; padding:0; border:none; background:none; color:#111; cursor:pointer; }
+    .hdr-home + .hdr-me { margin-left:6px; }
+    .hdr-home:active { transform:scale(.92); }
+    @media (min-width:1024px) { .kko-header .hdr-home, .act-appbar .hdr-home, .adm-top .hdr-home, #appHeader .hdr-home { display:none !important; } }
     @media (min-width:1024px) { .hdr-me { display:none !important; } }   /* PC는 맨 위 공용 메뉴에 이름표가 있음 */
     #sec-ai .kko-header .hdr-me, #sec-textbook .kko-header .hdr-me { color:#111; }
     .adm-top { display:flex; align-items:center; height:56px; padding:0 16px; background:#fff; border-bottom:1px solid #F0F0F0; }
@@ -2880,6 +2887,13 @@
      * reload로 되돌리는 이유: 각 섹션이 mount 캐시(App.mounted)와 자체 state를
      * 들고 있어서, 화면만 표지로 되돌리면 이전 사용자의 데이터가 남는다.
      */
+    // 2026-10-10: 머리줄 [홈] — 로그인은 그대로 두고 첫 화면(표지 → 광장)으로. 번호까지 지우는 [홈으로]는 내 계정 창에 그대로 있음.
+    function goHome() {
+      try { closeSheet(); } catch (e) {}
+      history.replaceState(null, '', location.pathname + location.search);
+      location.reload();
+    }
+    const HOME_BTN_HTML = '<button type="button" class="hdr-home" title="홈으로 (첫 화면)" aria-label="홈으로" onclick="goHome()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>';
     function goToCover() {
       pdClearSaved();
       try { closeSheet(); } catch (e) {}
@@ -3017,7 +3031,7 @@
       const sub = [dept, pos].filter((v, i, arr) => v && arr.indexOf(v) === i).join(' · ');
       return nm ? `<b>${esc(nm)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}` : '';
     }
-    function meBtnHtml() { const h = meChipInner(); return `<button type="button" class="hdr-me" title="내 계정" onclick="openAccountSheet()"><span class="me-chip"${h ? '' : ' style="display:none"'}>${h}</span><svg class="lucide-i" style="width:22px;height:22px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>`; }
+    function meBtnHtml() { const h = meChipInner(); return HOME_BTN_HTML + `<button type="button" class="hdr-me" title="내 계정" onclick="openAccountSheet()"><span class="me-chip"${h ? '' : ' style="display:none"'}>${h}</span><svg class="lucide-i" style="width:22px;height:22px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>`; }
     function renderMeChips() {
       const r = myRosterRow || {}, a = myAdminInfo || {};
       const nm = a.name || r.name || App.name || '';
@@ -3026,6 +3040,8 @@
       const sub = [dept, pos].filter((v, i, arr) => v && arr.indexOf(v) === i).join(' · ');
       const html = nm ? `<b>${esc(nm)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}` : '';
       document.querySelectorAll('button[onclick="openAccountSheet()"]').forEach(btn => {
+        const prev = btn.previousElementSibling;
+        if (!(prev && prev.classList.contains('hdr-home')) && !btn.closest('.sheet')) btn.insertAdjacentHTML('beforebegin', HOME_BTN_HTML);
         let chip = btn.querySelector('.me-chip');
         if (!chip) { chip = document.createElement('span'); chip.className = 'me-chip'; btn.prepend(chip); }
         chip.innerHTML = html;
@@ -5005,7 +5021,7 @@
         // 나머지 등급은 바로 다음 한 걸음을 제시
         const steps = tier === '우수교사'
           ? [['‘도와주세요’ 글에 응답하기', 'connect'], ['내 활동 기록 남기기', 'activity']]
-          : [['연결 탭에서 함께할 사람 찾기', 'connect'], ['교재·이수교육 확인하기', 'textbook']];
+          : [['연결 탭에서 함께할 사람 찾기', 'connect'], ['교재 확인하기', 'textbook']];
         extra = `<div class="gg-gos">${steps.map(([txt, tab]) => `<button type="button" class="gg-go" data-gotab="${tab}">${esc(txt)} ›</button>`).join('')}</div>`;
       }
 
@@ -5846,6 +5862,7 @@
             ${targetsSectionHtml()}
           </div>
           <div data-ap="history">${activityHistorySectionHtml()}</div>
+          <div data-ap="edu"><div id="actEduBody" class="p-4"></div></div>
         </div>
         <button type="button" id="act-fab" class="act-fab" title="활동 기록 남기기" aria-label="활동 기록 남기기">
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -5880,7 +5897,20 @@
 
     // 2026-10-10: 나의 교실도 광장처럼 2단계 탭으로 나눔(한 화면에 길게 늘어놓지 않음)
     // 2026-10-10(2차): 출석(QR·출석 현황) / 내 활동(등급·인교섬협 요약·전도 대상자) / 활동 기록
-    const ACT_PAGES = [['attend', '출석'], ['targets', '내 활동'], ['history', '활동 기록']];
+    const ACT_PAGES = [['attend', '출석'], ['targets', '내 활동'], ['history', '활동 기록'], ['edu', '이수한 교육']];   // 이수한 교육 = 예전 교재 탭의 '이수교육'
+    // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
+    const actEduSt = { done: false, busy: false };
+    function actEduRender() {
+      const el = document.getElementById('actEduBody'); if (!el) return;
+      if (!tbState.memberId) { tbState.memberId = App.memberId; tbState.name = App.name || ''; }
+      const was = tbState.loading; tbState.loading = !actEduSt.done && !tbState.reqEdu;
+      renderRequiredEduTab(el); tbState.loading = was;
+    }
+    async function actEduLoad() {
+      if (actEduSt.busy) return; actEduSt.busy = true;
+      try { await apiSWR({ action: 'getRequiredEducation', memberId: App.memberId }, r => { if (r && !r.error) { tbState.reqEdu = r; actEduSt.done = true; actEduRender(); } }); } catch (e) {}
+      actEduSt.done = true; actEduSt.busy = false; actEduRender();
+    }
     let actPage = 'attend';
     function renderActTabs() {
       const el = document.getElementById('actTabs'); if (!el) return;
@@ -5903,6 +5933,7 @@
         return;
       }
       root.innerHTML = dashboardViewHtml();
+      if (actPage === 'edu') { actEduRender(); if (!actEduSt.done) actEduLoad(); }
       updateTierBadge();
       renderTargetsChart();
       wireHistoryAndCards();
@@ -8225,7 +8256,7 @@ const COURSE_TABS = [
 let tbState = {
   q: '',                 // 2026-10-07: 교재·영상 통합 검색어(비어 있으면 평소 화면)
   mode: 'book',          // 2026-10-06: 'book'(교재) | 'video'(영상) — 교재와 영상 탭 위 전환
-  tab: 'reqEdu',          // reqEdu | teacherQuality | counseling | noFaith | gospelRoom (5개 테마 탭)
+  tab: 'teacherQuality',  // (reqEdu는 나의 교실로 옮김) reqEdu | teacherQuality | counseling | noFaith | gospelRoom (5개 테마 탭)
   memberId: '',          // mount()에서 공유 세션(memberId/MY_NAME)으로 채움
   name:     '',
   identified: true,      // SPA는 이미 공용 로그인을 거쳤으므로 본인 확인 단계 없음
@@ -8305,10 +8336,7 @@ ${bodyHtml}
   URL.revokeObjectURL(url);
 }
 
-const TAB_DEFS = [
-  { key: 'reqEdu', label: '이수교육' },
-  ...COURSE_TABS
-];
+const TAB_DEFS = [...COURSE_TABS];   // 2026-10-10: '이수교육'은 나의 교실 [이수한 교육] 탭으로 옮김
 
 function tbRender() {
   const root = document.getElementById('tbRoot');
@@ -8379,6 +8407,9 @@ async function tbLoadAll() {
     ]);
     tbState.courses = (courseRes && courseRes.rows) || [];
     tbState.reqEdu = (reqEduRes && !reqEduRes.error) ? reqEduRes : null;
+    // 2026-10-10: 처음 열리는 분류에 교재가 없으면(준비 중) 교재가 있는 첫 분류를 보여 줌
+    const has = t => t && tbState.courses.some(c => c.category === t.category);
+    if (!has(COURSE_TABS.find(t => t.key === tbState.tab))) { const first = COURSE_TABS.find(has); if (first) tbState.tab = first.key; }
   } catch (err) {
     tbState.courses = [];
     tbState.reqEdu = null;
