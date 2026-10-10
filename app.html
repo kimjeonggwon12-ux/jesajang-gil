@@ -2024,6 +2024,10 @@
     .vd-req-st { display:inline-block; margin-left:4px; padding:1px 7px; border-radius:6px; background:#FFEDD5; color:#C2410C; font-size:11.5px; font-weight:800; }
     .vd-req-st.no { background:#F3F4F6; color:#6B7280; }
     .vd-req:first-of-type { border-top:none; }
+    .vd-dup { margin:8px 0 2px; padding:10px 12px; border-radius:10px; background:#FFF4E5; border:1px solid #F7D9A8; font-size:12.5px; line-height:1.5; color:#7A4B00; }
+    .vd-dup.same { background:#FDECEC; border-color:#F3B7B7; color:#8A1C1C; }
+    .vd-dup b { display:block; margin-bottom:2px; font-size:13px; font-weight:800; }
+    .vd-dup a { display:block; color:inherit; text-decoration:underline; }
     .rq-cmts { margin-top:8px; padding:8px 10px; border-radius:10px; background:#fff; border:1px solid #F0E4DA; }
     .rq-cmt { padding:5px 0; font-size:13px; line-height:1.45; color:#333; }
     .rq-cmt + .rq-cmt { border-top:1px dashed #EEE; }
@@ -8670,6 +8674,28 @@ function tbSearchRender() {
     const VIDEO_PARTS = [['소양', '🌱', '교사 소양 교육'], ['상담', '💬', '상담 기법·실습'], ['밭갈기', '🌾', '전도 밭갈기'], ['무신앙', '🧭', '무신앙 대응·전도'], ['복음방', '📖', '복음방 운영·활용']];
     const vdState = { videos: null, part: '', err: '', del: '', reqs: null, wishes: null, cmts: {}, draft: {}, reqParts: {}, rej: '', approver: null };
     // 신청마다 달리는 댓글(신청자 ↔ 교육부·전도부) + 승인하는 사람에게만 보이는 신청자 전화
+    // 겹치는 영상 거르기 — 서버 _vdSimilarTitle_/_videoDup_와 같은 규칙(같은 유튜브 영상은 막고, 제목이 아주 비슷하면 되물음)
+    const vdNorm = t => String(t || '').toLowerCase().replace(/[^0-9a-z가-힣]/g, '');
+    function vdSimilarTitle(a, b) {
+      const nums = t => (String(t || '').match(/\d+/g) || []).join(',');
+      if (nums(a) !== nums(b)) return false;
+      a = vdNorm(a); b = vdNorm(b);
+      if (a.length < 4 || b.length < 4) return false;
+      if (a === b) return true;
+      const s = a.length < b.length ? a : b, l = s === a ? b : a;
+      if (s.length >= 8 && l.includes(s)) return true;
+      const bg = x => { const m = {}; for (let i = 0; i < x.length - 1; i++) { const k = x.substr(i, 2); m[k] = (m[k] || 0) + 1; } return m; };
+      const A = bg(a), B = bg(b); let hit = 0;
+      for (const k in A) hit += Math.min(A[k], B[k] || 0);
+      return 2 * hit / (a.length - 1 + b.length - 1) >= 0.72;
+    }
+    function vdDupCheck(videoId, title, exceptId) {
+      const pool = (vdState.videos || []).map(v => ({ id: v.id, videoId: v.videoId, title: v.title, where: '올라와 있는 영상' }))
+        .concat((vdState.reqs || []).filter(r => r.status === '신청').map(r => ({ id: r.id, videoId: r.videoId, title: r.title, where: '승인을 기다리는 신청' }))).filter(v => v.id !== exceptId);
+      return { same: pool.find(v => v.videoId === videoId) || null, similar: title ? pool.filter(v => v.videoId !== videoId && vdSimilarTitle(v.title, title)).slice(0, 3) : [] };
+    }
+    const vdDupHtml = d => d.same ? `<div class="vd-dup same"><b>이미 ${esc(d.same.where)}이에요.</b>「${esc(d.same.title)}」<br>제목을 다르게 적어도 같은 유튜브 영상이라 다시 올릴 수 없어요.</div>`
+      : d.similar.length ? `<div class="vd-dup"><b>비슷한 영상이 이미 있어요. 같은 내용인지 먼저 확인해 주세요.</b>${d.similar.map(x => `<a href="https://youtu.be/${esc(x.videoId)}" target="_blank" rel="noopener">「${esc(x.title)}」${x.where ? ' · ' + esc(x.where) : x.pending ? ' · 승인을 기다리는 신청' : ''} ↗</a>`).join('')}</div>` : '';
     const reqPhoneGet = () => { try { return localStorage.getItem('req_phone') || ''; } catch (e) { return ''; } };
     const reqPhoneSet = v => { try { localStorage.setItem('req_phone', v); } catch (e) {} };
     const reqPhoneOk = v => String(v || '').replace(/\D/g, '').length >= 9;
@@ -8708,6 +8734,7 @@ function tbSearchRender() {
           <div class="vd-req-b"><div class="vd-req-t">${esc(r.title)}</div>
             <div class="vd-req-m">${esc(r.createdBy || '')} · ${esc(vdDate(r.requestDate))} 신청${act ? '' : `<span class="vd-req-st ${r.status === '반려' ? 'no' : ''}">${r.status === '반려' ? '반려' : '승인 대기'}</span>`}</div>
             <div class="vd-req-p">${act ? VIDEO_PARTS.map(([p]) => `<button type="button" class="${parts.includes(p) ? 'on' : ''}" data-vd-req-part="${esc(r.id)}|${esc(p)}">${esc(p)}</button>`).join('') : parts.map(p => `<span class="vd-tag">${esc(p)}</span>`).join('')}</div>
+            ${act ? vdDupHtml(vdDupCheck(r.videoId, r.title, r.id)) : ''}
             ${reqExtraHtml(r)}
             ${act ? `<div class="vd-req-a"><button type="button" class="ok" data-vd-req-ok="${esc(r.id)}">승인</button><button type="button" data-vd-req-no="${esc(r.id)}">${vdState.rej === r.id ? '한 번 더 누르면 반려' : '반려'}</button></div>` : ''}
           </div></div>`; }).join('')}</div>`;
@@ -9190,6 +9217,7 @@ function tbSearchRender() {
         <label class="cal-lbl">유튜브 주소 <span class="cal-req">*</span></label>
         <input class="cal-inp" id="vdFUrl" value="${esc(f.url)}" placeholder="https://youtu.be/... 또는 youtube.com/watch?v=..." autocomplete="off">
         <div id="vdFPrev" class="vd-prev"></div>
+        <div id="vdFDup"></div>
         <label class="cal-lbl">${req ? '넣을 코너' : '파트'} <span class="cal-req">*</span> <span class="att-muted" style="font-weight:400">(여러 개 고를 수 있어요)</span></label>
         <div class="att-org-chips" id="vdFParts">${VIDEO_PARTS.map(([p, ic]) => `<button type="button" class="att-opt ${f.parts.includes(p) ? 'on' : ''}" data-p="${esc(p)}">${ic} ${esc(p)}</button>`).join('')}</div>
         <label class="cal-lbl">제목 <span class="cal-req">*</span></label>
@@ -9202,8 +9230,13 @@ function tbSearchRender() {
         <div style="display:flex;gap:10px;margin-top:18px"><button type="button" class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button><button type="button" class="kko-btn-main" style="flex:2" id="vdFSave">${v ? '수정 저장' : req ? '신청하기' : '등록하기'}</button></div>
       </div>`);
       const urlEl = document.getElementById('vdFUrl'), titleEl = document.getElementById('vdFTitle'), prev = document.getElementById('vdFPrev');
-      let lastId = '';
+      let lastId = '', force = false;
+      if (!vdState.videos) vdLoad();   // 겹치는 영상 확인용 목록
+      const dupEl = document.getElementById('vdFDup');
+      const showDup = () => { const id0 = vdIdFrom(urlEl.value); const d = id0 ? vdDupCheck(id0, titleEl.value.trim(), v ? v.id : '') : { same: null, similar: [] }; dupEl.innerHTML = vdDupHtml(d); return d; };
+      titleEl.oninput = () => { clearTimeout(titleEl._t); titleEl._t = setTimeout(showDup, 300); };
       const preview = async () => {
+        showDup();
         const id = vdIdFrom(urlEl.value);
         if (!id) { prev.innerHTML = urlEl.value.trim() ? '<span class="att-muted">유튜브 주소가 아니에요.</span>' : ''; lastId = ''; return; }
         if (id === lastId) return; lastId = id;
@@ -9212,7 +9245,7 @@ function tbSearchRender() {
           const r = await callApi({ action: 'getVideoInfo', memberId: App.memberId, url: id });
           if (lastId !== id) return;
           if (r && r.error) throw new Error(r.error);
-          if (r.title && !titleEl.value.trim()) titleEl.value = r.title;
+          if (r.title && !titleEl.value.trim()) { titleEl.value = r.title; showDup(); }
           prev.innerHTML = `<img src="${vdThumb(id)}" alt=""><span class="att-muted">${r.warning ? esc(r.warning) : r.author ? '채널: ' + esc(r.author) : ''}</span>`;
         } catch (e) { prev.innerHTML = `<img src="${vdThumb(id)}" alt=""><span class="att-muted">${esc(e.message)}</span>`; }
       };
@@ -9227,22 +9260,29 @@ function tbSearchRender() {
         const id = vdIdFrom(urlEl.value);
         if (!id) return toast('유튜브 주소를 확인해 주세요.', true);
         if (!f.parts.length) return toast(req ? '넣을 코너를 하나 이상 골라 주세요.' : '파트를 하나 이상 골라 주세요.', true);
-        const btn = document.getElementById('vdFSave'); btn.disabled = true;
+        const btn = document.getElementById('vdFSave');
+        const d = showDup();
+        if (d.same) return toast('이미 있는 영상이에요.', true);
+        const askAgain = () => { force = true; btn.disabled = false; btn.textContent = '다른 영상이 맞아요 · ' + (req ? '신청하기' : v ? '수정 저장' : '등록하기'); dupEl.scrollIntoView({ block: 'center' }); toast('비슷한 영상이 있어요. 확인하고 한 번 더 눌러 주세요.', true); };
+        if (d.similar.length && !force) return askAgain();
+        btn.disabled = true;
         if (req) {
           const phone = document.getElementById('vdFPhone').value.trim();
           if (!reqPhoneOk(phone)) { btn.disabled = false; return toast('연락받을 전화번호를 적어 주세요.', true); }
           reqPhoneSet(phone);
           try {
-            const res = await callApi({ action: 'requestVideo', memberId: App.memberId, name: App.name, video: { url: id, parts: f.parts, phone,
+            const res = await callApi({ action: 'requestVideo', memberId: App.memberId, name: App.name, video: { url: id, parts: f.parts, phone, force,
               title: /^https?:|youtu.?be/i.test(titleEl.value.trim()) ? '' : titleEl.value.trim(), description: document.getElementById('vdFDesc').value.trim() } });
+            if (res && res.needConfirm) { dupEl.innerHTML = vdDupHtml({ same: null, similar: res.similar || [] }); return askAgain(); }
             if (res && res.error) throw new Error(res.error);
             toast('신청했어요. 승인되면 영상 목록에 올라가요.'); closeSheet(); vdLoadReqs();
           } catch (e) { toast(e.message, true); btn.disabled = false; }
           return;
         }
         try {
-          const res = await callApi({ action: 'saveVideo', memberId: App.memberId, name: App.name, video: { id: v ? v.id : '', url: id, parts: f.parts,
+          const res = await callApi({ action: 'saveVideo', memberId: App.memberId, name: App.name, video: { id: v ? v.id : '', url: id, parts: f.parts, force,
             title: /^https?:|youtu.?be/i.test(titleEl.value.trim()) ? '' : titleEl.value.trim(), description: document.getElementById('vdFDesc').value.trim(), uploadDate: document.getElementById('vdFDate').value } });
+          if (res && res.needConfirm) { dupEl.innerHTML = vdDupHtml({ same: null, similar: res.similar || [] }); return askAgain(); }
           if (res && res.error) throw new Error(res.error);
           toast(v ? '영상을 수정했어요.' : '영상을 등록했어요.'); closeSheet();
           if (vdState.part && !f.parts.includes(vdState.part)) vdState.part = f.parts[0]; vdLoad(true);
