@@ -8344,7 +8344,7 @@ function tbRender() {
       <span class="kko-title">교재와 영상</span>
       ${meBtnHtml()}
     </div>
-    <div class="l2 tb-mode">${[['book', '교재'], ['video', '영상']].concat(vdCanRequest() ? [['request', '영상 신청']] : []).map(([k, l]) => { const n = k === 'request' && vdIsApprover() ? (vdState.reqs || []).filter(r => r.status === '신청').length : 0;
+    <div class="l2 fit tb-mode">${[['book', '교재'], ['video', '영상']].concat(vdCanRequest() ? [['request', '교재·영상 신청']] : []).map(([k, l]) => { const n = k === 'request' && vdIsApprover() ? (vdState.reqs || []).concat(vdState.wishes || []).filter(r => r.status === '신청').length : 0;
       return `<button type="button" class="${tbState.mode === k ? 'on' : ''}" data-tb-mode="${k}">${l}${n ? `<b class="l2-badge">${n}</b>` : ''}</button>`; }).join('')}</div>
     <div class="tb-search">
       <svg class="tb-s-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -8658,7 +8658,7 @@ function tbSearchRender() {
     // YouTube API 키 없이 주소에서 뽑은 영상 ID만 저장하고 썸네일은 i.ytimg.com을 그대로 씀.
     // ════════════════════════════════════════════════════════════════
     const VIDEO_PARTS = [['소양', '🌱', '교사 소양 교육'], ['상담', '💬', '상담 기법·실습'], ['밭갈기', '🌾', '전도 밭갈기'], ['무신앙', '🧭', '무신앙 대응·전도'], ['복음방', '📖', '복음방 운영·활용']];
-    const vdState = { videos: null, part: '', err: '', del: '', reqs: null, reqParts: {}, rej: '', approver: null };
+    const vdState = { videos: null, part: '', err: '', del: '', reqs: null, wishes: null, reqParts: {}, rej: '', approver: null };
     // 2026-10-10: 관리자 이상 사명자는 [영상 신청] 코너에서 올리기를 신청하고, 교육부·전도부가 승인하면 올라간다(바로 등록·수정·삭제도 교육부·전도부만).
     // 서버 _videoIsApprover_/_videoCanRequest_와 같은 기준 — 서버가 알려 준 값(vdState.approver)이 있으면 그걸 씀.
     const vdIsApprover = () => vdState.approver != null ? vdState.approver
@@ -8669,9 +8669,9 @@ function tbSearchRender() {
       try {
         const r = await callApi({ action: 'getVideoRequests', memberId: App.memberId });
         if (r && !r.error) {
-          const was = JSON.stringify([vdState.reqs, vdState.approver]);
-          vdState.reqs = r.requests || []; vdState.approver = !!r.isApprover;
-          if (was !== JSON.stringify([vdState.reqs, vdState.approver]) && document.getElementById('tbBody') && !tbState.q.trim()) tbRender();   // 바뀐 게 있을 때만 다시 그림
+          const was = JSON.stringify([vdState.reqs, vdState.wishes, vdState.approver]);
+          vdState.reqs = r.requests || []; vdState.wishes = r.wishes || []; vdState.approver = !!r.isApprover;
+          if (was !== JSON.stringify([vdState.reqs, vdState.wishes, vdState.approver]) && document.getElementById('tbBody') && !tbState.q.trim()) tbRender();   // 바뀐 게 있을 때만 다시 그림
         }
       } catch (e) {}
     }
@@ -8771,13 +8771,62 @@ function tbSearchRender() {
       const body = document.getElementById('tbBody');
       if (!body || tbState.mode !== 'request') return;
       const adm = vdIsApprover();
-      body.innerHTML = `<div class="vd-head"><div><b>영상 신청</b><span>좋은 영상을 발견하셨나요? 유튜브 주소와 넣을 코너(소양·상담·밭갈기·무신앙·복음방)를 골라 신청하면, 교육부·전도부에서 확인하고 승인한 뒤 올라가요.</span></div></div>
+      const ws = vdState.wishes;
+      const wishList = ws == null ? '' : !ws.length ? '' : `<div class="vd-reqs"><div class="vd-reqs-h">${adm ? `확인을 기다리는 교재 신청 ${ws.filter(w => w.status === '신청').length}건` : '내가 신청한 교재'}</div>${ws.map(w => `<div class="vd-req"><div class="vd-req-b">
+          <div class="vd-req-t">${esc(w.title)}</div>
+          ${w.note ? `<div class="vd-req-m" style="color:#444;white-space:pre-wrap">${esc(w.note)}</div>` : ''}
+          <div class="vd-req-m">${w.part ? esc(w.part) + ' · ' : ''}${esc(w.createdBy || '')} · ${esc(vdDate(w.requestDate))} 신청${adm && w.status === '신청' ? '' : `<span class="vd-req-st ${w.status === '신청' ? '' : 'no'}">${w.status === '신청' ? '확인 대기' : '확인됨'}</span>`}</div>
+          ${adm ? `<div class="vd-req-a">${w.status === '신청' ? `<button type="button" class="ok" data-tw-ok="${esc(w.id)}">확인</button>` : ''}<button type="button" data-tw-ok="${esc(w.id)}" data-tw-rm="1">지우기</button></div>` : ''}
+        </div></div>`).join('')}</div>`;
+      body.innerHTML = `<div class="vd-head"><div><b>희망하는 교재가 있나요?</b><span>이런 교재가 있으면 좋겠다 싶은 것을 알려 주세요. 교육부·전도부에서 확인하고 준비해요.</span></div></div>
+        <button type="button" class="kko-btn-main" style="width:100%;margin-bottom:14px" data-tw-new="1">+ 교재 신청</button>
+        ${wishList}
+        <div class="vd-head" style="margin-top:22px"><div><b>영상 신청</b><span>좋은 영상을 발견하셨나요? 유튜브 주소와 넣을 코너(소양·상담·밭갈기·무신앙·복음방)를 골라 신청하면, 교육부·전도부에서 확인하고 승인한 뒤 올라가요.</span></div></div>
         <button type="button" class="kko-btn-main" style="width:100%;margin-bottom:14px" data-vd-new="1">+ 영상 올리기 신청</button>
         ${vdState.reqs == null ? '<div class="vd-empty">불러오는 중...</div>' : vdReqsHtml() || `<div class="vd-empty">${adm ? '승인을 기다리는 영상이 없어요.' : '아직 신청한 영상이 없어요.'}</div>`}`;
       vdWire(body);
     }
+    // 교재 신청 창 — 희망 교재 이름·분류(선택)·내용
+    function twOpen() {
+      if (!vdCanRequest()) return;
+      let part = '';
+      openSheet(`<div class="vd-form"><div class="att-title">교재 신청</div>
+        <div class="att-muted" style="margin:-4px 0 10px;line-height:1.5">희망하는 교재를 알려 주시면 교육부·전도부에서 확인해요.</div>
+        <label class="cal-lbl">희망하는 교재 <span class="cal-req">*</span></label>
+        <input class="cal-inp" id="twTitle" maxlength="80" placeholder="예: 무신앙자 첫 만남 대화 교재">
+        <label class="cal-lbl">분류 <span class="att-muted" style="font-weight:400">(고르지 않아도 돼요)</span></label>
+        <div class="att-org-chips" id="twParts">${COURSE_TABS.map(t => `<button type="button" class="att-opt" data-p="${esc(t.label)}">${esc(t.label)}</button>`).join('')}</div>
+        <label class="cal-lbl">어떤 내용이면 좋을까요? <span class="att-muted" style="font-weight:400">(300자 이내)</span></label>
+        <textarea class="cal-inp" id="twNote" maxlength="300" rows="4" style="height:auto;padding:10px 12px;line-height:1.5"></textarea>
+        <div style="display:flex;gap:10px;margin-top:18px"><button type="button" class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button><button type="button" class="kko-btn-main" style="flex:2" id="twSave">신청하기</button></div>
+      </div>`);
+      document.querySelectorAll('#twParts [data-p]').forEach(b => { b.onclick = () => {
+        part = part === b.dataset.p ? '' : b.dataset.p;
+        document.querySelectorAll('#twParts [data-p]').forEach(x => x.classList.toggle('on', x.dataset.p === part));
+      }; });
+      document.getElementById('twSave').onclick = async () => {
+        const title = document.getElementById('twTitle').value.trim();
+        if (!title) return toast('희망하는 교재를 적어 주세요.', true);
+        const btn = document.getElementById('twSave'); btn.disabled = true;
+        try {
+          const res = await callApi({ action: 'requestTextbook', memberId: App.memberId, name: App.name, wish: { title, part, note: document.getElementById('twNote').value.trim() } });
+          if (res && res.error) throw new Error(res.error);
+          toast('교재를 신청했어요.'); closeSheet(); vdLoadReqs();
+        } catch (e) { toast(e.message, true); btn.disabled = false; }
+      };
+    }
     function vdWire(body) {
       const all = vdState.videos || [];
+      body.querySelectorAll('[data-tw-new]').forEach(b => { b.onclick = twOpen; });
+      body.querySelectorAll('[data-tw-ok]').forEach(b => { b.onclick = async () => {
+        b.disabled = true;
+        try {
+          const rm = !!b.dataset.twRm;
+          const res = await callApi({ action: 'reviewTextbookRequest', memberId: App.memberId, id: b.dataset.twOk, remove: rm });
+          if (res && res.error) throw new Error(res.error);
+          toast(rm ? '지웠어요.' : '확인 처리했어요.'); vdLoadReqs();
+        } catch (e) { toast(e.message, true); b.disabled = false; }
+      }; });
       body.querySelectorAll('[data-vd-req-open]').forEach(b => { b.onclick = () => window.open('https://www.youtube.com/watch?v=' + encodeURIComponent(b.dataset.vdReqOpen), '_blank', 'noopener'); });
       body.querySelectorAll('[data-vd-req-part]').forEach(b => { b.onclick = () => {
         const [id, p] = b.dataset.vdReqPart.split('|'), r = (vdState.reqs || []).find(x => x.id === id); if (!r) return;
