@@ -892,9 +892,7 @@
     #sec-textbook .kko-header .kko-title { color:#fff; font-weight:700; font-size:16px; }
     #sec-textbook .reqedu-row:last-child { border-bottom:none; }
     /* ===== 2026-10-06 교재와 영상 — 교재/영상 전환 + 영상 모둠(말씀광장풍) ===== */
-    .tb-mode { display:flex; gap:6px; padding:12px 16px 0; background:var(--color-bg); }
-    .tb-mode button { flex:1; height:44px; border:1.5px solid #E5E7EB; border-radius:12px; background:#fff; font-size:15px; font-weight:800; color:#555; cursor:pointer; }
-    .tb-mode button.on { border-color:#00AE82; background:#00AE82; color:#fff; }
+    .tb-mode { padding:10px 16px 0; background:var(--color-bg); }
     /* 2026-10-07 교재·영상 통합 검색 */
     .tb-search { position:relative; padding:10px 16px 0; background:var(--color-bg); }
     .tb-search input { width:100%; height:44px; padding:0 40px; border:1.5px solid #E5E7EB; border-radius:12px; background:#fff; font-size:15px; color:#111; outline:none; -webkit-appearance:none; appearance:none; }
@@ -912,11 +910,8 @@
     .ts-row small { display:block; margin-top:2px; font-size:12px; color:#767676; }
     .ts-row p { margin:6px 0 0; font-size:13px; line-height:1.55; color:#4D5159; }
     .ts-hit { background:#FFF3A3; color:inherit; padding:0 1px; border-radius:3px; }
-    .vd-chips { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 -4px 14px; padding:0 4px; }
-    .vd-chips button { flex-shrink:0; height:36px; padding:0 14px; border:1.5px solid #DADDE1; border-radius:999px; background:#fff; font-size:13.5px; font-weight:700; color:#444; cursor:pointer; white-space:nowrap; }
-    .vd-chips button em { font-style:normal; color:#9CA3AF; font-weight:600; }
-    .vd-chips button.on { border-color:#00AE82; background:#E8F7F2; color:#00936E; }
-    .vd-chips button.on em { color:#00936E; }
+    .vd-chips { margin:-6px 0 16px; }
+    .vd-chips button em { font-style:normal; font-size:12.5px; font-weight:600; color:#9CA3AF; }
     .vd-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px 18px; margin-bottom:14px; border-radius:16px; background:linear-gradient(120deg,#EAF8F3 0%,#D5F1E7 100%); }
     .vd-head b { display:block; font-size:18px; font-weight:900; color:#111; letter-spacing:-0.03em; }
     .vd-head span { display:block; margin-top:3px; font-size:12.5px; color:#505756; }
@@ -1582,24 +1577,11 @@
     #sec-calendar .pz-pill .pz-q-ic { width:48px; height:48px; border-radius:50%; background:#F5F5F5; display:flex; align-items:center; justify-content:center; font-size:22px; line-height:1; }
     #sec-calendar .pz-pill:active .pz-q-ic { background:var(--ws-gb); }
     /* 2026-10-09 광장 3쪽: 전도부 게시판 / 교사 이야기 / 교사 마당 — 알약 대신 쪽 탭, 빨간 숫자 = 새 글 */
-    #sec-calendar .pz-pills.pz-pages { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; padding:12px 0; overflow:visible; }
-    #sec-calendar .pz-pg { position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:1px; min-width:0; padding:11px 11px 10px; border-radius:16px; border:1.5px solid var(--pgl); background:var(--pgb); cursor:pointer; text-align:left; transition:background .15s, transform .1s; }
-    #sec-calendar .pz-pg:active { transform:scale(.97); }
-    #sec-calendar .pz-pg.pg-board { --pgc:#2F6FDE; --pgb:#EEF4FE; --pgl:#D6E4FB; }
-    #sec-calendar .pz-pg.pg-story { --pgc:#00A37A; --pgb:#E9F8F2; --pgl:#CDEFE2; }
-    #sec-calendar .pz-pg.pg-etc   { --pgc:#E8590C; --pgb:#FFF3EA; --pgl:#FBDCC6; }
-    #sec-calendar .pz-pg .ic { width:34px; height:34px; border-radius:11px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:19px; line-height:1; margin-bottom:6px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-    #sec-calendar .pz-pg .t { max-width:100%; font-size:15px; font-weight:900; color:var(--pgc); letter-spacing:-0.03em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    #sec-calendar .pz-pg .s { max-width:100%; font-size:11.5px; font-weight:600; color:#6B7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    #sec-calendar .pz-pg.on { background:var(--pgc); border-color:var(--pgc); box-shadow:0 6px 16px -6px var(--pgc); }
-    #sec-calendar .pz-pg.on .t { color:#fff; }
-    #sec-calendar .pz-pg.on .s { color:rgba(255,255,255,.88); }
-    html.pz-dk #sec-calendar .pz-pills.pz-pages { gap:14px; padding:18px 0 8px; }
-    html.pz-dk #sec-calendar .pz-pg { flex-direction:row; align-items:center; gap:12px; padding:16px 18px; }
-    html.pz-dk #sec-calendar .pz-pg .ic { width:46px; height:46px; font-size:24px; margin:0; flex-shrink:0; }
-    html.pz-dk #sec-calendar .pz-pg .t { font-size:19px; }
-    html.pz-dk #sec-calendar .pz-pg .s { font-size:13px; }
-    #sec-calendar .pz-pg .tx { display:flex; flex-direction:column; min-width:0; max-width:100%; }
+    #sec-calendar .pz-pills.pz-pages { padding:10px 0 12px; overflow:visible; justify-content:stretch; }
+    #sec-calendar .pz-pg.pg-board { --l2c:#2F6FDE; --l2b:#EEF4FE; --l2l:#D6E4FB; }
+    #sec-calendar .pz-pg.pg-story { --l2c:#00A37A; --l2b:#E9F8F2; --l2l:#CDEFE2; }
+    #sec-calendar .pz-pg.pg-etc   { --l2c:#E8590C; --l2b:#FFF3EA; --l2l:#FBDCC6; }
+    html.pz-dk #sec-calendar .pz-pills.pz-pages { padding:18px 0 8px; }
 
     #sec-calendar .pz-pg b.pz-badge { position:absolute; top:-6px; right:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#E5322D; color:#fff; font-size:11px; line-height:18px; font-weight:800; }
     .pz-wrap[data-page="board"] [data-pz-pg]:not([data-pz-pg="board"]),
@@ -1955,7 +1937,32 @@
     .go-home-btn { display:none !important; }                 /* [홈으로]는 이름표 → 내 계정 창 안에 있음 */
     #tierBadge, #actTierChip { display:none !important; }      /* 등급은 나의교실 맨 위 등급 카드 하나로 */
     /* 2026-10-07: 나의교실 — PC에서 양옆으로 퍼지지 않게 가운데 좁은 폭(등급 카드 맨 위, 오늘 일정 카드 삭제) */
-    @media (min-width:1024px) { #sec-activity .act-appbar, #homeContent { max-width:720px; margin-left:auto !important; margin-right:auto !important; } }
+    /* ===== 2026-10-10 탭 통일(기준 = 광장): 2단계 = 색 채운 직사각형 한 줄(.l2, 아이콘·부제 없음), 3단계 = 밑줄 글자 탭(.l3, 교사 마당 안 탭과 같은 모양) ===== */
+    .l2 { display:flex; gap:8px; }
+    .l2 > button { position:relative; flex:1 1 0; min-width:0; height:42px; padding:0 6px; border-radius:12px; border:1.5px solid var(--l2l, #CDEFE2); background:var(--l2b, #E9F8F2); color:var(--l2c, #00A37A); font-size:15px; font-weight:900; letter-spacing:-0.03em; white-space:nowrap; cursor:pointer; transition:background .15s, transform .1s; }
+    .l2.fit > button { flex:1 1 auto; }
+    .l2 > button:active { transform:scale(.97); }
+    .l2 > button.on { background:var(--l2c, #00A37A); border-color:var(--l2c, #00A37A); color:#fff; box-shadow:0 5px 12px -6px var(--l2c, #00A37A); }
+    .l2 > button small { margin-left:2px; font-size:11.5px; font-weight:700; opacity:.85; }
+    html.pz-dk .l2 { gap:12px; }
+    html.pz-dk .l2 > button { height:48px; font-size:17px; }
+    .l3 { display:flex; gap:20px; overflow-x:auto; scrollbar-width:none; border-bottom:1px solid #EDEDED; }
+    .l3::-webkit-scrollbar { display:none; }
+    .l3 > button { flex-shrink:0; height:42px; padding:0 2px; border:none; border-bottom:2px solid transparent; border-radius:0; background:none; font-size:15px; font-weight:600; color:#767676; white-space:nowrap; cursor:pointer; }
+    .l3 > button.on { color:#111; font-weight:800; border-bottom-color:#111; }
+    /* 나의 교실: 머리줄 아래 2단계 탭(내 현황·전도 대상자·활동 기록) — 고른 쪽만 보임 */
+    #sec-activity .act-appbar { border-bottom:none; }
+    #actTabs { position:sticky; top:56px; z-index:19; padding:6px 16px 12px; background:#fff; border-bottom:1px solid #EDEDED; }
+    .act-pages[data-act-page="status"] > [data-ap]:not([data-ap="status"]),
+    .act-pages[data-act-page="targets"] > [data-ap]:not([data-ap="targets"]),
+    .act-pages[data-act-page="history"] > [data-ap]:not([data-ap="history"]) { display:none; }
+    .act-pages > [data-ap]:not([data-ap="status"]) { padding-top:8px; }
+    html.pz-dk #actTabs { position:static; padding:0 2px 16px; }
+    /* 연결: 밑줄 탭 → 2단계 탭 */
+    #sec-connect .kko-tabs.l2 { padding:10px var(--hdr-gutter, 16px) 12px; }
+    /* 교재와 영상: [교재|영상] 2단계, 이수교육~복음방·영상 파트 3단계 */
+    #tbCats { margin:6px 16px 0; }
+    @media (min-width:1024px) { #sec-activity .act-appbar, #actTabs, #homeContent { max-width:720px; margin-left:auto !important; margin-right:auto !important; } }
     .hdr-me { margin-left:auto; display:flex; align-items:center; gap:6px; background:none; border:none; padding:0; cursor:pointer; color:inherit; }
     @media (min-width:1024px) { .hdr-me { display:none !important; } }   /* PC는 맨 위 공용 메뉴에 이름표가 있음 */
     #sec-ai .kko-header .hdr-me, #sec-textbook .kko-header .hdr-me { color:#111; }
@@ -2203,6 +2210,7 @@
             </button>
           </div>
         </div>
+        <div class="l2" id="actTabs"></div>
         <div id="homeContent" class="w-full"></div>
       </section>
 
@@ -2212,10 +2220,10 @@
            상대와의 1:1 대화를 여는 기능 자체는 유지(전혀 다른 기능이라 완전 삭제하면 코칭 연결 등
            다른 기능이 깨짐). 대화 종료 시 이전에 있던 탭으로 돌아간다(목록 화면 자체가 없어졌으므로). -->
       <section id="sec-connect" class="app-section">
-        <nav class="kko-tabs" id="topTabs">
-          <button class="kko-tab kko-tab-active" data-tab="card">내 소개(활동 신청)</button>
-          <button class="kko-tab" data-tab="find">활동신청자</button>
-          <button class="kko-tab" data-tab="board">도와주세요</button>
+        <nav class="kko-tabs l2 fit" id="topTabs">
+          <button type="button" class="on" data-tab="card">내 소개<small>(활동 신청)</small></button>
+          <button type="button" data-tab="find">활동신청자</button>
+          <button type="button" data-tab="board">도와주세요</button>
         </nav>
         <main id="cnView" class="cn-wrap"></main>
         <div id="cnFabHost"></div>
@@ -3887,10 +3895,9 @@
         // 2026-10-01(3차): 알약 = 모둠 이동 탭(화면 순서 그대로). 글쓰기는 오른쪽 아래 버튼 하나.
         // 2026-10-04: 말씀광장처럼 동그라미 아이콘 + 아래 글자 바로가기로 표시.
         // 2026-10-09: 알약 = 광장 3쪽 탭(전도부 게시판 / 교사 이야기 / 교사 마당). 빨간 숫자 = 아직 안 본 새 글.
-        $('pzPills').classList.add('pz-pages');
+        $('pzPills').classList.add('pz-pages', 'l2');   // 2026-10-10: 큰 카드 → 한 줄 직사각형(아이콘·부제 없음)
         $('pzPills').innerHTML = PZ_PAGES.map(([k, ic, l]) => { const n = window.pzNew ? pzNew.count(k) : 0;
-          const sub = (PZ_PAGES.find(x => x[0] === k) || [])[3] || '';
-          return `<button type="button" class="pz-pg pg-${k} ${k === pzPage ? 'on' : ''}" data-pz-page="${k}"><span class="ic">${ic}</span><span class="tx"><span class="t">${esc(l)}</span><span class="s">${esc(sub)}</span></span>${n ? `<b class="pz-badge">${n > 99 ? '99+' : n}</b>` : ''}</button>`; }).join('');
+          return `<button type="button" class="pz-pg pg-${k} ${k === pzPage ? 'on' : ''}" data-pz-page="${k}">${esc(l)}${n ? `<b class="pz-badge">${n > 99 ? '99+' : n}</b>` : ''}</button>`; }).join('');
       }
       function scrollToEl(id) {
         const el = $(id), sec = $('appSections');
@@ -5768,16 +5775,16 @@
       // 당근 정보 위계: 상단 내 상태/요약 → 중단 활동 피드 → 하단 대상자 현황 → 피드 끝 문구.
       // 블록 사이는 카드 테두리 대신 굵은 회색 띠(.act-divider)로 끊어 답답함을 없앤다.
       return `
-        <div class="pb-6">
-          ${actHeroHtml()}
-          ${encouragementBannerHtml()}
-          ${coachReplyBannerHtml()}
-          ${attCardHtml()}
-          ${myActivityViewHtml()}
-          <div class="act-divider"></div>
-          ${targetsSectionHtml()}
-          <div class="act-divider"></div>
-          ${activityHistorySectionHtml()}
+        <div class="pb-6 act-pages" data-act-page="${actPage}">
+          <div data-ap="status">
+            ${actHeroHtml()}
+            ${encouragementBannerHtml()}
+            ${coachReplyBannerHtml()}
+            ${attCardHtml()}
+            ${myActivityViewHtml()}
+          </div>
+          <div data-ap="targets">${targetsSectionHtml()}</div>
+          <div data-ap="history">${activityHistorySectionHtml()}</div>
         </div>
         <button type="button" id="act-fab" class="act-fab" title="활동 기록 남기기" aria-label="활동 기록 남기기">
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -5810,8 +5817,22 @@
       renderActivityFormSheet();
     }
 
+    // 2026-10-10: 나의 교실도 광장처럼 2단계 탭으로 나눔(한 화면에 길게 늘어놓지 않음)
+    const ACT_PAGES = [['status', '내 현황'], ['targets', '전도 대상자'], ['history', '활동 기록']];
+    let actPage = 'status';
+    function renderActTabs() {
+      const el = document.getElementById('actTabs'); if (!el) return;
+      el.innerHTML = ACT_PAGES.map(([k, l]) => `<button type="button" class="${k === actPage ? 'on' : ''}" onclick="actSetPage('${k}')">${l}</button>`).join('');
+    }
+    window.actSetPage = function (k) {
+      actPage = k;
+      if (home.view === 'targetDetail') home.view = 'dashboard';
+      renderHome();
+      document.getElementById('appSections').scrollTop = 0;
+    };
     function renderHome() {
       const root = document.getElementById('homeContent');
+      renderActTabs();
       if (home.view === 'targetDetail') {
         if (targetsChartInstance) { targetsChartInstance.destroy(); targetsChartInstance = null; }
         root.innerHTML = targetDetailViewHtml();
@@ -6457,7 +6478,7 @@
       if (S.tab === 'chat' && tab !== 'chat') stopChatPolling();
       S.tab = tab;
       document.body.classList.toggle('chat-mode', tab === 'chat' && !!S.chat.active);
-      document.querySelectorAll('#sec-connect .kko-tab').forEach(b => b.classList.toggle('kko-tab-active', b.dataset.tab === tab));
+      document.querySelectorAll('#topTabs > button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
       cnRender();
       if (tab === 'card' && !S.card.loaded) loadCard();
       if (tab === 'find' && !S.find.loaded) loadFind();
@@ -6466,7 +6487,7 @@
       const secEl = document.getElementById('sec-connect'); if (secEl) secEl.scrollTop = 0;
     }
     document.getElementById('topTabs').addEventListener('click', e => {
-      const b = e.target.closest('.kko-tab'); if (b) cnSwitchTab(b.dataset.tab);
+      const b = e.target.closest('#topTabs > button'); if (b) cnSwitchTab(b.dataset.tab);
     });
     function cnRender() {
       const v = document.getElementById('cnView');
@@ -8221,20 +8242,14 @@ function tbRender() {
       <span class="kko-title">교재와 영상</span>
       ${meBtnHtml()}
     </div>
-    <div class="tb-mode">${[['book', '📖 교재'], ['video', '▶ 영상']].map(([k, l]) => `<button type="button" class="${tbState.mode === k ? 'on' : ''}" data-tb-mode="${k}">${l}</button>`).join('')}</div>
+    <div class="l2 tb-mode">${[['book', '교재'], ['video', '영상']].map(([k, l]) => `<button type="button" class="${tbState.mode === k ? 'on' : ''}" data-tb-mode="${k}">${l}</button>`).join('')}</div>
     <div class="tb-search">
       <svg class="tb-s-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="tbSearchInp" type="search" enterkeyhint="search" autocomplete="off" lang="ko" placeholder="교재·영상 검색 (예: 비유, 상담, 계시록)" value="${esc(tbState.q)}">
       <button type="button" class="tb-s-x" id="tbSearchX" aria-label="검색어 지우기" style="${tbState.q ? '' : 'display:none;'}">✕</button>
     </div>
-    <div id="tbCats" class="flex overflow-x-auto gap-2 px-4 py-3" style="scrollbar-width:none; background:var(--color-bg);${tbState.mode === 'video' || tbState.q.trim() ? 'display:none;' : ''}">
-      ${TAB_DEFS.map(t => {
-        const active = tbState.tab === t.key;
-        const style = active
-          ? 'background:var(--color-primary); color:#fff; border:1.5px solid var(--color-primary);'
-          : 'background:#fff; color:var(--color-primary); border:1.5px solid var(--color-primary);';
-        return `<button class="study-tab-btn shrink-0 whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold" style="${style}" data-tab="${t.key}">${esc(t.label)}</button>`;
-      }).join('')}
+    <div id="tbCats" class="l3" style="${tbState.mode === 'video' || tbState.q.trim() ? 'display:none;' : ''}">
+      ${TAB_DEFS.map(t => `<button type="button" class="study-tab-btn${tbState.tab === t.key ? ' on' : ''}" data-tab="${t.key}">${esc(t.label)}</button>`).join('')}
     </div>
     <div id="tbBody" class="p-5" style="background:var(--color-bg);"></div>
   `;
@@ -8573,7 +8588,7 @@ function tbSearchRender() {
         return;
       }
       const cnt = p => all.filter(v => vdParts(v).includes(p)).length;
-      const chips = `<div class="vd-chips">${[['', '전체']].concat(VIDEO_PARTS.map(([p]) => [p, p])).map(([k, l]) =>
+      const chips = `<div class="l3 vd-chips">${[['', '전체']].concat(VIDEO_PARTS.map(([p]) => [p, p])).map(([k, l]) =>
         `<button type="button" class="${vdState.part === k ? 'on' : ''}" data-vd-part="${esc(k)}">${esc(l)}${k ? ` <em>${cnt(k)}</em>` : ''}</button>`).join('')}</div>`;
       const addBtn = adm ? `<button type="button" class="vd-add" data-vd-new="1">+ 영상 등록</button>` : '';
       let html;
