@@ -1953,10 +1953,22 @@
     /* 나의 교실: 머리줄 아래 2단계 탭(내 현황·전도 대상자·활동 기록) — 고른 쪽만 보임 */
     #sec-activity .act-appbar { border-bottom:none; }
     #actTabs { position:sticky; top:56px; z-index:19; padding:6px 16px 12px; background:#fff; border-bottom:1px solid #EDEDED; }
-    .act-pages[data-act-page="status"] > [data-ap]:not([data-ap="status"]),
+    .act-pages[data-act-page="attend"] > [data-ap]:not([data-ap="attend"]),
     .act-pages[data-act-page="targets"] > [data-ap]:not([data-ap="targets"]),
     .act-pages[data-act-page="history"] > [data-ap]:not([data-ap="history"]) { display:none; }
-    .act-pages > [data-ap]:not([data-ap="status"]) { padding-top:8px; }
+    .act-pages > [data-ap="history"] { padding-top:8px; }
+    .act-pages[data-act-page="attend"] ~ #act-fab { display:none; }   /* + 활동 기록 버튼은 내 활동·활동 기록에서만 */
+    /* 출석 탭: QR 버튼 + 출석·지각·결석 요약 + 모임 전체 목록 */
+    .att-sum { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:12px 0 4px; }
+    .att-sum div { padding:10px 4px; border-radius:12px; background:#F5F7F8; text-align:center; font-size:12.5px; font-weight:700; color:#666; }
+    .att-sum b { display:block; font-size:22px; font-weight:900; line-height:1.2; color:#00936E; }
+    .att-sum .late b { color:#E8590C; } .att-sum .no b { color:#9CA3AF; }
+    .att-li { padding:11px 0; border-top:1px solid #F2F2F2; }
+    .att-li-h { display:flex; align-items:center; gap:8px; }
+    .att-li-h b { flex:1; min-width:0; font-size:14.5px; font-weight:800; color:#111; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .att-st { flex-shrink:0; padding:3px 9px; border-radius:999px; background:#E3F6EF; color:#0A7A5C; font-size:12px; font-weight:800; }
+    .att-st.late { background:#FFF0E6; color:#D9480F; } .att-st.no { background:#F1F3F5; color:#868E96; }
+    .att-li-m { margin-top:3px; font-size:12.5px; line-height:1.5; color:#8A8A8A; }
     html.pz-dk #actTabs { position:static; padding:0 2px 16px; }
     /* 연결: 밑줄 탭 → 2단계 탭 */
     #sec-connect .kko-tabs.l2 { padding:10px var(--hdr-gutter, 16px) 12px; }
@@ -1978,7 +1990,7 @@
     /* AI상담: 밑줄 탭 → 2단계 탭(글자가 길어 조금 작게, 교관 모드까지 5칸이면 옆으로 밀림) */
     #sec-ai .l2 { padding:10px 12px 12px; gap:6px; background:#fff; border-bottom:1px solid #EDEDED; overflow-x:auto; scrollbar-width:none; }
     #sec-ai .l2::-webkit-scrollbar { display:none; }
-    #sec-ai .l2 > button { flex:1 0 auto; padding:0 8px; font-size:13.5px; }
+    #sec-ai .l2 > button { flex:1 0 auto; padding:0 6px; font-size:13px; }
     html.pz-dk #sec-ai .l2 { padding:0 2px 16px; gap:12px; }
     html.pz-dk #sec-ai .l2 > button { font-size:16px; }
     /* 교재와 영상: 검색 안내 · 녹취/교안 알림 · 올리기 신청 */
@@ -5824,14 +5836,15 @@
       // 블록 사이는 카드 테두리 대신 굵은 회색 띠(.act-divider)로 끊어 답답함을 없앤다.
       return `
         <div class="pb-6 act-pages" data-act-page="${actPage}">
-          <div data-ap="status">
+          <div data-ap="attend">${attCardHtml()}</div>
+          <div data-ap="targets">
             ${actHeroHtml()}
             ${encouragementBannerHtml()}
             ${coachReplyBannerHtml()}
-            ${attCardHtml()}
             ${myActivityViewHtml()}
+            <div class="act-divider"></div>
+            ${targetsSectionHtml()}
           </div>
-          <div data-ap="targets">${targetsSectionHtml()}</div>
           <div data-ap="history">${activityHistorySectionHtml()}</div>
         </div>
         <button type="button" id="act-fab" class="act-fab" title="활동 기록 남기기" aria-label="활동 기록 남기기">
@@ -5866,8 +5879,9 @@
     }
 
     // 2026-10-10: 나의 교실도 광장처럼 2단계 탭으로 나눔(한 화면에 길게 늘어놓지 않음)
-    const ACT_PAGES = [['status', '내 현황'], ['targets', '전도 대상자'], ['history', '활동 기록']];
-    let actPage = 'status';
+    // 2026-10-10(2차): 출석(QR·출석 현황) / 내 활동(등급·인교섬협 요약·전도 대상자) / 활동 기록
+    const ACT_PAGES = [['attend', '출석'], ['targets', '내 활동'], ['history', '활동 기록']];
+    let actPage = 'attend';
     function renderActTabs() {
       const el = document.getElementById('actTabs'); if (!el) return;
       el.innerHTML = ACT_PAGES.map(([k, l]) => `<button type="button" class="${k === actPage ? 'on' : ''}" onclick="actSetPage('${k}')">${l}</button>`).join('');
@@ -5942,19 +5956,36 @@
       const apply = r => { if (r && !r.error) { attSt.my = r; attRenderCard(); } };
       try { await apiSWR({ action: 'getMyAttendance', memberId: App.memberId }, apply, afterWrite); } catch (e) {}
     }
+    // 2026-10-10: 서버 _attLateText_와 같은 계산 — 저녁시작(start2)이 있으면 15시 이후 출석은 저녁 기준
+    function attLateOf(m, r) {
+      if (!r) return '';
+      if (r.late != null && r.late !== '') return /지각/.test(r.late) ? r.late : '';
+      if (!m.start || !m.date) return '';
+      const a = String(r.at || ''), base = m.start2 && a.slice(11, 16) >= '15:00' ? m.start2 : m.start;
+      if (a.slice(0, 10) !== m.date || a <= m.date + ' ' + base + ':00') return '';
+      const p = a.slice(11).split(':'), q = base.split(':');
+      const sec = (Number(p[0]) * 3600 + Number(p[1]) * 60 + Number(p[2] || 0)) - (Number(q[0]) * 3600 + Number(q[1]) * 60);
+      return sec > 0 ? Math.max(1, Math.floor(sec / 60)) + '분 지각' : '';
+    }
+    // 나의 교실 [출석] 탭 전체 — QR 출석 버튼, 출석·지각·결석 요약, 지난 모임 전부(예전엔 3개만 + [전체 보기])
     function attCardHtml() {
       const d = attSt.my;
-      const done = d ? new Set(d.records.map(r => r.meetingId)) : new Set();
+      const byM = {}; if (d) d.records.forEach(r => { byM[r.meetingId] = r; });
       const past = d ? d.meetings : [];
-      const cnt = d ? past.filter(m => done.has(m.meetingId)).length : 0;
+      const rows = past.map(m => { const r = byM[m.meetingId]; return { m, r, late: attLateOf(m, r) }; });
+      const cnt = rows.filter(x => x.r).length, lateN = rows.filter(x => x.late).length;
       const rate = past.length ? Math.round(cnt / past.length * 100) : 0;
       return `<div id="attCard" class="att-card">
-          <div class="att-card-h"><b>📋 모임 출석</b>${d && past.length ? `<button type="button" class="att-link" onclick="attOpenMyList()">전체 보기 ›</button>` : ''}</div>
-          <button type="button" class="att-scan-btn" onclick="attOpenScanner()">📷 QR로 출석하기</button>
+          <div class="att-card-h"><b>모임 출석</b></div>
+          <button type="button" class="att-scan-btn" onclick="attOpenScanner()">QR로 출석하기</button>
           ${!d ? '<div class="att-muted">불러오는 중...</div>'
             : !past.length ? '<div class="att-muted">아직 출석 체크한 모임이 없어요. 모임에서 QR을 찍어 보세요.</div>'
-            : `<div class="att-rate"><b>${cnt}</b>/${past.length}회 출석 <span>(${rate}%)</span><i><em style="width:${rate}%"></em></i></div>
-               ${past.slice(0, 3).map(m => `<div class="att-row"><span class="att-dot ${done.has(m.meetingId) ? 'on' : ''}">${done.has(m.meetingId) ? '✓' : '–'}</span><span class="att-row-t">${esc(m.title)}</span><time>${esc(String(m.date).slice(5).replace('-', '/'))}</time></div>`).join('')}`}
+            : `<div class="att-sum"><div><b>${cnt - lateN}</b>정상 출석</div><div class="late"><b>${lateN}</b>지각</div><div class="no"><b>${past.length - cnt}</b>결석</div></div>
+               <div class="att-rate">모임 ${past.length}회 중 <b>${cnt}</b>회 출석 <span>(${rate}%)</span><i><em style="width:${rate}%"></em></i></div>
+               ${rows.map(({ m, r, late }) => `<div class="att-li">
+                 <div class="att-li-h"><b>${esc(m.title)}</b><span class="att-st ${!r ? 'no' : late ? 'late' : ''}">${!r ? '결석' : late ? esc(late) : '정상 출석'}</span></div>
+                 <div class="att-li-m">${esc(attWhen(m))}${attMeetLabel(m) ? ' · ' + esc(attMeetLabel(m)) : ''}${r ? ` · ${esc(r.at.slice(11, 16))} 출석${attPickText(r) ? ' · ' + esc(attPickText(r)) : ''}${(m.questions || []).filter(q => attAnsText(q, r.answers[q.id])).map(q => ` · ${esc(q.label)}: ${esc(attAnsText(q, r.answers[q.id]))}`).join('')}` : ''}</div>
+               </div>`).join('')}`}
         </div>`;
     }
     function attRenderCard() { const el = document.getElementById('attCard'); if (el) el.outerHTML = attCardHtml(); }
@@ -7623,7 +7654,7 @@ DISC: ${selDisc || '선택안함'}
         </div>
         <div class="l2">
           <button type="button" id="tab-coach" class="${aiState.tab==='coach' ? 'on' : ''}">교사 코칭</button>
-          <button type="button" id="tab-studentCoach" class="${aiState.tab==='studentCoach' ? 'on' : ''}">수강생 코칭</button>
+          <button type="button" id="tab-studentCoach" class="${aiState.tab==='studentCoach' ? 'on' : ''}">수강생 단계향상</button>
           <button type="button" id="tab-history" class="${aiState.tab==='history' ? 'on' : ''}">피드백 이력</button>
           <button type="button" id="tab-askCoach" class="${aiState.tab==='askCoach' ? 'on' : ''}">교관에게 요청</button>
           ${aiState.coachInfo && aiState.coachInfo.isCoach ? `<button type="button" id="tab-coachMode" class="${aiState.tab==='coachMode' ? 'on' : ''}">교관 모드 <svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /><circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>` : ''}
