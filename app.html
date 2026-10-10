@@ -174,6 +174,26 @@
     .kko-btn-main:active, .kko-btn-outline:active, .coop-req-btn:active { transform: scale(0.97); }
     #bottomTabBar .tab.tab-active .tab-icon { animation: kkoTabBounce .2s ease; }
     @keyframes kkoTabBounce { 0% { transform: translateY(0); } 40% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
+    /* 2026-10-10(사용자 요청): 하단 탭 글자 없앰 — 아이콘만 크게, 지금 탭은 초록 알약 바탕.
+       글자(.tab-label)는 지우지 않고 숨김만(PC 상단 메뉴 fillGnb·방 이름표가 이 글자를 씀). */
+    #bottomTabBar { height: calc(60px + env(safe-area-inset-bottom, 0px)); }
+    #bottomTabBar .tab { justify-content: center; padding-top: 0; gap: 0; }
+    #bottomTabBar .tab .tab-label { display: none; }
+    #bottomTabBar .tab .tab-icon { width: 52px; height: 36px; align-items: center; justify-content: center; border-radius: 999px; transition: background .15s ease; }
+    #bottomTabBar .tab .tab-icon svg { width: 26px; height: 26px; }
+    #bottomTabBar .tab.tab-active .tab-icon { background: #E3F6EF; }
+    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #connectDot { top: 3px !important; right: 9px !important; }
+    #appSections { padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px)); }
+    /* 방 이름표: 탭을 누르면 좌상단에 [초록 네모 방 아이콘 + 굵은 방 이름] — 하단 아이콘과 같은 그림이라 어느 방인지 바로 앎 */
+    .room-ic { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:30px; height:30px; border-radius:9px; background:var(--color-primary, #00AE82); color:#fff; margin-right:8px; vertical-align:middle; }
+    .room-ic svg { width:19px; height:19px; stroke:#fff; }
+    .room-ic svg [fill="currentColor"] { fill:#fff; }
+    .room-ic svg rect[fill="currentColor"] { stroke:var(--color-primary, #00AE82); }   /* 교재·영상 아이콘의 재생 화면: 흰 화면 + 초록 재생 삼각형 */
+    .room-ic svg path[fill="#fff"] { fill:var(--color-primary, #00AE82); }
+    #sec-calendar .pz-logo.room-name { font-size:19px !important; }   /* 광장은 같은 줄에 검색창이 있어 조금 작게 */
+    #sec-calendar .pz-logo.room-name .room-ic { width:28px; height:28px; margin-right:6px; }
+    .room-name { display:inline-flex !important; align-items:center; font-size:21px !important; font-weight:900 !important; letter-spacing:-0.04em !important; color:var(--dg-text, #1A1C20) !important; white-space:nowrap; }
+    #sec-calendar .pz-logo.room-name > i { display:none; }
     @keyframes kkoShimmer { 0% { background-position:-200px 0; } 100% { background-position:200px 0; } }
     .kko-skeleton { background:linear-gradient(90deg,#EEEEEE 25%,#F5F5F5 37%,#EEEEEE 63%); background-size:400px 100%; animation:kkoShimmer 1.4s ease infinite; border-radius:8px; }
     .kko-spinner { width:36px; height:36px; border-radius:50%; border:3px solid #E8F7F2; border-top-color:#00AE82; animation:kkoSpin .7s linear infinite; display:inline-block; }
@@ -2207,7 +2227,7 @@
           <div class="pz-appbar-row">
             <div class="pz-logo"><i>✦</i>교사광장</div>
             <label class="pz-search">
-              <input id="pzSearch" type="search" placeholder="교사 이야기 검색" autocomplete="off">
+              <input id="pzSearch" type="search" placeholder="검색" autocomplete="off">
               <svg class="lucide-i" style="width:18px;height:18px;color:#868B94" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </label>
             <div class="pz-appbar-actions">
@@ -2361,27 +2381,27 @@
       <!-- 2026-09-22: SPA 통합 — 해시 라우팅(#calendar/#activity/#connect/#ai/#textbook/#admin).
            관리자 탭은 isAdmin()이 true일 때만 노출(현재는 라이브 코드와 동일하게 임시 전체 개방 —
            복구 지점은 isAdmin() 함수 주석 참고). -->
-      <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="광장">
-        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span id="plazaDot"></span></span>
+      <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="교사광장" aria-label="교사광장">
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/><circle cx="5.5" cy="6.5" r=".6" fill="currentColor"/><circle cx="8" cy="6.5" r=".6" fill="currentColor"/><circle cx="10.5" cy="6.5" r=".6" fill="currentColor"/></svg><span id="plazaDot"></span></span>
         <span class="tab-label">광장</span>
       </button>
-      <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="나의교실">
+      <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="나의교실" aria-label="나의교실">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></svg></span>
         <span class="tab-label">나의교실</span>
       </button>
-      <button role="tab" class="tab" data-tab="connect" onclick="switchTab('connect')" title="연결">
+      <button role="tab" class="tab" data-tab="connect" onclick="switchTab('connect')" title="연결" aria-label="연결">
         <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3" /><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" /><path d="m21 3 1 11h-2" /><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" /><path d="M3 4h8" /></svg><span id="connectDot" style="display:none;position:absolute;top:-2px;right:-4px;width:9px;height:9px;border-radius:50%;background:#E5322D;border:1.5px solid #fff"></span></span>
         <span class="tab-label">연결</span>
       </button>
-      <button role="tab" class="tab" data-tab="ai" onclick="switchTab('ai')" title="AI상담">
+      <button role="tab" class="tab" data-tab="ai" onclick="switchTab('ai')" title="AI상담" aria-label="AI상담">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" /><path d="M20 3v4" /><path d="M22 5h-4" /><path d="M4 17v2" /><path d="M5 18H3" /></svg></span>
         <span class="tab-label">AI상담</span>
       </button>
-      <button role="tab" class="tab" data-tab="textbook" onclick="switchTab('textbook')" title="교재와 영상">
+      <button role="tab" class="tab" data-tab="textbook" onclick="switchTab('textbook')" title="교재와 영상" aria-label="교재와 영상">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(-0.6 -1.6) scale(.78)" stroke-width="2.4"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></g><rect x="10.6" y="11.6" width="13" height="9.8" rx="3" fill="currentColor" stroke="#fff" stroke-width="1.6" /><path d="M15.6 14.4v4.2l3.6-2.1z" fill="#fff" stroke="none" /></svg></span>
         <span class="tab-label">교재·영상</span>
       </button>
-      <button role="tab" class="tab" data-tab="admin" id="adminTabBtn" onclick="switchTab('admin')" title="관리자">
+      <button role="tab" class="tab" data-tab="admin" id="adminTabBtn" onclick="switchTab('admin')" title="관리자" aria-label="관리자">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9" /><path d="M14 17H5" /><circle cx="17" cy="17" r="3" /><circle cx="7" cy="7" r="3" /></svg></span>
         <span class="tab-label">관리자</span>
       </button>
@@ -3163,6 +3183,22 @@
     window.pzLayout = pzLayout;
     PZ_DK_MQ.addEventListener('change', pzLayout);
 
+    // 2026-10-10: 하단 탭 글자를 없앤 대신, 방에 들어가면 좌상단 제목 앞에 그 탭 아이콘을 초록 네모로 붙여 방 이름을 또렷하게.
+    const ROOM_TITLE_SEL = { calendar: '#sec-calendar .pz-logo', activity: '#sec-activity .act-appbar-title', connect: '#appHeaderTitle',
+      ai: '#sec-ai .kko-header .kko-title', textbook: '#sec-textbook .kko-header .kko-title', admin: '#sec-admin .adm-top-t' };
+    function roomTitle(tab) {
+      const el = document.querySelector(ROOM_TITLE_SEL[tab] || '_none'); if (!el) return;
+      const svg = document.querySelector(`#bottomTabBar .tab[data-tab="${tab}"] .tab-icon svg`); if (!svg) return;
+      el.classList.add('room-name');
+      let ic = el.querySelector(':scope > .room-ic');
+      if (!ic) { ic = document.createElement('span'); ic.className = 'room-ic'; ic.setAttribute('aria-hidden', 'true'); el.prepend(ic); }
+      ic.innerHTML = svg.outerHTML;
+    }
+    // AI상담·교재처럼 머리줄을 나중에(불러온 뒤) 그리는 방도 있어서, 화면이 바뀌면 지금 방 이름표를 다시 확인해 붙인다.
+    { let raf = 0; new MutationObserver(() => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => { raf = 0; const el = document.querySelector(ROOM_TITLE_SEL[App.currentTab] || '_none'); if (el && !el.querySelector(':scope > .room-ic')) roomTitle(App.currentTab); });
+      }).observe(document.getElementById('appSections') || document.body, { childList: true, subtree: true }); }
     function switchTab(tab) {
       if (!TAB_IDS.includes(tab)) tab = 'activity';
       if (tab === 'admin' && !isAdmin()) tab = 'activity';
@@ -3180,6 +3216,7 @@
 
       const ownHeader = OWN_HEADER_TABS.includes(tab);
       { const ht = document.getElementById('appHeaderTitle'); if (ht) ht.textContent = ({ connect: '연결' })[tab] || '교사광장'; }   // 2026-10-07
+      roomTitle(tab);   // 2026-10-10: 좌상단 방 이름표(하단 탭 아이콘 + 방 이름)
       const appHeaderEl = document.getElementById('appHeader');
       if (appHeaderEl) appHeaderEl.style.display = ownHeader ? 'none' : '';
 
