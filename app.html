@@ -2024,6 +2024,16 @@
     .vd-req-st { display:inline-block; margin-left:4px; padding:1px 7px; border-radius:6px; background:#FFEDD5; color:#C2410C; font-size:11.5px; font-weight:800; }
     .vd-req-st.no { background:#F3F4F6; color:#6B7280; }
     .vd-req:first-of-type { border-top:none; }
+    .rq-cmts { margin-top:8px; padding:8px 10px; border-radius:10px; background:#fff; border:1px solid #F0E4DA; }
+    .rq-cmt { padding:5px 0; font-size:13px; line-height:1.45; color:#333; }
+    .rq-cmt + .rq-cmt { border-top:1px dashed #EEE; }
+    .rq-cmt b { font-weight:800; color:#111; } .rq-cmt b i { font-style:normal; margin-left:2px; padding:0 5px; border-radius:5px; background:#E3F6EF; color:#0A7A5C; font-size:10.5px; }
+    .rq-cmt time { margin-left:6px; font-size:11px; color:#9A9A9A; }
+    .rq-cmt p { margin:1px 0 0; white-space:pre-wrap; word-break:break-word; }
+    .rq-cmt-f { display:flex; gap:6px; margin-top:8px; }
+    .rq-cmt-f input { flex:1; min-width:0; height:36px; padding:0 11px; border:1.5px solid #E5E7EB; border-radius:9px; background:#fff; font-size:13.5px; color:#111; outline:none; }
+    .rq-cmt-f input:focus { border-color:#00AE82; }
+    .rq-cmt-f button { flex-shrink:0; height:36px; padding:0 12px; border:none; border-radius:9px; background:#111; color:#fff; font-size:13px; font-weight:800; cursor:pointer; }
     .l2 > button > b.l2-badge { position:absolute; top:-6px; right:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#E5322D; color:#fff; font-size:11px; line-height:18px; font-weight:800; }
     @media (min-width:1024px) { #sec-activity .act-appbar, #actTabs, #homeContent { max-width:720px; margin-left:auto !important; margin-right:auto !important; } }
     .hdr-me { margin-left:auto; display:flex; align-items:center; gap:6px; background:none; border:none; padding:0; cursor:pointer; color:inherit; }
@@ -8658,12 +8668,23 @@ function tbSearchRender() {
     // YouTube API 키 없이 주소에서 뽑은 영상 ID만 저장하고 썸네일은 i.ytimg.com을 그대로 씀.
     // ════════════════════════════════════════════════════════════════
     const VIDEO_PARTS = [['소양', '🌱', '교사 소양 교육'], ['상담', '💬', '상담 기법·실습'], ['밭갈기', '🌾', '전도 밭갈기'], ['무신앙', '🧭', '무신앙 대응·전도'], ['복음방', '📖', '복음방 운영·활용']];
-    const vdState = { videos: null, part: '', err: '', del: '', reqs: null, wishes: null, reqParts: {}, rej: '', approver: null };
-    // 2026-10-10: 관리자 이상 사명자는 [영상 신청] 코너에서 올리기를 신청하고, 교육부·전도부가 승인하면 올라간다(바로 등록·수정·삭제도 교육부·전도부만).
+    const vdState = { videos: null, part: '', err: '', del: '', reqs: null, wishes: null, cmts: {}, draft: {}, reqParts: {}, rej: '', approver: null };
+    // 신청마다 달리는 댓글(신청자 ↔ 교육부·전도부) + 승인하는 사람에게만 보이는 신청자 전화
+    const reqPhoneGet = () => { try { return localStorage.getItem('req_phone') || ''; } catch (e) { return ''; } };
+    const reqPhoneSet = v => { try { localStorage.setItem('req_phone', v); } catch (e) {} };
+    const reqPhoneOk = v => String(v || '').replace(/\D/g, '').length >= 9;
+    function reqExtraHtml(r) {
+      const cs = vdState.cmts[r.id] || [];
+      const can = vdIsApprover() || r.mine;
+      return `${r.phone ? `<div class="vd-req-m">전화 <a href="tel:${esc(r.phone)}" style="color:#00936E;font-weight:800">${esc(r.phone)}</a></div>` : ''}
+        ${cs.length ? `<div class="rq-cmts">${cs.map(c => `<div class="rq-cmt ${c.staff ? 'staff' : ''}"><b>${esc(c.name)}${c.staff ? ' <i>담당</i>' : ''}</b><time>${esc(String(c.at).slice(5).replace('-', '/'))}</time><p>${esc(c.text)}</p></div>`).join('')}</div>` : ''}
+        ${can ? `<div class="rq-cmt-f"><input type="text" maxlength="300" placeholder="댓글 남기기" data-rq-in="${esc(r.id)}" value="${esc(vdState.draft[r.id] || '')}"><button type="button" data-rq-send="${esc(r.id)}">등록</button></div>` : ''}`;
+    }
+    // 2026-10-10: 교사 누구나 [교재·영상 신청] 코너에서 올리기를 신청하고, 교육부·전도부가 승인하면 올라간다(바로 등록·수정·삭제도 교육부·전도부만).
     // 서버 _videoIsApprover_/_videoCanRequest_와 같은 기준 — 서버가 알려 준 값(vdState.approver)이 있으면 그걸 씀.
     const vdIsApprover = () => vdState.approver != null ? vdState.approver
       : isOwnerSession() || (isAdmin() && /교육|전도/.test([(myAdminInfo || {}).position, (myAdminInfo || {}).dept, (myRosterRow || {}).position].join(' ')));
-    const vdCanRequest = () => isAdmin() || /교관/.test(String((myRosterRow && myRosterRow.position) || '')) || !!(typeof aiState !== 'undefined' && aiState.coachInfo && aiState.coachInfo.isCoach);
+    const vdCanRequest = () => !!App.memberId;   // 2026-10-10(2차): 신청은 일반 교사도(서버가 교사명단 확인), 승인은 교육부·전도부만
     async function vdLoadReqs() {
       if (!App.memberId || !vdCanRequest()) return;
       try {
@@ -8671,6 +8692,8 @@ function tbSearchRender() {
         if (r && !r.error) {
           const was = JSON.stringify([vdState.reqs, vdState.wishes, vdState.approver]);
           vdState.reqs = r.requests || []; vdState.wishes = r.wishes || []; vdState.approver = !!r.isApprover;
+          const wasC = JSON.stringify(vdState.cmts); vdState.cmts = r.comments || {};
+          if (wasC !== JSON.stringify(vdState.cmts) && tbState.mode === 'request' && !tbState.q.trim()) vdReqRender();
           if (was !== JSON.stringify([vdState.reqs, vdState.wishes, vdState.approver]) && document.getElementById('tbBody') && !tbState.q.trim()) tbRender();   // 바뀐 게 있을 때만 다시 그림
         }
       } catch (e) {}
@@ -8685,6 +8708,7 @@ function tbSearchRender() {
           <div class="vd-req-b"><div class="vd-req-t">${esc(r.title)}</div>
             <div class="vd-req-m">${esc(r.createdBy || '')} · ${esc(vdDate(r.requestDate))} 신청${act ? '' : `<span class="vd-req-st ${r.status === '반려' ? 'no' : ''}">${r.status === '반려' ? '반려' : '승인 대기'}</span>`}</div>
             <div class="vd-req-p">${act ? VIDEO_PARTS.map(([p]) => `<button type="button" class="${parts.includes(p) ? 'on' : ''}" data-vd-req-part="${esc(r.id)}|${esc(p)}">${esc(p)}</button>`).join('') : parts.map(p => `<span class="vd-tag">${esc(p)}</span>`).join('')}</div>
+            ${reqExtraHtml(r)}
             ${act ? `<div class="vd-req-a"><button type="button" class="ok" data-vd-req-ok="${esc(r.id)}">승인</button><button type="button" data-vd-req-no="${esc(r.id)}">${vdState.rej === r.id ? '한 번 더 누르면 반려' : '반려'}</button></div>` : ''}
           </div></div>`; }).join('')}</div>`;
     }
@@ -8717,7 +8741,7 @@ function tbSearchRender() {
       const apply = r => { if (r && !r.error) { vdState.videos = r.videos || []; vdState.err = ''; vdRender(); } };
       try { await apiSWR({ action: 'getVideos' }, apply, skipCache); }
       catch (e) { if (!vdState.videos) { vdState.err = e.message; vdRender(); } }
-      vdLoadReqs();
+      if (vdIsApprover()) vdLoadReqs();   // 승인 대기 숫자 — 일반 교사는 신청 탭을 열 때만 받음(요청 줄이기)
     }
     function vdCardHtml(v, snip) {
       const adm = vdIsApprover();
@@ -8776,6 +8800,7 @@ function tbSearchRender() {
           <div class="vd-req-t">${esc(w.title)}</div>
           ${w.note ? `<div class="vd-req-m" style="color:#444;white-space:pre-wrap">${esc(w.note)}</div>` : ''}
           <div class="vd-req-m">${w.part ? esc(w.part) + ' · ' : ''}${esc(w.createdBy || '')} · ${esc(vdDate(w.requestDate))} 신청${adm && w.status === '신청' ? '' : `<span class="vd-req-st ${w.status === '신청' ? '' : 'no'}">${w.status === '신청' ? '확인 대기' : '확인됨'}</span>`}</div>
+          ${reqExtraHtml(w)}
           ${adm ? `<div class="vd-req-a">${w.status === '신청' ? `<button type="button" class="ok" data-tw-ok="${esc(w.id)}">확인</button>` : ''}<button type="button" data-tw-ok="${esc(w.id)}" data-tw-rm="1">지우기</button></div>` : ''}
         </div></div>`).join('')}</div>`;
       body.innerHTML = `<div class="vd-head"><div><b>희망하는 교재가 있나요?</b><span>이런 교재가 있으면 좋겠다 싶은 것을 알려 주세요. 교육부·전도부에서 확인하고 준비해요.</span></div></div>
@@ -8798,6 +8823,8 @@ function tbSearchRender() {
         <div class="att-org-chips" id="twParts">${COURSE_TABS.map(t => `<button type="button" class="att-opt" data-p="${esc(t.label)}">${esc(t.label)}</button>`).join('')}</div>
         <label class="cal-lbl">어떤 내용이면 좋을까요? <span class="att-muted" style="font-weight:400">(300자 이내)</span></label>
         <textarea class="cal-inp" id="twNote" maxlength="300" rows="4" style="height:auto;padding:10px 12px;line-height:1.5"></textarea>
+        <label class="cal-lbl">연락받을 전화번호 <span class="cal-req">*</span> <span class="att-muted" style="font-weight:400">(담당자만 봐요)</span></label>
+        <input class="cal-inp" id="twPhone" type="tel" inputmode="tel" maxlength="20" placeholder="010-0000-0000" value="${esc(reqPhoneGet())}">
         <div style="display:flex;gap:10px;margin-top:18px"><button type="button" class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button><button type="button" class="kko-btn-main" style="flex:2" id="twSave">신청하기</button></div>
       </div>`);
       document.querySelectorAll('#twParts [data-p]').forEach(b => { b.onclick = () => {
@@ -8807,9 +8834,12 @@ function tbSearchRender() {
       document.getElementById('twSave').onclick = async () => {
         const title = document.getElementById('twTitle').value.trim();
         if (!title) return toast('희망하는 교재를 적어 주세요.', true);
+        const phone = document.getElementById('twPhone').value.trim();
+        if (!reqPhoneOk(phone)) return toast('연락받을 전화번호를 적어 주세요.', true);
+        reqPhoneSet(phone);
         const btn = document.getElementById('twSave'); btn.disabled = true;
         try {
-          const res = await callApi({ action: 'requestTextbook', memberId: App.memberId, name: App.name, wish: { title, part, note: document.getElementById('twNote').value.trim() } });
+          const res = await callApi({ action: 'requestTextbook', memberId: App.memberId, name: App.name, wish: { title, part, phone, note: document.getElementById('twNote').value.trim() } });
           if (res && res.error) throw new Error(res.error);
           toast('교재를 신청했어요.'); closeSheet(); vdLoadReqs();
         } catch (e) { toast(e.message, true); btn.disabled = false; }
@@ -8818,6 +8848,17 @@ function tbSearchRender() {
     function vdWire(body) {
       const all = vdState.videos || [];
       body.querySelectorAll('[data-tw-new]').forEach(b => { b.onclick = twOpen; });
+      body.querySelectorAll('[data-rq-in]').forEach(i => { i.oninput = () => { vdState.draft[i.dataset.rqIn] = i.value; }; i.onkeydown = e => { if (e.key === 'Enter') { const b = body.querySelector(`[data-rq-send="${CSS.escape(i.dataset.rqIn)}"]`); if (b) b.click(); } }; });
+      body.querySelectorAll('[data-rq-send]').forEach(b => { b.onclick = async () => {
+        const id = b.dataset.rqSend, text = String(vdState.draft[id] || '').trim();
+        if (!text) return toast('내용을 적어 주세요.', true);
+        b.disabled = true;
+        try {
+          const res = await callApi({ action: 'addRequestComment', memberId: App.memberId, name: App.name, reqId: id, text });
+          if (res && res.error) throw new Error(res.error);
+          (vdState.cmts[id] = vdState.cmts[id] || []).push(res.comment); vdState.draft[id] = ''; vdReqRender();
+        } catch (e) { toast(e.message, true); b.disabled = false; }
+      }; });
       body.querySelectorAll('[data-tw-ok]').forEach(b => { b.onclick = async () => {
         b.disabled = true;
         try {
@@ -9155,7 +9196,8 @@ function tbSearchRender() {
         <input class="cal-inp" id="vdFTitle" maxlength="120" value="${esc(f.title)}" placeholder="주소를 넣으면 자동으로 채워져요">
         <label class="cal-lbl">간단 설명 <span class="att-muted" style="font-weight:400">(50자 이내)</span></label>
         <input class="cal-inp" id="vdFDesc" maxlength="50" value="${esc(f.description)}">
-        ${req ? '' : `<label class="cal-lbl">등록일</label>
+        ${req ? `<label class="cal-lbl">연락받을 전화번호 <span class="cal-req">*</span> <span class="att-muted" style="font-weight:400">(담당자만 봐요)</span></label>
+        <input class="cal-inp" id="vdFPhone" type="tel" inputmode="tel" maxlength="20" placeholder="010-0000-0000" value="${esc(reqPhoneGet())}">` : `<label class="cal-lbl">등록일</label>
         <input type="date" class="cal-inp" id="vdFDate" value="${esc(f.uploadDate)}">`}
         <div style="display:flex;gap:10px;margin-top:18px"><button type="button" class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button><button type="button" class="kko-btn-main" style="flex:2" id="vdFSave">${v ? '수정 저장' : req ? '신청하기' : '등록하기'}</button></div>
       </div>`);
@@ -9187,8 +9229,11 @@ function tbSearchRender() {
         if (!f.parts.length) return toast(req ? '넣을 코너를 하나 이상 골라 주세요.' : '파트를 하나 이상 골라 주세요.', true);
         const btn = document.getElementById('vdFSave'); btn.disabled = true;
         if (req) {
+          const phone = document.getElementById('vdFPhone').value.trim();
+          if (!reqPhoneOk(phone)) { btn.disabled = false; return toast('연락받을 전화번호를 적어 주세요.', true); }
+          reqPhoneSet(phone);
           try {
-            const res = await callApi({ action: 'requestVideo', memberId: App.memberId, name: App.name, video: { url: id, parts: f.parts,
+            const res = await callApi({ action: 'requestVideo', memberId: App.memberId, name: App.name, video: { url: id, parts: f.parts, phone,
               title: /^https?:|youtu.?be/i.test(titleEl.value.trim()) ? '' : titleEl.value.trim(), description: document.getElementById('vdFDesc').value.trim() } });
             if (res && res.error) throw new Error(res.error);
             toast('신청했어요. 승인되면 영상 목록에 올라가요.'); closeSheet(); vdLoadReqs();
@@ -9218,7 +9263,7 @@ function tbSearchRender() {
         tbState.name = MY_NAME || name || '';
         tbRender();
         tbLoadAll();
-        vdLoadReqs();   // [영상 신청] 탭의 승인 대기 숫자
+        if (vdIsApprover()) vdLoadReqs();   // [교재·영상 신청] 탭의 승인 대기 숫자(승인하는 사람만)
       }
     };
 
