@@ -6,9 +6,9 @@
   <title>교사 광장</title>
   <!-- 2026-10-06: manifest 주소는 설치 때와 같은 "manifest.json" 그대로(쿼리를 붙이면 안드로이드에 이미 깔린 앱이 아이콘 갱신을 못 함). 아이콘 교체는 manifest 안의 icon 주소 ?v= 로 -->
   <link rel="manifest" href="manifest.json">
-  <!-- 2026-10-07 표지 책 글꼴: 본문 바탕체(Noto Serif KR), 熙 사인(Liu Jian Mao Cao) — 표지에 쓰는 글자만 받음 -->
+  <!-- 2026-10-07 표지 책 글꼴: 본문 바탕체(Noto Serif KR), 熙 사인(Liu Jian Mao Cao) — 표지에 쓰는 글자만 받음 (2026-10-10: 좌상단 방 이름 6개 글자도 추가) -->
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&text=%EA%B0%80%EC%B9%98%EC%9E%88%EA%B5%90%EC%82%AC%EA%B4%91%EC%9E%A5%ED%95%9C%EC%98%81%ED%98%BC%EC%9D%84%EC%82%B4%EB%A6%AC%EB%8A%94%EC%A7%84%EC%9D%98%EB%9E%91%EC%84%B8%EC%83%81%EC%97%90%EC%84%9C%EC%86%8C%EC%A4%91%EC%9D%BC%EC%9D%80%EB%9E%8C%EC%9D%B4%EB%8B%A4.%2C&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&text=%EA%B0%80%EC%B9%98%EC%9E%88%EA%B5%90%EC%82%AC%EA%B4%91%EC%9E%A5%ED%95%9C%EC%98%81%ED%98%BC%EC%9D%84%EC%82%B4%EB%A6%AC%EB%8A%94%EC%A7%84%EC%9D%98%EB%9E%91%EC%84%B8%EC%83%81%EC%97%90%EC%84%9C%EC%86%8C%EC%A4%91%EC%9D%BC%EC%9D%80%EB%9E%8C%EC%9D%B4%EB%8B%A4.%2C%EB%82%98%EC%8B%A4%EC%97%B0%EA%B2%B0%EB%8B%B4%EC%9E%AC%EC%99%80%EA%B4%80%EC%9E%90AI&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Liu+Jian+Mao+Cao&text=%E7%86%99&display=swap" rel="stylesheet">
   <!-- 2026-10-07: 입장 표지 동안 상태바를 책상 색으로(안드로이드 시작 화면과 이어지게), 입장하면 pdEnter()가 초록으로 -->
   <meta name="theme-color" content="#EEE9E0">
@@ -217,6 +217,12 @@
     .room-ic svg [fill="currentColor"] { fill: #D8C590 !important; }
     .room-ic svg rect[fill="currentColor"] { stroke: #2E483D !important; }
     .room-ic svg path[fill="#fff"] { fill: #2E483D !important; }
+    /* 2026-10-10(시험): 방 이름 글자도 표지 제목 「교사광장」처럼 — 바탕체·넓은 자간·금박.
+       표지의 연금색(#D8C590)은 흰 머리줄에선 안 읽혀서 짙은 금(#8C6A2A~#B8924A)에 윗쪽 광택만. */
+    .room-name { font-family: 'Noto Serif KR', serif !important; font-weight: 600 !important; letter-spacing: .06em !important;
+      background: linear-gradient(180deg, #B8924A 0%, #9C7A36 48%, #7E5F22 52%, #A88640 100%); -webkit-background-clip: text; background-clip: text;
+      color: transparent !important; -webkit-text-fill-color: transparent; }
+    .room-name .room-ic { -webkit-text-fill-color: initial; }
     /* 방 이름표: 탭을 누르면 좌상단에 [초록 네모 방 아이콘 + 굵은 방 이름] — 하단 아이콘과 같은 그림이라 어느 방인지 바로 앎 */
     .room-ic { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:30px; height:30px; border-radius:9px; background:var(--color-primary, #00AE82); color:#fff; margin-right:8px; vertical-align:middle; }
     .room-ic svg { width:19px; height:19px; stroke:#fff; }
