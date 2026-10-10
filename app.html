@@ -177,9 +177,11 @@
     /* 2026-10-10(사용자 요청): 하단 탭 글자 없앰 — 아이콘만 크게, 지금 탭은 초록 알약 바탕.
        글자(.tab-label)는 지우지 않고 숨김만(PC 상단 메뉴 fillGnb·방 이름표가 이 글자를 씀). */
     #bottomTabBar { height: calc(60px + env(safe-area-inset-bottom, 0px)); }
-    #bottomTabBar .tab { justify-content: center; padding-top: 0; gap: 0; }
+    /* 2026-10-10 고침: daisyUI .tab의 좌우 여백(1rem씩)+아이콘 52px 때문에 탭 하나가 84px → 6개가 504px라 폰에서 교재·영상·관리자가 오른쪽 밖으로 밀림.
+       여백 0, 줄어들 수 있게(min-width 0) 해서 6칸이 화면 폭을 똑같이 나눠 갖게 함. */
+    #bottomTabBar .tab { justify-content: center; padding: 0 !important; gap: 0; min-width: 0; flex: 1 1 0; }
     #bottomTabBar .tab .tab-label { display: none; }
-    #bottomTabBar .tab .tab-icon { width: 52px; height: 36px; align-items: center; justify-content: center; border-radius: 999px; transition: background .15s ease; }
+    #bottomTabBar .tab .tab-icon { width: 100%; max-width: 52px; height: 36px; align-items: center; justify-content: center; border-radius: 999px; transition: background .15s ease; }
     #bottomTabBar .tab .tab-icon svg { width: 26px; height: 26px; }
     #bottomTabBar .tab.tab-active .tab-icon { background: #E3F6EF; }
     #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #connectDot { top: 3px !important; right: 9px !important; }
