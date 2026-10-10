@@ -1962,6 +1962,54 @@
     #sec-connect .kko-tabs.l2 { padding:10px var(--hdr-gutter, 16px) 12px; }
     /* 교재와 영상: [교재|영상] 2단계, 이수교육~복음방·영상 파트 3단계 */
     #tbCats { margin:6px 16px 0; }
+    /* 2026-10-10(2차): 탭 색 = 자리 순서(광장과 같은 파랑·초록·주황, 넷째 보라·다섯째 청록). 3단계 탭의 고른 글자·밑줄 = 지금 고른 2단계 탭 색 */
+    .l2 > button:nth-child(1) { --l2c:#2F6FDE; --l2b:#EEF4FE; --l2l:#D6E4FB; }
+    .l2 > button:nth-child(2) { --l2c:#00A37A; --l2b:#E9F8F2; --l2l:#CDEFE2; }
+    .l2 > button:nth-child(3) { --l2c:#E8590C; --l2b:#FFF3EA; --l2l:#FBDCC6; }
+    .l2 > button:nth-child(4) { --l2c:#7B5CD6; --l2b:#F3EFFD; --l2l:#E0D7F8; }
+    .l2 > button:nth-child(5) { --l2c:#0C8599; --l2b:#E8F6F8; --l2l:#C9E8ED; }
+    .app-section:has(.l2 > button.on:nth-child(1)) { --l3c:#2F6FDE; }
+    .app-section:has(.l2 > button.on:nth-child(2)) { --l3c:#00A37A; }
+    .app-section:has(.l2 > button.on:nth-child(3)) { --l3c:#E8590C; }
+    .app-section:has(.l2 > button.on:nth-child(4)) { --l3c:#7B5CD6; }
+    .app-section:has(.l2 > button.on:nth-child(5)) { --l3c:#0C8599; }
+    .l3 > button.on, #sec-calendar .pz-ftabs button.on { color:var(--l3c, #111); border-bottom-color:var(--l3c, #111); }
+    .l3, #sec-calendar .pz-ftabs { gap:clamp(10px, 4.4vw, 22px); }   /* 좁은 폰에서도 한 화면에 다 보이게 */
+    /* AI상담: 밑줄 탭 → 2단계 탭(글자가 길어 조금 작게, 교관 모드까지 5칸이면 옆으로 밀림) */
+    #sec-ai .l2 { padding:10px 12px 12px; gap:6px; background:#fff; border-bottom:1px solid #EDEDED; overflow-x:auto; scrollbar-width:none; }
+    #sec-ai .l2::-webkit-scrollbar { display:none; }
+    #sec-ai .l2 > button { flex:1 0 auto; padding:0 8px; font-size:13.5px; }
+    html.pz-dk #sec-ai .l2 { padding:0 2px 16px; gap:12px; }
+    html.pz-dk #sec-ai .l2 > button { font-size:16px; }
+    /* 교재와 영상: 검색 안내 · 녹취/교안 알림 · 올리기 신청 */
+    .tb-s-hint { margin:7px 18px 0; font-size:12.5px; line-height:1.45; color:#6B7280; }
+    .tb-s-hint b { font-weight:800; color:#00936E; }
+    .vd-wow { padding:15px 16px; margin-bottom:14px; border-radius:16px; background:linear-gradient(120deg,#0B6E55 0%,#00AE82 100%); color:#fff; box-shadow:0 8px 20px -10px #00AE82; }
+    .vd-wow b { display:block; font-size:17px; font-weight:900; letter-spacing:-0.03em; }
+    .vd-wow span u { white-space:nowrap; text-decoration:none; padding:1px 6px; border-radius:6px; background:rgba(17,24,39,.55); color:#FFE08A; font-weight:800; }
+    .vd-wow span { display:block; margin-top:4px; font-size:12.5px; line-height:1.5; color:rgba(255,255,255,.88); }
+    .vd-wow-chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
+    .vd-wow-chips i { font-style:normal; padding:3px 9px; border-radius:999px; background:rgba(255,255,255,.18); font-size:11.5px; font-weight:800; }
+    .vd-doc { position:absolute; left:8px; bottom:8px; padding:3px 8px; border-radius:7px; background:rgba(17,24,39,.85); color:#FFE08A; font-size:11.5px; font-weight:800; letter-spacing:-0.02em; }
+    .vd-snip { font-size:12.5px; line-height:1.5; color:#555; }
+    .vd-reqs { margin-bottom:14px; padding:14px; border:1.5px solid #FBDCC6; border-radius:16px; background:#FFF8F2; }
+    .vd-reqs-h { margin-bottom:6px; font-size:15px; font-weight:900; color:#C2410C; }
+    .vd-reqs-h small { display:block; margin-top:2px; font-size:12px; font-weight:600; color:#9A6B4F; }
+    .vd-req { display:flex; gap:10px; padding:11px 0; border-top:1px solid #F5E3D5; }
+    .vd-req > img { width:96px; height:54px; object-fit:cover; border-radius:8px; flex-shrink:0; background:#111; cursor:pointer; }
+    .vd-req-b { min-width:0; flex:1; }
+    .vd-req-t { font-size:14px; font-weight:800; color:#111; line-height:1.35; }
+    .vd-req-m { margin-top:3px; font-size:12px; color:#767676; }
+    .vd-req-p { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+    .vd-req-p button { height:28px; padding:0 10px; border:1.5px solid #DADDE1; border-radius:999px; background:#fff; font-size:12.5px; font-weight:700; color:#555; cursor:pointer; }
+    .vd-req-p button.on { border-color:#00AE82; background:#E8F7F2; color:#00936E; }
+    .vd-req-a { display:flex; gap:6px; margin-top:8px; }
+    .vd-req-a button { height:34px; padding:0 14px; border:1.5px solid #DADDE1; border-radius:9px; background:#fff; font-size:13px; font-weight:800; color:#555; cursor:pointer; }
+    .vd-req-a button.ok { border-color:#00AE82; background:#00AE82; color:#fff; }
+    .vd-req-st { display:inline-block; margin-left:4px; padding:1px 7px; border-radius:6px; background:#FFEDD5; color:#C2410C; font-size:11.5px; font-weight:800; }
+    .vd-req-st.no { background:#F3F4F6; color:#6B7280; }
+    .vd-req:first-of-type { border-top:none; }
+    .l2 > button > b.l2-badge { position:absolute; top:-6px; right:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#E5322D; color:#fff; font-size:11px; line-height:18px; font-weight:800; }
     @media (min-width:1024px) { #sec-activity .act-appbar, #actTabs, #homeContent { max-width:720px; margin-left:auto !important; margin-right:auto !important; } }
     .hdr-me { margin-left:auto; display:flex; align-items:center; gap:6px; background:none; border:none; padding:0; cursor:pointer; color:inherit; }
     @media (min-width:1024px) { .hdr-me { display:none !important; } }   /* PC는 맨 위 공용 메뉴에 이름표가 있음 */
@@ -2297,7 +2345,7 @@
         <span class="tab-label">AI상담</span>
       </button>
       <button role="tab" class="tab" data-tab="textbook" onclick="switchTab('textbook')" title="교재와 영상">
-        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></svg></span>
+        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(-0.6 -1.6) scale(.78)" stroke-width="2.4"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></g><rect x="10.6" y="11.6" width="13" height="9.8" rx="3" fill="currentColor" stroke="#fff" stroke-width="1.6" /><path d="M15.6 14.4v4.2l3.6-2.1z" fill="#fff" stroke="none" /></svg></span>
         <span class="tab-label">교재·영상</span>
       </button>
       <button role="tab" class="tab" data-tab="admin" id="adminTabBtn" onclick="switchTab('admin')" title="관리자">
@@ -3951,12 +3999,12 @@
       }
       window.pzLoadFree = loadFree;
       // 2026-10-09(2차) 교사 마당 안 탭 — 이달의 교사·이름 공모는 그 모둠만, 질문하기·불편신고는 글 목록을 그 주제로
-      const ETC_TABS = [['tom', '🏅 이달의 교사'], ['contest', '🏷️ 이름 공모'], ['질문', '🙋 질문하기'], ['불편신고', '🛠️ 불편신고']];   // 'search' = 검색 결과(탭 없음)
+      const ETC_TABS = [['tom', '이달의 교사'], ['contest', '이름 공모'], ['질문', '질문하기'], ['불편신고', '불편신고']];   // 'search' = 검색 결과(탭 없음)
       let pzEtc = (() => { try { const v = localStorage.getItem('pz_etc'); return ETC_TABS.some(t => t[0] === v) ? v : 'tom'; } catch (e) { return 'tom'; } })();
       const etcIsFeed = () => ['search', '질문', '불편신고'].includes(pzEtc);
       function renderEtcTabs() {
         const el = $('pzEtcTabs'); if (!el) return;
-        el.innerHTML = (pzEtc === 'search' ? ETC_TABS.concat([['search', '🔍 검색 결과']]) : ETC_TABS).map(([k, l]) => `<button type="button" class="${k === pzEtc ? 'on' : ''}" data-pz-etc="${esc(k)}">${esc(l)}</button>`).join('');
+        el.innerHTML = (pzEtc === 'search' ? ETC_TABS.concat([['search', '검색 결과']]) : ETC_TABS).map(([k, l]) => `<button type="button" class="${k === pzEtc ? 'on' : ''}" data-pz-etc="${esc(k)}">${esc(l)}</button>`).join('');
       }
       window.pzOnPage = function (page) {
         const show = (ids, on) => ids.forEach(id => { const n = $(id); if (n) n.dataset.pzPg = on ? page : 'none'; });
@@ -7573,12 +7621,12 @@ DISC: ${selDisc || '선택안함'}
           <span class="kko-title">AI상담</span>
           ${meBtnHtml()}
         </div>
-        <div class="kko-tabs">
-          <button id="tab-coach" class="kko-tab ${aiState.tab==='coach' ? 'kko-tab-active' : ''}">교사 코칭</button>
-          <button id="tab-studentCoach" class="kko-tab ${aiState.tab==='studentCoach' ? 'kko-tab-active' : ''}">내 수강생 코칭</button>
-          <button id="tab-history" class="kko-tab ${aiState.tab==='history' ? 'kko-tab-active' : ''}">내 피드백 이력</button>
-          <button id="tab-askCoach" class="kko-tab ${aiState.tab==='askCoach' ? 'kko-tab-active' : ''}">교관에게 요청</button>
-          ${aiState.coachInfo && aiState.coachInfo.isCoach ? `<button id="tab-coachMode" class="kko-tab ${aiState.tab==='coachMode' ? 'kko-tab-active' : ''}">교관 모드 <svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /><circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>` : ''}
+        <div class="l2">
+          <button type="button" id="tab-coach" class="${aiState.tab==='coach' ? 'on' : ''}">교사 코칭</button>
+          <button type="button" id="tab-studentCoach" class="${aiState.tab==='studentCoach' ? 'on' : ''}">수강생 코칭</button>
+          <button type="button" id="tab-history" class="${aiState.tab==='history' ? 'on' : ''}">피드백 이력</button>
+          <button type="button" id="tab-askCoach" class="${aiState.tab==='askCoach' ? 'on' : ''}">교관에게 요청</button>
+          ${aiState.coachInfo && aiState.coachInfo.isCoach ? `<button type="button" id="tab-coachMode" class="${aiState.tab==='coachMode' ? 'on' : ''}">교관 모드 <svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /><circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>` : ''}
         </div>
         <div id="aiBody" class="p-4"></div>
       `;
@@ -8242,13 +8290,15 @@ function tbRender() {
       <span class="kko-title">교재와 영상</span>
       ${meBtnHtml()}
     </div>
-    <div class="l2 tb-mode">${[['book', '교재'], ['video', '영상']].map(([k, l]) => `<button type="button" class="${tbState.mode === k ? 'on' : ''}" data-tb-mode="${k}">${l}</button>`).join('')}</div>
+    <div class="l2 tb-mode">${[['book', '교재'], ['video', '영상']].concat(vdCanRequest() ? [['request', '영상 신청']] : []).map(([k, l]) => { const n = k === 'request' && vdIsApprover() ? (vdState.reqs || []).filter(r => r.status === '신청').length : 0;
+      return `<button type="button" class="${tbState.mode === k ? 'on' : ''}" data-tb-mode="${k}">${l}${n ? `<b class="l2-badge">${n}</b>` : ''}</button>`; }).join('')}</div>
     <div class="tb-search">
       <svg class="tb-s-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="tbSearchInp" type="search" enterkeyhint="search" autocomplete="off" lang="ko" placeholder="교재·영상 검색 (예: 비유, 상담, 계시록)" value="${esc(tbState.q)}">
+      <input id="tbSearchInp" type="search" enterkeyhint="search" autocomplete="off" lang="ko" placeholder="교재·영상·내용 검색 (예: 비유, 상담, 계시록)" value="${esc(tbState.q)}">
       <button type="button" class="tb-s-x" id="tbSearchX" aria-label="검색어 지우기" style="${tbState.q ? '' : 'display:none;'}">✕</button>
     </div>
-    <div id="tbCats" class="l3" style="${tbState.mode === 'video' || tbState.q.trim() ? 'display:none;' : ''}">
+    <p class="tb-s-hint">제목을 몰라도 돼요. <b>교재 본문</b>과 <b>영상 속 내용</b>에 들어 있는 낱말까지 찾아 줘요.</p>
+    <div id="tbCats" class="l3" style="${tbState.mode !== 'book' || tbState.q.trim() ? 'display:none;' : ''}">
       ${TAB_DEFS.map(t => `<button type="button" class="study-tab-btn${tbState.tab === t.key ? ' on' : ''}" data-tab="${t.key}">${esc(t.label)}</button>`).join('')}
     </div>
     <div id="tbBody" class="p-5" style="background:var(--color-bg);"></div>
@@ -8257,14 +8307,14 @@ function tbRender() {
     btn.onclick = () => { tbState.tab = btn.dataset.tab; tbRender(); };
   });
   document.querySelectorAll('[data-tb-mode]').forEach(btn => {
-    btn.onclick = () => { tbState.mode = btn.dataset.tbMode; tbState.q = ''; tbRender(); if (tbState.mode === 'video' && !vdState.videos) vdLoad(); };
+    btn.onclick = () => { tbState.mode = btn.dataset.tbMode; tbState.q = ''; tbRender(); if (tbState.mode === 'video' && !vdState.videos) vdLoad(); if (tbState.mode === 'request') vdLoadReqs(); };
   });
   const inp = document.getElementById('tbSearchInp');
   inp.oninput = () => {
     const was = !!tbState.q.trim();
     tbState.q = inp.value;
     document.getElementById('tbSearchX').style.display = tbState.q ? '' : 'none';
-    document.getElementById('tbCats').style.display = (tbState.mode === 'video' || tbState.q.trim()) ? 'none' : '';
+    document.getElementById('tbCats').style.display = (tbState.mode !== 'book' || tbState.q.trim()) ? 'none' : '';
     if (tbState.q.trim() && !vdState.videos) vdLoad();   // 영상 목록을 아직 안 받았으면 같이 받아 둠
     if (tbState.q.trim()) tbSearchRender();
     else if (was) tbRender();                             // 검색어를 다 지우면 원래 화면으로
@@ -8273,7 +8323,9 @@ function tbRender() {
   document.getElementById('tbSearchX').onclick = () => { tbState.q = ''; tbRender(); };
   if (hadFocus) { inp.focus(); try { inp.setSelectionRange(caret, caret); } catch (e) {} }
   if (tbState.q.trim()) { tbSearchRender(); return; }
+  if (tbState.mode === 'request' && !vdCanRequest()) tbState.mode = 'book';
   if (tbState.mode === 'video') { vdRender(); return; }
+  if (tbState.mode === 'request') { vdReqRender(); return; }
 
   // 2026-09-22: 원래 id가 'body'라 AI 섹션의 같은 id와 충돌했다(위 aiBody 주석 참고).
   const body = document.getElementById('tbBody');
@@ -8509,11 +8561,12 @@ function tbSearchRender() {
   const units = tbState.courses.filter(u => tsMatch(u.unitName + ' ' + u.courseName + ' ' + u.category + ' ' + u.content, terms));
   // 제목에 걸린 단원을 본문에만 걸린 단원보다 위로
   units.sort((x, y) => (inTitle(y) - inTitle(x)) || String(x.courseName).localeCompare(String(y.courseName)) || (x.order - y.order));
-  const vids = vdState.videos ? vdState.videos.filter(v => tsMatch(v.title + ' ' + (v.description || '') + ' ' + v.part, terms)) : null;
+  const vidHead = v => v.title + ' ' + (v.description || '') + ' ' + v.part;
+  const vids = vdState.videos ? vdState.videos.filter(v => tsMatch(vidHead(v) + ' ' + (v.sum || ''), terms)) : null;   // 2026-10-10: 영상 내용(요약)까지
   const MAX = 50;
   const vidHtml = vids === null
     ? (vdState.err ? '' : `<div class="ts-sec">▶ 영상 <span>불러오는 중...</span></div>`)
-    : vids.length ? `<div class="ts-sec">▶ 영상 <span>${vids.length}개</span></div><div class="vd-grid" style="margin-bottom:22px;">${vids.map(vdCardHtml).join('')}</div>` : '';
+    : vids.length ? `<div class="ts-sec">▶ 영상 <span>${vids.length}개</span></div><div class="vd-grid" style="margin-bottom:22px;">${vids.map(v => vdCardHtml(v, tsMatch(vidHead(v), terms) ? '' : tsSnippet(v.sum, terms))).join('')}</div>` : '';
   const bookHtml = tbState.loading && !tbState.courses.length
     ? `<div class="ts-sec">📖 교재 <span>불러오는 중...</span></div>`
     : units.length ? `<div class="ts-sec">📖 교재 <span>${units.length}단원${units.length > MAX ? ` · 앞의 ${MAX}개만 표시` : ''}</span></div>
@@ -8548,7 +8601,51 @@ function tbSearchRender() {
     // YouTube API 키 없이 주소에서 뽑은 영상 ID만 저장하고 썸네일은 i.ytimg.com을 그대로 씀.
     // ════════════════════════════════════════════════════════════════
     const VIDEO_PARTS = [['소양', '🌱', '교사 소양 교육'], ['상담', '💬', '상담 기법·실습'], ['밭갈기', '🌾', '전도 밭갈기'], ['무신앙', '🧭', '무신앙 대응·전도'], ['복음방', '📖', '복음방 운영·활용']];
-    const vdState = { videos: null, part: '', err: '', del: '' };
+    const vdState = { videos: null, part: '', err: '', del: '', reqs: null, reqParts: {}, rej: '', approver: null };
+    // 2026-10-10: 관리자 이상 사명자는 [영상 신청] 코너에서 올리기를 신청하고, 교육부·전도부가 승인하면 올라간다(바로 등록·수정·삭제도 교육부·전도부만).
+    // 서버 _videoIsApprover_/_videoCanRequest_와 같은 기준 — 서버가 알려 준 값(vdState.approver)이 있으면 그걸 씀.
+    const vdIsApprover = () => vdState.approver != null ? vdState.approver
+      : isOwnerSession() || (isAdmin() && /교육|전도/.test([(myAdminInfo || {}).position, (myAdminInfo || {}).dept, (myRosterRow || {}).position].join(' ')));
+    const vdCanRequest = () => isAdmin() || /교관/.test(String((myRosterRow && myRosterRow.position) || '')) || !!(typeof aiState !== 'undefined' && aiState.coachInfo && aiState.coachInfo.isCoach);
+    async function vdLoadReqs() {
+      if (!App.memberId || !vdCanRequest()) return;
+      try {
+        const r = await callApi({ action: 'getVideoRequests', memberId: App.memberId });
+        if (r && !r.error) {
+          const was = JSON.stringify([vdState.reqs, vdState.approver]);
+          vdState.reqs = r.requests || []; vdState.approver = !!r.isApprover;
+          if (was !== JSON.stringify([vdState.reqs, vdState.approver]) && document.getElementById('tbBody') && !tbState.q.trim()) tbRender();   // 바뀐 게 있을 때만 다시 그림
+        }
+      } catch (e) {}
+    }
+    function vdReqsHtml() {
+      const rs = vdState.reqs; if (!rs || !rs.length) return '';
+      const adm = vdIsApprover(), wait = rs.filter(r => r.status === '신청').length;
+      return `<div class="vd-reqs"><div class="vd-reqs-h">${adm ? `승인을 기다리는 영상 ${wait}건` : '내가 신청한 영상'}<small>${adm ? '넣을 코너를 확인하고 [승인]하면 바로 올라가요. 그림을 누르면 유튜브에서 미리 볼 수 있어요.' : '교육부·전도부에서 승인하면 영상 목록에 올라가요.'}</small></div>${rs.map(r => {
+        const parts = vdState.reqParts[r.id] || String(r.part || '').split(',').filter(Boolean);
+        const act = adm && r.status === '신청';
+        return `<div class="vd-req"><img src="${vdThumb(r.videoId)}" alt="" data-vd-req-open="${esc(r.videoId)}">
+          <div class="vd-req-b"><div class="vd-req-t">${esc(r.title)}</div>
+            <div class="vd-req-m">${esc(r.createdBy || '')} · ${esc(vdDate(r.requestDate))} 신청${act ? '' : `<span class="vd-req-st ${r.status === '반려' ? 'no' : ''}">${r.status === '반려' ? '반려' : '승인 대기'}</span>`}</div>
+            <div class="vd-req-p">${act ? VIDEO_PARTS.map(([p]) => `<button type="button" class="${parts.includes(p) ? 'on' : ''}" data-vd-req-part="${esc(r.id)}|${esc(p)}">${esc(p)}</button>`).join('') : parts.map(p => `<span class="vd-tag">${esc(p)}</span>`).join('')}</div>
+            ${act ? `<div class="vd-req-a"><button type="button" class="ok" data-vd-req-ok="${esc(r.id)}">승인</button><button type="button" data-vd-req-no="${esc(r.id)}">${vdState.rej === r.id ? '한 번 더 누르면 반려' : '반려'}</button></div>` : ''}
+          </div></div>`; }).join('')}</div>`;
+    }
+    async function vdReview(id, approve) {
+      const r = (vdState.reqs || []).find(x => x.id === id); if (!r) return;
+      const parts = vdState.reqParts[id] || String(r.part || '').split(',').filter(Boolean);
+      if (approve && !parts.length) return toast('넣을 코너를 하나 이상 골라 주세요.', true);
+      try {
+        const res = await callApi({ action: 'reviewVideoRequest', memberId: App.memberId, id, approve, parts });
+        if (res && res.error) throw new Error(res.error);
+        vdState.reqs = vdState.reqs.filter(x => x.id !== id); vdState.rej = '';
+        toast(approve ? '승인했어요. 영상 목록에 올라갔어요.' : '반려했어요.'); tbRender();
+        if (approve) {
+          vdLoad(true);
+          if (!VT_AUTO_SKIP.test(r.title)) vtRun({ id, videoId: r.videoId, title: r.title, part: parts.join(','), uploadDate: '' }, {});   // 녹취·교안 바로 만들기 시작
+        }
+      } catch (e) { toast(e.message, true); }
+    }
     const vdThumb = id => `https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg`;
     function vdIdFrom(s) {
       s = String(s || '').trim();
@@ -8563,14 +8660,16 @@ function tbSearchRender() {
       const apply = r => { if (r && !r.error) { vdState.videos = r.videos || []; vdState.err = ''; vdRender(); } };
       try { await apiSWR({ action: 'getVideos' }, apply, skipCache); }
       catch (e) { if (!vdState.videos) { vdState.err = e.message; vdRender(); } }
+      vdLoadReqs();
     }
-    function vdCardHtml(v) {
-      const adm = isAdmin();
+    function vdCardHtml(v, snip) {
+      const adm = vdIsApprover();
       return `<div class="vd-card" data-vd-play="${esc(v.id)}">
-          <div class="vd-thumb"><img src="${vdThumb(v.videoId)}" alt="" loading="lazy"><span class="vd-play">▶</span></div>
+          <div class="vd-thumb"><img src="${vdThumb(v.videoId)}" alt="" loading="lazy"><span class="vd-play">▶</span>${v.docs ? '<span class="vd-doc">녹취 · 교안</span>' : ''}</div>
           <div class="vd-info">
             <div class="vd-t">${esc(v.title)}</div>
             ${v.description ? `<div class="vd-d">${esc(v.description)}</div>` : ''}
+            ${typeof snip === 'string' && snip ? `<div class="vd-snip">${snip}</div>` : ''}
             <div class="vd-m">${vdParts(v).map(p => `<span class="vd-tag">${esc(p)}</span>`).join('')}${esc(vdDate(v.uploadDate))}</div>
             ${adm ? `<div class="vd-adm"><button type="button" data-vd-edit="${esc(v.id)}">수정</button><button type="button" class="vd-del" data-vd-del="${esc(v.id)}">${vdState.del === v.id ? '한 번 더 누르면 삭제' : '삭제'}</button></div>` : ''}
           </div>
@@ -8581,7 +8680,7 @@ function tbSearchRender() {
       if (tbState.q.trim()) { tbSearchRender(); return; }   // 검색 중이면 검색 결과를 갱신
       if (!body || tbState.mode !== 'video') return;
       const all = vdState.videos;
-      const adm = isAdmin();
+      const adm = vdIsApprover();
       if (!all) {
         body.innerHTML = vdState.err ? `<div class="vd-empty">${esc(vdState.err)}<br><button type="button" class="vd-btn" onclick="vdLoad(true)">다시 불러오기</button></div>`
           : '<div class="text-center py-16"><span class="loading loading-spinner"></span></div>';
@@ -8589,8 +8688,11 @@ function tbSearchRender() {
       }
       const cnt = p => all.filter(v => vdParts(v).includes(p)).length;
       const chips = `<div class="l3 vd-chips">${[['', '전체']].concat(VIDEO_PARTS.map(([p]) => [p, p])).map(([k, l]) =>
-        `<button type="button" class="${vdState.part === k ? 'on' : ''}" data-vd-part="${esc(k)}">${esc(l)}${k ? ` <em>${cnt(k)}</em>` : ''}</button>`).join('')}</div>`;
+        `<button type="button" class="${vdState.part === k ? 'on' : ''}" data-vd-part="${esc(k)}">${esc(l)}</button>`).join('')}</div>`;
       const addBtn = adm ? `<button type="button" class="vd-add" data-vd-new="1">+ 영상 등록</button>` : '';
+      const nDocs = all.filter(v => v.docs).length;
+      const wow = `<div class="vd-wow"><b>영상마다 녹취와 교안이 들어 있어요</b><span>영상을 열면 받아쓴 녹취 전문과 요약, 바로 쓰는 교안이 함께 나와요. 복사해서 카톡으로 보내거나 워드로 받을 수 있어요.${nDocs ? ` <u>녹취 · 교안</u> 표시가 붙은 영상 ${nDocs}개가 준비됐고, 나머지도 차례로 만들어지고 있어요.` : ''}</span>
+        <div class="vd-wow-chips"><i>요약</i><i>녹취 전문</i><i>교안</i><i>나눔 질문</i><i>확인 퀴즈</i><i>전도 문구</i></div></div>`;
       let html;
       if (!vdState.part) {
         html = `<div class="vd-head"><div><b>영상 모둠</b><span>파트를 눌러 영상을 보세요 · 전체 ${all.length}개</span></div>${addBtn}</div>
@@ -8604,10 +8706,37 @@ function tbSearchRender() {
         html = `<div class="vd-head"><div><b>${def[1]} ${esc(def[0])}</b><span>${esc(def[2])} · 영상 ${list.length}개</span></div>${addBtn}</div>
           ${list.length ? `<div class="vd-grid">${list.map(vdCardHtml).join('')}</div>` : `<div class="vd-empty">아직 등록된 ${esc(def[0])} 영상이 없어요.${adm ? '<br>[+ 영상 등록]으로 유튜브 주소를 넣어 보세요.' : ''}</div>`}`;
       }
-      body.innerHTML = chips + html;
+      body.innerHTML = chips + (vdState.part ? '' : wow) + html;
+      vdWire(body);
+    }
+    // [영상 신청] 코너 — 신청 버튼 + 내 신청 현황(교육부·전도부는 승인 대기 목록)
+    function vdReqRender() {
+      const body = document.getElementById('tbBody');
+      if (!body || tbState.mode !== 'request') return;
+      const adm = vdIsApprover();
+      body.innerHTML = `<div class="vd-head"><div><b>영상 신청</b><span>좋은 영상을 발견하셨나요? 유튜브 주소와 넣을 코너(소양·상담·밭갈기·무신앙·복음방)를 골라 신청하면, 교육부·전도부에서 확인하고 승인한 뒤 올라가요.</span></div></div>
+        <button type="button" class="kko-btn-main" style="width:100%;margin-bottom:14px" data-vd-new="1">+ 영상 올리기 신청</button>
+        ${vdState.reqs == null ? '<div class="vd-empty">불러오는 중...</div>' : vdReqsHtml() || `<div class="vd-empty">${adm ? '승인을 기다리는 영상이 없어요.' : '아직 신청한 영상이 없어요.'}</div>`}`;
+      vdWire(body);
+    }
+    function vdWire(body) {
+      const all = vdState.videos || [];
+      body.querySelectorAll('[data-vd-req-open]').forEach(b => { b.onclick = () => window.open('https://www.youtube.com/watch?v=' + encodeURIComponent(b.dataset.vdReqOpen), '_blank', 'noopener'); });
+      body.querySelectorAll('[data-vd-req-part]').forEach(b => { b.onclick = () => {
+        const [id, p] = b.dataset.vdReqPart.split('|'), r = (vdState.reqs || []).find(x => x.id === id); if (!r) return;
+        const cur = vdState.reqParts[id] || String(r.part || '').split(',').filter(Boolean);
+        vdState.reqParts[id] = VIDEO_PARTS.map(([x]) => x).filter(x => x === p ? !cur.includes(p) : cur.includes(x));
+        vdReqRender();
+      }; });
+      body.querySelectorAll('[data-vd-req-ok]').forEach(b => { b.onclick = () => { b.disabled = true; vdReview(b.dataset.vdReqOk, true); }; });
+      body.querySelectorAll('[data-vd-req-no]').forEach(b => { b.onclick = () => {
+        const id = b.dataset.vdReqNo;
+        if (vdState.rej !== id) { vdState.rej = id; vdReqRender(); return; }
+        b.disabled = true; vdReview(id, false);
+      }; });
       body.querySelectorAll('[data-vd-part]').forEach(b => { b.onclick = () => { vdState.part = b.dataset.vdPart; vdState.del = ''; vdRender(); document.getElementById('appSections').scrollTop = 0; }; });
       body.querySelectorAll('[data-vd-play]').forEach(c => { c.onclick = e => { if (e.target.closest('.vd-adm')) return; vdPlay(all.find(v => v.id === c.dataset.vdPlay)); }; });
-      body.querySelectorAll('[data-vd-new]').forEach(b => { b.onclick = () => vdEdit(null); });
+      body.querySelectorAll('[data-vd-new]').forEach(b => { b.onclick = () => vdEdit(null, tbState.mode === 'request'); });
       body.querySelectorAll('[data-vd-edit]').forEach(b => { b.onclick = () => vdEdit(all.find(v => v.id === b.dataset.vdEdit)); });
       body.querySelectorAll('[data-vd-del]').forEach(b => { b.onclick = async () => {
         const id = b.dataset.vdDel;
@@ -8615,7 +8744,7 @@ function tbSearchRender() {
         try {
           const res = await callApi({ action: 'deleteVideo', memberId: App.memberId, id });
           if (res && res.error) throw new Error(res.error);
-          vdState.del = ''; vdState.videos = all.filter(v => v.id !== id); vdRender(); toast('영상을 삭제했어요.'); vdLoad(true);
+          vdState.del = ''; vdState.videos = vdState.videos.filter(v => v.id !== id); vdRender(); toast('영상을 삭제했어요.'); vdLoad(true);
         } catch (e) { toast(e.message, true); }
       }; });
     }
@@ -8904,23 +9033,25 @@ function tbSearchRender() {
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
     // 관리자: 영상 등록·수정 — 유튜브 주소를 붙이면 썸네일·제목을 미리 채움
-    function vdEdit(v) {
-      if (!isAdmin()) return;
+    function vdEdit(v, asRequest) {
+      const req = !!asRequest || !vdIsApprover();   // [영상 신청] 코너: 신청만(승인 뒤 올라감)
+      if (req && (v || !vdCanRequest())) return;
       const f = v ? { ...v, url: 'https://youtu.be/' + v.videoId, parts: vdParts(v) }
         : { url: '', title: '', parts: vdState.part ? [vdState.part] : [], description: '', uploadDate: attNowKst().slice(0, 10) };
-      openSheet(`<div class="vd-form"><div class="att-title">${v ? '영상 수정' : '영상 등록'}</div>
+      openSheet(`<div class="vd-form"><div class="att-title">${v ? '영상 수정' : req ? '영상 올리기 신청' : '영상 등록'}</div>
+        ${req ? '<div class="att-muted" style="margin:-4px 0 10px;line-height:1.5">유튜브 주소와 넣을 코너를 골라 신청하면, 교육부·전도부에서 확인하고 승인한 뒤 영상 목록에 올라가요.</div>' : ''}
         <label class="cal-lbl">유튜브 주소 <span class="cal-req">*</span></label>
         <input class="cal-inp" id="vdFUrl" value="${esc(f.url)}" placeholder="https://youtu.be/... 또는 youtube.com/watch?v=..." autocomplete="off">
         <div id="vdFPrev" class="vd-prev"></div>
-        <label class="cal-lbl">파트 <span class="cal-req">*</span> <span class="att-muted" style="font-weight:400">(여러 개 고를 수 있어요)</span></label>
+        <label class="cal-lbl">${req ? '넣을 코너' : '파트'} <span class="cal-req">*</span> <span class="att-muted" style="font-weight:400">(여러 개 고를 수 있어요)</span></label>
         <div class="att-org-chips" id="vdFParts">${VIDEO_PARTS.map(([p, ic]) => `<button type="button" class="att-opt ${f.parts.includes(p) ? 'on' : ''}" data-p="${esc(p)}">${ic} ${esc(p)}</button>`).join('')}</div>
         <label class="cal-lbl">제목 <span class="cal-req">*</span></label>
         <input class="cal-inp" id="vdFTitle" maxlength="120" value="${esc(f.title)}" placeholder="주소를 넣으면 자동으로 채워져요">
         <label class="cal-lbl">간단 설명 <span class="att-muted" style="font-weight:400">(50자 이내)</span></label>
         <input class="cal-inp" id="vdFDesc" maxlength="50" value="${esc(f.description)}">
-        <label class="cal-lbl">등록일</label>
-        <input type="date" class="cal-inp" id="vdFDate" value="${esc(f.uploadDate)}">
-        <div style="display:flex;gap:10px;margin-top:18px"><button type="button" class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button><button type="button" class="kko-btn-main" style="flex:2" id="vdFSave">${v ? '수정 저장' : '등록하기'}</button></div>
+        ${req ? '' : `<label class="cal-lbl">등록일</label>
+        <input type="date" class="cal-inp" id="vdFDate" value="${esc(f.uploadDate)}">`}
+        <div style="display:flex;gap:10px;margin-top:18px"><button type="button" class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button><button type="button" class="kko-btn-main" style="flex:2" id="vdFSave">${v ? '수정 저장' : req ? '신청하기' : '등록하기'}</button></div>
       </div>`);
       const urlEl = document.getElementById('vdFUrl'), titleEl = document.getElementById('vdFTitle'), prev = document.getElementById('vdFPrev');
       let lastId = '';
@@ -8947,8 +9078,17 @@ function tbSearchRender() {
       document.getElementById('vdFSave').onclick = async () => {
         const id = vdIdFrom(urlEl.value);
         if (!id) return toast('유튜브 주소를 확인해 주세요.', true);
-        if (!f.parts.length) return toast('파트를 하나 이상 골라 주세요.', true);
+        if (!f.parts.length) return toast(req ? '넣을 코너를 하나 이상 골라 주세요.' : '파트를 하나 이상 골라 주세요.', true);
         const btn = document.getElementById('vdFSave'); btn.disabled = true;
+        if (req) {
+          try {
+            const res = await callApi({ action: 'requestVideo', memberId: App.memberId, name: App.name, video: { url: id, parts: f.parts,
+              title: /^https?:|youtu.?be/i.test(titleEl.value.trim()) ? '' : titleEl.value.trim(), description: document.getElementById('vdFDesc').value.trim() } });
+            if (res && res.error) throw new Error(res.error);
+            toast('신청했어요. 승인되면 영상 목록에 올라가요.'); closeSheet(); vdLoadReqs();
+          } catch (e) { toast(e.message, true); btn.disabled = false; }
+          return;
+        }
         try {
           const res = await callApi({ action: 'saveVideo', memberId: App.memberId, name: App.name, video: { id: v ? v.id : '', url: id, parts: f.parts,
             title: /^https?:|youtu.?be/i.test(titleEl.value.trim()) ? '' : titleEl.value.trim(), description: document.getElementById('vdFDesc').value.trim(), uploadDate: document.getElementById('vdFDate').value } });
@@ -8972,6 +9112,7 @@ function tbSearchRender() {
         tbState.name = MY_NAME || name || '';
         tbRender();
         tbLoadAll();
+        vdLoadReqs();   // [영상 신청] 탭의 승인 대기 숫자
       }
     };
 
