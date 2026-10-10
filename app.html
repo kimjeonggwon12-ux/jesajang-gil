@@ -211,12 +211,7 @@
     #bottomTabBar .tab:active .tab-icon { opacity: 1; }
     #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #connectDot { top: 3px !important; right: 6px !important; border-color: var(--bk-linen) !important; }
     @media (max-width: 359px) { #bottomTabBar .tab .tab-icon { width: 46px; max-width: 46px; } }
-    /* 좌상단 방 이름표도 같은 책 재료: 린넨 녹색 칸 + 금박 아이콘 */
-    .room-ic { background: #2E483D !important; color: #D8C590 !important; box-shadow: inset 0 1px 0 rgba(216,197,144,.25); }
-    .room-ic svg { stroke: #D8C590 !important; }
-    .room-ic svg [fill="currentColor"] { fill: #D8C590 !important; }
-    .room-ic svg rect[fill="currentColor"] { stroke: #2E483D !important; }
-    .room-ic svg path[fill="#fff"] { fill: #2E483D !important; }
+    /* 좌상단 방 이름표는 가볍게 — 초록 칸 + 흰 아이콘, 고딕 글자 그대로(2026-10-10 사용자 요청으로 린넨·금박 되돌림) */
     /* 방 이름표: 탭을 누르면 좌상단에 [초록 네모 방 아이콘 + 굵은 방 이름] — 하단 아이콘과 같은 그림이라 어느 방인지 바로 앎 */
     .room-ic { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:30px; height:30px; border-radius:9px; background:var(--color-primary, #00AE82); color:#fff; margin-right:8px; vertical-align:middle; }
     .room-ic svg { width:19px; height:19px; stroke:#fff; }
