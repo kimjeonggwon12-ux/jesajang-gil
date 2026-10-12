@@ -4,8 +4,32 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache">
-<title>교사광장 — 업데이트 작업 중</title>
-<script>setTimeout(function () { location.reload(); }, 60000);</script>
+<title>교사광장</title>
+<script>
+(function () {
+  var NEW_SITE = 'https://jesajang-gil.vercel.app/';
+  var page = location.pathname.split('/').pop() || 'app.html';
+  var hash = location.hash || '';
+  var carry = '';
+  if (page === 'app.html') {
+    try {
+      var saved = JSON.parse(localStorage.getItem('podo_member') || 'null');
+      var o = {};
+      if (saved && saved.memberId && saved.name) { o.memberId = saved.memberId; o.name = saved.name; }
+      if (localStorage.getItem('podo_owner') === '1') o.owner = 1;
+      if ((window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true) o.app = 1;
+      if (Object.keys(o).length) {
+        var bin = '';
+        new TextEncoder().encode(JSON.stringify(o)).forEach(function (b) { bin += String.fromCharCode(b); });
+        carry = 'carry=' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      }
+    } catch (e) {}
+  }
+  var tail = hash ? hash + (carry ? '&' + carry : '') : (carry ? '#' + carry : '');
+  window.__next = NEW_SITE + page + location.search + tail;
+  location.replace(window.__next);
+})();
+</script>
 <style>
   html,body{height:100%;margin:0}
   body{display:flex;align-items:center;justify-content:center;background:#EEE9E0;font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#1f2a26}
@@ -18,10 +42,10 @@
 </head>
 <body>
 <div class="box">
-  <h1>🔧 시스템 업데이트 작업 중입니다</h1>
-  <p>더 빠르고 안정적인 교사광장을 위해<br>시스템 개선 작업을 하고 있습니다.</p>
-  <p><b>작업 시간은 1시간 정도</b> 예상됩니다.</p>
-  <p><small>작업이 끝나면 이 화면이 자동으로 새 교사광장으로 넘어갑니다.<br>이용에 불편을 드려 죄송합니다.</small></p>
+  <h1>교사광장 주소가 바뀌었습니다</h1>
+  <p>새 주소로 이동하고 있습니다…</p>
+  <p><a id="go" href="https://jesajang-gil.vercel.app/app.html">자동으로 넘어가지 않으면 여기를 눌러 주세요</a></p>
+  <script>if (window.__next) document.getElementById('go').href = window.__next;</script>
 </div>
 </body>
 </html>
