@@ -6724,7 +6724,7 @@
       tab: 'card',
       prevTab: 'card', // 채팅 종료 후 돌아갈 탭(대화함 목록이 없어져서 필요)
       card: { loaded: false, loading: true, exists: false, dept: '', region: '', saving: false, f: emptyCard() },
-      find: { dept: '', role: '', item: '', region: '', tag: '', schedule: '', keyword: '', rows: [], all: null, regions: [], loading: false, loaded: false, error: '' },
+      find: { fOpen: true, dept: '', role: '', item: '', region: '', tag: '', schedule: '', keyword: '', rows: [], all: null, regions: [], loading: false, loaded: false, error: '' },
       board: { role: '', item: '', region: '', schedule: '', keyword: '', dept: '', rows: [], regions: [], loading: false, loaded: false, error: '' },
       chat: { active: null, messages: [], input: '', sending: false, timer: null, lastKey: '' }
     };
@@ -7014,7 +7014,7 @@
            백엔드 searchConnectCards 의 role 파라미터는 값 1개만 받으므로,
            역할은 서버에 보내고(후보를 줄이고) 항목은 받아온 목록에서 걸러낸다. -->
       <!-- 2026-10-07: 드롭다운 5개가 화면 위쪽 절반을 차지 → 검색칸 옆 [필터]로 접음(고른 조건 수 표시) -->
-      <!-- 2026-10-10(사용자 요청): 접는 [필터]는 그대로, 펼쳤을 때 부서·지역을 맨 앞에 -->
+      <!-- 2026-10-10(사용자 요청): 접는 [필터]는 그대로, 펼쳤을 때 부서·지역을 맨 앞에. 2026-10-12(사용자 요청): 처음부터 펼쳐 보이게(fOpen 기본값 true) — [필터]를 누르면 접힌다 -->
       <div class="cn-fbar"><input id="fKeyword" class="kko-input" placeholder="이름·소개·자격증 검색" value="${esc(q.keyword)}"><button type="button" id="fTgl" class="cn-ftg${q.fOpen ? ' on' : ''}${[q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' has' : ''}">필터${[q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' <em>' + [q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length + '</em>' : ''} ${q.fOpen ? '▴' : '▾'}</button></div>
       ${q.fOpen ? `<div class="cn-fbox">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
