@@ -10,6 +10,8 @@ import feedback from './actions/feedback.js';
 import plaza from './actions/plaza.js';
 import calendar from './actions/calendar.js';
 import connect from './actions/connect.js';
+import videos from './actions/videos.js';
+import transcripts from './actions/transcripts.js';
 
 export const actions = {
   ...roster,
@@ -23,4 +25,6 @@ export const actions = {
   ...plaza,
   ...calendar,
   ...connect,
+  ...videos,
+  ...transcripts,
 };

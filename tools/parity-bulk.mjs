@@ -145,6 +145,22 @@ const suites = {
       { action: 'getCoachList' },
     ];
   },
+  async videos() {
+    const videos = await selectAll(() => db().from('videos').select('video_key, created_by_id, status').order('id'));
+    const wishers = await distinct('textbook_wishes', 'member_id');
+    const admins = await selectAll(() => db().from('admins').select('member_id, position, dept').order('id'));
+    const approvers = admins.filter((a) => /교육|전도/.test(a.position + a.dept)).slice(0, 2).map((a) => a.member_id);
+    const others = admins.filter((a) => !/교육|전도/.test(a.position + a.dept)).slice(0, 1).map((a) => a.member_id);
+    const requesters = videos.filter((v) => v.status === '신청' || v.status === '반려').map((v) => v.created_by_id);
+    return [
+      { action: 'getVideos' },
+      ...['소양', '상담', '밭갈기', '무신앙', '복음방'].map((part) => ({ action: 'getVideos', part })),
+      ...videos.map((v) => ({ action: 'getVideoTranscript', id: v.video_key })),
+      { action: 'getVideoTranscript', id: '없는영상' },
+      ...[...new Set([...approvers, ...others, ...requesters, ...wishers, '00230901-00011', '없는번호'])].filter(Boolean)
+        .map((memberId) => ({ action: 'getVideoRequests', memberId })),
+    ];
+  },
 };
 
 const suite = suites[process.argv[2]];
