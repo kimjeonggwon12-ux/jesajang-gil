@@ -1,7 +1,7 @@
 // 등급 심사 엔진 — 승급·강등 제안, 일괄 승인, 결산, 부서·지역 현황
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, str, kstDate, kstDateTime, fmtTs, byDesc } from '../lib/util.js';
-import { TEACHER_TIERS, toRosterRow, findTeacher } from './roster.js';
+import { TEACHER_TIERS, toRosterRow, findTeacher, loadRoster, rosterCounts, teachersByNid, forgetRoster } from './roster.js';
 import { ROLE_OPTIONS, emptyRoleCounts } from './activities.js';
 import { TARGET_STAGES } from './targets.js';
 
@@ -121,15 +121,13 @@ function indexApprovals(rows) {
   return new Map(rows.map((r) => [`${r.nid}::${r.suggested_tier.trim()}`, r]));
 }
 
-async function loadRoster() {
-  const rows = await selectAll(() => db().from('teachers').select('*').order('sort_order').order('member_id'));
-  return rows.map(toRosterRow);
-}
-
-/** 심사에 필요한 자료를 한꺼번에. */
-async function loadTierData() {
+/**
+ * 심사에 필요한 자료를 한꺼번에.
+ * scope 로 명단 범위를 좁힌다: { dept } / { region } / false(명단 없이 활동·인도·승인 자료만).
+ */
+async function loadTierData(scope = {}) {
   const [roster, activities, leads, approvals] = await Promise.all([
-    loadRoster(), loadActivities(), loadLeadIndex(), pendingApprovals(),
+    scope ? loadRoster(scope) : [], loadActivities(), loadLeadIndex(), pendingApprovals(),
   ]);
   return { roster, activities, acts: indexActivities(activities), leads, approvals: indexApprovals(approvals), approvalRows: approvals };
 }
@@ -383,6 +381,7 @@ async function bulkChangeTier(body) {
     if (ids.length) await run(db().from('teachers').update({ tier, tier_changed_at: today }).in('member_id', ids));
   }
   if (history.length) await run(db().from('tier_history').insert(history));
+  forgetRoster();
   return { ok: true, changed: changed.map(({ key, ...c }) => c), failed, approver };
 }
 
@@ -393,13 +392,14 @@ async function getDistrictView(body) {
   const mid = str(body.memberId);
   const name = str(body.name);
   if (!mid) return { error: 'memberId 가 필요합니다.' };
-  const data = await loadTierData();
   const nid = normId(mid);
-  const leader = data.roster.find((p) => normId(p.memberId) === nid);
-  if (!leader) return { error: '교사명단에서 고유번호를 찾을 수 없습니다.' };
+  const found = await findTeacher(mid);
+  if (!found) return { error: '교사명단에서 고유번호를 찾을 수 없습니다.' };
+  const leader = toRosterRow(found);
   if (name && leader.name && name !== leader.name) return { error: '고유번호와 이름이 일치하지 않습니다.' };
 
   const region = leader.region || '';
+  const data = await loadTierData(region ? { region } : {});   // 같은 지역만 읽는다
   const now = new Date();
   const bounds = monthBounds(now);
   const teachers = data.roster
@@ -503,7 +503,7 @@ async function getDistrictReport(body) {
   const month = fmtMonth(bounds.start);
 
   const [data, targets] = await Promise.all([
-    loadTierData(),
+    loadTierData(dept === '기타' ? {} : { dept }),   // '기타'는 다섯 부서가 아닌 나머지라 전체에서 골라야 한다
     selectAll(() => db().from('targets').select('creator_nid, leader_nid, helper_nid, stage, completed').order('id')),
   ]);
   const members = data.roster.filter((p) => orgBucket(p.dept) === dept);
@@ -556,21 +556,30 @@ async function getOrgSummary() {
   const now = new Date();
   const bounds = monthBounds(now);
   const month = fmtMonth(bounds.start);
-  const data = await loadTierData();
+  // 인원·등급 수는 DB 가 세고, 활동·승급은 활동이나 센터인도 기록이 있는 사람만 살핀다
+  // (기록이 없는 사람은 이번 달 활동도, 승급 제안도 있을 수 없다).
+  const [counts, data] = await Promise.all([rosterCounts(), loadTierData(false)]);
   const byDept = Object.fromEntries(ORG_DEPTS.map((d) => [d, {
     dept: d, totalTeachers: 0, tierCounts: emptyTierCounts(), activeCount: 0, monthlyActivityCount: 0,
     promotionCount: 0, roleActivityCounts: emptyRoleCounts(),
   }]));
   const tierCounts = emptyTierCounts();
-  const deptOf = new Map();
+  let totalTeachers = 0;
+  for (const c of counts) {
+    const bucket = byDept[orgBucket(c.dept)];
+    const tier = c.tier || '활동교사';
+    bucket.totalTeachers += c.n;
+    bucket.tierCounts[tier] = (bucket.tierCounts[tier] || 0) + c.n;
+    tierCounts[tier] = (tierCounts[tier] || 0) + c.n;
+    totalTeachers += c.n;
+  }
 
-  for (const p of data.roster) {
+  const withRecords = await teachersByNid([...data.acts.keys(), ...data.leads.keys()]);
+  const deptOf = new Map();
+  for (const p of withRecords.values()) {
     const bucket = byDept[orgBucket(p.dept)];
     const r = review(p, data, now);
     deptOf.set(r.nid, bucket.dept);
-    bucket.totalTeachers++;
-    bucket.tierCounts[r.tier] = (bucket.tierCounts[r.tier] || 0) + 1;
-    tierCounts[r.tier] = (tierCounts[r.tier] || 0) + 1;
     const monthly = countIn(r.acts, bounds);
     if (monthly > 0) { bucket.activeCount++; bucket.monthlyActivityCount += monthly; }
     if (r.result && tierRank(r.result.tier) > tierRank(r.tier)) bucket.promotionCount++;
@@ -588,7 +597,7 @@ async function getOrgSummary() {
   }
   return {
     asOf: fmtDate(now), month, orgs: ORG_DEPTS.map((d) => byDept[d]),
-    totalTeachers: data.roster.length, tierCounts, roleActivityCounts,
+    totalTeachers, tierCounts, roleActivityCounts,
   };
 }
 
@@ -655,11 +664,12 @@ const aspectItems = (aspect) => (aspect === '종합' ? ALL_ITEMS : TOP_REGION_AS
 
 /** counts[부서][역할][지역][항목] = 이번 달 건수 */
 async function buildTopRegionCounts() {
-  const [roster, activities] = await Promise.all([loadRoster(), loadActivities()]);
-  const info = new Map(roster.map((p) => [normId(p.memberId), { region: p.region || '', dept: orgBucket(p.dept) }]));
-  const counts = Object.fromEntries(ORG_MAIN_DEPTS.map((d) => [d, Object.fromEntries(ROLE_OPTIONS.map((r) => [r, {}]))]));
   // 최근 기록부터 센다 — 건수가 같은 지역끼리는 먼저 센 쪽이 앞 순위가 된다.
-  const recentFirst = thisMonth(activities, kstDate().slice(0, 7)).sort(byDesc('submitted_at'));
+  const recentFirst = thisMonth(await loadActivities(), kstDate().slice(0, 7)).sort(byDesc('submitted_at'));
+  // 명단은 이번 달에 활동한 사람 것만 읽는다.
+  const active = await teachersByNid(recentFirst.map((a) => a.nid));
+  const info = new Map([...active].map(([nid, p]) => [nid, { region: p.region || '', dept: orgBucket(p.dept) }]));
+  const counts = Object.fromEntries(ORG_MAIN_DEPTS.map((d) => [d, Object.fromEntries(ROLE_OPTIONS.map((r) => [r, {}]))]));
   for (const a of recentFirst) {
     const who = info.get(a.nid);
     if (!who || !who.region || !counts[who.dept]) continue;

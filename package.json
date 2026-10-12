@@ -9,7 +9,8 @@
     "parity": "node tools/parity.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0"
+    "@supabase/supabase-js": "^2.45.0",
+    "@vercel/functions": "^3.9.11"
   },
   "devDependencies": {
     "xlsx": "^0.18.5"

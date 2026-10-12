@@ -1,5 +1,5 @@
 // 연결: 명함 · 도와주세요 · 매칭 기록 · 교관 목록
-import { db, run, selectAll } from '../lib/db.js';
+import { db, run, selectAll, isDuplicate } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs, sameId } from '../lib/util.js';
 import { clip, pickList, newId, isDate } from '../lib/input.js';
 import { afterAction } from '../lib/events.js';
@@ -47,6 +47,16 @@ const allCards = () => selectAll(() => db().from('connect_cards').select('*').ne
 
 /** 내 명함 저장. 같은 번호의 명함, 또는 이름+전화번호가 같은 명함이 있으면 그 하나로 합친다. */
 async function saveConnectCard(body) {
+  try {
+    return await saveCardOnce(body);
+  } catch (e) {
+    // 두 기기에서 동시에 처음 저장한 경우: 두 번째는 방금 생긴 명함을 고친다.
+    if (!isDuplicate(e)) throw e;
+    return saveCardOnce(body);
+  }
+}
+
+async function saveCardOnce(body) {
   const mid = clip(body.memberId, 40);
   const d = body.data || {};
   if (!mid) return { error: 'memberId 가 필요합니다.' };
@@ -79,10 +89,11 @@ async function saveConnectCard(body) {
   const phoneDigits = digits(phone);
   const hits = (await allCards()).filter((c) => sameId(c.member_id, mid)
     || (!!phoneDigits && c.name.trim() === name && digits(c.phone) === phoneDigits));
+  // 합칠 때는 나머지를 먼저 지운다(한 사람에 명함 한 장 제약에 걸리지 않게).
+  if (hits.length > 1) await run(db().from('connect_cards').delete().in('id', hits.slice(1).map((c) => c.id)));
   const saved = hits.length
     ? await run(db().from('connect_cards').update(card).eq('id', hits[0].id).select())
     : await run(db().from('connect_cards').insert(card).select());
-  if (hits.length > 1) await run(db().from('connect_cards').delete().in('id', hits.slice(1).map((c) => c.id)));
 
   const result = { ok: true, ...(hits.length ? { updated: true } : {}), card: toCard(saved[0], roster, mid) };
   return afterAction('saveConnectCard', body, result);

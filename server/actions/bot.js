@@ -3,6 +3,7 @@ import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDate, fmtTs } from '../lib/util.js';
 import { sendAlert, alreadySent, logAlert, esc } from '../lib/alerts.js';
 import { afterAction, onStageReached } from '../lib/events.js';
+import { teachersByNid, rosterCounts } from './roster.js';
 
 // [명단의 부서 이름, 알림에 쓰는 이름]
 const DEPTS = [['교역자', '교역자회'], ['자문회', '자문회'], ['장년회', '장년회'], ['부녀회', '부녀회'], ['청년회', '청년회']];
@@ -16,11 +17,6 @@ const weekdayOf = (day) => WEEKDAYS[new Date(day + 'T12:00:00+09:00').getDay()];
 const authorized = (body) => !!process.env.TEACHERSQUARE_CRON_KEY && body.key === process.env.TEACHERSQUARE_CRON_KEY;
 
 // ── 자료 ──
-
-const loadTeachers = async () => {
-  const rows = await selectAll(() => db().from('teachers').select('nid, name, dept, tier').order('sort_order').order('member_id'));
-  return { rows, byNid: new Map(rows.map((t) => [t.nid, t])) };
-};
 
 /** from~to 날짜(포함)의 활동 기록. */
 const activitiesBetween = (from, to) => selectAll(() => db().from('activities')
@@ -64,10 +60,11 @@ function personLine(x) {
 
 /** 그날 활동을 부서별·사람별로 묶은 글. 길면 여러 통으로 나눈다. */
 async function composeDaily(day) {
-  const [{ byNid }, activities, center, cards] = await Promise.all([
-    loadTeachers(), activitiesBetween(day, day), centerLeadCount(day, day),
+  const [activities, center, cards] = await Promise.all([
+    activitiesBetween(day, day), centerLeadCount(day, day),
     db().from('connect_cards').select('*', { count: 'exact', head: true }).neq('member_id', ''),
   ]);
+  const byNid = await teachersByNid(activities.map((a) => a.nid));   // 그날 활동한 사람의 명단만
   const byDept = Object.fromEntries([...DEPTS.map(([dept]) => dept), '기타'].map((d) => [d, new Map()]));
   const people = new Set();
   const keyOf = (a) => a.nid || (byNid.get(a.nid)?.name || a.name || '이름미상');
@@ -139,17 +136,20 @@ async function sendDailySummary({ date, force }) {
 /** 그달 1일~그날: 부서별 참여율(설명 글 + 그래프 재료)과 등급 현황 글. */
 async function composeEvening(day) {
   const monthStart = day.slice(0, 8) + '01';
-  const [{ rows: teachers, byNid }, activities, center] = await Promise.all([
-    loadTeachers(), activitiesBetween(monthStart, day), centerLeadCount(monthStart, day),
+  const [counts, activities, center] = await Promise.all([
+    rosterCounts(), activitiesBetween(monthStart, day), centerLeadCount(monthStart, day),
   ]);
+  const byNid = await teachersByNid(activities.map((a) => a.nid));   // 이번 달 활동한 사람의 명단만
   const stat = Object.fromEntries(DEPTS.map(([dept]) => [dept, { total: 0, tiers: {}, people: new Set(), acts: 0 }]));
   const allTiers = {};
-  for (const t of teachers) {
-    allTiers[t.tier] = (allTiers[t.tier] || 0) + 1;
-    const s = stat[t.dept];
+  let teacherCount = 0;
+  for (const c of counts) {   // 부서·등급별 인원은 DB 가 센 값
+    teacherCount += c.n;
+    allTiers[c.tier] = (allTiers[c.tier] || 0) + c.n;
+    const s = stat[c.dept];
     if (!s) continue;
-    s.total++;
-    s.tiers[t.tier] = (s.tiers[t.tier] || 0) + 1;
+    s.total += c.n;
+    s.tiers[c.tier] = (s.tiers[c.tier] || 0) + c.n;
   }
   for (const a of activities) {
     const s = stat[byNid.get(a.nid)?.dept];
@@ -176,7 +176,7 @@ async function composeEvening(day) {
     for (const [tier, icon] of TIER_ICONS) lines.push(`${icon} <b>${tier}</b>: ${comma(counts[tier] || 0)}명 (${percent(counts[tier] || 0, total)})`);
     lines.push('');
   };
-  tierBlock('전주교회 교사', teachers.length, allTiers);
+  tierBlock('전주교회 교사', teacherCount, allTiers);
   for (const [dept, label] of DEPTS) tierBlock(label, stat[dept].total, stat[dept].tiers);
   const best = DEPTS.map(([dept, label]) => ({ name: label, n: stat[dept].acts })).reduce((b, d) => (d.n > 0 && (!b || d.n > b.n) ? d : b), null);
   lines.push(`🎯 <b>이번 달 복음방 진행</b>: ${gospelPairs(activities, (a) => a.nid).size}명`);

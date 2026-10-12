@@ -1,6 +1,6 @@
 // 전도 대상자 — 활동 등록의 부산물로 자동 생성·갱신되고, 단계가 바뀔 때마다 이력이 남는다.
 import { randomUUID } from 'node:crypto';
-import { db, run, selectAll } from '../lib/db.js';
+import { db, run, selectAll, isDuplicate } from '../lib/db.js';
 import { normId, str, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { notifyActivityChannel } from '../lib/telegram.js';
 import { onStageReached } from '../lib/events.js';
@@ -56,7 +56,17 @@ function roleAssignment(target, roles, memberId) {
 }
 
 /** 활동 등록 때: 같은 이름의 내 담당 대상자가 있으면 갱신, 없으면 새로 만든다. */
-export async function upsertTargetFromActivity({ memberId, name, roles, targetName, gender, ageGroup, stage, note }) {
+export async function upsertTargetFromActivity(activity) {
+  try {
+    await upsertTargetOnce(activity);
+  } catch (e) {
+    // 같은 활동 등록이 동시에 두 번 들어와 둘 다 "새 대상자"로 만들려 한 경우: 두 번째는 방금 생긴 대상자를 고친다.
+    if (!isDuplicate(e)) throw e;
+    await upsertTargetOnce(activity);
+  }
+}
+
+async function upsertTargetOnce({ memberId, name, roles, targetName, gender, ageGroup, stage, note }) {
   const mid = str(memberId);
   if (!mid || !targetName) return;
   const now = kstDateTime();
@@ -96,10 +106,15 @@ async function addTarget(body) {
   const targetId = randomUUID();
   const now = kstDateTime();
   const name = String(body.name || '');
-  await run(db().from('targets').insert({
-    target_id: targetId, creator_id: mid, teacher_name: name, target_name: targetName, stage,
-    next_meeting_date: String(body.nextMeetingDate || ''), memo: String(body.memo || ''), created_at: now, updated_at: now,
-  }));
+  try {
+    await run(db().from('targets').insert({
+      target_id: targetId, creator_id: mid, teacher_name: name, target_name: targetName, stage,
+      next_meeting_date: String(body.nextMeetingDate || ''), memo: String(body.memo || ''), created_at: now, updated_at: now,
+    }));
+  } catch (e) {
+    if (isDuplicate(e)) return { error: '이미 같은 이름으로 등록한 대상자가 있습니다.' };
+    throw e;
+  }
   await appendHistory(mid, targetId, '', stage, '대상자 등록');
   if (stage === '복음방') await notifyGospelRoom(mid, name, targetName);
   return { ok: true, targetId };

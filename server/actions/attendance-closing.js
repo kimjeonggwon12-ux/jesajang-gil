@@ -27,11 +27,28 @@ function orgOf(rec, person) {
   return Object.entries(ORG_OF_PICK).find(([k]) => text.includes(k))?.[1] || '기타';
 }
 
-/** 명단 전체(교사명단 + 관리자 명단)를 번호·이름으로 찾을 수 있게. */
-async function loadDirectory() {
+/** 번호나 이름이 목록에 있는 사람만 읽는다(200개씩 나눠서). 같은 줄이 두 번 잡히면 한 번만. */
+async function peopleMatching(table, columns, order, nids, names) {
+  const found = new Map();
+  const chunks = (list) => Array.from({ length: Math.ceil(list.length / 200) }, (_, i) => list.slice(i * 200, (i + 1) * 200));
+  const queries = [
+    ...chunks(nids).map((part) => db().from(table).select(columns).in('nid', part).order(order)),
+    ...chunks(names).map((part) => db().from(table).select(columns).in('name', part).order(order)),
+  ];
+  for (const rows of await Promise.all(queries.map(run))) for (const r of rows) found.set(r[order], r);
+  return [...found.values()].sort((a, b) => a[order] - b[order]);
+}
+
+/**
+ * 출석한 사람들을 찾을 명단(교사명단 + 관리자 명단): 번호가 같은 사람과 이름이 같은 사람만 읽는다.
+ * (이름으로도 읽는 까닭 — 번호를 잘못 넣은 사람을 이름으로 찾고, 같은 이름이 몇 명인지 알아야 해서.)
+ */
+async function loadDirectory(records) {
+  const nids = [...new Set(records.map((r) => normId(r.memberId ?? r.member_id)))].filter((n) => n !== '0');
+  const names = [...new Set(records.map((r) => r.name).filter(Boolean))];
   const [teachers, admins] = await Promise.all([
-    selectAll(() => db().from('teachers').select('member_id, nid, name, dept, position').order('sort_order')),
-    selectAll(() => db().from('admins').select('nid, name, dept, position').order('id')),
+    peopleMatching('teachers', 'member_id, nid, name, dept, position, sort_order', 'sort_order', nids, names),
+    peopleMatching('admins', 'id, nid, name, dept, position', 'id', nids, names),
   ]);
   const byId = new Map();
   const byName = new Map();
@@ -86,7 +103,8 @@ async function closingData(m) {
   meetings.sort((a, b) => ((a.start || '') < (b.start || '') ? -1 : 1));
   const meetingOf = new Map(meetings.map((x) => [x.meetingId, x]));
 
-  const [records, dir] = await Promise.all([loadRecords((q) => q.in('meeting_id', [...meetingOf.keys()])), loadDirectory()]);
+  const records = await loadRecords((q) => q.in('meeting_id', [...meetingOf.keys()]));
+  const dir = await loadDirectory(records);
   records.sort((a, b) => (a.at < b.at ? -1 : (a.at > b.at ? 1 : 0)));
 
   const firstRowOf = new Map();   // "오전|번호" → 처음 나온 줄 번호
@@ -199,8 +217,8 @@ async function closingFile(m) {
 
 /** 출석 기록의 번호를 명단에 있는 꼴(00000000-00000)로 맞춰 둔다 — 같은 사람이면 표기만 고친다. */
 async function tidyRecordIds(meetingIds) {
-  const dir = await loadDirectory();
-  const rows = await selectAll(() => db().from('attend_records').select('id, member_id').in('meeting_id', meetingIds).neq('member_id', '').order('id'));
+  const rows = await selectAll(() => db().from('attend_records').select('id, member_id, name').in('meeting_id', meetingIds).neq('member_id', '').order('id'));
+  const dir = await loadDirectory(rows);
   for (const r of rows) {
     const fixed = dir.byId.get(normId(r.member_id))?.id || formatId(r.member_id);
     if (fixed !== r.member_id && normId(fixed) === normId(r.member_id)) {

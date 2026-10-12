@@ -38,13 +38,8 @@ async function analyzeDistrictData(body) {
 
 // ── 피드백 이력 ──
 
-/** 새 접수번호 F-000123 (지금까지의 가장 큰 번호 다음). */
-async function nextReceiptNo() {
-  const last = await run(db().from('feedbacks').select('receipt_no').like('receipt_no', 'F-%')
-    .order('receipt_no', { ascending: false }).limit(1));
-  const n = Number((last[0]?.receipt_no || 'F-0').slice(2)) || 0;
-  return 'F-' + String(n + 1).padStart(6, '0');
-}
+/** 새 접수번호 F-000123. DB 번호표에서 뽑으므로 동시에 접수해도 겹치지 않는다. */
+const nextReceiptNo = () => run(db().rpc('next_receipt_no'));
 
 async function addFeedback(fields) {
   const receiptNo = await nextReceiptNo();

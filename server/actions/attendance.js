@@ -3,7 +3,8 @@ import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { clip, pickList, newId, isDate } from '../lib/input.js';
 import { sendAttendText } from '../lib/attend-bot.js';
-import { findTeacher, findAdmin, isAdmin } from './roster.js';
+import { runLater } from '../lib/background.js';
+import { memberInfo, isAdmin } from './roster.js';
 import { closingBoxText, sendClosing } from './attendance-closing.js';
 
 const QUESTION_TYPES = ['choice', 'multi', 'text'];
@@ -100,9 +101,24 @@ export async function loadMeetings() {
   });
 }
 
-export async function findMeeting(meetingId) {
+// 출석이 몰릴 때 같은 모임을 수백 번 읽지 않도록 10초 동안 기억한다.
+// (관리자가 모임을 고치거나 닫은 뒤 길게는 10초 동안 예전 설정으로 출석이 들어올 수 있다.)
+const MEETING_TTL_MS = 10_000;
+const meetingCache = new Map();   // meetingId → { at, row: Promise }
+
+const forgetMeeting = (meetingId) => meetingCache.delete(meetingId);
+
+/** fresh 면 기억해 둔 것을 쓰지 않고 DB 에서 새로 읽는다(고치기·마감처럼 정확해야 할 때). */
+export async function findMeeting(meetingId, { fresh = false } = {}) {
   if (!meetingId) return null;
-  const [row] = await run(db().from('attend_meetings').select('*').eq('meeting_id', meetingId).neq('status', '삭제').limit(1));
+  let hit = meetingCache.get(meetingId);
+  if (fresh || !hit || Date.now() - hit.at > MEETING_TTL_MS) {
+    const row = run(db().from('attend_meetings').select('*').eq('meeting_id', meetingId).neq('status', '삭제').limit(1)).then((rows) => rows[0] || null);
+    hit = { at: Date.now(), row };
+    meetingCache.set(meetingId, hit);
+    row.catch(() => forgetMeeting(meetingId));
+  }
+  const row = await hit.row;
   return row ? toMeeting(row) : null;
 }
 
@@ -153,7 +169,7 @@ export async function loadRecords(filter) {
 
 /** 출석하는 사람의 정보: 명단 + 관리자 명단(관리자 명단의 이름·부서·직책이 우선). */
 async function personOf(memberId) {
-  const [teacher, admin] = await Promise.all([findTeacher(memberId), findAdmin(memberId)]);
+  const { teacher, admin } = await memberInfo(memberId);
   if (!teacher && !admin) return null;
   return {
     name: admin?.name || teacher?.name || '', dept: admin?.dept || teacher?.dept || '',
@@ -237,14 +253,21 @@ async function submitAttendance(body) {
   const window = attendWindow(m);
   if (!window.open) return { error: window.reason };
   const nid = normId(mid);
-  const existing = () => run(db().from('attend_records').select('*').eq('meeting_id', m.meetingId).eq('nid', nid).order('id').limit(1));
-  const [already] = await existing();
-  if (already) return { ok: true, already: true, record: toRecord(already) };
+  /** 이미 출석했으면 그 기록으로 답한다. */
+  const alreadyDone = async () => {
+    const [first] = await run(db().from('attend_records').select('*').eq('meeting_id', m.meetingId).eq('nid', nid).order('id').limit(1));
+    return first ? { ok: true, already: true, record: toRecord(first) } : null;
+  };
 
+  // 숫자가 없는 번호는 DB 의 '한 사람 한 번' 제약에 걸리지 않으므로 먼저 확인한다.
+  if (nid === '0') { const done = await alreadyDone(); if (done) return done; }
+
+  // 이미 출석했는지는 미리 묻지 않는다 — 저장할 때 DB 가 "한 사람 한 번"으로 걸러 준다.
+  // (입력이 잘못됐을 때만, 이미 출석한 사람에게 오류 대신 출석 기록을 보여 주려고 확인한다.)
   const read = readAnswers(m.questions, body.answers || {});
-  if (read.error) return read;
+  if (read.error) return (await alreadyDone()) || read;
   const picks = readPicks(m, body);
-  if (picks.error) return picks;
+  if (picks.error) return (await alreadyDone()) || picks;
   const person = (await personOf(mid)) || {};
   // 고르지 않았으면 명단의 소속·지역을 넣는다.
   if (!picks.pickOrg) {
@@ -261,13 +284,11 @@ async function submitAttendance(body) {
   };
   const { data, error } = await db().from('attend_records').insert(row).select();
   if (error) {
-    // 같은 사람이 동시에 두 번 누른 경우: 먼저 들어간 기록을 돌려준다.
-    const [first] = await existing();
-    if (first) return { ok: true, already: true, record: toRecord(first) };
-    return { retry: true, error: '접속이 몰려 순서대로 처리하고 있어요.' };
+    // 이미 출석한 사람(또는 동시에 두 번 누른 경우): 먼저 들어간 기록을 돌려준다.
+    return (await alreadyDone()) || { retry: true, error: '접속이 몰려 순서대로 처리하고 있어요.' };
   }
   const record = toRecord(data[0]);
-  try { await notifyAttendance(m, record); } catch { /* 알림 실패는 무시 */ }
+  runLater(notifyAttendance(m, record));   // 알림은 응답을 보낸 뒤에
   return { ok: true, record };
 }
 
@@ -345,8 +366,9 @@ async function saveAttendMeeting(body) {
   };
   const meetingId = clip(m.meetingId, 40);
   if (meetingId) {
-    if (!(await findMeeting(meetingId))) return { error: '모임을 찾을 수 없어요.' };
+    if (!(await findMeeting(meetingId, { fresh: true }))) return { error: '모임을 찾을 수 없어요.' };
     await run(db().from('attend_meetings').update({ ...fields, updated_at: now }).eq('meeting_id', meetingId));
+    forgetMeeting(meetingId);
     return { ok: true, meetingId };
   }
   const fresh = newId('MT');
@@ -354,8 +376,10 @@ async function saveAttendMeeting(body) {
   return { ok: true, meetingId: fresh };
 }
 
-const setStatus = (meetingId, status) =>
-  run(db().from('attend_meetings').update({ status, updated_at: kstDateTime() }).eq('meeting_id', meetingId));
+async function setStatus(meetingId, status) {
+  await run(db().from('attend_meetings').update({ status, updated_at: kstDateTime() }).eq('meeting_id', meetingId));
+  forgetMeeting(meetingId);
+}
 
 async function deleteAttendMeeting(body) {
   const denied = await requireAdmin(body, '관리자만 지울 수 있어요.');
@@ -386,7 +410,9 @@ async function getAttendAdmin(body) {
 
 async function getAttendCount(body) {
   const meetingId = clip(body.meetingId, 40);
-  return { count: (await loadRecords((q) => q.eq('meeting_id', meetingId))).length };
+  const { count, error } = await db().from('attend_records').select('*', { count: 'exact', head: true }).eq('meeting_id', meetingId).neq('record_id', '');
+  if (error) throw new Error(error.message);
+  return { count: count || 0 };
 }
 
 async function deleteAttendRecord(body) {
@@ -404,6 +430,7 @@ async function attSetEveningStart(body) {
   if (!m) return { error: '모임을 찾을 수 없어요.' };
   m.start2 = hhmm(body.start2);
   await run(db().from('attend_meetings').update({ start2: m.start2 }).eq('meeting_id', m.meetingId));
+  forgetMeeting(m.meetingId);
   const rows = await selectAll(() => db().from('attend_records').select('id, at, late').eq('meeting_id', m.meetingId).order('id'));
   let recalculated = 0;
   for (const r of rows) {
