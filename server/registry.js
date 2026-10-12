@@ -1,6 +1,8 @@
 // action 이름 → 처리 함수. 묶음(파일)을 옮길 때마다 여기에 추가한다.
 import roster from './actions/roster.js';
 import rosterAdmin from './actions/roster-admin.js';
+import rosterImport from './actions/roster-import.js';
+import backup from './actions/backup.js';
 import activities from './actions/activities.js';
 import targets from './actions/targets.js';
 import tiers from './actions/tiers.js';
@@ -20,6 +22,8 @@ import bot from './actions/bot.js';
 export const actions = {
   ...roster,
   ...rosterAdmin,
+  ...rosterImport,
+  ...backup,
   ...activities,
   ...targets,
   ...tiers,

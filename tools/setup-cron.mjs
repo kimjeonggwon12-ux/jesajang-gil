@@ -17,15 +17,23 @@ const JOBS = [
   ['ts-evening-summary', '0 12 * * *', { action: 'tsEveningSummary' }],   // 매일 저녁 9시: 참여율·등급 서머리
   ['video-package', '7,37 * * * *', { action: 'vtAuto' }],                // 30분마다: 밀린 영상 녹취·자료
   ['attendance-closing', '*/5 * * * *', { action: 'attAutoSummary' }],    // 5분마다: 끝난 출석 모임 마감 집계
+  ['weekly-backup', '0 18 * * 6', { action: 'backupNow' }],                  // 매주 일요일 새벽 3시: 전체 백업(최근 8개 보관)
 ];
 
 const quote = (s) => "'" + String(s).replace(/'/g, "''") + "'";
-const unschedule = JOBS.map(([name]) => `select cron.unschedule(jobid) from cron.job where jobname = ${quote(name)};`).join('\n');
-const schedule = JOBS.map(([name, when, body]) => {
-  const call = `select net.http_post(url := ${quote(API)}, body := ${quote(JSON.stringify({ ...body, key }))}::jsonb, ` +
-    `headers := '{"Content-Type":"application/json"}'::jsonb, timeout_milliseconds := 300000)`;
-  return `select cron.schedule(${quote(name)}, ${quote(when)}, ${quote(call)});`;
-}).join('\n');
+// 예약 실행 기록은 하루 300줄 넘게 쌓인다 — 일주일 지난 것은 매일 지워 DB 용량을 지킨다.
+const CLEANUP = ['cron-log-cleanup', '30 18 * * *', `delete from cron.job_run_details where end_time < now() - interval '7 days'`];
+
+const unschedule = [...JOBS.map(([name]) => name), CLEANUP[0]]
+  .map((name) => `select cron.unschedule(jobid) from cron.job where jobname = ${quote(name)};`).join('\n');
+const schedule = [
+  ...JOBS.map(([name, when, body]) => {
+    const call = `select net.http_post(url := ${quote(API)}, body := ${quote(JSON.stringify({ ...body, key }))}::jsonb, ` +
+      `headers := '{"Content-Type":"application/json"}'::jsonb, timeout_milliseconds := 300000)`;
+    return `select cron.schedule(${quote(name)}, ${quote(when)}, ${quote(call)});`;
+  }),
+  `select cron.schedule(${quote(CLEANUP[0])}, ${quote(CLEANUP[1])}, ${quote(CLEANUP[2])});`,
+].join('\n');
 
 const sql = process.argv[2] === 'remove'
   ? unschedule

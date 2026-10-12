@@ -12698,6 +12698,14 @@ async function calAdmInit() {
             <button type="button" class="ra-btn line" onclick="rosterAdm.add()">+ 교사 추가</button>
             <button type="button" class="ra-btn line" onclick="rosterAdm.log()">변경 기록</button>
           </div>
+          <div class="ra-h" style="margin-top:18px">월별 엑셀 · 백업</div>
+          <div class="ra-bar" style="margin-top:10px">
+            <button type="button" class="ra-btn line" onclick="document.getElementById('raFile').click()">엑셀 올리기</button>
+            <button type="button" class="ra-btn line" onclick="rosterAdm.download(this)">명단 엑셀 받기</button>
+            <button type="button" class="ra-btn line" onclick="rosterAdm.backup(this)">백업 받기</button>
+            <input type="file" id="raFile" accept=".xlsx,.xls" style="display:none" onchange="rosterAdm.upload(this)">
+          </div>
+          <p class="ra-note">행정에서 받은 "교사관리" 엑셀을 올리면, 반영하기 전에 무엇이 바뀌는지 먼저 보여 줍니다.</p>
           ${st.error ? `<p class="ra-note" style="color:#c0392b">${esc(st.error)}</p>` : ''}
           ${st.hint ? `<p class="ra-note">${esc(st.hint)}</p>` : ''}
           ${st.rows === null && !st.error ? '<p class="ra-note">교사를 찾아 이름·부서·지역·직책을 고치거나, 관리자로 지정할 수 있어요.<br>등급은 [교사] 탭에서 바꿉니다. 여기서 바꾼 내용은 모두 [변경 기록]에 남습니다.</p>' : ''}
@@ -12795,6 +12803,9 @@ async function calAdmInit() {
 
       const LABELS = { name: '이름', dept: '부서', region: '지역', affiliation: '소속', position: '직책', note: '비고', tier: '등급', phone: '연락처' };
       function diffText(c) {
+        if (c.kind === '엑셀 반영' || c.kind === '명단 되돌리기') {
+          return Object.entries(c.after || {}).filter(([k]) => k !== '스냅샷').map(([k, v]) => `${k} ${v}`).join(' · ');
+        }
         if (c.before && c.after) {
           const parts = Object.keys(LABELS).filter(k => (c.before[k] || '') !== (c.after[k] || ''))
             .map(k => `${LABELS[k]}: ${c.before[k] || '(빈칸)'} → ${c.after[k] || '(빈칸)'}`);
@@ -12814,7 +12825,151 @@ async function calAdmInit() {
         openSheet(`<h3 style="font-size:18px;font-weight:800">변경 기록</h3><p class="ra-note">최근 100건</p>${body}`);
       }
 
-      return { mount() { css(); render(); }, search, add, edit, save, remove, setAdmin, log };
+      // ── 월별 엑셀 ── 엑셀은 이 기기에서 읽고(파일 자체는 서버로 보내지 않는다), 뽑은 명단만 서버에 보낸다.
+      const loadScript = src => new Promise((ok, fail) => {
+        if (document.querySelector(`script[data-ra="${src}"]`)) return ok();
+        const el = document.createElement('script'); el.src = src; el.dataset.ra = src;
+        el.onload = ok; el.onerror = () => fail(new Error('엑셀 읽기 도구를 불러오지 못했어요.'));
+        document.head.appendChild(el);
+      });
+      const excelTools = () => Promise.all([loadScript('vendor/xlsx.full.min.js'), loadScript('roster-excel.js')]);
+      const imp = { book: null, file: '', tab: '', rows: [], preview: null };
+
+      async function upload(input) {
+        const f = input.files && input.files[0]; input.value = '';
+        if (!f) return;
+        openSheet('<h3 style="font-size:18px;font-weight:800">엑셀 올리기</h3><p class="ra-note">엑셀을 읽는 중…</p>');
+        try {
+          await excelTools();
+          imp.book = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+          imp.file = f.name;
+          const tabs = RosterExcel.monthTabs(imp.book.SheetNames);
+          if (!tabs.length) throw new Error('"9월"처럼 달 이름으로 된 탭이 없어요. 교사관리 엑셀이 맞는지 확인해 주세요.');
+          await readTab(tabs[0]);
+        } catch (e) { openSheet(`<h3 style="font-size:18px;font-weight:800">엑셀 올리기</h3><p class="ra-note" style="color:#c0392b">${esc(e.message)}</p>`); }
+      }
+      async function readTab(tab) {
+        const rowsOf = name => imp.book.Sheets[name] ? XLSX.utils.sheet_to_json(imp.book.Sheets[name], { header: 1, defval: '', raw: true }) : null;
+        const parsed = RosterExcel.parse(rowsOf, tab);
+        imp.tab = tab; imp.rows = parsed.rows; imp.problems = parsed.problems; imp.choice = null;
+        if (!parsed.rows.length) { showImport(null, parsed.problems.join(' ')); return; }
+        await preview();
+      }
+      const source = () => `${imp.file} "${imp.tab}" 탭`;
+      /** 화면에서 고른 것: 남길 사람, 엑셀 이름으로 바꿀 사람, 등급 반영 여부. 처음에는 직책이 있는 사람을 남기는 쪽으로 둔다. */
+      function choices() {
+        if (!document.getElementById('raTiers')) return imp.choice || { applyTiers: true, keepIds: null, renameIds: [] };
+        const ids = sel => [...document.querySelectorAll(sel)].filter(el => el.checked).map(el => el.value);
+        return { applyTiers: document.getElementById('raTiers').checked, keepIds: ids('.ra-keep'), renameIds: ids('.ra-rename') };
+      }
+      async function preview() {
+        const c = choices();
+        openSheet('<h3 style="font-size:18px;font-weight:800">엑셀 올리기</h3><p class="ra-note">지금 명단과 견주는 중…</p>');
+        try {
+          let res = await call({ action: 'previewRosterImport', rows: imp.rows, applyTiers: c.applyTiers, keepIds: c.keepIds || [], renameIds: c.renameIds });
+          if (!res.error && c.keepIds === null) {   // 첫 미리보기: 직책이 있거나 관리자인 사람은 남기는 것으로 한 번 더 계산
+            c.keepIds = [...res.removed.rows, ...res.kept.rows].filter(p => p.position || p.adminPosition).map(p => p.memberId);
+            if (c.keepIds.length) res = await call({ action: 'previewRosterImport', rows: imp.rows, applyTiers: c.applyTiers, keepIds: c.keepIds, renameIds: c.renameIds });
+          }
+          imp.choice = c; imp.preview = res.error ? null : res;
+          showImport(imp.preview, res.error || '');
+        } catch (e) { showImport(null, e.message); }
+      }
+      const people = (list, line) => list.count ? `<div style="max-height:220px;overflow:auto;border:1px solid #e3e8e5;border-radius:10px;padding:6px 10px;margin-top:6px">${list.rows.map(line).join('')}${list.count > list.rows.length ? `<div class="ra-sub">… 외 ${list.count - list.rows.length}명</div>` : ''}</div>` : '';
+      const pline = t => `<div class="ra-sub" style="padding:3px 0;color:#222">${t}</div>`;
+      function showImport(p, error) {
+        const tabs = RosterExcel.monthTabs(imp.book.SheetNames);
+        const head = `<h3 style="font-size:18px;font-weight:800">엑셀 올리기</h3>
+          <p class="ra-note" style="margin:6px 0">${esc(imp.file)}</p>
+          <label class="ra-f" style="margin-top:4px">읽을 탭
+            <select onchange="rosterAdm.readTab(this.value)" style="display:block;width:100%;height:44px;margin-top:4px;border:1px solid #d6dbd8;border-radius:10px;padding:0 10px;font-size:16px;background:#fff">
+              ${tabs.map(t => `<option ${t === imp.tab ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+        if (!p) { openSheet(head + `<p class="ra-note" style="color:#c0392b">${esc(error || '읽지 못했어요.')}</p>`); return; }
+        const c = imp.choice, kept = new Set(c.keepIds || []), ren = new Set(c.renameIds || []);
+        const leaving = [...p.removed.rows, ...p.kept.rows];
+        const warn = (imp.problems || []).length ? `<p class="ra-note" style="color:#8a6200">${esc(imp.problems.join(' '))}</p>` : '';
+        openSheet(head + warn + `
+          <div class="ra-h" style="margin-top:14px">반영하면</div>
+          <p class="ra-note" style="color:#222;font-size:15px">교사 <b>${p.before.toLocaleString()}</b>명 → <b>${p.after.toLocaleString()}</b>명
+            · 새로 들어옴 <b>${p.added.count}</b> · 빠짐 <b>${p.removed.count}</b> · 부서·지역 바뀜 <b>${p.moved.count}</b></p>
+
+          ${leaving.length ? `<div class="ra-h">엑셀에 없는 사람 ${leaving.length}명</div>
+            <p class="ra-note" style="margin:6px 0">표시한 사람은 명단에 남기고, 나머지는 뺍니다(활동·출석 기록은 그대로 남습니다).</p>
+            <div style="max-height:220px;overflow:auto;border:1px solid #e3e8e5;border-radius:10px;padding:6px 10px">${leaving.map(t => `
+              <label style="display:flex;gap:8px;align-items:center;padding:5px 0;font-size:14px">
+                <input type="checkbox" class="ra-keep" value="${esc(t.memberId)}" ${kept.has(t.memberId) ? 'checked' : ''} style="width:18px;height:18px">
+                <span><b>${esc(t.name)}</b> ${esc([t.dept, t.region, t.position || t.adminPosition].filter(Boolean).join(' · '))} — 남기기</span></label>`).join('')}</div>` : ''}
+
+          ${p.renamed.count ? `<div class="ra-h">이름이 다른 사람 ${p.renamed.count}명</div>
+            <p class="ra-note" style="margin:6px 0">앱에서 쓰는 이름을 그대로 둡니다. 엑셀 이름으로 바꿀 사람만 표시하세요.</p>
+            <div style="max-height:200px;overflow:auto;border:1px solid #e3e8e5;border-radius:10px;padding:6px 10px">${p.renamed.rows.map(t => `
+              <label style="display:flex;gap:8px;align-items:center;padding:5px 0;font-size:14px">
+                <input type="checkbox" class="ra-rename" value="${esc(t.memberId)}" ${ren.has(t.memberId) ? 'checked' : ''} style="width:18px;height:18px">
+                <span><b>${esc(t.name)}</b> → 엑셀 이름 <b>${esc(t.excelName)}</b> 으로 바꾸기</span></label>`).join('')}</div>` : ''}
+
+          <div class="ra-h">등급이 달라지는 사람 ${p.tierChanges.count}명</div>
+          <label style="display:flex;gap:8px;align-items:center;padding:8px 0;font-size:15px">
+            <input type="checkbox" id="raTiers" ${c.applyTiers ? 'checked' : ''} style="width:18px;height:18px">
+            <span>등급도 엑셀 기준으로 바꾸기 <span class="ra-sub">(올해 센터등록 2명↑ 우수 · 1명 정교사 · 휴면 탭은 휴교사)</span></span></label>
+          ${people(p.tierChanges, t => pline(`<b>${esc(t.name)}</b> ${esc(t.dept)} ${esc(t.region)} · ${esc(t.from)} → ${esc(t.to)}`))}
+
+          ${p.added.count ? `<div class="ra-h">새로 들어오는 사람 ${p.added.count}명</div>${people(p.added, t => pline(`<b>${esc(t.name)}</b> ${esc(t.dept)} ${esc(t.region)} · ${esc(t.tier)}`))}` : ''}
+          ${p.moved.count ? `<div class="ra-h">부서·지역이 바뀌는 사람 ${p.moved.count}명</div>${people(p.moved, t => pline(`<b>${esc(t.name)}</b> ${esc(t.from)} → ${esc(t.to)}`))}` : ''}
+
+          <p class="ra-note">직책은 앱의 값을 그대로 둡니다. 반영하기 직전의 명단은 통째로 보관돼, 잘못 반영했을 때 되돌릴 수 있습니다.</p>
+          <div class="ra-acts">
+            <button type="button" class="ra-btn line" onclick="rosterAdm.preview()">고른 대로 다시 계산</button>
+            <button type="button" class="ra-btn warn" id="raApply" data-label="명단에 반영" onclick="rosterAdm.apply(this)">명단에 반영</button>
+          </div>`);
+      }
+      async function apply(btn) {
+        if (!sure(btn, '한 번 더 누르면 반영합니다')) return;
+        btn.disabled = true;
+        const c = choices(); imp.choice = c;
+        try {
+          // 고른 내용으로 한 번 더 계산해, 그 숫자와 같을 때만 반영한다(그 사이 명단이 바뀌었으면 멈춘다).
+          const check = await call({ action: 'previewRosterImport', rows: imp.rows, applyTiers: c.applyTiers, keepIds: c.keepIds || [], renameIds: c.renameIds });
+          if (check.error) { toast(check.error, true); btn.disabled = false; return; }
+          const res = await call({ action: 'applyRosterImport', rows: imp.rows, applyTiers: c.applyTiers, keepIds: c.keepIds || [], renameIds: c.renameIds, expectAfter: check.after, source: source() });
+          if (res.error) { toast(res.error, true); btn.disabled = false; return; }
+          closeSheet(); toast(`명단에 반영했어요 — 교사 ${res.after.toLocaleString()}명`);
+          if (st.query) search();
+        } catch (e) { toast(e.message, true); btn.disabled = false; }
+      }
+
+      /** 지금 명단을 엑셀로 받는다. */
+      async function download(btn) {
+        btn.disabled = true;
+        try {
+          await excelTools();
+          const res = await callApi({ action: 'getRoster' });
+          if (!res || res.error) throw new Error((res && res.error) || '명단을 받지 못했어요.');
+          const head = ['고유번호', '이름', '부서', '지역', '소속', '직책', '등급', '소속 비고', '등급 변경일', '센터등록', '센터미등록', '상담', '복음방', '동행교사', '활동 상태'];
+          const body = res.rows.map(r => [r.memberId, r.name, r.dept, r.region, r.affiliation, r.position, r.tier, r.note, r.tierChangedAt, r.regLeads, r.unregLeads, r.counsel, r.gospelRoom, r.companion, r.activeState]);
+          const ws = XLSX.utils.aoa_to_sheet([head, ...body]);
+          ws['!cols'] = [18, 9, 9, 9, 16, 16, 9, 16, 12, 9, 10, 7, 7, 9, 10].map(wch => ({ wch }));
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, '교사명단');
+          const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          XLSX.writeFile(wb, `교사명단_${day}.xlsx`);
+          toast(`교사 ${body.length.toLocaleString()}명 명단을 받았어요.`);
+        } catch (e) { toast(e.message, true); }
+        btn.disabled = false;
+      }
+
+      /** 전체 자료 백업을 지금 만들어 받는다(서버에도 최근 8개가 보관된다). */
+      async function backup(btn) {
+        btn.disabled = true; const label = btn.textContent; btn.textContent = '백업 만드는 중…';
+        try {
+          const res = await call({ action: 'createBackup' });
+          if (res.error) throw new Error(res.error);
+          toast(`백업을 만들었어요 (${res.sizeKB.toLocaleString()}KB). 내려받기를 시작합니다.`);
+          location.href = res.url;
+        } catch (e) { toast(e.message, true); }
+        btn.disabled = false; btn.textContent = label;
+      }
+
+      return { mount() { css(); render(); }, search, add, edit, save, remove, setAdmin, log, upload, readTab, preview, apply, download, backup };
     })();
     window.Sections.admin = { mount() { adminSwitchSubTab('dist'); } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
 
