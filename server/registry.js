@@ -12,6 +12,8 @@ import calendar from './actions/calendar.js';
 import connect from './actions/connect.js';
 import videos from './actions/videos.js';
 import transcripts from './actions/transcripts.js';
+import attendance from './actions/attendance.js';
+import attendanceClosing from './actions/attendance-closing.js';
 
 export const actions = {
   ...roster,
@@ -27,4 +29,6 @@ export const actions = {
   ...connect,
   ...videos,
   ...transcripts,
+  ...attendance,
+  ...attendanceClosing,
 };

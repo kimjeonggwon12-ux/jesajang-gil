@@ -161,6 +161,23 @@ const suites = {
         .map((memberId) => ({ action: 'getVideoRequests', memberId })),
     ];
   },
+  async attendance() {
+    const meetings = await distinct('attend_meetings', 'meeting_id');
+    const records = await selectAll(() => db().from('attend_records').select('member_id, meeting_id').order('id'));
+    const attendees = [...new Set(records.map((r) => r.member_id))].filter((_, i) => i % 40 === 0);
+    const [admin] = await distinct('admins', 'member_id');
+    return [
+      ...meetings.map((meetingId) => ({ action: 'getAttendCount', meetingId })),
+      ...meetings.map((meetingId) => ({ action: 'getAttendMeeting', meetingId, memberId: '없는번호-99999' })),
+      ...attendees.map((memberId) => ({ action: 'getAttendMeeting', meetingId: meetings.at(-1), memberId })),
+      { action: 'getAttendMeeting', meetingId: '없는모임' },
+      ...attendees.map((memberId) => ({ action: 'getMyAttendance', memberId })),
+      { action: 'getAttendAdmin', memberId: admin },
+      { action: 'getAttendAdmin', memberId: admin, filterOrg: '부녀' },
+      { action: 'getAttendAdmin', memberId: admin, filterOrg: '부녀', filterDistrict: '3' },
+      { action: 'getAttendAdmin', memberId: '없는번호-99999' },
+    ];
+  },
 };
 
 const suite = suites[process.argv[2]];
