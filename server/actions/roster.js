@@ -42,6 +42,13 @@ export async function findAdmin(memberId) {
   return rows[0] || null;
 }
 
+/** 그 부서·지역을 맡은 교관(관리자 명단에서 직책에 '교관'이 들어간 사람). */
+export async function findCoaches(dept, region) {
+  if (!dept || !region) return [];
+  return run(db().from('admins').select('member_id, name, position, dept, region')
+    .eq('dept', dept).eq('region', region).like('position', '%교관%').order('id'));
+}
+
 async function getRoster() {
   const rows = await selectAll(() => db().from('teachers').select('*').order('sort_order').order('member_id'));
   return { rows: rows.map(toRosterRow), tiers: TEACHER_TIERS };
