@@ -59,3 +59,11 @@ export function kstInstant(v) {
   }
   return wallTime(v).replace(' ', 'T') + '+09:00';
 }
+
+/** 탭 한 개를 머리글 없이 줄 배열로(머리글이 비어 있는 열까지 읽어야 할 때). 첫 줄(머리글)은 뺀다. */
+export function readTabRows(name) {
+  book ||= XLSX.readFile(FILE);
+  const sheet = book.Sheets[name];
+  if (!sheet) throw new Error('탭이 없습니다: ' + name);
+  return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true }).slice(1).filter((row) => row.some((v) => v !== ''));
+}

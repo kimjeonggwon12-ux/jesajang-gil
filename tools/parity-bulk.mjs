@@ -105,6 +105,46 @@ const suites = {
       { action: 'getTeacherListReport' },
     ];
   },
+  async plaza() {
+    const posts = await selectAll(() => db().from('plaza_posts').select('post_id, member_id, status').order('id'));
+    const cards = await distinct('connect_cards', 'member_id');
+    const staff = await selectAll(() => db().from('event_staff').select('event_id, member_id').order('id'));
+    const attendees = await selectAll(() => db().from('event_attendees').select('event_id, applicant_id').order('id'));
+    const ads = await distinct('calendar_ads', 'ad_id');
+    const teachers = await selectAll(() => db().from('teachers').select('member_id').order('sort_order'));
+    const admins = (await distinct('admins', 'member_id')).slice(0, 3);
+    const viewers = [...new Set([posts[0].member_id, ...admins, ...teachers.filter((_, i) => i % 400 === 7).map((t) => t.member_id)])];
+    return [
+      { action: 'listPlazaPosts' },
+      { action: 'listPlazaPosts', offset: 20, limit: 5 },
+      { action: 'listPlazaPosts', keyword: '전도' },
+      ...['사례', '질문', '나눔', '불편신고', '전도부'].map((category) => ({ action: 'listPlazaPosts', category, memberId: viewers[0] })),
+      ...posts.map((p) => ({ action: 'getPlazaPost', postId: p.post_id, memberId: viewers[0] })),
+      { action: 'getPlazaMonthly' },
+      { action: 'getPlazaMonthly', month: '2026-09', memberId: viewers[0] },
+      { action: 'getCalendarEvents' },
+      ...viewers.map((memberId) => ({ action: 'getCalendarEvents', memberId })),
+      { action: 'getCalendarReport' },
+      ...[...new Set(staff.map((s) => s.event_id))].map((eventId) => ({ action: 'getCalendarReport', eventId })),
+      ...staff.map((s) => ({ action: 'getMyEventSignups', eventId: s.event_id, memberId: s.member_id })),
+      ...attendees.map((s) => ({ action: 'getMyEventSignups', eventId: s.event_id, memberId: s.applicant_id })),
+      { action: 'getCalendarAds' },
+      { action: 'getAdQuestions' },
+      ...ads.map((adId) => ({ action: 'getAdQuestions', adId })),
+      ...cards.map((memberId) => ({ action: 'getConnectCard', memberId })),
+      { action: 'getConnectCard', memberId: teachers[5].member_id },
+      { action: 'searchConnectCards' },
+      { action: 'searchConnectCards', memberId: cards[0], role: '교사' },
+      { action: 'searchConnectCards', schedule: '등록' },
+      { action: 'searchConnectCards', schedule: '언제나', limit: 5, offset: 2 },
+      { action: 'searchConnectCards', keyword: '상담' },
+      { action: 'searchConnectCards', tag: '청년 대상' },
+      { action: 'getHelpPosts' },
+      { action: 'getHelpPosts', includeClosed: true, memberId: viewers[0] },
+      { action: 'getConnectAdminOverview' },
+      { action: 'getCoachList' },
+    ];
+  },
 };
 
 const suite = suites[process.argv[2]];

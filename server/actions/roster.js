@@ -42,6 +42,31 @@ export async function findAdmin(memberId) {
   return rows[0] || null;
 }
 
+/** 여러 사람의 명단 정보를 한 번에: 정규화 번호 → 명단 행(없는 사람은 빠진다). */
+export async function teachersByNid(memberIds) {
+  const nids = [...new Set(memberIds.map(normId))].filter((n) => n !== '0');
+  const map = new Map();
+  for (let i = 0; i < nids.length; i += 200) {
+    const rows = await run(db().from('teachers').select('*').in('nid', nids.slice(i, i + 200)).order('sort_order'));
+    for (const t of rows) map.set(t.nid, toRosterRow(t));
+  }
+  return map;
+}
+
+const OWNER_NID = '20113000010';   // 앱 관리자(김정권) 계정
+const ADMIN_POSITIONS = LEADER_POSITIONS.filter(Boolean);
+
+/** 광장·일정·영상의 관리자 권한: 관리자 명단에 있거나, 명단 직책·부서(교역자)·소속비고(센터)로 판정. */
+export async function isAdmin(memberId) {
+  if (normId(memberId) === OWNER_NID) return true;
+  const [admin, teacher] = await Promise.all([findAdmin(memberId), findTeacher(memberId)]);
+  if (admin) return true;
+  if (!teacher) return false;
+  return ADMIN_POSITIONS.includes(teacher.position.trim()) || teacher.dept.trim() === '교역자' || teacher.note.includes('센터');
+}
+
+export const isOwner = (memberId) => normId(memberId) === OWNER_NID;
+
 /** 그 부서·지역을 맡은 교관(관리자 명단에서 직책에 '교관'이 들어간 사람). */
 export async function findCoaches(dept, region) {
   if (!dept || !region) return [];

@@ -7,6 +7,9 @@ import chat from './actions/chat.js';
 import courses from './actions/courses.js';
 import education from './actions/education.js';
 import feedback from './actions/feedback.js';
+import plaza from './actions/plaza.js';
+import calendar from './actions/calendar.js';
+import connect from './actions/connect.js';
 
 export const actions = {
   ...roster,
@@ -17,4 +20,7 @@ export const actions = {
   ...courses,
   ...education,
   ...feedback,
+  ...plaza,
+  ...calendar,
+  ...connect,
 };
