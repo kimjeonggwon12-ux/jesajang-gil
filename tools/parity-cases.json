@@ -1,0 +1,6 @@
+[
+  { "action": "getRoster" },
+  { "action": "checkAdmin", "memberId": "00230901-00011" },
+  { "action": "checkAdmin", "memberId": "없는번호" },
+  { "action": "getMyTierStatus", "memberId": "00230901-00011" }
+]
