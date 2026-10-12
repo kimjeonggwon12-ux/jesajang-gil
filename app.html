@@ -2659,7 +2659,7 @@
       loadMyRosterRow();   // 명단에서 내 직책·부서를 확인해 관리자 탭 노출 결정
       enterFromHash();
       showInstallToastIfNeeded();
-      pdMovedNotice();
+      setTimeout(pdWelcomeGuide, 900);   // 첫 화면이 그려진 뒤에
     }
     function attLeaveQrOnly() {
       if (!App.qrOnly) return;
@@ -2788,16 +2788,74 @@
       const rest = (location.hash || '').replace(/[#&]carry=[A-Za-z0-9_-]+/, '').replace(/^&/, '#');
       history.replaceState(null, '', location.pathname + location.search + (rest.length > 1 ? rest : ''));
     }
-    /** 옛 홈 화면 아이콘으로 들어온 사람에게 한 번: 새 주소에서 다시 추가해 달라는 안내. */
-    function pdMovedNotice() {
+    // ── 처음 안내(2026-10-12) ── 이 기기에서 새 주소에 처음 들어왔을 때 한 번: 홈 화면에 추가하는 법 + 알림 켜기.
+    // 안드로이드 크롬은 '설치' 창을 우리가 직접 띄울 수 있다(beforeinstallprompt). 아이폰은 사파리 공유 단추로만 된다.
+    let pdInstallEvent = null;
+    window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); pdInstallEvent = e; });
+    const PD_GUIDE_KEY = 'pd_guide_v1';
+    function pdDevice() {
+      const ua = navigator.userAgent || '';
+      return {
+        ios: /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+        android: /Android/i.test(ua),
+        kakao: /KAKAOTALK/i.test(ua),
+        inApp: /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|Line\//i.test(ua),
+        installed: (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true,
+        canNotify: 'Notification' in window,
+      };
+    }
+    function pdWelcomeGuide(force) {
+      if (EMBED_PLAZA || App.qrOnly) return;
       let moved = false;
-      try { moved = sessionStorage.getItem('pd_moved_app') === '1'; sessionStorage.removeItem('pd_moved_app'); } catch (e) {}
-      if (!moved) return;
-      const b = document.createElement('div');
-      b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:9999;background:#1f2a26;color:#fff;border-radius:14px;padding:14px 16px;font-size:14px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.25)';
-      b.innerHTML = '<b>교사광장 주소가 바뀌었어요.</b><br>홈 화면의 예전 아이콘은 지우고, 이 화면에서 다시 <b>홈 화면에 추가</b>해 주세요.<div style="text-align:right;margin-top:8px"><button type="button" style="background:#00AE82;color:#fff;border:0;border-radius:8px;padding:6px 14px;font-weight:700">확인</button></div>';
-      b.querySelector('button').onclick = () => b.remove();
-      document.body.appendChild(b);
+      try {
+        moved = sessionStorage.getItem('pd_moved_app') === '1';
+        if (!force && localStorage.getItem(PD_GUIDE_KEY)) return;
+        localStorage.setItem(PD_GUIDE_KEY, '1');
+        localStorage.setItem('kko_install_toast_shown', '1');   // 옛 한 줄 안내는 다시 띄우지 않는다
+        sessionStorage.removeItem('pd_moved_app');
+      } catch (e) { return; }
+      const d = pdDevice();
+      const step = (n, title, body) => `<div style="display:flex;gap:12px;margin-top:18px">
+          <div style="flex:none;width:28px;height:28px;border-radius:50%;background:#00AE82;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center">${n}</div>
+          <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:16px">${title}</div><div style="font-size:14px;color:#4b5651;line-height:1.7;margin-top:4px">${body}</div></div></div>`;
+      const btn = (id, label, primary) => `<button type="button" id="${id}" style="margin-top:10px;height:46px;padding:0 18px;border-radius:12px;border:1px solid #00AE82;background:${primary ? '#00AE82' : '#fff'};color:${primary ? '#fff' : '#00875f'};font-size:15px;font-weight:800">${label}</button>`;
+
+      // ① 홈 화면에 추가
+      let install;
+      if (d.installed) install = '이미 홈 화면 앱으로 쓰고 계세요. 👍';
+      else if (d.inApp) install = `지금은 ${d.kakao ? '카카오톡' : '다른 앱'} 안에서 열려 있어요. 화면 ${d.ios ? '아래의 공유 단추(□↑)' : '오른쪽 위(또는 아래)의 ⋮'} → <b>다른 브라우저로 열기</b>를 누른 다음, 거기서 홈 화면에 추가해 주세요.`;
+      else if (d.ios) install = '사파리 아래 가운데 <b>공유 단추(□↑)</b> → <b>홈 화면에 추가</b> → 오른쪽 위 <b>추가</b>';
+      else if (d.android) install = '아래 단추를 누르거나, 크롬 오른쪽 위 <b>⋮</b> → <b>홈 화면에 추가</b>(또는 앱 설치)' + btn('pdGuideInstall', '홈 화면에 추가', true);
+      else install = '주소창 오른쪽의 <b>설치</b> 아이콘을 누르면 프로그램처럼 쓸 수 있어요.' + (pdInstallEvent ? btn('pdGuideInstall', '설치', true) : '');
+
+      // ② 알림
+      let noti;
+      if (!d.canNotify) noti = d.ios ? '아이폰은 <b>홈 화면에 추가한 교사광장</b>을 열어야 알림을 켤 수 있어요. ①을 먼저 한 뒤, 홈 화면의 교사광장 → 위쪽 🔔 단추를 눌러 주세요.' : '이 브라우저는 알림을 지원하지 않아요.';
+      else if (Notification.permission === 'granted') noti = '알림이 켜져 있어요. 👍';
+      else if (Notification.permission === 'denied') noti = '알림이 차단돼 있어요. 주소창 옆 자물쇠(또는 사이트 설정) → 알림 → <b>허용</b>으로 바꿔 주세요.';
+      else noti = '전도 일정 하루 전과 새 글 소식을 알려 드려요.' + btn('pdGuideNoti', '🔔 알림 허용하기', true);
+
+      openSheet(`
+        <div style="font-size:20px;font-weight:800">${moved ? '교사광장 주소가 바뀌었어요' : '교사광장에 오신 것을 환영합니다'}</div>
+        <div style="font-size:14px;color:#6b7772;line-height:1.6;margin-top:6px">${moved ? '더 빨라진 새 교사광장입니다. 홈 화면의 <b>예전 아이콘은 지우고</b>, 아래 두 가지만 한 번 해 주세요.' : '아래 두 가지를 해 두면 앱처럼 편하게 쓸 수 있어요.'}</div>
+        ${step(1, '홈 화면에 추가', install)}
+        ${step(2, '알림 켜기', noti)}
+        <button type="button" onclick="closeSheet()" style="width:100%;height:48px;margin-top:22px;border:none;background:#F3F4F6;border-radius:12px;font-size:15px;font-weight:700">닫기</button>
+        <div style="font-size:12px;color:#9CA3AF;text-align:center;margin-top:8px">이 안내는 위쪽 🔔 단추에서 다시 볼 수 있어요.</div>`);
+
+      const ib = document.getElementById('pdGuideInstall');
+      if (ib) ib.onclick = async () => {
+        if (!pdInstallEvent) { toast('브라우저 메뉴(⋮) → 홈 화면에 추가를 눌러 주세요.'); return; }
+        pdInstallEvent.prompt();
+        try { const choice = await pdInstallEvent.userChoice; if (choice && choice.outcome === 'accepted') { ib.disabled = true; ib.textContent = '추가했어요 ✓'; } } catch (e) {}
+        pdInstallEvent = null;
+      };
+      const nb = document.getElementById('pdGuideNoti');
+      if (nb) nb.onclick = async () => {
+        const result = await pushNoti.requestPermission();
+        if (result === 'granted') { nb.disabled = true; nb.textContent = '알림이 켜졌어요 ✓'; pushNoti.scheduleWeekEvents(); }
+        else toast('알림이 허용되지 않았어요. 브라우저 설정에서 바꿀 수 있어요.', true);
+      };
     }
 
     function pdBoot() {
@@ -3035,6 +3093,7 @@
 
     // 알림 권한 안내 버튼 (설정 섹션에서 호출)
     async function openPushNotiSheet() {
+      if (!('Notification' in window) || Notification.permission === 'default') { pdWelcomeGuide(true); return; }
       const perm = Notification.permission;
       if (perm === 'granted') {
         toast('✅ 알림이 이미 켜져 있어요. 이번 주 일정을 예약합니다.');
