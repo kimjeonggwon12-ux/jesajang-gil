@@ -3,36 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>교회 교사 활동 현황</title>
+<meta http-equiv="Cache-Control" content="no-cache">
+<title>교사광장 — 업데이트 작업 중</title>
+<script>setTimeout(function () { location.reload(); }, 60000);</script>
 <style>
-  /* 2026-09-16: 전도부 총무 피드백 — 지역별 순위·차트 등 동적 기능 전부 삭제, 로그인 없이 TV/모니터에
-     띄우는 단순 정적 안내 화면으로 교체. 어두운 배경 + 큰 글씨는 기존 그대로 유지(TV에서 잘 보이도록). */
-  html, body { margin:0; padding:0; background:#0B1220; color:#F1F5F9; height:100%; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
-    height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
-  }
-  .brand-accent-bar { position:fixed; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg,#6366F1,#F59E0B,#10B981); }
+  html,body{height:100%;margin:0}
+  body{display:flex;align-items:center;justify-content:center;background:#EEE9E0;font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#1f2a26}
+  .box{max-width:420px;margin:24px;padding:32px 26px;background:#fff;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.08);text-align:center;line-height:1.6}
+  h1{font-size:20px;margin:0 0 12px;color:#00875f}
+  p{margin:8px 0;font-size:15px}
+  small{color:#6b7772}
+  a{color:#00875f;font-weight:700}
 </style>
 </head>
 <body>
-<div class="brand-accent-bar"></div>
-<div style="font-size:64px;line-height:1;margin-bottom:16px">⛪</div>
-<div style="font-size:38px;font-weight:900;letter-spacing:-0.5px">제사장의 길</div>
-<div style="font-size:18px;color:#94A3B8;margin-top:8px">복음방 교사 어플</div>
-<div id="display-date" style="font-size:18px;color:#CBD5E1;margin-top:32px"></div>
-<div id="display-clock" style="font-size:44px;font-weight:900;font-variant-numeric:tabular-nums;margin-top:6px"></div>
-
-<script>
-function updateClock() {
-  const now = new Date();
-  const dateEl = document.getElementById('display-date');
-  const clockEl = document.getElementById('display-clock');
-  if (dateEl) dateEl.textContent = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  if (clockEl) clockEl.textContent = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-}
-updateClock();
-setInterval(updateClock, 1000);
-</script>
+<div class="box">
+  <h1>🔧 시스템 업데이트 작업 중입니다</h1>
+  <p>더 빠르고 안정적인 교사광장을 위해<br>시스템 개선 작업을 하고 있습니다.</p>
+  <p><b>작업 시간은 1시간 정도</b> 예상됩니다.</p>
+  <p><small>작업이 끝나면 이 화면이 자동으로 새 교사광장으로 넘어갑니다.<br>이용에 불편을 드려 죄송합니다.</small></p>
+</div>
 </body>
 </html>

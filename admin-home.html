@@ -1,166 +1,27 @@
 <!DOCTYPE html>
-<html lang="ko" data-theme="jesagil">
+<html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>제사장의 길 - 관리자 홈</title>
-<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
-<script src="https://cdn.tailwindcss.com"></script>
+<meta http-equiv="Cache-Control" content="no-cache">
+<title>교사광장 — 업데이트 작업 중</title>
+<script>setTimeout(function () { location.reload(); }, 60000);</script>
 <style>
-  /* 제사장의 길 공통 디자인 시스템 테마 (jesagil) — 다른 관리자 화면과 동일 */
-  [data-theme="jesagil"] {
-    --p: 51.06% 0.2301 276.97; --pc: 100% 0 0;
-    --s: 66.58% 0.1574 58.32;  --sc: 100% 0 0;
-    --a: 59.60% 0.1274 163.23; --ac: 100% 0 0;
-    --n: 27.95% 0.0368 260.03; --nc: 96.70% 0.0029 264.54;
-    --b1: 100% 0 0; --b2: 96.70% 0.0029 264.54; --b3: 92.76% 0.0058 264.53;
-    --bc: 27.81% 0.0296 256.85;
-    --in: 68.47% 0.1479 237.32; --inc: 100% 0 0;
-    --su: 61.67% 0.1191 162.14; --suc: 100% 0 0;
-    --wa: 75.76% 0.1525 74.86;  --wac: 0% 0 0;
-    --er: 59.56% 0.1901 25.05;  --erc: 100% 0 0;
-    --rounded-box: 0.75rem; --rounded-btn: 0.5rem; --rounded-badge: 1rem;
-  }
-  html, body { margin:0; padding:0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
-  .brand-accent-bar { height: 3px; background: linear-gradient(90deg, oklch(var(--p)), oklch(var(--s)), oklch(var(--a))); }
-  .admin-card { transition: box-shadow .15s ease, transform .15s ease; }
-  .admin-card:hover { box-shadow: 0 8px 24px -6px rgb(0 0 0 / 0.15); transform: translateY(-2px); }
-
-  /* ===== 카카오톡 스타일 공통 디자인 토큰 (home.html과 동일) ===== */
-  :root {
-    --color-primary: #5B4FCF;
-    --color-primary-light: #EDE9FF;
-    --color-primary-dark: #3D34A5;
-    --color-surface: #FFFFFF;
-    --color-bg: #F5F5F5;
-    --color-card: #FFFFFF;
-    --color-text: #1A1A2E;
-    --color-text-sub: #666680;
-    --color-border: #E8E8F0;
-    --color-success: #2D9B6F;
-    --color-warning: #E8A020;
-    --color-error: #D94040;
-    --color-accent: #FF6B6B;
-    --radius-card: 16px;
-    --radius-btn: 12px;
-    --radius-input: 10px;
-    --shadow-card: 0 2px 12px rgba(0,0,0,0.08);
-    --height-btn: 52px;
-    --height-btn-sm: 44px;
-    --height-header: 56px;
-    --space-xs: 4px; --space-sm: 8px; --space-md: 16px; --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px;
-  }
-  .lucide-i { width:1em; height:1em; display:inline-block; vertical-align:-0.15em; flex-shrink:0; }
-  .kko-header { height:var(--height-header); background:var(--color-primary); display:flex; align-items:center; gap:10px; padding:0 16px; flex-shrink:0; }
-  .kko-header .kko-back { color:#fff; font-size:20px; line-height:1; text-decoration:none; }
-  .kko-header .kko-title { color:#fff; font-weight:700; font-size:16px; }
-  .kko-card { background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:20px; }
-  .kko-btn-main {
-    display:flex; align-items:center; justify-content:center;
-    height:var(--height-btn); min-height:var(--height-btn); border-radius:var(--radius-btn);
-    background:var(--color-primary); color:#fff; font-size:16px; font-weight:700; border:none; width:100%;
-  }
-  .kko-btn-main[disabled] { opacity:.6; }
-  .kko-btn-outline {
-    display:flex; align-items:center; justify-content:center;
-    height:var(--height-btn-sm); min-height:var(--height-btn-sm); border-radius:var(--radius-btn);
-    background:#fff; color:var(--color-primary); font-size:14px; font-weight:700; border:1.5px solid var(--color-primary); width:100%;
-  }
-  .kko-input, textarea.kko-input { min-height:48px; border-radius:var(--radius-input); border:1px solid var(--color-border); }
-  .kko-input:focus { border-color:var(--color-primary); outline-color:var(--color-primary); }
-  @keyframes kkoFadeIn { from { opacity:0; } to { opacity:1; } }
-  .kko-fade-in { animation: kkoFadeIn .2s ease; }
-  @keyframes kkoCardIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
-  .kko-card-in { animation: kkoCardIn .3s ease; }
-  .kko-btn-main, .kko-btn-outline { transition: transform .1s ease; }
-  .kko-btn-main:active, .kko-btn-outline:active { transform: scale(0.97); }
-  @keyframes kkoShimmer { 0% { background-position:-200px 0; } 100% { background-position:200px 0; } }
-  .kko-skeleton { background:linear-gradient(90deg,#EEEEEE 25%,#F5F5F5 37%,#EEEEEE 63%); background-size:400px 100%; animation:kkoShimmer 1.4s ease infinite; border-radius:8px; }
-  .kko-spinner { width:36px; height:36px; border-radius:50%; border:3px solid #EDE9FF; border-top-color:#5B4FCF; animation:kkoSpin .7s linear infinite; display:inline-block; }
-  @keyframes kkoSpin { to { transform:rotate(360deg); } }
-  .kko-pill { display:inline-flex; align-items:center; border-radius:999px; background:var(--color-primary-light); color:var(--color-primary); font-weight:700; padding:4px 10px; font-size:11px; }
+  html,body{height:100%;margin:0}
+  body{display:flex;align-items:center;justify-content:center;background:#EEE9E0;font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#1f2a26}
+  .box{max-width:420px;margin:24px;padding:32px 26px;background:#fff;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.08);text-align:center;line-height:1.6}
+  h1{font-size:20px;margin:0 0 12px;color:#00875f}
+  p{margin:8px 0;font-size:15px}
+  small{color:#6b7772}
+  a{color:#00875f;font-weight:700}
 </style>
 </head>
-<body class="min-h-screen" style="background:var(--color-bg);">
-<div class="max-w-3xl mx-auto min-h-screen shadow-sm flex flex-col" style="background:var(--color-bg);">
-
-  <div class="kko-header">
-    <svg class="lucide-i" style="font-size:20px; color:#fff;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    <div class="flex flex-col items-start leading-tight">
-      <span class="kko-title">관리자 홈</span>
-      <span style="color:rgba(255,255,255,.65); font-size:11px;">모든 관리자 화면의 진입점</span>
-    </div>
-  </div>
-
-  <div class="flex-1 p-6">
-    <div class="grid gap-4 sm:grid-cols-1">
-      <a href="edu-dashboard.html" class="admin-card kko-card-in block" style="background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:16px 20px; min-height:80px; display:flex; align-items:center;">
-        <div class="flex items-center gap-4 w-full">
-          <div class="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0" style="background:var(--color-primary-light); color:var(--color-primary);"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></div>
-          <div class="flex-1">
-            <div class="text-base font-bold" style="color:var(--color-text);">통합</div>
-            <div class="text-xs mt-0.5" style="color:var(--color-text-sub);">이번 달 결산 · 비활동자 · 센터 인도 실적 · 연결방 현황 · 전도 단계 분포</div>
-          </div>
-          <div class="text-xl" style="color:var(--color-text-sub);">›</div>
-        </div>
-      </a>
-
-      <a href="district-dashboard.html" class="admin-card kko-card-in block" style="background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:16px 20px; min-height:80px; display:flex; align-items:center;">
-        <div class="flex items-center gap-4 w-full">
-          <div class="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0" style="background:var(--color-primary-light); color:var(--color-primary);"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg></div>
-          <div class="flex-1">
-            <div class="text-base font-bold" style="color:var(--color-text);">부서별</div>
-            <div class="text-xs mt-0.5" style="color:var(--color-text-sub);">조직별 요약 · 교역자·자문회·장년회·부녀회·청년회·기타 — 부서·지역별 교사 현황 · 활동 분포</div>
-          </div>
-          <div class="text-xl" style="color:var(--color-text-sub);">›</div>
-        </div>
-      </a>
-
-      <a href="district-dashboard.html?view=teachers" class="admin-card kko-card-in block" style="background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:16px 20px; min-height:80px; display:flex; align-items:center;">
-        <div class="flex items-center gap-4 w-full">
-          <div class="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0" style="background:var(--color-primary-light); color:var(--color-primary);"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg></div>
-          <div class="flex-1">
-            <div class="text-base font-bold" style="color:var(--color-text);">교사 명단</div>
-            <div class="text-xs mt-0.5" style="color:var(--color-text-sub);">부서별 지역장·교관 등록 · 교사 현황 · 최근 1년 센터 등록 · 등급 일괄 승인(교육부·전도부)</div>
-          </div>
-          <div class="text-xl" style="color:var(--color-text-sub);">›</div>
-        </div>
-      </a>
-
-      <!-- 2026-09-22 신설: C. 연결 현황 관리 / D. 캘린더 관리(전도부 기능 분리) -->
-      <a href="connect-admin.html" class="admin-card kko-card-in block" style="background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:16px 20px; min-height:80px; display:flex; align-items:center;">
-        <div class="flex items-center gap-4 w-full">
-          <div class="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0" style="background:var(--color-primary-light); color:var(--color-primary);"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></svg></div>
-          <div class="flex-1">
-            <div class="text-base font-bold" style="color:var(--color-text);">연결 현황 관리</div>
-            <div class="text-xs mt-0.5" style="color:var(--color-text-sub);">활동 신청 교사(명함) 현황 · 도와주세요 현황 · 매칭 건수 관리</div>
-          </div>
-          <div class="text-xl" style="color:var(--color-text-sub);">›</div>
-        </div>
-      </a>
-
-      <a href="calendar-admin.html" class="admin-card kko-card-in block" style="background:var(--color-card); border-radius:var(--radius-card); box-shadow:var(--shadow-card); padding:16px 20px; min-height:80px; display:flex; align-items:center;">
-        <div class="flex items-center gap-4 w-full">
-          <div class="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0" style="background:var(--color-primary-light); color:var(--color-primary);"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></div>
-          <div class="flex-1">
-            <div class="text-base font-bold" style="color:var(--color-text);">캘린더 관리</div>
-            <div class="text-xs mt-0.5" style="color:var(--color-text-sub);">전도 행사 등록·수정·삭제 · 스탭·기능자 신청 현황 · 세미나 참석자 집계(CSV)</div>
-          </div>
-          <div class="text-xl" style="color:var(--color-text-sub);">›</div>
-        </div>
-      </a>
-    </div>
-
-    <div class="text-center mt-6">
-      <a href="teacher-profile.html" class="text-sm font-bold" style="color:var(--color-primary);"><svg class="lucide-i mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>교사 통합 조회 (이름/고유번호로 개별 조회)</a>
-    </div>
-  </div>
-
-  <div class="p-4 border-t text-center" style="border-color:var(--color-border);">
-    <a href="home.html" class="kko-btn-outline" style="display:inline-flex; width:auto; padding:0 20px;">교사 어플로 가기</a>
-  </div>
+<body>
+<div class="box">
+  <h1>🔧 시스템 업데이트 작업 중입니다</h1>
+  <p>더 빠르고 안정적인 교사광장을 위해<br>시스템 개선 작업을 하고 있습니다.</p>
+  <p><b>작업 시간은 1시간 정도</b> 예상됩니다.</p>
+  <p><small>작업이 끝나면 이 화면이 자동으로 새 교사광장으로 넘어갑니다.<br>이용에 불편을 드려 죄송합니다.</small></p>
 </div>
-
 </body>
 </html>
