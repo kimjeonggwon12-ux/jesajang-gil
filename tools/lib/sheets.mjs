@@ -35,7 +35,12 @@ export function wallTime(v) {
   if (v === '' || v == null) return null;
   if (typeof v === 'number') return serialToWall(v);
   const m = String(v).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
-  if (!m) throw new Error('시각을 읽지 못했습니다: ' + v);
+  if (!m) {
+    // 글자로 적힌 날짜("Wed Sep 16 2026 10:01:29 GMT+0900 (한국 표준시)")는 한국 시각으로 바꾼다.
+    const d = new Date(String(v).replace(/\s*\(.*\)\s*$/, ''));
+    if (isNaN(d.getTime())) throw new Error('시각을 읽지 못했습니다: ' + v);
+    return new Date(d.getTime() + 9 * 3600000).toISOString().slice(0, 19).replace('T', ' ');
+  }
   const p = (x, n = 2) => String(x || 0).padStart(n, '0');
   return `${m[1]}-${p(m[2])}-${p(m[3])} ${p(m[4])}:${p(m[5])}:${p(m[6])}`;
 }
@@ -45,3 +50,12 @@ export const wallDate = (v) => { const t = wallTime(v); return t ? t.slice(0, 10
 
 /** 날짜일 수도, 아무 글자일 수도 있는 칸 → 날짜면 'yyyy-MM-dd', 아니면 적힌 그대로. */
 export const dateOrText = (v) => (typeof v === 'number' ? serialToWall(v).slice(0, 10) : text(v));
+
+/** 시각 칸 → 시간대가 붙은 ISO 값(밀리초까지) 또는 null. 시트의 시각은 한국 시간이다. */
+export function kstInstant(v) {
+  if (v === '' || v == null) return null;
+  if (typeof v === 'number') {
+    return new Date(Math.round((v - 25569) * 86400000)).toISOString().replace('Z', '+09:00');
+  }
+  return wallTime(v).replace(' ', 'T') + '+09:00';
+}

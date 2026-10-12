@@ -213,7 +213,76 @@ async function deleteTarget(body) {
   return { ok: true, targetName: target.target_name.trim(), deletedActivities: activityIds.length, deletedHistory: history.length };
 }
 
+// ── 관리자 현황: 진행 중인 대상자의 단계 분포 ──
+
+const ROLES = ['인도자', '교사', '섬김이', '협력교사'];
+// 협력교사는 대상자를 맡지 않으므로 올해 협력 활동을 항목별로 센다. ⚠️ app.html COOP_ACTIVITY_OPTIONS 와 같이 맞출 것.
+const COOP_ITEMS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사'];
+
+/** 진행 중인 대상자마다 { stage, roles } — roles 는 담당자들이 그 대상자 활동에 적은 역할 + 담당 배정. */
+async function openTargetsWithRoles() {
+  const [activities, targets] = await Promise.all([
+    selectAll(() => db().from('activities').select('nid, target_name, roles').neq('member_id', '').neq('target_name', '').order('id')),
+    selectAll(() => db().from('targets').select('*').eq('completed', false).order('id')),
+  ]);
+  const rolesBy = new Map();
+  for (const a of activities) {
+    const name = a.target_name.trim();
+    if (!name) continue;
+    const key = `${a.nid}::${name}`;
+    if (!rolesBy.has(key)) rolesBy.set(key, new Set());
+    a.roles.forEach((r) => rolesBy.get(key).add(r));
+  }
+  return targets.map((t) => {
+    const roles = new Set();
+    for (const id of [t.creator_id, t.leader_id, t.helper_id]) {
+      if (str(id)) rolesBy.get(`${normId(id)}::${t.target_name.trim()}`)?.forEach((r) => roles.add(r));
+    }
+    if (str(t.leader_id)) roles.add('인도자');
+    if (str(t.helper_id)) roles.add('섬김이');
+    return { stage: t.stage, roles };
+  });
+}
+
+async function getTargetStageDistribution(body) {
+  let role = str(body.role);
+  if (role === '협력') role = '협력교사';
+  if (role && !ROLES.includes(role)) return { error: '알 수 없는 역할: ' + role };
+
+  if (role === '협력교사') {
+    const year = Number(kstDate().slice(0, 4));
+    const activities = await selectAll(() => db().from('activities').select('activities')
+      .neq('member_id', '').contains('roles', [role])
+      .gte('submitted_at', `${year}-01-01`).lt('submitted_at', `${year + 1}-01-01`).order('id'));
+    const counts = Object.fromEntries(COOP_ITEMS.map((s) => [s, 0]));
+    let total = 0, other = 0;
+    for (const item of activities.flatMap((a) => a.activities)) {
+      if (!item) continue;
+      if (counts[item] === undefined) { other++; continue; }
+      counts[item]++; total++;
+    }
+    return { role, kind: 'items', total, other, stages: COOP_ITEMS.map((stage) => ({ stage, count: counts[stage] })) };
+  }
+
+  const counts = Object.fromEntries(TARGET_STAGES.map((s) => [s, 0]));
+  let total = 0, other = 0;
+  for (const t of await openTargetsWithRoles()) {
+    if (role && !t.roles.has(role)) continue;
+    if (counts[t.stage] === undefined) { other++; continue; }
+    counts[t.stage]++; total++;
+  }
+  return { role, total, other, stages: TARGET_STAGES.map((stage) => ({ stage, count: counts[stage] })) };
+}
+
+/** 표지 숫자: 복음방·센터소개·센터수강 단계 대상자 수. */
+async function getKeyStageCount() {
+  const { stages } = await getTargetStageDistribution({});
+  const by = Object.fromEntries(stages.map((s) => [s.stage, s.count]));
+  return { gospel: by['복음방'] || 0, centerIntro: by['센터소개'] || 0, centerAttend: by['센터수강'] || 0 };
+}
+
 export default {
+  getTargetStageDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
   getTargetJournal, deleteTarget,
 };

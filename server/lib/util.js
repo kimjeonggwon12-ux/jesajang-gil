@@ -24,3 +24,17 @@ export const fmtTs = (v) => (v ? String(v).slice(0, 19).replace('T', ' ') : '');
 
 /** 시트 코드가 쓰던 내림차순 비교(같으면 0 — 먼저 적힌 것이 앞에 남는다). */
 export const byDesc = (key) => (a, b) => (a[key] === b[key] ? 0 : (a[key] < b[key] ? 1 : -1));
+
+/** 같은 사람인지: 적힌 그대로 같거나, 숫자만 남긴 값이 같으면 같은 사람(숫자가 없는 번호끼리는 그대로 비교). */
+export function sameId(a, b) {
+  const ra = str(a);
+  const rb = str(b);
+  if (!ra || !rb) return false;
+  if (ra === rb) return true;
+  const na = normId(ra);
+  const nb = normId(rb);
+  return na !== '0' && nb !== '0' && na === nb;
+}
+
+/** DB 의 timestamptz 값 → ISO 문자열(없으면 ''). 옛 서버가 날짜 칸을 그대로 내려주던 모양과 같다. */
+export const isoTs = (v) => (v ? new Date(v).toISOString() : '');

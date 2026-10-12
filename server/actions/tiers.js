@@ -592,6 +592,60 @@ async function getOrgSummary() {
   };
 }
 
+/** 옛 명함에 "활동 가능"으로 올려 둔 일정이 아직 유효한가(직접 정한 기간이 지났으면 아님). */
+const stillAvailable = (p, today) => p.available && !(p.schedule_type === '직접' && p.avail_to && p.avail_to < today);
+
+/** 관리자 교사 명단: 명단 순서 그대로 교사별 활동·제안·명함 정보. */
+async function getTeacherListReport() {
+  const now = new Date();
+  const bounds = monthBounds(now);
+  const today = kstDate(now);
+  const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+  const [data, profiles] = await Promise.all([
+    loadTierData(),
+    selectAll(() => db().from('teacher_profiles').select('*').order('id')),
+  ]);
+  const profileOf = new Map(profiles.map((p) => [p.nid, p]));
+
+  const rows = data.roster.map((person) => {
+    const r = review(person, data, now);
+    const p = profileOf.get(r.nid);
+    const actTypes = {};
+    for (const a of r.acts) actTypes[a.type] = (actTypes[a.type] || 0) + 1;
+    return {
+      memberId: person.memberId, monthlyCount: countIn(r.acts, bounds),
+      leads1y: r.leads.filter((d) => d >= oneYearAgo).length, actTotal: r.acts.length, actTypes,
+      lastActivityDate: fmtDate(latest(r.acts)), conditionText: conditionText(r.acts, r.leads, now),
+      suggestion: suggestionOf(r),
+      apply: p && stillAvailable(p, today) ? {
+        roles: p.avail_roles, scheduleType: p.schedule_type, from: p.avail_from, to: p.avail_to,
+        days: p.avail_days, times: p.avail_times, hours: p.avail_hours,
+      } : null,
+      affil: p ? p.affil : '', gender: p ? p.gender : '',
+    };
+  });
+  return { rows };
+}
+
+/** 옛 연결 기능의 누적 숫자(명함 수, 모집 글 수, 성사 건수). */
+async function getConnectStats() {
+  const today = kstDate();
+  const [profiles, boards, applies, coops] = await Promise.all([
+    selectAll(() => db().from('teacher_profiles').select('one_liner, available, schedule_type, avail_to').order('id')),
+    selectAll(() => db().from('boards').select('post_id, deadline, status').neq('post_id', '').order('id')),
+    db().from('board_applies').select('*', { count: 'exact', head: true }),
+    db().from('coop_requests').select('*', { count: 'exact', head: true }).eq('status', '수락'),
+  ]);
+  const cards = profiles.filter((p) => p.one_liner.trim());
+  return {
+    cards: cards.length,
+    active: cards.filter((p) => stillAvailable(p, today)).length,
+    boardTotal: boards.length,
+    boardOpen: boards.filter((b) => b.status === '모집중' && (!b.deadline || b.deadline >= today)).length,
+    coopDone: (applies.count || 0) + (coops.count || 0),
+  };
+}
+
 // ── 이번 달 활동 많은 지역 TOP3 ──
 
 const TOP_REGION_ASPECTS = { 만남: ['만남1', '만남2'], 상담: ['상담1', '상담2'], 복음방: ['복음방'], 센터인도: ['센터소개', '센터수강'] };
@@ -717,5 +771,5 @@ async function getChurchTopRegions() {
 export default {
   checkTierChanges, getSettlementReport, registerLeaveReason, approveTierChange, applyTierChange, deleteApprovalRow,
   bulkChangeTier, getDistrictView, getMyTierStatus, getMyCenterLeads, getAllCenterLeads,
-  getDistrictReport, getOrgSummary, getTopRegions, getChurchTopRegions,
+  getDistrictReport, getOrgSummary, getTopRegions, getChurchTopRegions, getTeacherListReport, getConnectStats,
 };

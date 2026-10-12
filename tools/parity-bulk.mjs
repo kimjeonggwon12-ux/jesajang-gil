@@ -85,6 +85,26 @@ const suites = {
       ...[...leadMembers, everyNth[1].member_id].map((memberId) => ({ action: 'getMyCenterLeads', memberId })),
     ];
   },
+  async misc() {
+    const chats = await selectAll(() => db().from('chat_messages').select('chat_id, from_id, to_id').order('id'));
+    const chatters = [...new Set(chats.flatMap((c) => [c.from_id, c.to_id]))];
+    const feedbackMembers = (await distinct('feedbacks', 'member_id')).slice(0, 12);
+    const eduMembers = await distinct('required_education', 'member_id');
+    return [
+      { action: 'getCourseList' },
+      ...['복음방', '상담', '밭갈기', '없는분류'].map((category) => ({ action: 'getCourseList', category })),
+      { action: 'getRequiredEducationLog' },
+      ...[...eduMembers, '00230901-00011', ''].map((memberId) => ({ action: 'getRequiredEducation', memberId })),
+      { action: 'getAllFeedback' },
+      ...feedbackMembers.flatMap((memberId) => [{ action: 'getHistory', memberId }, { action: 'getMyCoachRequests', memberId }]),
+      ...[...new Set(chats.map((c) => c.chat_id))].map((chatId) => ({ action: 'getMessages', chatId })),
+      ...chatters.flatMap((memberId) => [{ action: 'getChatList', memberId }, { action: 'getConnectUnread', memberId }]),
+      { action: 'getConnectStats' },
+      { action: 'getKeyStageCount' },
+      ...['', '인도자', '교사', '섬김이', '협력', '협력교사', '없는역할'].map((role) => ({ action: 'getTargetStageDistribution', role })),
+      { action: 'getTeacherListReport' },
+    ];
+  },
 };
 
 const suite = suites[process.argv[2]];
