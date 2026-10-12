@@ -22,3 +22,11 @@ index.html
 Thumbs.db
 desktop.ini
 *~
+
+# === Vercel / Supabase ===
+node_modules/
+.vercel/
+.env
+.env.*
+supabase/.temp/
+tools/export/
