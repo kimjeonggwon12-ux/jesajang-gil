@@ -1,8 +1,8 @@
 {
   "name": "교사광장",
   "short_name": "교사광장",
-  "start_url": "/jesajang-gil/app.html",
-  "scope": "/jesajang-gil/",
+  "start_url": "app.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#EEE9E0",
   "theme_color": "#EEE9E0",
