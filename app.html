@@ -2338,7 +2338,9 @@
           <button type="button" class="kko-tab" data-subtab="connectAdmin" onclick="adminSwitchSubTab('connectAdmin')">연결</button>
           <button type="button" class="kko-tab" data-subtab="calAdmin" onclick="adminSwitchSubTab('calAdmin')">행사</button>
           <button type="button" class="kko-tab" data-subtab="attend" onclick="adminSwitchSubTab('attend')">출석</button>
+          <button type="button" class="kko-tab" data-subtab="roster" onclick="adminSwitchSubTab('roster')">명단</button>   <!-- 2026-10-12 명단 관리 -->
         </div>
+        <div id="admin-pane-roster" class="admin-pane"><div id="rosterAdmRoot" class="ra"></div></div>
         <div id="admin-pane-edu" class="admin-pane"><div id="eduRoot"></div></div>
         <div id="admin-pane-dist" class="admin-pane"><div id="distRoot"></div></div>
         <div id="admin-pane-connectAdmin" class="admin-pane">
@@ -2474,6 +2476,7 @@
     function callApi(payload) {
       if (!API_READ.test(String(payload && payload.action || ''))) return callApiOnce(payload);
       const key = JSON.stringify(payload);
+      if (apiWarm.has(key)) { const warm = apiWarm.get(key); apiWarm.delete(key); return warm; }   // 표지 동안 미리 받아 둔 것(한 번만 씀)
       if (apiInflight.has(key)) return apiInflight.get(key);
       const p = callApiOnce(payload)
         .catch(() => new Promise(r => setTimeout(r, 600)).then(() => callApiOnce(payload)))
@@ -2482,6 +2485,31 @@
       return p;
     }
     App.callApi = callApi;
+    // 2026-10-12: 표지(책이 펼쳐지는 약 4.7초) 동안 첫 화면에 쓸 것을 미리 받아 둔다.
+    // 입장한 뒤 화면이 같은 요청을 하면 callApi 가 다시 보내지 않고 이 결과를 이어받는다(요청 수는 그대로).
+    // 15초가 지나도록 안 쓰인 것은 버린다 — 오래된 내용을 새것처럼 보여 주지 않게.
+    const apiWarm = new Map();
+    function warmUp(payloads) {
+      payloads.forEach(payload => {
+        const key = JSON.stringify(payload);
+        if (apiWarm.has(key) || apiInflight.has(key)) return;
+        const p = callApiOnce(payload).catch(() => new Promise(r => setTimeout(r, 600)).then(() => callApiOnce(payload)));
+        p.catch(() => apiWarm.delete(key));   // 실패한 것은 남기지 않는다(입장 뒤 화면이 평소대로 다시 요청)
+        apiWarm.set(key, p);
+        setTimeout(() => { if (apiWarm.get(key) === p) apiWarm.delete(key); }, 15000);
+      });
+    }
+    /** 첫 화면(광장 · 전도부 게시판)이 부르는 것과 글자 하나까지 같은 요청이어야 이어받는다. memberId 가 없으면 누구에게나 같은 것만. */
+    function warmFirstScreen(memberId) {
+      const list = [{ action: 'getCalendarAds' }, { action: 'getAdQuestions' }];
+      if (memberId) {
+        list.push({ action: 'checkAdmin', memberId }, { action: 'getCalendarEvents', memberId });
+        let page = 'board';
+        try { page = localStorage.getItem('pz_page') || 'board'; } catch (e) {}
+        if (page === 'board') list.push({ action: 'listPlazaPosts', memberId, category: '전도부', keyword: '', offset: 0, limit: 50 });
+      }
+      try { warmUp(list); } catch (e) {}
+    }
     // 2026-10-05: 지난번 받은 화면 먼저 보여주기(stale-while-revalidate).
     // apiSWR(payload, apply): 이 기기에 저장된 지난 결과가 있으면 apply(지난결과, true)로 바로 그리고,
     // 서버 결과가 오면 저장 후 apply(새결과, false)로 다시 그린다(내용이 같으면 다시 안 그림). 서버 결과를 돌려준다.
@@ -2766,6 +2794,7 @@
       // 2026-10-06(사용자 요청): 한 번 로그인한 사람은 로그인 화면 없이 표지만 보고 바로 들어간다.
       // 2026-10-07: 표지가 내려앉을 무렵 바로 밝아지며 입장(멈춤 없이), 화면을 누르면 바로 넘어감
       if (saved) {
+        warmFirstScreen(saved.memberId);   // 표지가 도는 동안 첫 화면 자료를 미리 받는다
         const splash = document.getElementById('pdSplash');
         splash.onclick = () => { splash.onclick = null; pdFinishBook(); };
         pdPlayBook(() => {
@@ -2776,6 +2805,7 @@
         return;
       }
       if (qrAttend) document.getElementById('pdSplash').classList.add('bk-instant');
+      else warmFirstScreen(null);   // 처음 오는 사람: 공지처럼 누구에게나 같은 것만 미리
       // 처음 오는 사람: 표지가 내려앉는 동안 책이 위로 올라가며 이름·고유번호 입력 카드가 나타남(멈춤 없이 이어짐)
       pdPlayBook(() => {
         const splash = document.getElementById('pdSplash'), form = document.getElementById('pdForm');
@@ -12251,6 +12281,7 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         else if (tab === 'connectAdmin') cnAdmLoad();
         else if (tab === 'calAdmin') calAdmInit();
         else if (tab === 'attend') attAdmLoad();
+        else if (tab === 'roster') rosterAdm.mount();
       }
       else if (tab === 'attend') attAdmLoad();   // 다시 들어올 때마다 최신 출석 인원
     }
@@ -12600,6 +12631,191 @@ async function calAdmInit() {
   calAdmRender();
 }
 
+
+    // ════════════════════════════════════════════════════════════════
+    // [ADMIN] 명단 관리 (2026-10-12) — 교사 한 명씩 찾기·고치기·추가·빼기, 관리자 지정·해제, 변경 기록.
+    // 권한(교육부·전도부 담당)은 서버가 검사한다. 등급은 여기서 바꾸지 않는다('교사' 탭의 일괄 승인).
+    // ════════════════════════════════════════════════════════════════
+    const rosterAdm = (() => {
+      const DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
+      const REGIONS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0') + '지역');
+      const st = { query: '', rows: null, hint: '', busy: false, error: '' };
+      const root = () => document.getElementById('rosterAdmRoot');
+      const call = payload => callApi({ ...payload, memberId: App.memberId, name: App.name });
+
+      function css() {
+        if (document.getElementById('raCss')) return;
+        const el = document.createElement('style'); el.id = 'raCss';
+        el.textContent = `
+          .ra{max-width:760px;margin:0 auto;padding:14px 12px 40px}
+          .ra-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+          .ra-in{flex:1;min-width:160px;height:44px;border:1px solid #d6dbd8;border-radius:10px;padding:0 12px;font-size:16px;background:#fff}
+          .ra-btn{height:44px;padding:0 16px;border-radius:10px;border:1px solid #00AE82;background:#00AE82;color:#fff;font-weight:700;font-size:15px;white-space:nowrap}
+          .ra-btn.line{background:#fff;color:#00875f}
+          .ra-btn.warn{background:#fff;color:#c0392b;border-color:#e3b5ae}
+          .ra-btn.warn.sure{background:#c0392b;color:#fff;border-color:#c0392b}
+          .ra-btn:disabled{opacity:.5}
+          .ra-note{margin:12px 2px;color:#6b7772;font-size:14px;line-height:1.5}
+          .ra-list{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+          .ra-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#fff;border:1px solid #e3e8e5;border-radius:12px;padding:12px 14px}
+          .ra-row b{font-size:16px}
+          .ra-sub{color:#6b7772;font-size:13px;margin-top:2px}
+          .ra-tag{flex:none;font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px;background:#e3f6ef;color:#00875f}
+          .ra-tag.adm{background:#fff4cc;color:#8a6200}
+          .ra-tag.out{background:#eee;color:#666}
+          .ra-f{display:block;margin-top:12px;font-size:13px;font-weight:700;color:#4b5651}
+          .ra-f input{display:block;width:100%;height:44px;margin-top:4px;border:1px solid #d6dbd8;border-radius:10px;padding:0 12px;font-size:16px;font-weight:400;background:#fff}
+          .ra-f input[readonly]{background:#f3f5f4;color:#6b7772}
+          .ra-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+          .ra-h{margin:22px 0 2px;padding-top:16px;border-top:1px solid #e3e8e5;font-size:15px;font-weight:800}
+          .ra-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+          .ra-log{border-bottom:1px solid #eef1ef;padding:10px 0;font-size:14px;line-height:1.5}
+          .ra-log small{color:#6b7772}
+          .ra-diff{color:#4b5651;font-size:13px}
+        `;
+        document.head.appendChild(el);
+      }
+
+      function render() {
+        const r = root(); if (!r) return;
+        const list = st.rows === null ? '' : st.rows.length
+          ? st.rows.map((p, i) => `
+            <button type="button" class="ra-row" onclick="rosterAdm.edit(${i})">
+              <span style="flex:1;min-width:0">
+                <b>${esc(p.name)}</b>
+                <div class="ra-sub">${esc([p.dept, p.region, p.affiliation].filter(Boolean).join(' · '))} · ${esc(p.memberId)}</div>
+              </span>
+              ${p.admin ? `<span class="ra-tag adm">관리자 · ${esc(p.admin.position)}</span>` : ''}
+              ${p.inRoster ? `<span class="ra-tag">${esc(p.tier || '활동교사')}</span>` : '<span class="ra-tag out">교사명단에 없음</span>'}
+            </button>`).join('')
+          : '<p class="ra-note">찾는 사람이 없어요. 이름이나 고유번호를 다시 확인해 주세요.</p>';
+        r.innerHTML = `
+          <form class="ra-bar" onsubmit="event.preventDefault(); rosterAdm.search()">
+            <input class="ra-in" id="raQuery" placeholder="이름 또는 고유번호" value="${esc(st.query)}" autocomplete="off">
+            <button class="ra-btn" ${st.busy ? 'disabled' : ''}>${st.busy ? '찾는 중…' : '찾기'}</button>
+          </form>
+          <div class="ra-bar" style="margin-top:8px">
+            <button type="button" class="ra-btn line" onclick="rosterAdm.add()">+ 교사 추가</button>
+            <button type="button" class="ra-btn line" onclick="rosterAdm.log()">변경 기록</button>
+          </div>
+          ${st.error ? `<p class="ra-note" style="color:#c0392b">${esc(st.error)}</p>` : ''}
+          ${st.hint ? `<p class="ra-note">${esc(st.hint)}</p>` : ''}
+          ${st.rows === null && !st.error ? '<p class="ra-note">교사를 찾아 이름·부서·지역·직책을 고치거나, 관리자로 지정할 수 있어요.<br>등급은 [교사] 탭에서 바꿉니다. 여기서 바꾼 내용은 모두 [변경 기록]에 남습니다.</p>' : ''}
+          <div class="ra-list">${list}</div>`;
+      }
+
+      async function search() {
+        const input = document.getElementById('raQuery');
+        st.query = input ? input.value.trim() : st.query;
+        st.busy = true; st.error = ''; st.hint = ''; render();
+        try {
+          const res = await call({ action: 'searchRoster', query: st.query });
+          if (res.error) { st.error = res.error; st.rows = null; }
+          else { st.rows = res.rows || []; st.hint = res.hint || ''; if (res.hint) st.rows = null; }
+        } catch (e) { st.error = e.message; }
+        st.busy = false; render();
+      }
+
+      const field = (id, label, value, opts = '') => `<label class="ra-f">${label}<input id="${id}" value="${esc(value || '')}" ${opts}></label>`;
+      const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+      const lists = `<datalist id="raDepts">${DEPTS.map(d => `<option value="${d}">`).join('')}</datalist>
+        <datalist id="raRegions">${REGIONS.map(d => `<option value="${d}">`).join('')}</datalist>`;
+
+      function teacherForm(p, isNew) {
+        return `${lists}
+          ${field('raId', '고유번호', p.memberId, isNew ? 'placeholder="예: 00230901-00011" autocomplete="off"' : 'readonly')}
+          <div class="ra-two">${field('raName', '이름', p.name)}${field('raDept', '부서', p.dept, 'list="raDepts"')}</div>
+          <div class="ra-two">${field('raRegion', '지역', p.region, 'list="raRegions"')}${field('raAffil', '소속(구역)', p.affiliation)}</div>
+          <div class="ra-two">${field('raPos', '직책', p.position)}${field('raNote', '소속 비고', p.note)}</div>`;
+      }
+
+      function add() {
+        openSheet(`<h3 style="font-size:18px;font-weight:800">교사 추가</h3>
+          ${teacherForm({}, true)}
+          <p class="ra-note">새로 넣은 교사의 등급은 '활동교사'로 시작합니다.</p>
+          <div class="ra-acts"><button type="button" class="ra-btn" id="raSave" onclick="rosterAdm.save(true)">추가</button></div>`);
+      }
+
+      function edit(i) {
+        const p = st.rows[i]; if (!p) return;
+        st.current = p;
+        const adm = p.admin;
+        openSheet(`<h3 style="font-size:18px;font-weight:800">${esc(p.name)}</h3>
+          ${p.inRoster ? `${teacherForm(p, false)}
+            <div class="ra-acts">
+              <button type="button" class="ra-btn" id="raSave" onclick="rosterAdm.save(false)">저장</button>
+              <button type="button" class="ra-btn warn" id="raRemove" onclick="rosterAdm.remove(this)">명단에서 빼기</button>
+            </div>` : `<p class="ra-note">교사명단에는 없고 관리자 명단에만 있는 사람입니다.</p><input type="hidden" id="raId" value="${esc(p.memberId)}">`}
+          <div class="ra-h">관리자 ${adm ? '<span class="ra-tag adm">지정됨</span>' : ''}</div>
+          <p class="ra-note" style="margin-top:6px">관리자로 지정하면 관리자 탭이 보입니다. 직책에 '교관'이 들어가면 그 부서·지역의 담당 교관이 되고, '교육'·'전도'가 들어가면 영상 승인과 명단 관리까지 할 수 있습니다.</p>
+          <div class="ra-two">${field('raAdmPos', '관리자 직책', adm ? adm.position : '', 'placeholder="예: 부녀회복음방교관"')}${field('raAdmRegion', '담당 지역', adm ? adm.region : p.region, 'list="raRegions"')}</div>
+          ${field('raAdmPhone', '연락처', adm ? adm.phone : '')}
+          <div class="ra-acts">
+            <button type="button" class="ra-btn line" onclick="rosterAdm.setAdmin(true)">${adm ? '관리자 정보 저장' : '관리자로 지정'}</button>
+            ${adm ? '<button type="button" class="ra-btn warn" onclick="rosterAdm.setAdmin(false, this)">관리자 해제</button>' : ''}
+          </div>`);
+      }
+
+      /** 저장이 끝나면 창을 닫고, 방금 찾던 목록을 다시 받는다. */
+      async function done(res, message) {
+        if (!res || res.error) { toast((res && res.error) || '저장하지 못했어요.', true); return false; }
+        closeSheet(); toast(message);
+        if (st.query) await search();
+        return true;
+      }
+      /** 지우기처럼 되돌리기 어려운 것은 같은 단추를 두 번 눌러야 한다. */
+      function sure(btn, label) {
+        if (btn.classList.contains('sure')) return true;
+        btn.classList.add('sure'); btn.textContent = label;
+        setTimeout(() => { btn.classList.remove('sure'); btn.textContent = btn.dataset.label || btn.textContent; }, 4000);
+        return false;
+      }
+
+      async function save(isNew) {
+        const btn = document.getElementById('raSave'); if (btn) btn.disabled = true;
+        const member = { memberId: val('raId'), name: val('raName'), dept: val('raDept'), region: val('raRegion'), affiliation: val('raAffil'), position: val('raPos'), note: val('raNote'), isNew };
+        if (isNew && !st.query) st.query = member.name;
+        try {
+          const res = await call({ action: 'saveRosterMember', member });
+          await done(res, res && res.unchanged ? '바뀐 내용이 없어요.' : (isNew ? '명단에 추가했어요.' : '저장했어요.'));
+        } catch (e) { toast(e.message, true); }
+        if (btn) btn.disabled = false;
+      }
+      async function remove(btn) {
+        btn.dataset.label = btn.dataset.label || '명단에서 빼기';
+        if (!sure(btn, '한 번 더 누르면 뺍니다')) return;
+        try { await done(await call({ action: 'removeRosterMember', targetId: val('raId') }), '명단에서 뺐어요.'); } catch (e) { toast(e.message, true); }
+      }
+      async function setAdmin(on, btn) {
+        if (!on) { btn.dataset.label = btn.dataset.label || '관리자 해제'; if (!sure(btn, '한 번 더 누르면 해제합니다')) return; }
+        const p = st.current || {};
+        const admin = { name: val('raName') || p.name, dept: val('raDept') || p.dept, region: val('raAdmRegion'), position: val('raAdmPos'), phone: val('raAdmPhone') };
+        try { await done(await call({ action: 'setAdminMember', targetId: val('raId'), on, admin }), on ? '관리자 정보를 저장했어요.' : '관리자에서 해제했어요.'); } catch (e) { toast(e.message, true); }
+      }
+
+      const LABELS = { name: '이름', dept: '부서', region: '지역', affiliation: '소속', position: '직책', note: '비고', tier: '등급', phone: '연락처' };
+      function diffText(c) {
+        if (c.before && c.after) {
+          const parts = Object.keys(LABELS).filter(k => (c.before[k] || '') !== (c.after[k] || ''))
+            .map(k => `${LABELS[k]}: ${c.before[k] || '(빈칸)'} → ${c.after[k] || '(빈칸)'}`);
+          return parts.join(' / ');
+        }
+        const v = c.after || c.before || {};
+        return [v.dept, v.region, v.position].filter(Boolean).join(' · ');
+      }
+      async function log() {
+        openSheet('<h3 style="font-size:18px;font-weight:800">변경 기록</h3><p class="ra-note">불러오는 중…</p>');
+        let res;
+        try { res = await call({ action: 'getRosterLog' }); } catch (e) { res = { error: e.message }; }
+        const body = res.error ? `<p class="ra-note" style="color:#c0392b">${esc(res.error)}</p>`
+          : (res.rows || []).length ? res.rows.map(c => `<div class="ra-log"><b>${esc(c.kind)}</b> · ${esc(c.targetName)} <small>(${esc(c.targetId)})</small>
+              <div class="ra-diff">${esc(diffText(c))}</div><small>${esc(c.at)} · ${esc(c.actor)}</small></div>`).join('')
+          : '<p class="ra-note">아직 변경 기록이 없어요.</p>';
+        openSheet(`<h3 style="font-size:18px;font-weight:800">변경 기록</h3><p class="ra-note">최근 100건</p>${body}`);
+      }
+
+      return { mount() { css(); render(); }, search, add, edit, save, remove, setAdmin, log };
+    })();
     window.Sections.admin = { mount() { adminSwitchSubTab('dist'); } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
 
   </script>

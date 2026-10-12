@@ -110,6 +110,15 @@ export async function isAdmin(memberId) {
 
 export const isOwner = (memberId) => normId(memberId) === OWNER_NID;
 
+/** 교육·전도 담당 관리자(또는 앱 관리자): 영상 승인, 명단 관리처럼 한 단계 높은 권한. */
+export async function isApprover(memberId) {
+  if (isOwner(memberId)) return true;
+  const { admin, teacher } = await memberInfo(memberId);
+  const adminRights = !!admin || (!!teacher
+    && (ADMIN_POSITIONS.includes(teacher.position.trim()) || teacher.dept.trim() === '교역자' || teacher.note.includes('센터')));
+  return adminRights && /교육|전도/.test([admin?.position, admin?.dept, teacher?.position].join(' '));
+}
+
 /** 그 부서·지역을 맡은 교관(관리자 명단에서 직책에 '교관'이 들어간 사람). */
 export async function findCoaches(dept, region) {
   if (!dept || !region) return [];

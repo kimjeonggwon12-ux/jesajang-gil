@@ -3,7 +3,7 @@ import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { clip, newId, isDate } from '../lib/input.js';
 import { sendAlert, esc } from '../lib/alerts.js';
-import { findTeacher, findAdmin, isAdmin, isOwner } from './roster.js';
+import { findTeacher, findAdmin, isAdmin, isApprover } from './roster.js';
 
 export const VIDEO_PARTS = ['소양', '상담', '밭갈기', '무신앙', '복음방'];
 
@@ -27,13 +27,7 @@ function youtubeId(s) {
 
 // ── 권한 ──
 
-/** 바로 올리기·승인·삭제: 관리자 중 교육·전도 담당(또는 앱 관리자). */
-export async function isApprover(memberId) {
-  if (isOwner(memberId)) return true;
-  if (!(await isAdmin(memberId))) return false;
-  const [admin, teacher] = await Promise.all([findAdmin(memberId), findTeacher(memberId)]);
-  return /교육|전도/.test([admin?.position, admin?.dept, teacher?.position].join(' '));
-}
+// 바로 올리기·승인·삭제는 교육·전도 담당 관리자(roster.js 의 isApprover)만 한다.
 
 /** 신청: 교사명단에 있는 사람(또는 관리자). */
 const canRequest = async (memberId) => (await isAdmin(memberId)) || !!(await findTeacher(memberId));
