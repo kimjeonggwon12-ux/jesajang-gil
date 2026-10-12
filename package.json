@@ -2,11 +2,16 @@
   "name": "jesajang-gil",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "parity": "node tools/parity.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0"
+  },
+  "devDependencies": {
+    "xlsx": "^0.18.5"
   }
 }
