@@ -11,7 +11,7 @@ async function legacy(payload) {
   for (let attempt = 0; ; attempt++) {
     try {
       const r = await fetch(process.env.LEGACY_URL, {
-        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow',
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(process.env.MAINT_KEY ? { ...payload, maint: process.env.MAINT_KEY } : payload), redirect: 'follow',
       });
       return JSON.parse(await r.text());
     } catch (e) { if (attempt >= 3) throw e; }

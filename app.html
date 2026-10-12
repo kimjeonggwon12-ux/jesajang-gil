@@ -2659,6 +2659,7 @@
       loadMyRosterRow();   // 명단에서 내 직책·부서를 확인해 관리자 탭 노출 결정
       enterFromHash();
       showInstallToastIfNeeded();
+      pdMovedNotice();
     }
     function attLeaveQrOnly() {
       if (!App.qrOnly) return;
@@ -2769,7 +2770,38 @@
     }
 
     /** 스플래시를 띄우고, 끝나면 저장값 유무에 따라 분기 */
+    /**
+     * 2026-10-12 주소 이전: 옛 주소(GitHub Pages)에서 넘어온 사람의 로그인을 이어받는다.
+     * 옛 주소가 저장해 둔 이름·고유번호를 주소 맨 뒤(#carry=…)에 실어 보내면 — 이 부분은 서버로 전송되지 않는다 —
+     * 여기서 이 기기에 저장하고 주소에서 바로 지운다. 이미 이 주소에 로그인이 저장돼 있으면 건드리지 않는다.
+     */
+    function pdTakeCarry() {
+      const m = (location.hash || '').match(/[#&]carry=([A-Za-z0-9_-]+)/);
+      if (!m) return;
+      try {
+        const bytes = Uint8Array.from(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+        const v = JSON.parse(new TextDecoder().decode(bytes));
+        if (v && v.memberId && v.name && !pdLoadSaved()) pdSave(String(v.memberId).slice(0, 40), String(v.name).slice(0, 30));
+        if (v && v.owner) pdSetOwnerDevice(true);
+        if (v && v.app) { try { sessionStorage.setItem('pd_moved_app', '1'); } catch (e) {} }   // 홈 화면 앱으로 들어온 사람 → 다시 추가 안내
+      } catch (e) {}
+      const rest = (location.hash || '').replace(/[#&]carry=[A-Za-z0-9_-]+/, '').replace(/^&/, '#');
+      history.replaceState(null, '', location.pathname + location.search + (rest.length > 1 ? rest : ''));
+    }
+    /** 옛 홈 화면 아이콘으로 들어온 사람에게 한 번: 새 주소에서 다시 추가해 달라는 안내. */
+    function pdMovedNotice() {
+      let moved = false;
+      try { moved = sessionStorage.getItem('pd_moved_app') === '1'; sessionStorage.removeItem('pd_moved_app'); } catch (e) {}
+      if (!moved) return;
+      const b = document.createElement('div');
+      b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:9999;background:#1f2a26;color:#fff;border-radius:14px;padding:14px 16px;font-size:14px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.25)';
+      b.innerHTML = '<b>교사광장 주소가 바뀌었어요.</b><br>홈 화면의 예전 아이콘은 지우고, 이 화면에서 다시 <b>홈 화면에 추가</b>해 주세요.<div style="text-align:right;margin-top:8px"><button type="button" style="background:#00AE82;color:#fff;border:0;border-radius:8px;padding:6px 14px;font-weight:700">확인</button></div>';
+      b.querySelector('button').onclick = () => b.remove();
+      document.body.appendChild(b);
+    }
+
     function pdBoot() {
+      pdTakeCarry();
       const panel = document.getElementById('loginPanel');
       panel.style.display = 'block';
 

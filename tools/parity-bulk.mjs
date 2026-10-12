@@ -12,7 +12,7 @@ async function legacy(payload) {
     try {
       const r = await fetch(LEGACY, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload), redirect: 'follow',
+        body: JSON.stringify(process.env.MAINT_KEY ? { ...payload, maint: process.env.MAINT_KEY } : payload), redirect: 'follow',
       });
       return JSON.parse(await r.text());
     } catch (e) {

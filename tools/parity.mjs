@@ -21,7 +21,7 @@ async function call(url, payload) {
   const t = Date.now();
   const r = await fetch(url, {
     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload), redirect: 'follow',
+    body: JSON.stringify(process.env.MAINT_KEY ? { ...payload, maint: process.env.MAINT_KEY } : payload), redirect: 'follow',
   });
   const text = await r.text();
   let json;
