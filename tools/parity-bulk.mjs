@@ -52,6 +52,39 @@ const suites = {
       ...targets.map((t) => ({ action: 'getTargetJournal', memberId: t.creator_id, targetId: t.target_id })),
     ];
   },
+  async tiers() {
+    const members = await distinct('activities', 'member_id');
+    const leadMembers = await distinct('center_leads', 'member_id');
+    const teachers = await selectAll(() => db().from('teachers').select('member_id, name, position, dept, region').order('sort_order'));
+    const leaders = teachers.filter((t) => t.position.includes('지역장')).slice(0, 3);
+    const everyNth = teachers.filter((_, i) => i % 250 === 0);
+    const depts = ['교역자', '자문회', '장년회', '부녀회', '청년회', '기타'];
+    return [
+      { action: 'checkTierChanges' },
+      { action: 'checkTierChanges', asOf: '2026-09-30' },
+      { action: 'checkTierChanges', year: 2026, month: 8 },
+      { action: 'getSettlementReport' },
+      { action: 'getSettlementReport', asOf: '2026-09-30' },
+      { action: 'getOrgSummary' },
+      { action: 'getChurchTopRegions' },
+      { action: 'getAllCenterLeads' },
+      { action: 'applyTierChange', memberId: 'x', newTier: '정교사' },
+      { action: 'approveTierChange', memberId: 'x' },
+      ...depts.map((dept) => ({ action: 'getDistrictReport', dept })),
+      { action: 'getDistrictReport', dept: '부녀회', region: '11지역' },
+      { action: 'getDistrictReport', dept: '없는부서' },
+      ...depts.slice(0, 5).flatMap((dept) => [
+        { action: 'getTopRegions', dept },
+        { action: 'getTopRegions', dept, aspect: '상담' },
+        { action: 'getTopRegions', dept, role: '인도자' },
+      ]),
+      ...[...leaders, ...everyNth.slice(0, 2)].map((t) => ({ action: 'getDistrictView', memberId: t.member_id, name: t.name })),
+      { action: 'getDistrictView', memberId: everyNth[0].member_id, name: '틀린이름' },
+      ...[...new Set([...members, ...leadMembers, ...everyNth.map((t) => t.member_id)])]
+        .map((memberId) => ({ action: 'getMyTierStatus', memberId })),
+      ...[...leadMembers, everyNth[1].member_id].map((memberId) => ({ action: 'getMyCenterLeads', memberId })),
+    ];
+  },
 };
 
 const suite = suites[process.argv[2]];

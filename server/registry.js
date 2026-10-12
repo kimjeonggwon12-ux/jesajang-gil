@@ -2,9 +2,11 @@
 import roster from './actions/roster.js';
 import activities from './actions/activities.js';
 import targets from './actions/targets.js';
+import tiers from './actions/tiers.js';
 
 export const actions = {
   ...roster,
   ...activities,
   ...targets,
+  ...tiers,
 };

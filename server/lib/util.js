@@ -1,3 +1,6 @@
+// 날짜 계산(달의 첫날·말일 등)은 모두 한국 시간 기준 — 서버가 어느 지역에서 돌든 같게 한다.
+process.env.TZ = 'Asia/Seoul';
+
 /** 고유번호 비교용: 숫자만 남기고 앞자리 0 제거. */
 export function normId(raw) {
   const s = String(raw == null ? '' : raw).replace(/\D/g, '').replace(/^0+/, '');
