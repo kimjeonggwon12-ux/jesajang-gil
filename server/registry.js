@@ -14,6 +14,7 @@ import videos from './actions/videos.js';
 import transcripts from './actions/transcripts.js';
 import attendance from './actions/attendance.js';
 import attendanceClosing from './actions/attendance-closing.js';
+import bot from './actions/bot.js';
 
 export const actions = {
   ...roster,
@@ -31,4 +32,5 @@ export const actions = {
   ...transcripts,
   ...attendance,
   ...attendanceClosing,
+  ...bot,
 };
