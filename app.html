@@ -522,8 +522,31 @@
     .pz-mz-tools button { height:40px; padding:0 16px; border-radius:12px; border:none; background:#fff; color:#111; font-weight:800; font-size:14px; cursor:pointer; }
     .pz-mz-tools button:disabled { opacity:.35; }
     .pz-mz-tools b { color:#FDE68A; }
-    .pz-lightbox { position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.92); display:flex; align-items:center; justify-content:center; }
+    /* 2026-10-13: 사진이 여러 장이면 옆으로 넘겨 보는 묶음(글 상세 맨 위) */
+    .pz-d-car { position:relative; margin:-16px -18px 14px; background:#F2F3F6; }
+    .pz-d-track, .pz-lb-track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; }
+    .pz-d-track::-webkit-scrollbar, .pz-lb-track::-webkit-scrollbar { display:none; }
+    .pz-d-track .pz-d-photo { flex:0 0 100%; width:100%; margin:0; border-radius:0; aspect-ratio:1/1; max-height:70vh; object-fit:contain; scroll-snap-align:center; scroll-snap-stop:always; }
+    .pz-car-n { position:absolute; top:10px; right:10px; padding:3px 10px; border-radius:12px; background:rgba(0,0,0,.55); color:#fff; font-size:12.5px; font-weight:700; pointer-events:none; }
+    .pz-car-dots { position:absolute; left:0; right:0; bottom:10px; display:flex; justify-content:center; gap:6px; pointer-events:none; }
+    .pz-car-dots i { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.6); box-shadow:0 0 2px rgba(0,0,0,.45); }
+    .pz-car-dots i.on { background:#fff; transform:scale(1.25); }
+    .pz-car-arrow { position:absolute; top:50%; transform:translateY(-50%); width:38px; height:38px; border-radius:50%; border:none; background:rgba(0,0,0,.45); color:#fff; font-size:22px; line-height:1; cursor:pointer; display:none; align-items:center; justify-content:center; padding:0 0 3px; }
+    .pz-car-arrow.prev { left:10px; } .pz-car-arrow.next { right:10px; }
+    @media (hover:hover) and (pointer:fine) { .pz-car-arrow { display:flex; } }
+    .pz-car-arrow[hidden] { display:none !important; }
+    /* 사진 크게 보기 — 옆으로 넘기기 + 닫기(✕ · 바깥 누르기 · 뒤로가기 · Esc) */
+    .pz-lightbox { position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.94); }
+    .pz-lb-track { width:100%; height:100%; }
+    .pz-lb-track > div { flex:0 0 100%; height:100%; display:flex; align-items:center; justify-content:center; scroll-snap-align:center; scroll-snap-stop:always; }
     .pz-lightbox img { max-width:100%; max-height:100%; object-fit:contain; }
+    .pz-lb-x { position:absolute; top:calc(10px + env(safe-area-inset-top)); right:12px; width:44px; height:44px; border-radius:50%; border:none; background:rgba(255,255,255,.18); color:#fff; font-size:21px; cursor:pointer; z-index:1; }
+    .pz-lightbox .pz-car-n { top:calc(21px + env(safe-area-inset-top)); right:auto; left:50%; transform:translateX(-50%); font-size:13.5px; }
+    .pz-cmt-edit textarea { display:block; width:100%; box-sizing:border-box; min-height:64px; max-height:200px; margin-top:6px; border-radius:12px; border:1.5px solid var(--color-primary); padding:9px 12px; font-size:14.5px; line-height:1.5; font-family:inherit; resize:none; outline:none; }
+    .pz-cmt-edit div { display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+    .pz-cmt-edit button { height:34px; padding:0 14px; border-radius:17px; border:none; font-size:13.5px; font-weight:800; cursor:pointer; background:#F2F3F6; color:#4D5159; }
+    .pz-cmt-edit button[data-ok] { background:var(--color-primary); color:#fff; }
+    .pz-cmt-edit button:disabled { opacity:.4; }
     .cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
     .cal-head b { font-size:20px; }
     .cal-nav-btn { width:40px; height:40px; border-radius:50%; border:none; background:var(--color-primary-light); color:var(--color-primary); font-size:20px; cursor:pointer; }
@@ -3617,6 +3640,7 @@
     function calRenderEvent(loading) {
       const e = calCur, isOfficialEvent = e.category === '공식' && e.type === '행사';
       const isMineNonOfficial = e.category !== '공식' && sameIdClient(e.createdBy, MEMBER_ID);
+      const isMine = sameIdClient(e.createdBy, MEMBER_ID);   // 2026-10-13: 내가 넣은 일정은 다시 눌러 바로 고친다
       const attIntent = calGetAttIntent(e);
       const showAttIntent = e.category !== '내일정'; // 공식·부서 일정에서 참석 의사 표시
       openSheet(`
@@ -3638,7 +3662,8 @@
           <button class="kko-btn-outline" id="calGoAtt">👥 참석자 신청 <span style="font-weight:400">· 총 ${calMine.totalAttendees}명${calMine.attendees.length ? ' (내 섭외 ' + calMine.attendees.length + '명)' : ''}</span></button>
         </div>
         ${loading ? '<div class="cal-hint" style="text-align:center;margin-top:8px">내 신청 내역 확인 중...</div>' : ''}` : (e.category === '공식' ? '<div class="cal-hint" style="margin-top:14px">개강일은 안내용이에요.</div>' : '')}
-        ${isMineNonOfficial ? '<button class="kko-btn-outline" id="calDelMine" style="margin-top:14px;color:var(--color-error);border-color:var(--color-error)">이 일정 삭제</button>' : ''}
+        ${isMine ? '<button class="kko-btn-outline" id="calEditMine" style="margin-top:14px">✏️ 이 일정 수정</button>' : ''}
+        ${isMineNonOfficial ? '<button class="kko-btn-outline" id="calDelMine" style="margin-top:10px;color:var(--color-error);border-color:var(--color-error)">이 일정 삭제</button>' : ''}
         <div style="text-align:center;margin-top:12px"><button class="cal-hint" style="background:none;border:none;cursor:pointer" onclick="closeSheet()">닫기</button></div>`);
       // 참석 의사 버튼 이벤트
       const intentBtns = document.getElementById('calIntentBtns');
@@ -3659,6 +3684,7 @@
       }
       const s = document.getElementById('calGoStaff'); if (s) s.onclick = calOpenStaffForm;
       const a = document.getElementById('calGoAtt'); if (a) a.onclick = calOpenAttForm;
+      const ed = document.getElementById('calEditMine'); if (ed) ed.onclick = () => calOpenAddForm(e.category, e);
       const d = document.getElementById('calDelMine');
       if (d) d.onclick = async () => {
         if (!confirm(calIsRepeat(e) ? '매주 반복 일정 전체를 삭제할까요?' : '이 일정을 삭제할까요?')) return;
@@ -4006,31 +4032,35 @@
         <div style="text-align:center;margin-top:14px"><button class="cal-hint" style="background:none;border:none;cursor:pointer" onclick="closeSheet()">취소</button></div>`);
       document.querySelectorAll('#appSheetHost [data-cat]').forEach(b => { b.onclick = () => calOpenAddForm(b.dataset.cat); });
     }
-    function calOpenAddForm(category) {
-      const f = { category, type: category === '공식' ? '행사' : category, title: '', startDate: todayStr(), endDate: '', dept: '', region: '', place: '', desc: '' };
+    // ex 를 주면 그 일정을 고치는 화면(2026-10-13) — 같은 입력칸에 지금 값을 채워서 연다.
+    function calOpenAddForm(category, ex) {
+      const f = ex
+        ? { eventId: ex.eventId, category, type: ex.type, title: ex.title || '', startDate: ex.startDate, endDate: ex.endDate && ex.endDate !== ex.startDate ? ex.endDate : '', dept: ex.dept || '', region: ex.region || '', place: ex.place || '', desc: ex.desc || '' }
+        : { category, type: category === '공식' ? '행사' : category, title: '', startDate: todayStr(), endDate: '', dept: '', region: '', place: '', desc: '' };
+      const rep0 = !!ex && calIsRepeat(ex);
       openSheet(`
-        <div style="font-size:19px;font-weight:800">${esc(category)} 일정 등록</div>
+        <div style="font-size:19px;font-weight:800">${esc(category)} 일정 ${ex ? '수정' : '등록'}</div>
         ${category === '공식' ? `<label class="cal-lbl">유형 <span class="cal-req">*</span></label>${calSegHtml('calNewType', ['개강', '행사'], f.type)}` : ''}
-        <label class="cal-lbl">제목 <span class="cal-req">*</span></label><input class="cal-inp" id="calNewTitle" maxlength="80" placeholder="제목을 입력해주세요">
+        <label class="cal-lbl">제목 <span class="cal-req">*</span></label><input class="cal-inp" id="calNewTitle" maxlength="80" placeholder="제목을 입력해주세요" value="${esc(f.title)}">
         <div style="display:flex;gap:8px;align-items:center;margin-top:14px">
           <div style="flex:1"><label class="cal-lbl" style="margin-top:0">시작일 <span class="cal-req">*</span></label><input type="date" class="cal-inp" id="calNewStart" value="${esc(f.startDate)}"></div>
-          <div style="flex:1" id="calNewEndBox"><label class="cal-lbl" style="margin-top:0">종료일</label><input type="date" class="cal-inp" id="calNewEnd"></div>
+          <div style="flex:1" id="calNewEndBox"><label class="cal-lbl" style="margin-top:0">종료일</label><input type="date" class="cal-inp" id="calNewEnd" value="${esc(f.endDate)}"></div>
         </div>
-        <label class="cal-lbl">반복</label>${calSegHtml('calNewRep', [['', '반복 안 함'], ['w', '매주 반복']], '')}
+        <label class="cal-lbl">반복</label>${calSegHtml('calNewRep', [['', '반복 안 함'], ['w', '매주 반복']], rep0 ? 'w' : '')}
         <div id="calNewRepBox" style="display:none">
           <label class="cal-lbl">요일 <small style="font-weight:400">(여러 개 선택 가능)</small></label>
           <div class="cal-seg cal-wd" id="calNewWd">${CAL_WD.map((w, i) => `<button type="button" data-v="${i}">${w}</button>`).join('')}</div>
           <label class="cal-lbl">반복 끝나는 날 <span class="cal-req">*</span></label><input type="date" class="cal-inp" id="calNewUntil">
           <div class="cal-hint" id="calNewRepHint"></div>
         </div>
-        ${category === '부서' ? `<label class="cal-lbl">부서 <span class="cal-req">*</span></label>${calSegHtml('calNewDept', DEPTS5, '')}
+        ${category === '부서' ? `<label class="cal-lbl">부서 <span class="cal-req">*</span></label>${calSegHtml('calNewDept', DEPTS5, f.dept)}
         <label class="cal-lbl">지역 <small>(선택 — 비우면 부서 전체 일정)</small></label>
-        ${calSegHtml('calNewRegion', CAL_REGION_OPTS, '')}
+        ${calSegHtml('calNewRegion', CAL_REGION_OPTS, f.region)}
         <div class="cal-hint">달력에는 "부-1) 제목"처럼 부서·지역이 앞에 붙어요.</div>` : ''}
-        ${category === '공식' ? `<label class="cal-lbl">장소</label><input class="cal-inp" id="calNewPlace" maxlength="60">` : ''}
-        <label class="cal-lbl">설명 <small style="font-weight:400">(선택)</small></label><textarea class="cal-inp" id="calNewDesc" maxlength="1000" style="min-height:70px"></textarea>
+        ${category === '공식' ? `<label class="cal-lbl">장소</label><input class="cal-inp" id="calNewPlace" maxlength="60" value="${esc(f.place)}">` : ''}
+        <label class="cal-lbl">설명 <small style="font-weight:400">(선택)</small></label><textarea class="cal-inp" id="calNewDesc" maxlength="1000" style="min-height:70px">${esc(f.desc)}</textarea>
         <div style="display:flex;gap:10px;margin-top:18px">
-          <button class="kko-btn-outline" style="flex:1" id="calNewBack">뒤로</button><button class="kko-btn-main" style="flex:2" id="calNewSave">등록</button>
+          <button class="kko-btn-outline" style="flex:1" id="calNewBack">뒤로</button><button class="kko-btn-main" style="flex:2" id="calNewSave">${ex ? '저장' : '등록'}</button>
         </div>`);
       if (category === '공식') calBindSeg('calNewType', v => { f.type = v; });
       if (category === '부서') {
@@ -4039,7 +4069,7 @@
         calBindSeg('calNewRegion', v => { f.region = (f.region === v) ? '' : v; });
       }
       // 2026-09-30: 매주 반복 — 켜면 시작일의 요일이 기본 선택, 끝나는 날 기본 3개월 뒤(최대 1년)
-      let rep = false; const wd = new Set();
+      let rep = rep0; const wd = new Set(rep0 ? ex.repeatDays.map(Number) : []);
       const $id = id => document.getElementById(id);
       const addMonths = (ymd, n) => { const [y, m, d] = ymd.split('-').map(Number); const t = new Date(y, m - 1 + n, d); return calYmd(t.getFullYear(), t.getMonth(), t.getDate()); };
       const repHint = () => {
@@ -4057,7 +4087,8 @@
       });
       $id('calNewWd').onclick = e => { const b = e.target.closest('button'); if (!b) return; const d = Number(b.dataset.v); wd.has(d) ? wd.delete(d) : wd.add(d); drawWd(); repHint(); };
       $id('calNewUntil').onchange = repHint; $id('calNewStart').addEventListener('change', repHint);
-      document.getElementById('calNewBack').onclick = () => calOpenAddCategoryPicker();
+      if (rep0) { $id('calNewRepBox').style.display = ''; $id('calNewEndBox').style.visibility = 'hidden'; $id('calNewUntil').value = ex.repeatUntil; drawWd(); repHint(); }
+      document.getElementById('calNewBack').onclick = () => (ex ? calOpenEvent(ex) : calOpenAddCategoryPicker());
       document.getElementById('calNewSave').onclick = async () => {
         f.title = document.getElementById('calNewTitle').value.trim();
         f.startDate = document.getElementById('calNewStart').value;
@@ -4077,9 +4108,9 @@
         if (category === '부서' && !f.dept) return toast('부서를 선택해주세요.', true);
         const btn = document.getElementById('calNewSave'); btn.disabled = true;
         try {
-          const res = await callApi({ action: 'saveCalendarEvent', event: f, by: MEMBER_ID });
+          const res = await callApi({ action: 'saveCalendarEvent', event: f, by: MEMBER_ID, memberId: MEMBER_ID });
           if (res && res.error) throw new Error(res.error);
-          toast('일정을 등록했어요!'); closeSheet();
+          toast(ex ? '일정을 고쳤어요.' : '일정을 등록했어요!'); closeSheet();
           calLoadAll(true);
         } catch (e) { toast(e.message, true); btn.disabled = false; }
       };
@@ -4330,7 +4361,52 @@
       }
       function ovHide() { $('pzOverlayHost').innerHTML = ''; P.ovOpen = false; P.detail = null; }
       function ovClose() { if (P.ovOpen) { try { history.back(); } catch (e) { ovHide(); } } }
-      window.addEventListener('popstate', () => { if (P.ovOpen) ovHide(); });
+      window.addEventListener('popstate', () => { if (lbRemove()) return; if (P.ovOpen) ovHide(); });   // 사진을 크게 보던 중이면 사진만 닫는다
+
+      // ── 2026-10-13: 옆으로 넘기는 사진 묶음(글 상세·크게 보기 공용) — 넘길 때마다 번호·점·화살표를 맞춘다 ──
+      function carHtml(photos) {
+        return `<div class="pz-d-car" id="pzCar"><div class="pz-d-track">${photos.map((src, i) => `<img class="pz-d-photo" src="${esc(src)}" alt="사진 ${i + 1}">`).join('')}</div>
+          <span class="pz-car-n">1/${photos.length}</span><div class="pz-car-dots">${photos.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>
+          <button type="button" class="pz-car-arrow prev" aria-label="이전 사진" hidden>‹</button><button type="button" class="pz-car-arrow next" aria-label="다음 사진">›</button></div>`;
+      }
+      function carBind(box, start) {
+        const track = box.querySelector('.pz-d-track, .pz-lb-track'), n = track.children.length;
+        const idx = () => Math.max(0, Math.min(n - 1, Math.round(track.scrollLeft / (track.clientWidth || 1))));
+        const paint = () => {
+          const i = idx(); box.dataset.i = i;
+          const c = box.querySelector('.pz-car-n'); if (c) c.textContent = `${i + 1}/${n}`;
+          box.querySelectorAll('.pz-car-dots i').forEach((d, k) => d.classList.toggle('on', k === i));
+          const pv = box.querySelector('.pz-car-arrow.prev'), nx = box.querySelector('.pz-car-arrow.next');
+          if (pv) pv.hidden = i === 0; if (nx) nx.hidden = i === n - 1;
+        };
+        const go = (i, smooth) => track.scrollTo({ left: Math.max(0, Math.min(n - 1, i)) * track.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
+        track.addEventListener('scroll', paint, { passive: true });
+        box.querySelectorAll('.pz-car-arrow').forEach(b => b.onclick = e => { e.stopPropagation(); go(idx() + (b.classList.contains('next') ? 1 : -1), true); });
+        if (start) go(start);
+        paint();
+        return { go, idx };
+      }
+      // 사진 크게 보기: 여러 장이면 옆으로 넘기고, ✕ · 사진 바깥 · 뒤로가기 · Esc 로 닫는다.
+      let lbKey = null;
+      function lbRemove() {
+        const lb = document.getElementById('pzLightbox'); if (!lb) return false;
+        lb.remove(); if (lbKey) { document.removeEventListener('keydown', lbKey); lbKey = null; }
+        return true;
+      }
+      function lbClose() { if (!document.getElementById('pzLightbox')) return; try { history.back(); } catch (e) { lbRemove(); } }
+      function openLightbox(srcs, start) {
+        lbRemove();
+        const lb = document.createElement('div'); lb.className = 'pz-lightbox'; lb.id = 'pzLightbox';
+        lb.innerHTML = `<div class="pz-lb-track">${srcs.map(src => `<div><img src="${esc(src)}" alt=""></div>`).join('')}</div>
+          <button type="button" class="pz-lb-x" aria-label="사진 닫기">✕</button>
+          ${srcs.length > 1 ? '<span class="pz-car-n"></span><button type="button" class="pz-car-arrow prev" aria-label="이전 사진">‹</button><button type="button" class="pz-car-arrow next" aria-label="다음 사진">›</button>' : ''}`;
+        document.body.appendChild(lb);
+        const car = carBind(lb, start || 0);
+        lb.onclick = e => { if (e.target.tagName !== 'IMG') lbClose(); };
+        lbKey = e => { if (e.key === 'Escape') lbClose(); else if (e.key === 'ArrowRight') car.go(car.idx() + 1, true); else if (e.key === 'ArrowLeft') car.go(car.idx() - 1, true); };
+        document.addEventListener('keydown', lbKey);
+        try { history.pushState({ pzlb: 1 }, '', location.href); } catch (e) {}
+      }
 
       // ── 글 상세 ──
       async function openPost(postId) {
@@ -4351,18 +4427,20 @@
         // 같은 글을 다시 그릴 때(공감·정렬·댓글 삭제)는 보던 위치 유지 — 공감 누르면 맨 위로 튀던 문제
         const oldBody = host.querySelector('#pzOvBody');
         const keepScroll = oldBody && host.dataset.pzPid === p.postId ? oldBody.scrollTop : 0;
+        const oldCar = host.querySelector('#pzCar');
+        const keepPhoto = oldCar && host.dataset.pzPid === p.postId ? Number(oldCar.dataset.i) || 0 : 0;   // 보던 사진 그대로
+        const photos = p.photos || [];
         host.dataset.pzPid = p.postId;
         host.innerHTML = `<div class="pz-ov">
           <div class="pz-ov-bar"><button type="button" data-pz-back>‹</button><div class="t">교사광장</div>${p.isMine || isAdmin() ? '<button type="button" id="pzPostMenu">⋯</button>' : '<span style="width:40px"></span>'}</div>
           <div class="pz-ov-body" id="pzOvBody">
-            ${(p.photos || [])[0] ? `<img class="pz-d-photo pz-d-hero" src="${esc(p.photos[0])}" alt="대표 사진">` : ''}
+            ${photos.length > 1 ? carHtml(photos) : photos[0] ? `<img class="pz-d-photo pz-d-hero" src="${esc(photos[0])}" alt="대표 사진">` : ''}
             ${catHtml(p.category, p.title)}
             <div class="pz-author" data-pz-author title="이름을 누르면 이 교사의 명함을 볼 수 있어요">${avaHtml(p.name, p.authorPhoto)}
               <div><div style="font-size:15px;font-weight:800">${esc(p.name)}${p.isMine ? '' : ' <span class="pz-author-hint">명함 ›</span>'}</div><div class="pz-cmt-meta">${esc([p.region, p.dept].filter(Boolean).join(' '))}${p.region || p.dept ? ' · ' : ''}${esc(ago(p.createdAt))}${p.updatedAt && p.updatedAt !== p.createdAt ? ' (수정됨)' : ''}</div></div>
             </div>
             <div class="pz-d-title">${esc(p.title)}</div>
             <div class="pz-d-body">${esc(p.body)}</div>
-            ${(p.photos || []).slice(1).map(src => `<img class="pz-d-photo" src="${esc(src)}" alt="첨부 사진">`).join('')}
             ${p.tags.length ? `<div class="pz-tags">${p.tags.map(t => `<span>#${esc(t)}</span>`).join('')}</div>` : ''}
             <div class="pz-react" id="pzReact"${p.likeCount ? '' : ' hidden'}>💜 교사 ${p.likeCount}명이 공감했어요</div>
             <div class="pz-actions">
@@ -4372,7 +4450,7 @@
             <div class="pz-sort"><button type="button" data-pz-sort="asc" class="${P.sort === 'asc' ? 'on' : ''}">등록순</button><button type="button" data-pz-sort="desc" class="${P.sort === 'desc' ? 'on' : ''}">최신순</button></div>
             ${cs.length ? cs.map(c => `<div class="pz-cmt">${avaHtml(c.name, '', true)}
                 <div style="flex:1;min-width:0"><div class="pz-cmt-name">${esc(c.name)}</div><div class="pz-cmt-meta">${esc([c.region, ago(c.createdAt)].filter(Boolean).join(' · '))}</div>
-                <div class="pz-cmt-text">${esc(c.text)}</div>${c.isMine ? `<button type="button" class="pz-cmt-del" data-pz-delcmt="${esc(c.commentId)}">삭제</button>` : ''}</div></div>`).join('')
+                <div class="pz-cmt-text"${c.isMine ? ` data-pz-editcmt="${esc(c.commentId)}" title="누르면 고칠 수 있어요" style="cursor:pointer"` : ''}>${esc(c.text)}</div>${c.isMine ? `<button type="button" class="pz-cmt-del" data-pz-editcmt="${esc(c.commentId)}" style="margin-right:12px">수정</button><button type="button" class="pz-cmt-del" data-pz-delcmt="${esc(c.commentId)}">삭제</button>` : ''}</div></div>`).join('')
               : '<div class="pz-empty" style="padding:22px 0">첫 댓글로 응원을 남겨주세요.</div>'}
             ${popular.length ? `<div class="pz-popular"><div class="pz-sec-title" style="display:flex;justify-content:space-between;font-size:17px;font-weight:800;margin:0 0 4px">교사광장 인기글<small style="font-size:13px;font-weight:600;color:var(--dg-text-sub);cursor:pointer" data-pz-tofeed>더보기 ›</small></div>
               ${popular.map(x => `<div class="pz-row" data-pz-open="${esc(x.postId)}"><div class="pz-row-main" style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.title)}</div><div style="font-size:13.5px;color:#4D5159;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.summary)}</div><div class="pz-cmt-meta" style="margin-top:4px">${esc(metaText(x))}</div>${cntHtml(x)}</div>${x.thumb ? `<img src="${esc(x.thumb)}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;flex-shrink:0" alt="">` : ''}</div>`).join('')}</div>` : ''}
@@ -4384,6 +4462,7 @@
           // 사진이 다시 불러와지는 동안 화면이 짧아 위치가 덜 내려갔으면 사진이 뜬 뒤 다시 맞춘다
           body.querySelectorAll('img').forEach(im => { if (!im.complete) im.addEventListener('load', () => { if (body.scrollTop < keepScroll) body.scrollTop = keepScroll; }, { once: true }); });
         }
+        const car = $('pzCar'); if (car) carBind(car, keepPhoto);
         const inp = $('pzCmtInput'); inp.value = keepDraft;
         inp.oninput = () => { inp.style.height = 'auto'; inp.style.height = Math.min(120, inp.scrollHeight) + 'px'; };
         $('pzCmtSend').onclick = sendComment;
@@ -4446,6 +4525,33 @@
           [].concat(P.rows, P.hot).forEach(x => { if (x.postId === pid) x.commentCount = (res && res.comments ? res.comments.length : x.commentCount + 1); });
           renderLists();
         } catch (e) { toast(e.message, true); btn.disabled = false; }
+      }
+      // 2026-10-13: 내 댓글을 누르면 그 자리에서 고친다(글 전체를 다시 그리지 않고 그 댓글만 입력칸으로 바꿈)
+      function editComment(cid) {
+        const c = P.detail && P.detail.comments.find(x => x.commentId === cid); if (!c) return;
+        const tx = [...document.querySelectorAll('#pzOverlayHost .pz-cmt-text[data-pz-editcmt]')].find(x => x.dataset.pzEditcmt === cid);
+        if (!tx || tx.hidden) return;
+        const box = document.createElement('div'); box.className = 'pz-cmt-edit';
+        box.innerHTML = '<textarea maxlength="1000"></textarea><div><button type="button" data-x>취소</button><button type="button" data-ok>저장</button></div>';
+        const ta = box.querySelector('textarea'), ok = box.querySelector('[data-ok]'); ta.value = c.text;
+        const btns = [...tx.parentNode.querySelectorAll('.pz-cmt-del')];
+        const done = () => { box.remove(); tx.hidden = false; btns.forEach(b => { b.hidden = false; }); };
+        tx.hidden = true; btns.forEach(b => { b.hidden = true; }); tx.after(box);
+        const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(200, ta.scrollHeight + 2) + 'px'; };
+        ta.oninput = fit; fit(); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+        box.querySelector('[data-x]').onclick = done;
+        ok.onclick = async () => {
+          const text = ta.value.trim();
+          if (!text) return ta.focus();
+          if (text === c.text) return done();
+          ok.disabled = true;
+          try {
+            const r = await callApi({ action: 'editPlazaComment', memberId: MEMBER_ID, commentId: cid, text });
+            if (r && r.error) throw new Error(r.error);
+            c.text = text; toast('댓글을 고쳤어요.');
+            if (P.ovOpen && P.detail && P.detail.comments.includes(c)) renderPost(); else done();
+          } catch (e) { toast(e.message, true); ok.disabled = false; }
+        };
       }
       async function deleteComment(cid) {
         if (!confirm('댓글을 지울까요?')) return;
@@ -4775,13 +4881,14 @@
         const inPz = e.target.closest('#sec-calendar, #pzOverlayHost');
         if (!inPz) return;
         const ph = e.target.closest('.pz-d-photo');
-        if (ph) { const lb = document.createElement('div'); lb.className = 'pz-lightbox'; lb.innerHTML = `<img src="${esc(ph.src)}" alt="">`; lb.onclick = () => lb.remove(); document.body.appendChild(lb); return; }
+        if (ph) { const tr = ph.closest('.pz-d-track'), all = tr ? [...tr.querySelectorAll('.pz-d-photo')] : [ph]; openLightbox(all.map(x => x.src), all.indexOf(ph)); return; }
         if (e.target.closest('[data-pz-back]')) { ovClose(); return; }
         if (e.target.closest('[data-pzc-write]')) { openContestForm(); return; }
         if (e.target.closest('[data-pzc-list]')) { openContestList(); return; }
         const mb = e.target.closest('[data-pzm-month]'); if (mb) { loadMonthly(mb.dataset.pzmMonth); return; }
         const sortB = e.target.closest('[data-pz-sort]'); if (sortB) { P.sort = sortB.dataset.pzSort; renderPost(); return; }
         const delC = e.target.closest('[data-pz-delcmt]'); if (delC) { deleteComment(delC.dataset.pzDelcmt); return; }
+        const edC = e.target.closest('[data-pz-editcmt]'); if (edC) { editComment(edC.dataset.pzEditcmt); return; }
         if (e.target.closest('[data-pz-tofeed]')) { ovClose(); setTimeout(() => scrollToEl('pzFeedTitle'), 250); return; }
         const open = e.target.closest('[data-pz-open]'); if (open) { const id = open.dataset.pzOpen; openPost(id); return; }
         const pg = e.target.closest('[data-pz-page]'); if (pg) { pzSetPage(pg.dataset.pzPage); return; }

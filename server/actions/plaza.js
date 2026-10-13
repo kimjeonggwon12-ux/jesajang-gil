@@ -178,6 +178,18 @@ async function addPlazaComment(body) {
   return { ok: true };
 }
 
+/** 내 댓글의 글을 고친다. */
+async function editPlazaComment(body) {
+  const mid = clip(body.memberId, 40);
+  const text = clip(body.text, 1000);
+  if (!text) return { error: '댓글을 입력해주세요.' };
+  const [row] = await run(db().from('plaza_comments').select('id, member_id, status').eq('comment_id', clip(body.commentId, 40)).limit(1));
+  if (!row || row.status === '삭제') return { error: '댓글을 찾지 못했어요.' };
+  if (!sameId(row.member_id, mid)) return { error: '내 댓글만 고칠 수 있어요.' };
+  await run(db().from('plaza_comments').update({ body: text }).eq('id', row.id));
+  return { ok: true };
+}
+
 async function deletePlazaComment(body) {
   const mid = clip(body.memberId, 40);
   const [row] = await run(db().from('plaza_comments').select('id, member_id').eq('comment_id', clip(body.commentId, 40)).limit(1));
@@ -279,5 +291,5 @@ async function getPlazaMonthly(body) {
 
 export default {
   listPlazaPosts, getPlazaPost, savePlazaPost, adminSetPlazaPhotos, deletePlazaPost,
-  togglePlazaLike, addPlazaComment, deletePlazaComment, getPlazaMonthly,
+  togglePlazaLike, addPlazaComment, editPlazaComment, deletePlazaComment, getPlazaMonthly,
 };

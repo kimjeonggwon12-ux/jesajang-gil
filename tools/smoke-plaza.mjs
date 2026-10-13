@@ -28,6 +28,9 @@ try {
   assert.equal(got.comments.length, 1); assert.equal(got.comments[0].isMine, true);
   const listed = (await a.listPlazaPosts({ keyword: 'ZZ시험' })).rows;
   assert.equal(listed.length, 1); assert.equal(listed[0].commentCount, 1);
+  assert.match((await a.editPlazaComment({ commentId: got.comments[0].commentId, memberId: A, text: '남이 고침' })).error, /내 댓글만/);
+  assert.equal((await a.editPlazaComment({ commentId: got.comments[0].commentId, memberId: B, text: '고친 댓글' })).ok, true);
+  assert.equal((await a.getPlazaPost({ postId: post.postId, memberId: B })).comments[0].text, '고친 댓글');
   assert.match((await a.deletePlazaComment({ commentId: got.comments[0].commentId, memberId: A })).error, /내 댓글만/);
   assert.equal((await a.deletePlazaComment({ commentId: got.comments[0].commentId, memberId: B })).ok, true);
   assert.match((await a.adminSetPlazaPhotos({ postId: post.postId, memberId: B, photos: [] })).error, /관리자만/);

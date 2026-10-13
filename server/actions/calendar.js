@@ -91,8 +91,13 @@ async function saveCalendarEvent(body) {
   };
   const eventId = clip(ev.eventId, 40);
   if (eventId) {
-    const [row] = await run(db().from('calendar_events').select('id, repeat_days').eq('event_id', eventId).limit(1));
+    const [row] = await run(db().from('calendar_events').select('id, repeat_days, category, created_by').eq('event_id', eventId).limit(1));
     if (row) {
+      // 삭제와 같은 규칙: 공식 일정이 아니면 등록한 본인만 고친다(memberId 를 보내는 화면에서만 확인).
+      const mid = clip(body.memberId, 40);
+      if (mid && toEvent(row).category !== '공식' && !sameId(row.created_by, mid)) {
+        return { error: '본인이 등록한 일정만 수정할 수 있습니다.' };
+      }
       // 옛 화면은 repeatDays 를 보내지 않는다 — 그때는 반복 설정을 그대로 두고, 반복 일정이면 하루짜리로 유지한다.
       const repeat = Array.isArray(ev.repeatDays)
         ? { repeat_days: repeatDays, repeat_until: repeatUntil }
