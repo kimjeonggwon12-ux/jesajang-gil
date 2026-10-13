@@ -1651,7 +1651,28 @@
     .pz-wrap[data-page="etc"] [data-pz-pg]:not([data-pz-pg="etc"]) { display:none !important; }
     .pz-new { display:inline-block; margin-left:5px; padding:0 5px; border-radius:4px; background:#E5322D; color:#fff; font-size:10px; font-weight:800; line-height:16px; vertical-align:middle; }
     .pz-newbar { position:fixed; left:50%; top:68px; transform:translateX(-50%); z-index:60; padding:9px 16px; border-radius:999px; background:#191F28; color:#fff; font-size:13.5px; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,.18); cursor:pointer; white-space:nowrap; }
-    #sec-calendar .pz-etc-tabs { margin-top:16px; }   /* 교사 마당 안 탭(이달의 교사·이름 공모·질문하기·불편신고) */
+    #sec-calendar .pz-etc-tabs { margin-top:14px; }
+    /* 2026-10-13: 맨 위 한 줄 띠(지금 뜨는 사례 · 이달의 교사) — 접힌 채로 보이고 누르면 펼쳐짐 */
+    #sec-calendar .pz-tease { display:flex; align-items:center; gap:10px; width:100%; margin:14px 0 0; padding:11px 14px; border-radius:14px; border:1px solid #FED7AA; background:linear-gradient(135deg,#FFF7ED,#FFFCF7); text-align:left; cursor:pointer; font-family:inherit; color:var(--dg-text); }
+    #sec-calendar .pz-tease.c-tom { border-color:#FDE68A; background:linear-gradient(135deg,#FFFBEB,#FFFEF7); }
+    #sec-calendar .pz-tease-ic { font-size:22px; line-height:1; flex-shrink:0; }
+    #sec-calendar .pz-tease-tx { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+    #sec-calendar .pz-tease-tx b { font-size:15px; font-weight:800; letter-spacing:-0.02em; }
+    #sec-calendar .pz-tease-tx small { font-size:13px; color:#6B7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:none; padding:0; }
+    #sec-calendar .pz-tease-go { flex-shrink:0; font-size:13px; font-weight:800; color:#C2410C; }
+    #sec-calendar .pz-tease.c-tom .pz-tease-go { color:#B45309; }
+    #sec-calendar .pz-tease-faces { display:inline-flex; margin-right:6px; vertical-align:-4px; }
+    #sec-calendar .pz-tease-faces i { width:20px; height:20px; border-radius:50%; background:#FCD34D; color:#92400E; font-style:normal; font-size:11px; font-weight:900; display:inline-flex; align-items:center; justify-content:center; border:1.5px solid #fff; margin-left:-5px; }
+    #sec-calendar .pz-tease-faces i:first-child { margin-left:0; }
+    #sec-calendar .pz-tease + .pz-box { margin-top:8px; }
+    #sec-calendar .pz-wr { display:flex; align-items:center; gap:10px; padding:10px 14px; }
+    #sec-calendar .pz-wr + .pz-wr { border-top:1px solid #F3F4F6; }
+    #sec-calendar .pz-wr-n { width:20px; text-align:center; font-size:14px; font-weight:900; color:#9CA3AF; flex-shrink:0; }
+    #sec-calendar .pz-wr:nth-child(-n+3) .pz-wr-n { color:var(--color-primary); }
+    #sec-calendar .pz-wr-m { flex:1; min-width:0; display:flex; flex-direction:column; }
+    #sec-calendar .pz-wr-m b { font-size:14.5px; font-weight:800; }
+    #sec-calendar .pz-wr-m small { font-size:12.5px; color:var(--dg-text-sub); }
+    #sec-calendar .pz-wr-c { flex-shrink:0; font-size:13px; font-weight:800; color:var(--dg-text-sub); }   /* 교사 마당 안 탭(이달의 교사·이름 공모·질문하기·불편신고) */
     #plazaDot { display:none; position:absolute; top:-2px; right:-4px; width:9px; height:9px; border-radius:50%; background:#E5322D; border:1.5px solid #fff; }
     /* 모둠 제목: 아이콘 타일 없이 크고 굵은 검은 글씨 + 오른쪽 회색 글자 버튼 */
     #sec-calendar .pz-wrap { padding:0 16px 110px; }
@@ -2325,10 +2346,11 @@
           <div class="pz-sec-title c-tom" id="pzContestTitle"><span class="pz-sec-ic">🏷️</span><span class="pz-sec-txt">앱 이름 공모</span></div>
           <div id="pzContest"></div>
           <div class="pz-sec-title c-hot" id="pzHotTitle"><span class="pz-sec-ic">🔥</span><span class="pz-sec-txt" id="pzHotLabel">지금 뜨는 교사 이야기</span><small class="pz-cup-chip">☕ 커피 쿠폰</small></div>
-          <div class="pz-box c-hot" id="pzHot"><div class="pz-empty">불러오는 중...</div></div>
+          <div id="pzHot"></div>
           <div class="pz-sec-title c-all" id="pzFeedTitle"><span class="pz-sec-ic" id="pzFeedIc">📌</span><span class="pz-sec-txt" id="pzFeedLabel">교사 광장</span><small id="pzFeedCount"></small></div>
           <div class="pz-ftabs" id="pzFeedTabs"></div>
           <div class="pz-feed" id="pzFeed"><div class="pz-empty">불러오는 중...</div></div>
+          <div id="pzWriters"></div>
         </div>
         <button type="button" class="pz-fab" id="pzFab">✍️ 글쓰기</button>
       </section>
@@ -2426,7 +2448,7 @@
            관리자 탭은 isAdmin()이 true일 때만 노출(현재는 라이브 코드와 동일하게 임시 전체 개방 —
            복구 지점은 isAdmin() 함수 주석 참고). -->
       <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="교사광장" aria-label="교사광장">
-        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-10: 광장 = 달력(일정) + 콘덴서 마이크(소식·나눔) --><path d="M11.2 19.5H4a2.5 2.5 0 0 1-2.5-2.5V6.5A2.5 2.5 0 0 1 4 4h11a2.5 2.5 0 0 1 2.4 1.8"/><path d="M6 2v4M13 2v4M1.5 9.5h10.8"/><path d="M5.2 13.4h.01M8.7 13.4h.01M5.2 16.5h.01"/><rect x="15.6" y="8.2" width="4.8" height="7.8" rx="2.4"/><path d="M15.6 10.9h4.8M15.6 13.3h4.8"/><path d="M13.2 13.6a4.8 4.8 0 0 0 9.6 0"/><path d="M18 18.4v3.2M15.8 21.6h4.4"/></svg><span id="plazaDot"></span></span>
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-13: 광장 = 달력(일정) + 세 사람(교사들이 모이는 곳) --><path d="M8.2 19.5H4a2.5 2.5 0 0 1-2.5-2.5V6.5A2.5 2.5 0 0 1 4 4h11a2.5 2.5 0 0 1 2.5 2.5v1.3"/><path d="M6 2v4M13 2v4M1.5 9.5h10.4"/><g stroke-width="1.7"><circle cx="17.3" cy="12.7" r="2"/><path d="M13.6 21.7v-1a3.7 3.7 0 0 1 7.4 0v1"/><circle cx="11.6" cy="14.9" r="1.45"/><path d="M9.3 21.7v-.5a2.5 2.5 0 0 1 2.3-2.5"/><circle cx="22" cy="14.9" r="1.45"/><path d="M23.3 20.9a2.5 2.5 0 0 0-1.3-2"/></g></svg><span id="plazaDot"></span></span>
         <span class="tab-label">광장</span>
       </button>
       <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="나의교실" aria-label="나의교실">
@@ -3383,13 +3405,15 @@
     // 이달의 교사 / 교사 이야기] 순서로 옮기고, 앱바에 상단 메뉴(하단 탭바와 같은 탭)를 붙인다. 모바일 폭이 되면 원래 순서로 되돌린다.
     // 노드를 옮기기만 하므로(id 유지) 각 모둠을 그리는 코드는 그대로다.
     const PZ_DK_MQ = window.matchMedia('(min-width: 1024px)');
-    const PZ_ORDER = ['pzHero', 'pzCalTitle', 'pzCalBox', 'pzAdTitle', 'calAds', 'pzFreeTitle', 'pzFree', 'pzEtcTabs', 'pzTom', 'pzContestTitle', 'pzContest', 'pzHotTitle', 'pzHot', 'pzFeedTitle', 'pzFeedTabs', 'pzFeed'];
+    const PZ_ORDER = ['pzHero', 'pzCalTitle', 'pzCalBox', 'pzAdTitle', 'calAds', 'pzFreeTitle', 'pzFree', 'pzTom', 'pzEtcTabs', 'pzContestTitle', 'pzContest', 'pzHotTitle', 'pzHot', 'pzFeedTitle', 'pzFeedTabs', 'pzFeed', 'pzWriters'];
     // 2026-10-09 광장 3쪽(사용자 요청): 전도부 게시판·교사 이야기가 메인, 나머지는 교사 마당(안에서 탭으로 나눔) — 모둠마다 어느 쪽에 속하는지.
     // 글 목록(pzFeedTitle·pzFeed)은 교사 이야기(사례)와 교사 마당(질문하기·불편신고·검색 결과)이 같이 쓰므로 pzOnPage가 쪽마다 다시 정함.
     const PZ_PAGE_OF = { pzHero: 'board', pzCalTitle: 'board', pzCalBox: 'board', pzAdTitle: 'board', calAds: 'board', pzFreeTitle: 'board', pzFree: 'board',
-      pzHotTitle: 'story', pzHot: 'story', pzFeedTitle: 'story', pzFeedTabs: 'none', pzFeed: 'story',
-      pzEtcTabs: 'etc', pzTom: 'etc', pzContestTitle: 'etc', pzContest: 'etc' };
-    const PZ_PAGES = [['board', '📢', '전도부 게시판', '일정 및 광고'], ['story', '📖', '교사 이야기', '전도 사례 나눔'], ['etc', '🌿', '교사 마당', '질문하기 · 이달의 교사']];
+      pzHotTitle: 'none', pzHot: 'story', pzFeedTitle: 'story', pzFeedTabs: 'none', pzFeed: 'story',
+      pzEtcTabs: 'etc', pzTom: 'etc', pzContestTitle: 'etc', pzContest: 'etc', pzWriters: 'etc' };
+    // 2026-10-13(사용자 요청): 교사 이야기 = 사례만, 사례가 아닌 글은 모두 교사 마당. 두 쪽 모두 새 글이 먼저 보이고
+    // '지금 뜨는 사례'·'이달의 교사'는 맨 위 한 줄 띠로 접어 둔다(누르면 펼침). 9월·10월 달 고르기는 없앰(지금 달만).
+    const PZ_PAGES = [['board', '📢', '전도부 게시판', '일정 및 광고'], ['story', '📖', '교사 이야기(사례)', '전도 사례 나눔'], ['etc', '🌿', '교사 마당', '새 글 · 질문 · 이달의 교사']];
     let pzPage = (() => { try { const v = localStorage.getItem('pz_page'); return PZ_PAGES.some(p => p[0] === v) ? v : 'board'; } catch (e) { return 'board'; } })();
     function pzSetPage(page, keepScroll) {
       if (!PZ_PAGES.some(p => p[0] === page)) page = 'board';
@@ -3621,7 +3645,7 @@
     // ════════════════════════════════════════════════════════════════
     // 2026-10-01(3차) 광장 모둠별 '3개만 보기 / 더보기' 상태(달력·광고는 이 코드, 나머지는 교사광장 IIFE가 그림)
     const PZX = { cal: false, ad: false, tom: false, hot: false, feed: false };
-    const PZ_SEC_ID = { cal: 'pzCalTitle', ad: 'pzAdTitle', tom: 'pzTomTitle', contest: 'pzContestTitle', hot: 'pzHotTitle', feed: 'pzFeedTitle' };
+    const PZ_SEC_ID = { cal: 'pzCalTitle', ad: 'pzAdTitle', tom: 'pzTom', contest: 'pzContestTitle', hot: 'pzHot', feed: 'pzFeedTitle' };
     function pzMoreBtn(key, total, label) {
       if (key !== 'cal' && total <= 3) return '';
       return `<button type="button" class="pz-more" data-pz-more="${key}">${PZX[key] ? '접기 ︿' : (label || `더보기 (${total - 3}개 더) ›`)}</button>`;
@@ -4234,7 +4258,8 @@
       const PZ_META = {
         hot: { ic: '🔥', cls: 'c-hot', t: '지금 뜨는 이야기', g: '최근 2주간 공감·댓글을 많이 받은 이야기 TOP 5예요.' },
         '': { ic: '📌', cls: 'c-all', t: '모든 이야기', g: '교사들이 올린 모든 이야기를 한곳에서 볼 수 있어요.' },
-        '사례': { ic: '🎯', cls: 'c-case', t: '교사 이야기', g: '전도하며 열매 맺은 이야기, 아쉬웠던 경험까지 — 서로의 경험이 다음 열매의 길잡이가 돼요.' },
+        '마당': { ic: '🌿', cls: 'c-all', t: '새로 올라온 글', g: '질문·불편신고·이름 공모처럼 사례가 아닌 글이 새 글부터 보여요. 전도 사례는 교사 이야기(사례)에 있어요.' },
+        '사례': { ic: '🎯', cls: 'c-case', t: '새로 올라온 사례', g: '전도하며 열매 맺은 이야기, 아쉬웠던 경험까지 — 서로의 경험이 다음 열매의 길잡이가 돼요.' },
         '전도부': { ic: '📣', cls: 'c-ad', t: '전도부 자유 게시판', g: '전도부가 수시로 올리는 알림·안내 글이에요. (전도부·관리자만 쓸 수 있어요)' },
         '질문': { ic: '🙋', cls: 'c-q', t: '질문하기', g: '궁금한 점을 묻고 선배 교사들의 답을 들어봐요. (어플이 불편한 점은 불편신고에)' },
         '불편신고': { ic: '🛠️', cls: 'c-bug', t: '불편신고', g: '어플을 쓰다 불편하거나 안 되는 점을 알려 주세요. 어떤 화면에서 무엇을 했는지 적어 주시면 빨리 고칠 수 있어요.' }
@@ -4340,9 +4365,10 @@
       }
       window.pzLoadFree = loadFree;
       // 2026-10-09(2차) 교사 마당 안 탭 — 이달의 교사·이름 공모는 그 모둠만, 질문하기·불편신고는 글 목록을 그 주제로
-      const ETC_TABS = [['tom', '이달의 교사'], ['contest', '이름 공모'], ['질문', '질문하기'], ['불편신고', '불편신고']];   // 'search' = 검색 결과(탭 없음)
-      let pzEtc = (() => { try { const v = localStorage.getItem('pz_etc'); return ETC_TABS.some(t => t[0] === v) ? v : 'tom'; } catch (e) { return 'tom'; } })();
-      const etcIsFeed = () => ['search', '질문', '불편신고'].includes(pzEtc);
+      // 2026-10-13: 맨 앞 = 새 글(사례·전도부가 아닌 모든 글, 최신순). 이달의 교사는 탭이 아니라 맨 위 띠(누르면 펼침).
+      const ETC_TABS = [['마당', '새 글'], ['질문', '질문하기'], ['불편신고', '불편신고'], ['contest', '이름 공모']];   // 'search' = 검색 결과(탭 없음)
+      let pzEtc = (() => { try { const v = localStorage.getItem('pz_etc'); return ETC_TABS.some(t => t[0] === v) ? v : '마당'; } catch (e) { return '마당'; } })();
+      const etcIsFeed = () => pzEtc !== 'contest';
       function renderEtcTabs() {
         const el = $('pzEtcTabs'); if (!el) return;
         el.innerHTML = (pzEtc === 'search' ? ETC_TABS.concat([['search', '검색 결과']]) : ETC_TABS).map(([k, l]) => `<button type="button" class="${k === pzEtc ? 'on' : ''}" data-pz-etc="${esc(k)}">${esc(l)}</button>`).join('');
@@ -4350,7 +4376,7 @@
       window.pzOnPage = function (page) {
         const show = (ids, on) => ids.forEach(id => { const n = $(id); if (n) n.dataset.pzPg = on ? page : 'none'; });
         if (page === 'etc') {
-          show(['pzTom'], pzEtc === 'tom'); show(['pzContestTitle', 'pzContest'], pzEtc === 'contest'); show(['pzFeedTitle', 'pzFeed'], etcIsFeed());
+          show(['pzContestTitle', 'pzContest'], pzEtc === 'contest'); show(['pzFeedTitle', 'pzFeed'], etcIsFeed()); show(['pzWriters'], pzEtc === '마당');
           renderEtcTabs();
         } else if (page === 'story') show(['pzFeedTitle', 'pzFeed'], true);
         else if (page === 'board' && FREE.rows) renderFree();   // 관리자 판정이 늦게 와도 [+ 글쓰기]가 보이게
@@ -4381,51 +4407,64 @@
         } catch (e) { if (!M.data || M.loading) M.data = { teachers: [], coupon: [], failed: true }; }
         M.loading = false; renderMonthly();
       }
-      function monthTabs(sec) {
-        return `<div class="pzm-tabs">${[0, -1].map(off => { const k = monthKey(off); return `<button type="button" data-pzm-month="${k}" class="${M.month === k ? 'on' : ''}">${off ? '지난달' : '이번 달'} (${monthLabel(k)})</button>`; }).join('')}</div>`;
+      // 2026-10-13: 맨 위 한 줄 띠 — 접힌 채로 한 줄만 보이고, 누르면 아래로 펼쳐진다(새 글이 먼저 보이도록).
+      const PZT = { hot: false, tom: false };
+      function teaseHtml(key, cls, ic, title, subHtml) {
+        return `<button type="button" class="pz-tease ${cls}${PZT[key] ? ' open' : ''}" data-pz-tease="${key}"><span class="pz-tease-ic">${ic}</span>
+          <span class="pz-tease-tx"><b>${title}</b><small>${subHtml}</small></span><span class="pz-tease-go">${PZT[key] ? '접기 ︿' : '보기 ›'}</span></button>`;
       }
       function renderMonthly() {
-        const d = M.data || { teachers: [], coupon: [] }, cur = M.month === monthKey(0), ml = monthLabel(M.month);
+        const d = M.data || { teachers: [], coupon: [] };
         const wait = M.loading ? emptyHtml('⏳', '불러오는 중...') : '';
-        // 이달의 교사
+        // 이달의 교사(교사 마당 맨 위)
         const ts = d.teachers || [];
-        $('pzTom').innerHTML = `<div class="pz-sec-title c-tom" id="pzTomTitle"><span class="pz-sec-ic">🏅</span><span class="pz-sec-txt">${ml} 이달의 교사</span></div>
-          <div class="pz-box c-tom">${monthTabs()}
-            <div class="pz-guide c-tom"><span class="pz-guide-ic">💬</span><span>광장 글이 아니라 <b>나의교실 활동 기록</b>으로 뽑아요. 교·자·장·부·청 부서마다 한 달 활동이 가장 알찬 교사 한 분씩이에요.</span></div>
-            ${wait || (ts.length ? `<div class="pzm-tom">${ts.slice(0, PZX.tom ? ts.length : 3).map(t => `<div class="pzm-t">
+        const faces = ts.length ? `<span class="pz-tease-faces">${ts.map(t => `<i>${esc(DEPT_SHORT[t.dept] || '?')}</i>`).join('')}</span>` : '';
+        const tomSub = M.loading ? '불러오는 중...' : d.failed ? '잠시 후 다시 확인해 주세요.'
+          : ts.length ? `${faces}부서별 ${ts.length}명이 뽑혔어요. 누구일까요? 👀` : '아직 후보를 모으는 중이에요. 활동을 기록하면 후보가 돼요!';
+        $('pzTom').innerHTML = teaseHtml('tom', 'c-tom', '🏅', '이달의 교사', tomSub) + (!PZT.tom ? '' : `
+          <div class="pz-box c-tom">
+            <div class="pz-guide c-tom"><span class="pz-guide-ic">💬</span><span>광장 글이 아니라 <b>나의교실 활동 기록</b>으로 뽑아요. 교·자·장·부·청 부서마다 이번 달 활동이 가장 알찬 교사 한 분씩이에요.</span></div>
+            ${wait || (ts.length ? `<div class="pzm-tom">${ts.map(t => `<div class="pzm-t">
                 <div class="pzm-photo">${t.photo ? `<img src="${esc(t.photo)}" alt="">` : `<span>${esc(String(t.name || '?').slice(0, 1))}</span>`}<i>${esc(DEPT_SHORT[t.dept] || '')}</i></div>
                 <div class="pzm-main"><div class="pzm-name"><b>${esc(t.name)}</b><span>${esc([t.dept, t.region].filter(Boolean).join(' · '))}</span></div>
                   <div class="pzm-items">${(t.items || []).slice(0, 4).map(x => `<em>${esc(x.item)} ${x.count}</em>`).join('')}</div>
                   <div class="pzm-sum">${esc(t.summary)}</div></div></div>`).join('')}</div>`
-              : emptyHtml('📝', d.failed ? '잠시 후 다시 확인해 주세요.' : `${ml} 활동 기록이 아직 없어요.<br>나의교실에 활동을 기록하면 이달의 교사 후보가 돼요!`))}
-            ${wait ? '' : pzMoreBtn('tom', ts.length)}
-            <div class="pzm-rule">점수 = 활동마다 전도 단계 점수(섭외·친분 1, 만남 2, 상담 3, 복음방 4, 센터 5) + 긍정 반응 1${cur ? ' · 달이 끝날 때까지 바뀔 수 있어요' : ''}</div>
-          </div>`;
-        // 2026-10-01: 지금 뜨는 교사 이야기 = 이달 공감 순위(커피 쿠폰 섹션 통합)
-        const pop = d.popular || [], cups = d.coupon || [];
-        $('pzHotLabel').textContent = `${ml} 지금 뜨는 교사 이야기`;
+              : emptyHtml('📝', d.failed ? '잠시 후 다시 확인해 주세요.' : '이번 달 활동 기록이 아직 없어요.<br>나의교실에 활동을 기록하면 이달의 교사 후보가 돼요!'))}
+            <div class="pzm-rule">점수 = 활동마다 전도 단계 점수(섭외·친분 1, 만남 2, 상담 3, 복음방 4, 센터 5) + 긍정 반응 1 · 달이 끝날 때까지 바뀔 수 있어요</div>
+          </div>`);
+        // 지금 뜨는 사례(교사 이야기 맨 위) = 이번 달 사례 글 공감 순위
+        const pop = (d.popular || []).filter(p => catOf(p.category) === '사례'), cups = d.coupon || [];
+        const hotSub = M.loading ? '불러오는 중...' : d.failed ? '잠시 후 다시 확인해 주세요.'
+          : pop.length ? `1위 · ${esc(pop[0].title)} · 공감 ${pop[0].likeCount}` : '아직 공감 받은 사례가 없어요. 첫 주인공이 되어 보세요 ☕';
         let goal = '';
         if (!M.loading && !d.failed) {
-          if (!cur) goal = cups.length ? `☕ ${ml} 커피 쿠폰 당첨 글이에요. 축하드려요!` : `${ml}엔 커피 쿠폰 당첨 글이 없어요.`;
-          else {
-            const kst = new Date(Date.now() + 9 * 3600e3), last = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth() + 1, 0)).getUTCDate();
-            const left = last - kst.getUTCDate();
-            const due = left ? `${ml} 마감까지 <b>${left}일</b>` : `<b>오늘이 ${ml} 마감</b>`;
-            goal = cups.length < 3
-              ? `☕ 커피 쿠폰 자리가 아직 <b>${3 - cups.length}개</b> 비어 있어요! 이번 달 글이 공감 <b>1개</b>만 받아도 당첨 후보예요. · ${due}`
-              : `☕ 지금 3위는 공감 <b>${cups[2].likeCount}개</b> — 공감 <b>${cups[2].likeCount + 1}개</b> 이상 받으면 커피 쿠폰 순위에 들어요. · ${due}`;
-          }
+          const kst = new Date(Date.now() + 9 * 3600e3), last = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth() + 1, 0)).getUTCDate();
+          const left = last - kst.getUTCDate();
+          const due = left ? `이번 달 마감까지 <b>${left}일</b>` : '<b>오늘이 이번 달 마감</b>';
+          goal = cups.length < 3
+            ? `☕ 커피 쿠폰 자리가 아직 <b>${3 - cups.length}개</b> 비어 있어요! 이번 달 글이 공감 <b>1개</b>만 받아도 당첨 후보예요. · ${due}`
+            : `☕ 지금 3위는 공감 <b>${cups[2].likeCount}개</b> — 공감 <b>${cups[2].likeCount + 1}개</b> 이상 받으면 커피 쿠폰 순위에 들어요. · ${due}`;
         }
-        $('pzHot').innerHTML = `${monthTabs()}
-          <div class="pz-guide c-hot"><span class="pz-guide-ic">💬</span><span>${ml}에 올린 사례·질문·불편신고 글을 공감 많은 순으로 보여줘요. 공감 TOP 3 작성자에게 커피 쿠폰을 드려요(1인 1매).</span></div>
-          ${goal ? `<div class="pz-cup-goal">${goal}</div>` : ''}
-          ${wait || (pop.length ? pop.slice(0, PZX.hot ? 10 : 3).map((p, i) => `<div class="pz-hot-row ${PZ_CAT_CLS[p.category] || 'c-all'}${p.coupon ? ' cup' : ''}" data-pz-open="${esc(p.postId)}">
-              <div class="pz-hot-img">${p.thumb ? `<img src="${esc(p.thumb)}" alt="">` : catIc(p.category)}<span class="pz-rank">${i + 1}</span></div>
-              <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div>
-                <div class="pz-hot-foot"><span>${esc(p.name)}</span>${cntHtml(p)}</div></div>
-              ${p.coupon ? `<span class="pzm-badge">☕ ${cur ? '당첨 예정' : '당첨'}</span>` : ''}</div>`).join('')
-            + pzMoreBtn('hot', pop.length)
-            : emptyHtml('☕', d.failed ? '잠시 후 다시 확인해 주세요.' : cur ? `${ml}에 공감을 받은 글이 아직 없어요.<br>첫 글을 올리고 커피 쿠폰 주인공이 되어 보세요!` : `${ml}엔 공감을 받은 글이 없었어요.`))}`;
+        $('pzHot').innerHTML = teaseHtml('hot', 'c-hot', '🔥', '지금 뜨는 사례', hotSub) + (!PZT.hot ? '' : `
+          <div class="pz-box c-hot">
+            <div class="pz-guide c-hot"><span class="pz-guide-ic">💬</span><span>이번 달에 올린 사례를 공감 많은 순으로 보여줘요. 공감 TOP 3 작성자에게 커피 쿠폰을 드려요(1인 1매).</span></div>
+            ${goal ? `<div class="pz-cup-goal">${goal}</div>` : ''}
+            ${wait || (pop.length ? pop.slice(0, PZX.hot ? 10 : 3).map((p, i) => `<div class="pz-hot-row ${PZ_CAT_CLS[p.category] || 'c-all'}${p.coupon ? ' cup' : ''}" data-pz-open="${esc(p.postId)}">
+                <div class="pz-hot-img">${p.thumb ? `<img src="${esc(p.thumb)}" alt="">` : catIc(p.category)}<span class="pz-rank">${i + 1}</span></div>
+                <div class="pz-row-main"><div class="pz-title">${esc(p.title)}</div><div class="pz-sum">${esc(p.summary)}</div>
+                  <div class="pz-hot-foot"><span>${esc(p.name)}</span>${cntHtml(p)}</div></div>
+                ${p.coupon ? '<span class="pzm-badge">☕ 당첨 예정</span>' : ''}</div>`).join('')
+              + pzMoreBtn('hot', Math.min(10, pop.length))
+              : emptyHtml('☕', d.failed ? '잠시 후 다시 확인해 주세요.' : '이번 달에 공감을 받은 사례가 아직 없어요.<br>첫 글을 올리고 커피 쿠폰 주인공이 되어 보세요!'))}
+          </div>`);
+      }
+      // 글을 많이 올린 교사(교사 마당 '새 글' 아래)
+      function renderWriters() {
+        const el = $('pzWriters'); if (!el) return;
+        const ws = P.writers || [];
+        el.innerHTML = !ws.length ? '' : `<div class="pz-sec-title c-all"><span class="pz-sec-ic">✍️</span><span class="pz-sec-txt">글을 많이 올린 교사</span></div>
+          <div class="pz-box">${ws.map((w, i) => `<div class="pz-wr"><span class="pz-wr-n">${i + 1}</span>${avaHtml(w.name, '', true)}
+            <div class="pz-wr-m"><b>${esc(w.name)}</b><small>${esc([w.dept, w.region].filter(Boolean).join(' · '))}</small></div><span class="pz-wr-c">글 ${w.count}개</span></div>`).join('')}</div>`;
       }
       async function load(reset, useCache) {   // useCache: 첫 화면만 — 지난번 받은 글 목록을 먼저 보여줌(2026-10-05 속도 개선)
         if (P.loading) return;
@@ -4438,6 +4477,7 @@
           P.rows = (reset ? [] : P.rows).concat(res.rows || []);
           P.total = res.total || 0;
           if (res.hot) P.hot = res.hot;
+          if (res.writers) { P.writers = res.writers; renderWriters(); }
           if (cached) { P.loading = false; renderLists(); P.loading = true; }   // 지난 목록을 그리는 동안에도 '더 보기' 중복 요청은 막아 둠
         };
         try {
@@ -4994,8 +5034,10 @@
         if (e.target.closest('[data-pz-free-more]')) { FREE.open = !FREE.open; renderFree(); return; }
         const go = e.target.closest('[data-pz-go]');
         if (go) { const k = go.dataset.pzGo, id = PZ_SEC_ID[k];
-          if (k === 'tom' || k === 'contest') { setEtc(k); return; }
+          if (k === 'tom') { PZT.tom = true; renderMonthly(); if (pzPage !== 'etc') pzSetPage('etc', true); scrollToEl('pzTom'); return; }
+          if (k === 'contest') { setEtc(k); return; }
           if (PZ_PAGE_OF[id] && PZ_PAGE_OF[id] !== 'none' && PZ_PAGE_OF[id] !== pzPage) pzSetPage(PZ_PAGE_OF[id], true); scrollToEl(id); return; }
+        const ts = e.target.closest('[data-pz-tease]'); if (ts) { const k = ts.dataset.pzTease; PZT[k] = !PZT[k]; renderMonthly(); return; }
         const mo = e.target.closest('[data-pz-more]');
         if (mo) {
           const k = mo.dataset.pzMore; PZX[k] = !PZX[k];
@@ -5014,7 +5056,7 @@
 
       window.pzMount = function () {
         if (P.mounted) return; P.mounted = true;
-        if (pzEtc === 'search') pzEtc = 'tom';
+        if (pzEtc === 'search') pzEtc = '마당';
         if (pzPage === 'etc' && etcIsFeed()) P.cat = pzEtc;   // 첫 목록을 지금 쪽에 맞게
         renderPills(); renderEtcTabs(); pzSetPage(pzPage, true); pzNew.start();
         $('pzFab').onclick = () => openWrite(null, pzPage === 'story' ? '사례' : pzPage === 'board' ? '전도부' : ['질문', '불편신고'].includes(pzEtc) ? pzEtc : '');
@@ -5022,7 +5064,7 @@
         loadFree();
         const s = $('pzSearch');
         const run = () => { const v = s.value.trim(); if (v === P.kw) return;
-          if (v) { pzEtc = 'search'; P.cat = ''; P.kw = v; pzSetPage('etc', true); } else { P.kw = ''; if (pzEtc === 'search') pzEtc = 'tom'; pzOnPage(pzPage); }   // 2026-10-09: 검색 결과는 교사 마당에(모든 글)
+          if (v) { pzEtc = 'search'; P.cat = ''; P.kw = v; pzSetPage('etc', true); } else { P.kw = ''; if (pzEtc === 'search') pzEtc = '마당'; pzOnPage(pzPage); }   // 2026-10-09: 검색 결과는 교사 마당에(모든 글)
           load(true); scrollToEl('pzFeedTitle'); };
         s.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); s.blur(); run(); } };
         s.onsearch = run;

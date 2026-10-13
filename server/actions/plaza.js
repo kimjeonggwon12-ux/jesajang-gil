@@ -9,7 +9,11 @@ import { TARGET_STAGES } from './targets.js';
 const CATEGORIES = ['사례', '질문', '나눔', '불편신고', '전도부'];
 // 예전에 '성공사례'·'실패사례'로 나뉘어 있던 글도 '사례'로 본다.
 const CATEGORY_ALIASES = { 사례: ['사례', '성공사례', '실패사례'] };
-const inCategory = (wanted, actual) => !wanted || (CATEGORY_ALIASES[wanted] || [wanted]).includes(actual);
+// '마당' = 교사 마당: 사례(교사 이야기)와 전도부(전도부 게시판)가 아닌 모든 글
+const YARD = '마당';
+const inCategory = (wanted, actual) => !wanted || (wanted === YARD
+  ? !CATEGORY_ALIASES.사례.includes(actual) && actual !== '전도부'
+  : (CATEGORY_ALIASES[wanted] || [wanted]).includes(actual));
 const CONTEST_TAG = '[이름 공모]';
 const PHOTO_MAX = 44000;
 const THUMB_MAX = 12000;
@@ -48,6 +52,18 @@ function toPost(p, roster, viewerId, counts, full) {
 
 const newestFirst = (a, b) => (a.createdAt < b.createdAt ? 1 : -1);
 
+/** 글을 많이 올린 교사(전도부 알림 글은 빼고 셈): 글 수 → 최근에 쓴 순. posts 는 최신순. */
+function topWriters(posts, max) {
+  const byWriter = new Map();
+  for (const o of posts) {
+    if (o.category === '전도부') continue;
+    const who = normId(o.memberId);
+    if (!byWriter.has(who)) byWriter.set(who, { memberId: o.memberId, name: o.name, region: o.region, dept: o.dept, count: 0, lastAt: o.createdAt });
+    byWriter.get(who).count++;
+  }
+  return [...byWriter.values()].sort((a, b) => b.count - a.count || (a.lastAt < b.lastAt ? 1 : -1)).slice(0, max);
+}
+
 /** 글 목록(최신순, 주제·검색어로 거름). 첫 쪽에는 최근 2주 인기 글 5개(hot)도 함께. */
 async function listPlazaPosts(body) {
   const me = clip(body.memberId, 40);
@@ -69,6 +85,7 @@ async function listPlazaPosts(body) {
       .map((o) => ({ o, score: o.likeCount * 2 + o.commentCount }))
       .sort((a, b) => b.score - a.score || newestFirst(a.o, b.o))
       .slice(0, 5).map((x) => x.o);
+    if (category === YARD) result.writers = topWriters(all, 5);
   }
   return result;
 }
