@@ -1644,6 +1644,11 @@
     #sec-calendar .pz-pg.pg-story { --l2c:#00A37A; --l2b:#E9F8F2; --l2l:#CDEFE2; }
     #sec-calendar .pz-pg.pg-etc   { --l2c:#E8590C; --l2b:#FFF3EA; --l2l:#FBDCC6; }
     html.pz-dk #sec-calendar .pz-pills.pz-pages { padding:18px 0 8px; }
+    /* 2026-10-13: 쪽 탭 폭 = 글자 길이대로(교사 마당은 좁게, 교사 이야기(사례)는 넓게) — 좁은 폰에서 글자가 칸 밖으로 나가지 않게 */
+    #sec-calendar .pz-pills.pz-pages { gap:6px; }
+    #sec-calendar .pz-pills.pz-pages > button { flex:1 1 auto; padding:0 4px; }
+    html:not(.pz-dk) #sec-calendar .pz-pills.pz-pages > button { font-size:clamp(12.5px, 4.1vw, 15px); }
+    html.pz-dk #sec-calendar .pz-pills.pz-pages { gap:12px; }
 
     #sec-calendar .pz-pg b.pz-badge { position:absolute; top:-6px; right:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#E5322D; color:#fff; font-size:11px; line-height:18px; font-weight:800; }
     .pz-wrap[data-page="board"] [data-pz-pg]:not([data-pz-pg="board"]),
