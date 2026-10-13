@@ -2605,8 +2605,83 @@
     App.toast = toast;
     // [SHARED] 바텀시트 — calendar/connect 등 여러 섹션이 각자 갖고 있던 거의 동일한
     // openSheet()/closeSheet()를 여기 1곳으로 통합(각 섹션은 이제 자기 정의를 지우고 이 전역을 그대로 씀).
-    function closeSheet() { document.getElementById('appSheetHost').innerHTML = ''; if (App.qrOnly) attLeaveQrOnly(); }
+    // ════════════════════════════════════════════════════════════════
+    // 2026-10-13 [SHARED] 휴대폰 뒤로가기 — 누르면 "바로 앞 화면"으로만 간다(표지로 튕기지 않게).
+    //  · 위에 뜬 화면(시트·글 상세·사진 크게 보기·영상·모자이크·QR)은 뜰 때 기록 한 칸을 만들고(Back.open),
+    //    뒤로가기를 누르면 그 한 칸이 빠지면서 맨 위 것 하나만 닫힌다. 앱이 스스로 닫을 때는 Back.closed 로 그 칸을 치운다.
+    //  · 탭을 옮기면 한 칸씩 쌓여(Back.push) 뒤로가기 = 앞에 보던 탭.
+    //  · 맨 처음 화면에서는 "한 번 더 누르면 나가요"를 먼저 보여 주고, 이어서 한 번 더 눌러야 앱에서 나간다.
+    //    (크롬은 화면을 한 번도 안 건드린 채 만든 기록 칸을 뒤로가기에서 건너뛰므로, 지킴 칸은 손이 닿은 뒤에 만든다.)
+    // ════════════════════════════════════════════════════════════════
+    const Back = {
+      layers: [],        // 지금 떠 있는 화면들 [{ name, close }] — 아래에서 위 순서
+      stale: 0,          // 이미 닫혔는데 기록에는 남아 있는 칸 수
+      ignoreUntil: 0,    // 우리가 스스로 뒤로 간 것(칸 치우기)은 무시
+      armed: false,
+      push(state, url) {
+        try {
+          if (this.stale) { this.stale = 0; history.replaceState(state, '', url || location.href); }   // 치울 칸을 그대로 다시 씀
+          else history.pushState(state, '', url || location.href);
+        } catch (e) {}
+      },
+      open(name, close) {
+        if (this.layers.some(l => l.name === name)) return;          // 같은 화면을 다시 그리는 중
+        this.layers.push({ name, close });
+        this.push({ layer: name, depth: this.layers.length });
+      },
+      adopt(name, close) { if (!this.layers.some(l => l.name === name)) this.layers.push({ name, close }); },   // 새로 고침 뒤: 기록 칸은 이미 있음
+      closed(name) {                                                 // 앱이 스스로 닫음(닫기 단추 등)
+        const i = this.layers.findIndex(l => l.name === name);
+        if (i < 0) return;
+        const gone = this.layers.splice(i);
+        gone.slice(1).reverse().forEach(l => { try { l.close(); } catch (e) {} });   // 그 위에 떠 있던 것도 같이
+        this.stale += gone.length;
+        setTimeout(() => this.flush(), 0);
+      },
+      closeAll() {                                                   // 탭을 옮길 때: 떠 있던 것을 모두 닫는다
+        if (!this.layers.length) return;
+        const first = this.layers[0];
+        this.closed(first.name);
+        try { first.close(); } catch (e) {}
+      },
+      flush() {
+        if (!this.stale) return;
+        const n = this.stale; this.stale = 0;
+        this.ignoreUntil = Date.now() + 1500;
+        try { history.go(-n); } catch (e) { this.ignoreUntil = 0; }
+      },
+      enter() {                                                      // 앱에 들어온 순간의 칸 = 맨 처음 화면
+        if (EMBED_PLAZA) return;
+        try { if (!history.state) history.replaceState({ pdRoot: 1 }, '', location.href); } catch (e) {}
+        this.arm();
+      },
+      arm() {                                                        // 화면에 손이 닿으면 지킴 칸을 하나 만든다
+        if (this.armed || EMBED_PLAZA) return;
+        this.armed = true;
+        const evs = ['pointerup', 'keydown', 'click'];
+        const on = () => {
+          evs.forEach(n => document.removeEventListener(n, on, true)); this.armed = false;
+          try { if (history.state && history.state.pdRoot) history.pushState({ pdGuard: 1 }, '', location.href); } catch (e) {}
+        };
+        evs.forEach(n => document.addEventListener(n, on, true));
+      },
+      onPop(e) {
+        const st = e.state || {};
+        if (this.ignoreUntil) {
+          const mine = Date.now() < this.ignoreUntil; this.ignoreUntil = 0;
+          if (mine) { if (st.pdRoot) this.arm(); return; }   // 칸을 치우다 맨 처음 화면에 닿았으면 지킴 칸을 다시 준비
+        }
+        const depth = st.depth || 0;
+        while (this.layers.length > depth) { const l = this.layers.pop(); try { l.close(); } catch (err) {} }
+        if (st.pdRoot && App.memberId) { toast('뒤로가기를 한 번 더 누르면 앱에서 나가요.'); this.arm(); }
+      },
+    };
+    window.addEventListener('popstate', e => Back.onPop(e));
+
+    function sheetHide() { document.getElementById('appSheetHost').innerHTML = ''; if (App.qrOnly) attLeaveQrOnly(); }
+    function closeSheet() { Back.closed('sheet'); sheetHide(); }
     function openSheet(html) {
+      Back.open('sheet', sheetHide);
       const h = document.getElementById('appSheetHost');
       // 2026-09-23: 신청서처럼 긴 시트에서 빠져나갈 방법이 없다는 지적 —
       // 모든 시트 맨 위에 공통 [뒤로]를 달아준다(개별 닫기 버튼과 같이 있어도 무해).
@@ -2712,6 +2787,8 @@
       MEMBER_ID = id; MY_NAME = nm; memberId = id; name = nm;
       document.getElementById('loginPanel').style.display = 'none';
       document.getElementById('appPanel').style.display = 'flex';
+      try { sessionStorage.setItem('pd_in', '1'); } catch (e) {}   // 이 창에서 이미 들어와 있음 → 새로 고침하면 표지 없이 보던 탭으로
+      Back.enter();
       updateAdminTabVisibility();
       renderMeChips();     // 우선 이름만 — 명단을 받으면 부서·직책까지 다시 그림
       // 2026-10-08: 출석 QR(#attend=)로 들어온 첫 화면 = '출석 전용' — 서버 요청을 출석 2번(모임 정보·제출)만.
@@ -2726,7 +2803,7 @@
     function attLeaveQrOnly() {
       if (!App.qrOnly) return;
       App.qrOnly = false;
-      history.replaceState(null, '', location.pathname + location.search);
+      history.replaceState(history.state, '', location.pathname + location.search);
       loadMyRosterRow();
       switchTab('activity');
       showInstallToastIfNeeded();
@@ -2938,6 +3015,17 @@
       // 2026-10-08(사용자 요청): 출석 QR(#attend=모임ID)로 들어오면 표지를 건너뜀 —
       // 로그인해 둔 사람은 바로 출석 제출 화면(enterFromHash → attOpen), 처음 오는 사람은 애니메이션 없이 입장 카드부터.
       const qrAttend = !preview && /^#attend=/.test(location.hash || '');
+      // 2026-10-13(사용자 요청): 새로 고침하면 표지로 가지 않고 보던 탭에서 다시 불러오기만 한다.
+      // [홈으로](goToCover)를 누른 경우는 표지부터.
+      let wantCover = false, wasIn = false, navType = '';
+      try { wantCover = sessionStorage.getItem('pd_cover') === '1'; sessionStorage.removeItem('pd_cover'); wasIn = sessionStorage.getItem('pd_in') === '1'; } catch (e) {}
+      try { navType = (performance.getEntriesByType('navigation')[0] || {}).type || ''; } catch (e) {}
+      if (saved && !qrAttend && !wantCover && (wasIn || navType === 'reload' || navType === 'back_forward')) {
+        panel.style.display = 'none';
+        App.resume = true;
+        pdEnter(saved.memberId, saved.name);
+        return;
+      }
       if (qrAttend && saved) {
         panel.style.display = 'none';
         pdEnter(saved.memberId, saved.name);
@@ -3087,6 +3175,7 @@
     const HOME_BTN_HTML = '<button type="button" class="hdr-home" title="홈으로 (로그인 화면)" aria-label="홈으로" onclick="goToCover()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>';
     function goToCover() {
       pdClearSaved();
+      try { sessionStorage.removeItem('pd_in'); sessionStorage.setItem('pd_cover', '1'); } catch (e) {}
       try { closeSheet(); } catch (e) {}
       // ⚠️ location.replace(pathname)만 쓰면 해시만 떨어지는 "같은 문서 내 이동"이라
       //    페이지가 다시 뜨지 않는다. 해시를 먼저 지운 뒤 실제로 reload 할 것.
@@ -3362,10 +3451,15 @@
         if (raf) return;
         raf = requestAnimationFrame(() => { raf = 0; const el = document.querySelector(ROOM_TITLE_SEL[App.currentTab] || '_none'); if (el && !el.querySelector(':scope > .room-ic')) roomTitle(App.currentTab); });
       }).observe(document.getElementById('appSections') || document.body, { childList: true, subtree: true }); }
-    function switchTab(tab) {
+    // replace=true: 기록 칸을 새로 만들지 않고 지금 칸의 주소만 바꾼다(처음 들어올 때·새로 고침 뒤).
+    function switchTab(tab, replace) {
       if (!TAB_IDS.includes(tab)) tab = 'activity';
       if (tab === 'admin' && !isAdmin()) tab = 'activity';
-      location.hash = tab;
+      Back.closeAll();   // 위에 떠 있던 시트·글 상세는 닫고 옮긴다
+      if ((location.hash || '') !== '#' + tab) {
+        if (replace) { try { history.replaceState(history.state, '', '#' + tab); } catch (e) { location.hash = tab; } }
+        else Back.push({ tab }, '#' + tab);
+      }
       renderTab(tab);
     }
     function renderTab(tab) {
@@ -3396,12 +3490,14 @@
     function enterFromHash() {
       const h = (location.hash || '').replace('#', '');
       // 2026-09-30: 기본 진입 = 광장(교사 광장 컨셉 강화, 사용자 요청). 해시가 있으면 그 탭.
-      if (EMBED_PLAZA) { switchTab('calendar'); return; }
+      if (EMBED_PLAZA) { switchTab('calendar', true); return; }
       const am = h.match(/^attend=([A-Za-z0-9_-]+)/);   // 2026-10-05: 출석 QR(app.html#attend=모임ID)
       if (am) { if (!App.qrOnly) switchTab('activity'); attOpen(decodeURIComponent(am[1]), 'qr'); return; }
+      // 2026-10-13: 새로 고침으로 다시 들어온 경우는 보던 탭 그대로
+      if (App.resume) { App.resume = false; if (TAB_IDS.includes(h)) { switchTab(h, true); return; } }
       // 2026-10-06(사용자 요청): 들어가면 항상 광장. 주소의 #탭은 지난번에 보던 화면이 남은 것이라 무시하고,
       // 옛 관리자 페이지가 보내는 #admin 링크만 그대로 따른다.
-      switchTab(h === 'admin' ? 'admin' : 'calendar');
+      switchTab(h === 'admin' ? 'admin' : 'calendar', true);
       const sc = document.getElementById('appSections'); if (sc) sc.scrollTop = 0;
     }
     // 2026-09-22: 섹션 간 인계 — 예전엔 iframe 에 ?chatWith=/?heartsStage= 같은 URL 파라미터를
@@ -4357,11 +4453,10 @@
       function ovShow(html) {
         const host = $('pzOverlayHost');
         host.innerHTML = `<div class="pz-ov">${html}</div>`;
-        if (!P.ovOpen) { P.ovOpen = true; try { history.pushState({ pz: 1 }, '', location.href); } catch (e) {} }
+        if (!P.ovOpen) { P.ovOpen = true; Back.open('pz', ovHide); }
       }
-      function ovHide() { $('pzOverlayHost').innerHTML = ''; P.ovOpen = false; P.detail = null; }
-      function ovClose() { if (P.ovOpen) { try { history.back(); } catch (e) { ovHide(); } } }
-      window.addEventListener('popstate', () => { if (lbRemove()) return; if (P.ovOpen) ovHide(); });   // 사진을 크게 보던 중이면 사진만 닫는다
+      function ovHide() { $('pzOverlayHost').innerHTML = ''; P.ovOpen = false; P.detail = null; try { sessionStorage.removeItem('pz_open'); } catch (e) {} }
+      function ovClose() { if (P.ovOpen) { Back.closed('pz'); ovHide(); } }   // 휴대폰 뒤로가기는 공용 Back 이 ovHide 를 부른다
 
       // ── 2026-10-13: 옆으로 넘기는 사진 묶음(글 상세·크게 보기 공용) — 넘길 때마다 번호·점·화살표를 맞춘다 ──
       function carHtml(photos) {
@@ -4393,7 +4488,7 @@
         lb.remove(); if (lbKey) { document.removeEventListener('keydown', lbKey); lbKey = null; }
         return true;
       }
-      function lbClose() { if (!document.getElementById('pzLightbox')) return; try { history.back(); } catch (e) { lbRemove(); } }
+      function lbClose() { if (!document.getElementById('pzLightbox')) return; Back.closed('pzlb'); lbRemove(); }
       function openLightbox(srcs, start) {
         lbRemove();
         const lb = document.createElement('div'); lb.className = 'pz-lightbox'; lb.id = 'pzLightbox';
@@ -4405,12 +4500,13 @@
         lb.onclick = e => { if (e.target.tagName !== 'IMG') lbClose(); };
         lbKey = e => { if (e.key === 'Escape') lbClose(); else if (e.key === 'ArrowRight') car.go(car.idx() + 1, true); else if (e.key === 'ArrowLeft') car.go(car.idx() - 1, true); };
         document.addEventListener('keydown', lbKey);
-        try { history.pushState({ pzlb: 1 }, '', location.href); } catch (e) {}
+        Back.open('pzlb', lbRemove);
       }
 
       // ── 글 상세 ──
       async function openPost(postId) {
         ovShow(`<div class="pz-ov-bar"><button type="button" data-pz-back>‹</button><div class="t">교사광장</div><span style="width:40px"></span></div><div class="pz-ov-body"><div class="pz-empty">불러오는 중...</div></div>`);
+        try { sessionStorage.setItem('pz_open', postId); } catch (e) {}   // 새로 고침하면 이 글을 다시 연다
         try {
           const res = await callApi({ action: 'getPlazaPost', memberId: MEMBER_ID, postId });
           if (res && res.error) throw new Error(res.error);
@@ -4605,7 +4701,7 @@
       // ── 사진 모자이크 (2026-09-30) ──
       // 올린 사진에서 가릴 사람 얼굴을 손가락으로 드래그해 네모로 감싸거나 톡 누르면 그 부분만 모자이크.
       // 여러 곳 가능, [되돌리기]로 한 단계씩 취소. [완료]하면 모자이크된 사진으로 바꿔 넣는다(원본은 저장 안 함).
-      // 글쓰기 오버레이 위에 따로 띄우는 층이라 휴대폰 뒤로가기 기록은 건드리지 않는다.
+      // 휴대폰 뒤로가기를 누르면 [취소]처럼 이 층만 닫힌다(Back).
       function openMosaic(src, onDone) {
         const layer = document.createElement('div');
         layer.className = 'pz-mz';
@@ -4617,7 +4713,9 @@
         const cv = layer.querySelector('canvas'), ctx = cv.getContext('2d'), sel = layer.querySelector('.pz-mz-sel');
         const undoBtn = layer.querySelector('[data-mz="undo"]'), countEl = layer.querySelector('.pz-mz-tools b');
         const hist = [];
-        const close = () => layer.remove();
+        const hide = () => layer.remove();
+        const close = () => { Back.closed('pzmz'); hide(); };
+        Back.open('pzmz', hide);
         const sync = () => { undoBtn.disabled = !hist.length; countEl.textContent = hist.length; };
         loadImage(src).then(im => {
           cv.width = im.naturalWidth || im.width; cv.height = im.naturalHeight || im.height;
@@ -4930,6 +5028,12 @@
         s.onsearch = run;
         load(true, true);
         renderContest(); loadContest(true); loadMonthly(monthKey(0), false, true);
+        // 2026-10-13: 글을 보던 중에 새로 고침했으면 그 글을 다시 연다(기록 칸은 남아 있으므로 새로 만들지 않음)
+        try {
+          const pid = sessionStorage.getItem('pz_open');
+          if (pid && history.state && history.state.layer === 'pz') { P.ovOpen = true; Back.adopt('pz', ovHide); openPost(pid); }
+          else sessionStorage.removeItem('pz_open');
+        } catch (e) {}
       };
     })();
 
@@ -6768,7 +6872,9 @@
         if (!document.body.contains(ov)) { clearInterval(timer); return; }
         try { const r = await callApi({ action: 'getAttendCount', meetingId: m.meetingId }); const el = document.getElementById('attQrCnt'); if (el && r && r.count != null) el.textContent = r.count; } catch (e) {}
       }, 10000);
-      ov.querySelector('.att-qr-x').onclick = () => { clearInterval(timer); try { wake && wake.release(); } catch (e) {} ov.remove(); attAdmLoad(true); };
+      const hideQr = () => { clearInterval(timer); try { wake && wake.release(); } catch (e) {} ov.remove(); attAdmLoad(true); };
+      Back.open('attqr', hideQr);
+      ov.querySelector('.att-qr-x').onclick = () => { Back.closed('attqr'); hideQr(); };
       try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
       try {
         await attLoadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js');
@@ -6866,7 +6972,9 @@
         e.stopPropagation();
         const host = document.getElementById('cnLightbox');
         host.innerHTML = `<div class="cn-lightbox"><img src="${esc(im.src)}" alt="확대 사진"></div>`;
-        host.firstChild.onclick = () => { host.innerHTML = ''; };
+        const hideZoom = () => { host.innerHTML = ''; };
+        Back.open('cnlb', hideZoom);
+        host.firstChild.onclick = () => { Back.closed('cnlb'); hideZoom(); };
       }
     }, true);
     // 채팅 진입 — "대화함" 탭이 없어졌으므로, 이전 탭을 기억해뒀다가 대화 종료 시 그리로 돌아간다.
@@ -9239,7 +9347,9 @@ function tbSearchRender() {
           <div class="vt-box"></div>
         </div>`;
       document.body.appendChild(ov);
-      const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+      const hide = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+      const close = () => { Back.closed('vd'); hide(); };
+      Back.open('vd', hide);
       const onKey = e => { if (e.key === 'Escape') close(); };
       document.addEventListener('keydown', onKey);
       ov.querySelector('.vd-ov-x').onclick = close;
