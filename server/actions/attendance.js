@@ -331,10 +331,11 @@ async function notifyAttendance(m, rec, rowId) {
       ? '\n\n📝 설문\n' + m.questions.map((q) => `• ${q.label}: ${answerText(rec.answers[q.id]) || '-'}`).join('\n')
       : '';
     await sendAttendText(`✅ 출석 완료${order ? ` · ${order}번째` : ''}\n👤 ${rec.name}${rec.dept ? ' · ' + rec.dept : ''}${rec.position ? ' · ' + rec.position : ''}\n` +
-      `📋 ${where} (${m.date})\n🕐 ${rec.at}${rec.late ? ' · ' + rec.late : ''}` + (picked ? `\n📍 ${picked}` : '') + survey);
+      (rec.memberId ? `🔑 고유번호 ${rec.memberId}\n` : '') +
+      `📋 ${where}\n🕐 ${rec.at}${rec.late ? ' · ' + rec.late : ''}` + (picked ? `\n📍 ${picked}` : '') + survey);
     return;
   }
-  await run(db().from('attend_notify_queue').insert({ meeting_id: m.meetingId, label: (order ? order + '. ' : '') + rec.name + (rec.dept ? `(${rec.dept})` : '') }));
+  await run(db().from('attend_notify_queue').insert({ meeting_id: m.meetingId, label: (order ? order + '. ' : '') + rec.name + (rec.dept ? `(${rec.dept})` : '') + (rec.memberId ? ' ' + rec.memberId : '') }));
   const queued = await run(db().from('attend_notify_queue').select('id, label').eq('meeting_id', m.meetingId).order('id'));
   if (queued.length >= 20) {
     const taken = await run(db().from('attend_notify_queue').delete().in('id', queued.map((q) => q.id)).select('label'));
