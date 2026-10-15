@@ -463,6 +463,12 @@
     .pz-ava.sm { width:32px; height:32px; font-size:13px; }
     .pz-d-title { font-size:20px; font-weight:800; line-height:1.35; margin-top:16px; }
     .pz-d-body { font-size:15.5px; line-height:1.7; margin-top:10px; white-space:pre-wrap; word-break:break-word; }
+    /* 2026-10-15: 사례 틀 — 본문 항목 제목, 쓰기 화면 항목 칸, 틀/자유 형식 바꾸기 단추 */
+    .pz-d-h { display:inline-block; margin-top:6px; color:#00775A; font-weight:800; }
+    .pz-case-q { margin:14px 0 6px; font-size:14.5px; color:#064E3B; }
+    .pz-case-q b { font-weight:800; }
+    .pz-case-q small { margin-left:6px; font-size:12px; font-weight:600; color:#6B7280; }
+    .pz-case-sw { float:right; padding:3px 10px; border:1px solid #00AE82; border-radius:999px; background:#fff; color:#00936E; font-size:12px; font-weight:700; font-family:inherit; cursor:pointer; }
     .pz-d-photo { display:block; width:100%; border-radius:12px; margin-top:12px; background:#F2F3F6; cursor:zoom-in; }
     .pz-tags { margin-top:14px; display:flex; flex-wrap:wrap; gap:6px; font-size:14px; color:#2F6FDE; font-weight:600; }
     .pz-react[hidden] { display:none; }
@@ -4671,7 +4677,7 @@
               <div><div style="font-size:15px;font-weight:800">${esc(p.name)}${p.isMine ? '' : ' <span class="pz-author-hint">명함 ›</span>'}</div><div class="pz-cmt-meta">${esc([p.region, p.dept].filter(Boolean).join(' '))}${p.region || p.dept ? ' · ' : ''}${esc(ago(p.createdAt))}${p.updatedAt && p.updatedAt !== p.createdAt ? ' (수정됨)' : ''}</div></div>
             </div>
             <div class="pz-d-title">${esc(p.title)}</div>
-            <div class="pz-d-body">${esc(p.body)}</div>
+            <div class="pz-d-body">${catOf(p.category) === '사례' ? pzBodyHtml(p.body) : esc(p.body)}</div>
             ${p.tags.length ? `<div class="pz-tags">${p.tags.map(t => `<span>#${esc(t)}</span>`).join('')}</div>` : ''}
             <div class="pz-react" id="pzReact"${p.likeCount ? '' : ' hidden'}>💜 교사 ${p.likeCount}명이 공감했어요</div>
             <div class="pz-actions">
@@ -4909,6 +4915,34 @@
         });
       }
 
+      // ── 사례 작성 틀 (2026-10-15) ── 임지혜 지역장 '센터등록 성공사례'(7항목) 틀을 바탕으로 6항목으로 묶음:
+      // 경계 낮추기 + 방해 극복 → 하나, 센터 소개는 진행 순서대로 뒤로. 저장은 예전처럼 본문 한 덩어리("1. 제목 (부제)\n내용").
+      const CASE_SECTIONS = [
+        { t: '교사 연결', s: '연결 방법 · 교사 컨셉', h: '어떤 자리·계기로 연결했는지, 교사는 어떤 사람으로 소개했는지' },
+        { t: '성경 띄우기', s: '기간 띄우기 · 동기 부여', h: '성경 공부의 필요와 기간(예: 1년)을 어떻게 스스로 느끼고 마음먹게 했는지' },
+        { t: '경계 낮추기 · 방해 극복', s: '신뢰 쌓기 · 방해 요소와 극복', h: '경계를 낮춘 방법, 가족·직장 등 방해가 있었다면 어떻게 넘었는지' },
+        { t: '마음 사기 · 친분', s: '만남 · 상담 · 소망 심기', h: '자주 만나며 마음을 산 방법, 그분 상황에 맞춰 소망을 심은 이야기' },
+        { t: '센터 소개', s: '시기 · 방법 · 소개 멘트', h: '언제, 어떻게, 어떤 말로 센터를 소개했는지 (실제 멘트를 그대로 적으면 좋아요)' },
+        { t: '깨달은 점', s: '', h: '전도하며 느끼고 배운 점' },
+      ];
+      /** 항목별 내용 → 본문(빈 항목은 빼고 번호를 다시 매김). */
+      const caseCompose = sec => { let n = 0; return CASE_SECTIONS.map((c, i) => { const v = String(sec[i] || '').trim(); return v ? `${++n}. ${c.t}${c.s ? ` (${c.s})` : ''}\n${v}` : ''; }).filter(Boolean).join('\n\n'); };
+      /** 틀로 쓴 본문 → 항목별 내용. 틀 모양이 아니면 null. */
+      function caseParse(body) {
+        const sec = CASE_SECTIONS.map(() => '');
+        let cur = -1, found = false, before = '';
+        for (const line of String(body || '').split('\n')) {
+          const m = line.match(/^\s*\d+\.\s*(.+?)\s*(\([^)]*\))?\s*$/);
+          const idx = m ? CASE_SECTIONS.findIndex(c => c.t === m[1].trim()) : -1;
+          if (idx >= 0) { cur = idx; found = true; continue; }
+          if (cur < 0) { before += line.trim(); continue; }
+          sec[cur] += (sec[cur] ? '\n' : '') + line;
+        }
+        return found && !before ? sec.map(s => s.trim()) : null;
+      }
+      /** 글 본문 보기: "1. 제목" 줄은 굵게(사례 틀 항목 제목). */
+      const pzBodyHtml = body => esc(body).split('\n').map(l => /^\s*\d+\.\s*\S/.test(l) && l.length <= 60 ? `<b class="pz-d-h">${l}</b>` : l).join('\n');
+
       // ── 글쓰기 / 수정 ──
       const writeCats = () => PZ_CATS.filter(c => c !== '전도부' || isAdmin());   // 전도부 자유 게시판은 관리자만(서버도 막음)
       function openWrite(existing, presetCat) {
@@ -4916,6 +4950,11 @@
         const f = existing
           ? { postId: existing.postId, category: PZ_CATS.includes(catOf(existing.category)) ? catOf(existing.category) : '', title: existing.title, body: existing.body, tags: existing.tags.map(t => '#' + t).join(' '), photos: (existing.photos || []).slice() }
           : { postId: '', category: presetCat || P.cat || '', title: '', body: '', tags: '', photos: [] };
+        // 사례는 틀(항목별 칸)로 — 예전 자유 형식 사례를 고칠 때는 자유 형식 그대로
+        const parsed = caseParse(f.body);
+        f.sec = parsed || CASE_SECTIONS.map(() => '');
+        f.caseMode = !f.body.trim() || !!parsed;
+        const isCase = () => f.category === '사례' && f.caseMode;
         let saving = false;
         const draw = () => {
           ovShow(`<div class="pz-ov-bar"><button type="button" data-pz-back>닫기</button><div class="t">${f.postId ? '글 수정' : '교사광장 글쓰기'}</div><button type="button" id="pzSave" style="color:var(--color-primary)">${saving ? '올리는 중...' : '완료'}</button></div>
@@ -4925,8 +4964,11 @@
               <div class="pz-f-cats">${writeCats().map(c => `<button type="button" data-pz-cat="${esc(c)}" class="${PZ_CAT_CLS[c]}${f.category === c ? ' on' : ''}"><b>${catIc(c)} ${esc(catLabel(c))}</b><span>${esc(PZ_META[c].g)}</span></button>`).join('')}</div>
               <div class="pz-f-lbl">제목</div>
               <input class="pz-f-input" id="pzFTitle" maxlength="80" placeholder="예: 세 번 거절당한 분이 복음방에 오시기까지" value="${esc(f.title)}">
-              <div class="pz-f-lbl">내용</div>
-              <textarea class="pz-f-input" id="pzFBody" maxlength="5000" style="min-height:220px;line-height:1.6" placeholder="전도하며 겪은 성공·실패 사례, 사연을 들려주세요.&#10;어떤 상황이었고, 무엇을 했고, 어떻게 됐는지 적으면 다른 교사들께 큰 도움이 돼요.">${esc(f.body)}</textarea>
+              ${isCase() ? `<div class="pz-f-lbl">내용 <small style="font-weight:600;color:var(--dg-text-sub)">(사례 틀 — 해당하는 칸만 채워도 돼요)</small> <button type="button" class="pz-case-sw" data-pz-free>자유 형식으로 쓰기</button></div>
+              ${CASE_SECTIONS.map((c, i) => `<div class="pz-case-q"><b>${i + 1}. ${esc(c.t)}</b>${c.s ? `<small>${esc(c.s)}</small>` : ''}</div>
+              <textarea class="pz-f-input" data-pz-sec="${i}" maxlength="1500" style="min-height:${i === 5 ? 80 : 96}px;line-height:1.6" placeholder="${esc(c.h)}">${esc(f.sec[i])}</textarea>`).join('')}`
+              : `<div class="pz-f-lbl">내용${f.category === '사례' ? ' <button type="button" class="pz-case-sw" data-pz-case>사례 틀로 쓰기</button>' : ''}</div>
+              <textarea class="pz-f-input" id="pzFBody" maxlength="5000" style="min-height:220px;line-height:1.6" placeholder="전도하며 겪은 성공·실패 사례, 사연을 들려주세요.&#10;어떤 상황이었고, 무엇을 했고, 어떻게 됐는지 적으면 다른 교사들께 큰 도움이 돼요.">${esc(f.body)}</textarea>`}
               <div class="pz-f-lbl">사진 <small style="font-weight:600;color:var(--dg-text-sub)">(최대 4장)</small></div>
               <div class="pz-f-hint">사진 아래 <b>[모자이크]</b>를 누르면 원하는 사람 얼굴만 가릴 수 있어요.</div>
               <div class="pz-f-photos">
@@ -4936,8 +4978,17 @@
               <div class="pz-f-lbl">해시태그</div>
               <input class="pz-f-input" id="pzFTags" maxlength="200" placeholder="#복음방 #섭외 #청년" value="${esc(f.tags)}">
             </div>`);
-          const bind = (id, key) => { const el = $(id); el.oninput = () => { f[key] = el.value; }; };
+          const bind = (id, key) => { const el = $(id); if (el) el.oninput = () => { f[key] = el.value; }; };
           bind('pzFTitle', 'title'); bind('pzFBody', 'body'); bind('pzFTags', 'tags');
+          document.querySelectorAll('[data-pz-sec]').forEach(el => el.oninput = () => { f.sec[Number(el.dataset.pzSec)] = el.value; });
+          const free = document.querySelector('[data-pz-free]');
+          if (free) free.onclick = () => { f.body = caseCompose(f.sec); f.caseMode = false; draw(); };
+          const toCase = document.querySelector('[data-pz-case]');
+          if (toCase) toCase.onclick = () => {
+            const p = caseParse(f.body);
+            if (!p && f.body.trim()) return toast('이미 쓴 내용은 틀로 옮길 수 없어요. 내용을 비우면 틀로 쓸 수 있어요.', true);
+            f.sec = p || CASE_SECTIONS.map(() => ''); f.caseMode = true; draw();
+          };
           document.querySelectorAll('[data-pz-cat]').forEach(b => b.onclick = () => { f.category = b.dataset.pzCat; draw(); });
           document.querySelectorAll('[data-pz-mosaic]').forEach(b => b.onclick = () => { const i = Number(b.dataset.pzMosaic); openMosaic(f.photos[i], out => { f.photos[i] = out; draw(); }); });
           document.querySelectorAll('[data-pz-rmph]').forEach(b => b.onclick = () => { f.photos.splice(Number(b.dataset.pzRmph), 1); draw(); });
@@ -4954,7 +5005,8 @@
           if (saving) return;
           if (!f.category) return toast('주제를 골라주세요.', true);
           if (!f.title.trim()) return toast('제목을 입력해주세요.', true);
-          if (!f.body.trim()) return toast('내용을 입력해주세요.', true);
+          if (isCase()) f.body = caseCompose(f.sec);
+          if (!f.body.trim()) return toast(isCase() ? '사례 틀에서 한 칸 이상 채워주세요.' : '내용을 입력해주세요.', true);
           saving = true; draw();
           try {
             const thumb = f.photos[0] ? await shrink(f.photos[0], 200, 12000, true) : '';
