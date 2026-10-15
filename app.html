@@ -1823,6 +1823,10 @@
     .att-who { margin:14px 0 4px; padding:10px 12px; border-radius:10px; background:#F5F7F8; font-size:13.5px; font-weight:700; }
     .att-late { display:inline-block; margin:8px 0 2px; padding:5px 12px; border-radius:999px; background:#E3F6EF; color:#0A7A5C; font-size:14px; font-weight:800; }
     .att-late.is-late { background:#FDECEC; color:#C62828; }
+    /* 2026-10-15: 모임 만들기 — 교육 타임 여러 줄 */
+    .att-slot { display:flex; align-items:center; gap:6px; margin-top:6px; }
+    .att-slot .cal-inp { flex:1; min-width:0; margin:0; }
+    .att-slot-n { flex:none; width:40px; font-size:13px; font-weight:800; color:#00775A; }
     /* 2026-10-15: 출석 완료 화면의 'N분 지각입니다.' / '정상 출석' — 가운데 크게 */
     .att-late.att-late-big { display:block; width:fit-content; max-width:100%; margin:14px auto 8px; padding:14px 26px; border-radius:18px; font-size:30px; font-weight:900; letter-spacing:-0.02em; line-height:1.25; text-align:center; }
     .att-late-td { color:#C62828; font-weight:700; }
@@ -6709,7 +6713,10 @@
     const ATT_TYPES = [['choice', '객관식(하나 고르기)'], ['multi', '객관식(여러 개 고르기)'], ['text', '주관식(글로 쓰기)']];
     const attSt = { my: null, cur: null, ans: {}, pick: { org: '', district: '', dept24: '' }, busy: false, method: 'qr' };
     const attUrl = id => location.origin + location.pathname + '#attend=' + encodeURIComponent(id);
-    const attWhen = m => `${String(m.date || '').slice(5).replace('-', '/')}${m.start ? ' ' + m.start : ''}${m.end ? '~' + m.end : ''}`;
+    // 2026-10-15: 타임이 여러 개면 "10/20 09:00~10:30 · 19:30~22:00"
+    const attWhen = m => `${String(m.date || '').slice(5).replace('-', '/')}` + ((m.slots || []).length > 1
+      ? ' ' + m.slots.map(t => t.start + '~' + t.end).join(' · ')
+      : `${m.start ? ' ' + m.start : ''}${m.end ? '~' + m.end : ''}`);
     const attAnsText = (q, v) => Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
     const attNowKst = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
     // v2(10/05): 모임 부서·지역 — 서버 ATT_ORG_OPTIONS 값 그대로 보냄(교자장 연합은 사용자 요청으로 뺌). 교역자·전체·기타는 지역 없이 한 부서,
@@ -6745,7 +6752,9 @@
       if (!r) return '';
       if (r.late != null && r.late !== '') return /지각/.test(r.late) ? r.late : '';
       if (!m.start || !m.date) return '';
-      const a = String(r.at || ''), base = m.start2 && a.slice(11, 16) >= '15:00' ? m.start2 : m.start;
+      const a = String(r.at || ''), hm = a.slice(11, 16), toM = t => { const [h, mm] = String(t).split(':').map(Number); return h * 60 + mm; };
+      let base = m.start2 && hm >= '15:00' ? m.start2 : m.start;
+      if ((m.slots || []).length > 1) { base = m.slots[0].start; for (const t of m.slots) if (toM(t.start) - (m.openBefore || 0) <= toM(hm)) base = t.start; }
       if (a.slice(0, 10) !== m.date || a <= m.date + ' ' + base + ':00') return '';
       const p = a.slice(11).split(':'), q = base.split(':');
       const sec = (Number(p[0]) * 3600 + Number(p[1]) * 60 + Number(p[2] || 0)) - (Number(q[0]) * 3600 + Number(q[1]) * 60);
@@ -6858,7 +6867,7 @@
     }
     // 2026-10-15: 이름·고유번호(13자리)가 명단과 안 맞으면 출석 거부 → 이 자리에서 정확히 다시 입력하게 함
     function attRenderRelogin(host, msg) {
-      host.innerHTML = `<div class="att-result" style="padding-bottom:4px"><div class="att-big">🚫</div><b>등록되지 않은 이름입니다.</b></div>
+      host.innerHTML = `<div class="att-result" style="padding-bottom:4px"><div class="att-big">🚫</div><b>명단에 없는 분입니다.</b></div>
         <div class="att-relogin">
           <p>${esc(msg || '')}<br>명단에 등록된 이름과 고유번호를 정확히 입력하면 바로 출석돼요.</p>
           <label for="attReName">이름</label>
@@ -7167,6 +7176,9 @@
         // v2.3: 새 모임은 '내 지역' 선택을 기본으로 켬(소속 5개 부서 고르기가 그 안에 있어 '소속 부서' 문항은 기본으로 안 넣음)
         : { title: '', date: attNowKst().slice(0, 10), start: '', end: '', place: '', openBefore: 30, status: '열림', org: '', district: '',
             askDistrict: true, askDept: false, questions: [] };
+      // 2026-10-15: 타임 여러 개(오전·오후·저녁) — 어느 타임에 와도 출석 1번
+      f.slots = (m && (m.slots || []).length > 1) ? m.slots.map(t => ({ ...t })) : [{ start: f.start || '', end: f.end || '' }];
+      const slotName = t => !t ? '' : t < '12:00' ? '오전' : t < '17:00' ? '오후' : '저녁';
       const draw = () => {
         openSheet(`<div class="att-sheet"><div class="att-title">${m ? '모임 수정' : '새 모임 만들기'}</div>
           <label class="cal-lbl">모임 이름 <span class="cal-req">*</span></label><input class="cal-inp" id="attFTitle" maxlength="80" value="${esc(f.title)}" placeholder="예) 10월 교사 교육">
@@ -7183,8 +7195,11 @@
           <label class="att-toggle"><input type="checkbox" id="attFAskDept" ${f.askDept ? 'checked' : ''}><span><b>24개 부서 선택</b><small>행서·내무·기획·교육 등 부서 중 하나를 고름 · 기타는 직접 쓰기</small></span></label>
           <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">날짜 <span class="cal-req">*</span></label><input type="date" class="cal-inp" id="attFDate" value="${esc(f.date)}"></div>
             <div style="flex:1"><label class="cal-lbl">장소</label><input class="cal-inp" id="attFPlace" maxlength="80" value="${esc(f.place)}"></div></div>
-          <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">시작</label><input type="time" class="cal-inp" id="attFStart" value="${esc(f.start)}"></div>
-            <div style="flex:1"><label class="cal-lbl">끝</label><input type="time" class="cal-inp" id="attFEnd" value="${esc(f.end)}"></div></div>
+          <label class="cal-lbl">교육 타임 <span class="att-muted" style="font-weight:400">(같은 교육을 오전·오후·저녁 여러 번 하면 + 로 추가 — 어느 타임에 와도 출석 1번)</span></label>
+          <div id="attFSlots">${f.slots.map((t, i) => `<div class="att-slot"><span class="att-slot-n">${f.slots.length > 1 ? esc(slotName(t.start) || (i + 1) + '타임') : '시간'}</span>
+            <input type="time" class="cal-inp" data-slot="start" data-i="${i}" value="${esc(t.start)}"><span>~</span><input type="time" class="cal-inp" data-slot="end" data-i="${i}" value="${esc(t.end)}">
+            ${f.slots.length > 1 ? `<button type="button" class="att-x" data-slotdel="${i}" title="타임 삭제">×</button>` : ''}</div>`).join('')}</div>
+          ${f.slots.length < 5 ? '<button type="button" class="att-link" id="attFAddSlot" style="margin-top:6px">+ 타임 추가</button>' : ''}
           <label class="cal-lbl">출석 받기 시작</label>
           <select class="cal-inp" id="attFBefore">${[0, 10, 20, 30, 60, 120].map(n => `<option value="${n}" ${Number(f.openBefore) === n ? 'selected' : ''}>${n ? '시작 ' + n + '분 전부터' : '시작 시간부터'}</option>`).join('')}</select>
           <div class="att-muted" style="margin-top:4px">시작·끝을 비우면 그날 하루 종일 출석을 받아요. 끝 시간이 지나면 자동으로 마감돼요.</div>
@@ -7201,7 +7216,10 @@
         </div>`);
         const read = () => {
           f.title = document.getElementById('attFTitle').value; f.date = document.getElementById('attFDate').value; f.place = document.getElementById('attFPlace').value;
-          f.start = document.getElementById('attFStart').value; f.end = document.getElementById('attFEnd').value; f.openBefore = Number(document.getElementById('attFBefore').value);
+          document.querySelectorAll('#attFSlots [data-slot]').forEach(el => { f.slots[Number(el.dataset.i)][el.dataset.slot] = el.value; });
+          const filled = f.slots.filter(t => t.start || t.end);
+          f.start = filled.length ? filled[0].start : ''; f.end = filled.length ? filled[filled.length - 1].end : '';
+          f.openBefore = Number(document.getElementById('attFBefore').value);
           f.org = document.getElementById('attFOrgSel').value;
           f.askDistrict = document.getElementById('attFAskDist').checked; f.askDept = document.getElementById('attFAskDept').checked;
           if (!attDistricts(f.org).includes(f.district)) f.district = '';   // 부서를 바꾸면 맞지 않는 지역은 지움(예: 장년회에는 유아모 없음)
@@ -7225,10 +7243,16 @@
         document.querySelectorAll('[data-att-dist]').forEach(b => { b.onclick = () => { read(); f.district = f.district === b.dataset.attDist ? '' : b.dataset.attDist; draw(); }; });
         document.querySelectorAll('[data-qdel]').forEach(b => { b.onclick = () => { read(); f.questions.splice(Number(b.dataset.qdel), 1); draw(); }; });
         document.getElementById('attFAddQ').onclick = () => { read(); f.questions.push({ label: '', type: 'choice', options: [], required: false }); draw(); };
+        const addSlot = document.getElementById('attFAddSlot');
+        if (addSlot) addSlot.onclick = () => { read(); f.slots.push({ start: '', end: '' }); draw(); };
+        document.querySelectorAll('[data-slotdel]').forEach(b => { b.onclick = () => { read(); f.slots.splice(Number(b.dataset.slotdel), 1); draw(); }; });
+        document.querySelectorAll('#attFSlots [data-slot="start"]').forEach(el => { el.onchange = () => { read(); if (f.slots.length > 1) draw(); }; });
         document.getElementById('attFAddDept').onclick = () => { read(); f.questions.push({ label: '소속 부서', type: 'choice', options: [...ATT_DEPTS], required: true }); draw(); };
         document.getElementById('attFSave').onclick = async () => {
           read();
           if (!f.title.trim()) return toast('모임 이름을 입력해 주세요.', true);
+          const slotBad = f.slots.find(t => (t.start || t.end) && (!t.start || !t.end || t.end <= t.start));
+          if (slotBad) return toast('타임마다 시작과 끝을 넣고, 끝이 시작보다 뒤여야 해요.', true);
           const bad = f.questions.find(q => q.label.trim() && q.type !== 'text' && !q.options.length);
           if (bad) return toast(`"${bad.label}" 문항의 보기를 입력해 주세요.`, true);
           const btn = document.getElementById('attFSave'); btn.disabled = true;

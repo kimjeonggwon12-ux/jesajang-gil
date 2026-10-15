@@ -6,7 +6,7 @@ import { workbookFiles } from '../lib/xlsx-multi.js';
 import { zip } from '../lib/zip.js';
 import { sendAttendFile, sendAttendPhoto, sendAttendText } from '../lib/attend-bot.js';
 import { isAdmin } from './roster.js';
-import { loadMeetings, findMeeting, loadRecords, lateText, pickText, isTestMeeting } from './attendance.js';
+import { loadMeetings, findMeeting, loadRecords, lateText, pickText, isTestMeeting, slotOf, slotLabel } from './attendance.js';
 
 const ORGS = ['교역자', '자문회', '장년회', '부녀회', '청년회', '기타'];
 const EVENING_FROM = '15:00';   // 이 시각부터 출석한 사람은 '저녁'
@@ -114,7 +114,9 @@ export async function closingData(m) {
   for (const r of records) {
     const { person, note: matchNote } = matchPerson(r, dir);
     const id = person ? person.id : formatId(r.memberId);
-    const session = r.at.slice(11, 16) >= EVENING_FROM ? '저녁' : '오전';
+    // 2026-10-15: 타임이 여러 개인 모임은 온 타임 이름(오전·오후·저녁), 아니면 15시 기준 오전/저녁
+    const slot = slotOf(meetingOf.get(r.meetingId), r.at.slice(11, 16));
+    const session = slot ? slotLabel(slot.start) : (r.at.slice(11, 16) >= EVENING_FROM ? '저녁' : '오전');
     const org = orgOf(r, person);
     const late = r.late || lateText(meetingOf.get(r.meetingId), r.at);   // 지각 표시가 없는 옛 기록은 시작 시각으로 계산
     const key = `${session}|${normId(id)}`;
@@ -134,7 +136,7 @@ export async function closingData(m) {
       dept: r.dept || person?.dept || org,
       position: r.position || person?.position || (person ? '교사' : ''),
       org, pick: pickText({ pickOrg: r.pickOrg, pickDistrict: r.pickDistrict, dept24: '' }), dept24: r.dept24,
-      at: r.at, late, title: meetingOf.get(r.meetingId)?.title || '', note, dup,
+      at: r.at, late, title: meetingOf.get(r.meetingId)?.title || '', meetingId: r.meetingId, note, dup,
       teacherDept: person?.teacherDept || '', region: person?.region || '',
       fixed: !!note && !dup && !note.includes('⚠️') && !note.includes('확인 필요'),
     });
@@ -218,8 +220,9 @@ async function closingFile(m) {
   const both = data.sessions.length > 1;
   const sheets = [{ name: (both ? '합계 ' : '출석 ') + m.date.slice(5), ...sheetRows(title, data, data.sessions) }];
   if (both) {
-    const last = data.sessions.at(-1);   // 마지막 구분(저녁)만 따로 한 장 더
-    sheets.push({ name: `${last} ${m.date.slice(5)}`, ...sheetRows(`${m.date} ${last} 출석 명단`, data, [last]) });
+    // 이 모임의 구분마다 한 장씩 더(같은 날 앞서 마감된 모임 — 예: 따로 만든 오전 모임 — 은 그때 이미 보냈으므로 합계에만)
+    const own = data.sessions.filter((s) => data.rows.some((r) => r.session === s && r.meetingId === m.meetingId));
+    for (const s of own) sheets.push({ name: `${s} ${m.date.slice(5)}`, ...sheetRows(`${m.date} ${s} 출석 명단`, data, [s]) });
   }
 
   const lastTitle = String(data.meetings.at(-1).title).replace(/[\\/:*?"<>|]/g, ' ');

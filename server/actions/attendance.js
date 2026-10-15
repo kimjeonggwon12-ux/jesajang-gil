@@ -63,14 +63,32 @@ function districtFromRegion(org, region) {
   return n >= 1 && n <= DISTRICT_MAX ? n : '';
 }
 
+// ── 타임(2026-10-15) ── 한 모임에 타임이 여러 개면(slots) 어느 타임에 와도 출석 1번.
+const toMin = (t) => { const [h, mm] = String(t).split(':').map(Number); return h * 60 + mm; };
+const fromMin = (n) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+
+/** 타임 이름: 12시 전 시작 = 오전, 17시 전 = 오후, 그 뒤 = 저녁. */
+export const slotLabel = (start) => (start < '12:00' ? '오전' : start < '17:00' ? '오후' : '저녁');
+
+/** 출석 시각(HH:mm…)이 속한 타임 — 출석 받기 시작(시작-열림분)이 지난 마지막 타임. 타임이 1개 이하면 null. */
+export function slotOf(m, hm) {
+  const slots = m?.slots || [];
+  if (slots.length < 2) return null;
+  const t = String(hm).slice(0, 5);
+  let hit = slots[0];
+  for (const s of slots) if (toMin(s.start) - (m.openBefore || 0) <= toMin(t)) hit = s;
+  return hit;
+}
+
 /**
  * 출석 시각으로 본 지각 여부: '정상 출석' 또는 'N분 지각'.
- * 저녁 시작 시각이 있으면 15시 이후 출석은 그 시각을 기준으로 본다.
+ * 타임이 여러 개면 온 타임의 시작 시각, 아니면 저녁 시작(start2, 15시 이후) 또는 모임 시작을 기준으로 본다.
  */
 export function lateText(m, at) {
   if (!m || !m.start || !m.date) return '';
   const a = String(at || '');
-  const base = m.start2 && a.slice(11, 16) >= '15:00' ? m.start2 : m.start;
+  const slot = slotOf(m, a.slice(11, 16));
+  const base = slot ? slot.start : (m.start2 && a.slice(11, 16) >= '15:00' ? m.start2 : m.start);
   if (a.slice(0, 10) !== m.date || a <= `${m.date} ${base}:00`) return '정상 출석';
   const [h, min, s] = a.slice(11).split(':').map(Number);
   const [bh, bm] = base.split(':').map(Number);
@@ -88,7 +106,16 @@ function toMeeting(r) {
     status: r.status || '열림', createdBy: r.created_by, createdAt: fmtTs(r.created_at),
     org: r.org, district: district === '' ? null : district,
     askDistrict: r.ask_district, askDept: r.ask_dept, start2: hhmm(r.start2),
+    slots: cleanSlots(r.slots),
   };
+}
+
+/** 타임 목록 다듬기: 시작·끝이 있는 것만, 시작 순, 최대 5개. */
+function cleanSlots(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((s) => ({ start: hhmm(s?.start), end: hhmm(s?.end) }))
+    .filter((s) => s.start && s.end && s.end > s.start)
+    .sort((a, b) => (a.start < b.start ? -1 : 1)).slice(0, 5);
 }
 
 /** 지워지지 않은 모임(최근 것부터). */
@@ -137,13 +164,23 @@ function attendWindow(m) {
   if (m.status === '닫힘' || m.status === '집계완료') reason = '관리자가 출석을 마감했어요.';
   else if (now < opensAt) reason = `아직 출석 시간이 아니에요. ${short(opensAt)}부터 출석할 수 있어요.`;
   else if (now > closesAt) reason = `출석 시간이 끝났어요(${short(closesAt)}까지).`;
+  else if (m.slots.length > 1 && now.slice(0, 10) === m.date) {
+    // 타임 사이(앞 타임 끝 ~ 다음 타임 출석 시작 전)에는 받지 않는다
+    const t = toMin(now.slice(11, 16));
+    const inSlot = m.slots.some((s) => t >= toMin(s.start) - m.openBefore && t <= toMin(s.end));
+    if (!inSlot) {
+      const next = m.slots.find((s) => toMin(s.start) - m.openBefore > t);
+      reason = next ? `지금은 출석 시간이 아니에요. 다음 타임(${slotLabel(next.start)} ${next.start}) 출석은 ${fromMin(Math.max(0, toMin(next.start) - m.openBefore))}부터예요.`
+        : `출석 시간이 끝났어요(${short(closesAt)}까지).`;
+    }
+  }
   return { open: !reason, reason, opensAt, closesAt };
 }
 
 /** 참석자에게 보여 주는 모임 정보. */
 function toPublic(m) {
-  const { meetingId, title, date, start, end, place, openBefore, questions, status, org, district, askDistrict, askDept } = m;
-  return { meetingId, title, date, start, end, place, openBefore, questions, status, org, district, askDistrict, askDept, ...attendWindow(m) };
+  const { meetingId, title, date, start, end, place, openBefore, questions, status, org, district, askDistrict, askDept, slots } = m;
+  return { meetingId, title, date, start, end, place, openBefore, questions, status, org, district, askDistrict, askDept, slots, ...attendWindow(m) };
 }
 
 // ── 출석 기록 ──
@@ -169,7 +206,7 @@ export async function loadRecords(filter) {
 
 // 2026-10-15: 출석은 명단에 있는 사람만 — 고유번호 13자리 + 이름이 명단(교사·관리자)과 맞아야 한다.
 const nameKey = (s) => String(s == null ? '' : s).replace(/\s/g, '');
-const BAD_LOGIN = '등록되지 않은 이름입니다. 명단에 등록된 정확한 이름과 고유번호 13자리를 입력해 주세요.';
+const BAD_LOGIN = '명단에 없는 분입니다. 정확한 이름과 고유번호(13자리)로 입장해 주시기 바랍니다.';
 
 /**
  * 출석하는 사람의 정보(명단 + 관리자 명단, 관리자 명단의 이름·부서·직책이 우선).
@@ -377,8 +414,18 @@ async function saveAttendMeeting(body) {
   const date = clip(m.date, 10);
   if (!title) return { error: '모임 이름을 입력해 주세요.' };
   if (!isDate(date)) return { error: '날짜를 선택해 주세요.' };
-  const start = hhmm(m.start);
-  const end = hhmm(m.end);
+  let start = hhmm(m.start);
+  let end = hhmm(m.end);
+  // 2026-10-15: 타임 여러 개 — 보낸 화면에서만 바꾼다(옛 화면·열기/닫기는 slots 를 안 보낼 수 있음)
+  let slots = null;
+  if (Array.isArray(m.slots)) {
+    const raw = m.slots.filter((s) => hhmm(s?.start) || hhmm(s?.end));
+    if (raw.some((s) => !hhmm(s?.start) || !hhmm(s?.end) || hhmm(s.end) <= hhmm(s.start))) return { error: '타임마다 시작과 끝을 넣고, 끝이 시작보다 뒤여야 해요.' };
+    slots = cleanSlots(raw);
+    if (slots.some((s, i) => i && s.start < slots[i - 1].end)) return { error: '타임끼리 시간이 겹쳐요. 앞 타임이 끝난 뒤에 다음 타임을 넣어 주세요.' };
+    if (slots.length) { start = slots[0].start; end = slots.at(-1).end; }
+    if (slots.length < 2) slots = [];   // 한 타임이면 예전처럼 시작·끝만
+  }
   if (start && end && end <= start) return { error: '끝나는 시간이 시작 시간보다 뒤여야 해요.' };
   const org = m.org && ORG_OPTIONS.includes(String(m.org)) ? String(m.org) : '';
   if (m.district != null && m.district !== '' && !org) return { error: '지역을 선택하려면 부서를 먼저 선택해 주세요.' };
@@ -388,6 +435,7 @@ async function saveAttendMeeting(body) {
     open_before: Math.max(0, Math.min(600, Number(m.openBefore) || 0)), questions: cleanQuestions(m.questions),
     status: ['열림', '닫힘'].includes(String(m.status)) ? String(m.status) : '열림',
     org, district: String(cleanDistrict(org, m.district)), ask_district: !!m.askDistrict, ask_dept: !!m.askDept,
+    ...(slots ? { slots } : {}),
   };
   const meetingId = clip(m.meetingId, 40);
   if (meetingId) {
