@@ -167,13 +167,26 @@ export async function loadRecords(filter) {
   });
 }
 
-/** 출석하는 사람의 정보: 명단 + 관리자 명단(관리자 명단의 이름·부서·직책이 우선). */
-async function personOf(memberId) {
+// 2026-10-15: 출석은 명단에 있는 사람만 — 고유번호 13자리 + 이름이 명단(교사·관리자)과 맞아야 한다.
+const nameKey = (s) => String(s == null ? '' : s).replace(/\s/g, '');
+const BAD_LOGIN = '등록되지 않은 이름입니다. 명단에 등록된 정확한 이름과 고유번호 13자리를 입력해 주세요.';
+
+/**
+ * 출석하는 사람의 정보(명단 + 관리자 명단, 관리자 명단의 이름·부서·직책이 우선).
+ * 고유번호가 13자리가 아니거나 명단에 없거나 이름이 다르면 { badLogin, error }.
+ * checkName 이 false 면 이름은 보지 않는다(이름을 안 보내는 예전 앱의 모임 조회).
+ */
+async function checkIdentity(memberId, name, checkName = true) {
+  if (String(memberId || '').replace(/\D/g, '').length !== 13) return { badLogin: true, error: '고유번호는 13자리 숫자로 입력해 주세요. (예: 00201130-00010)' };
   const { teacher, admin } = await memberInfo(memberId);
-  if (!teacher && !admin) return null;
+  const typed = nameKey(name);
+  if (!teacher && !admin) return { badLogin: true, error: BAD_LOGIN };
+  if (checkName && !(typed && [teacher?.name, admin?.name].some((n) => n && nameKey(n) === typed))) return { badLogin: true, error: BAD_LOGIN };
   return {
-    name: admin?.name || teacher?.name || '', dept: admin?.dept || teacher?.dept || '',
-    position: admin?.position || teacher?.position || '', region: teacher?.region || '', rosterDept: teacher?.dept || '',
+    person: {
+      name: admin?.name || teacher?.name || '', dept: admin?.dept || teacher?.dept || '',
+      position: admin?.position || teacher?.position || '', region: teacher?.region || '', rosterDept: teacher?.dept || '',
+    },
   };
 }
 
@@ -181,11 +194,12 @@ async function getAttendMeeting(body) {
   const m = await findMeeting(clip(body.meetingId, 40));
   if (!m) return { error: '출석 모임을 찾을 수 없어요. QR을 다시 확인해 주세요.' };
   const nid = normId(body.memberId);
-  const [mineRows, person] = await Promise.all([
+  const [mineRows, who] = await Promise.all([
     run(db().from('attend_records').select('*').eq('meeting_id', m.meetingId).eq('nid', nid).order('id').limit(1)),
-    personOf(body.memberId),
+    checkIdentity(body.memberId, body.name, body.name != null),
   ]);
-  const p = person || {};
+  if (who.badLogin) return { badLogin: true, error: who.error };
+  const p = who.person;
   const org = orgFromDept(p.rosterDept || p.dept);
   const district = districtFromRegion(org, p.region);
   return {
@@ -252,6 +266,8 @@ async function submitAttendance(body) {
   if (!m) return { error: '출석 모임을 찾을 수 없어요.' };
   const window = attendWindow(m);
   if (!window.open) return { error: window.reason };
+  const who = await checkIdentity(mid, body.name);
+  if (who.badLogin) return { badLogin: true, error: who.error };
   const nid = normId(mid);
   /** 이미 출석했으면 그 기록으로 답한다. */
   const alreadyDone = async () => {
@@ -268,7 +284,7 @@ async function submitAttendance(body) {
   if (read.error) return (await alreadyDone()) || read;
   const picks = readPicks(m, body);
   if (picks.error) return (await alreadyDone()) || picks;
-  const person = (await personOf(mid)) || {};
+  const person = who.person;
   // 고르지 않았으면 명단의 소속·지역을 넣는다.
   if (!picks.pickOrg) {
     picks.pickOrg = fixedPickOrg(m) || orgFromDept(person.rosterDept || person.dept);

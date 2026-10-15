@@ -1807,6 +1807,15 @@
     .att-opt { min-height:40px; padding:0 14px; border:1.5px solid #DADDE1; border-radius:999px; background:#fff; font-size:14px; font-weight:700; color:#444; cursor:pointer; }
     .att-opt.on { border-color:#00AE82; background:#E3F6EF; color:#00936E; }
     .att-result { text-align:center; padding:22px 0 10px; font-size:16px; }
+    /* 2026-10-15: 명단과 이름·고유번호가 안 맞을 때 — 다시 입력하는 칸(attRenderRelogin) */
+    .att-relogin { margin-top:6px; padding:14px; border-radius:14px; background:#FFF5F5; border:1.5px solid #F5C2C2; }
+    .att-relogin p { margin:0 0 10px; font-size:14px; line-height:1.5; color:#7F1D1D; font-weight:600; }
+    .att-relogin label { display:block; margin:10px 0 4px; font-size:13px; font-weight:800; color:#333; }
+    .att-relogin input { width:100%; height:48px; padding:0 14px; border:1.5px solid #D1D5DB; border-radius:12px; background:#fff; font-size:17px; font-family:inherit; box-sizing:border-box; }
+    .att-relogin input:focus { outline:none; border-color:#00AE82; }
+    .att-relogin .att-relogin-btn { width:100%; height:50px; margin-top:14px; border:0; border-radius:12px; background:#00AE82; color:#fff; font-size:16px; font-weight:800; font-family:inherit; }
+    .att-relogin .att-relogin-btn:disabled { opacity:.6; }
+    .att-relogin .ctc-bar { justify-content:center; padding:12px 0 0; }
     .att-big { font-size:48px; line-height:1.1; margin-bottom:6px; }
     .att-ans { display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-top:1px solid #F2F2F2; font-size:13.5px; }
     .att-ans span { color:#8A8A8A; }
@@ -6575,15 +6584,18 @@
         await new Promise(r => setTimeout(r, w));
       }
     }
-    async function attOpen(meetingId, method) {
-      attSt.cur = null; attSt.ans = {}; attSt.method = method || 'qr';
-      openSheet('<div class="att-sheet" id="attSheet"><div class="att-muted" style="padding:30px 0;text-align:center">출석 정보를 불러오는 중...</div></div>');
+    async function attOpen(meetingId, method, again) {
+      attSt.cur = null; attSt.ans = {}; attSt.method = method || 'qr'; attSt.meetingId = meetingId;
+      const loading = '<div class="att-muted" style="padding:30px 0;text-align:center">출석 정보를 불러오는 중...</div>';
+      const host = again && document.getElementById('attSheet');
+      if (host) host.innerHTML = loading; else openSheet(`<div class="att-sheet" id="attSheet">${loading}</div>`);
       try {
-        const res = await attApi({ action: 'getAttendMeeting', meetingId, memberId: App.memberId }, n => {
+        const res = await attApi({ action: 'getAttendMeeting', meetingId, memberId: App.memberId, name: App.name }, n => {
           const el = document.querySelector('#attSheet .att-muted'); if (el) el.textContent = `접속이 몰려 순서대로 불러오고 있어요... (${n}) 창을 닫지 말고 기다려 주세요`;
         });
-        if (res && res.error) throw new Error(res.error);
-        attSt.cur = res;
+        if (res && res.badLogin) attSt.cur = { badLogin: true, error: res.error };
+        else if (res && res.error) throw new Error(res.error);
+        else attSt.cur = res;
       } catch (e) { attSt.cur = { error: e.message }; }
       // 내 명단(부서·지역)으로 지역 선택을 미리 골라 둠 — 다르면 참석자가 바꾸면 됨
       const r = myRosterRow || (attSt.cur && attSt.cur.me) || {}, org = String(r.dept || '').replace(/회$/, '');
@@ -6626,9 +6638,35 @@
       }
       return h;
     }
+    // 2026-10-15: 이름·고유번호(13자리)가 명단과 안 맞으면 출석 거부 → 이 자리에서 정확히 다시 입력하게 함
+    function attRenderRelogin(host, msg) {
+      host.innerHTML = `<div class="att-result" style="padding-bottom:4px"><div class="att-big">🚫</div><b>등록되지 않은 이름입니다.</b></div>
+        <div class="att-relogin">
+          <p>${esc(msg || '')}<br>명단에 등록된 이름과 고유번호를 정확히 입력하면 바로 출석돼요.</p>
+          <label for="attReName">이름</label>
+          <input id="attReName" autocomplete="name" maxlength="20" placeholder="예: 홍길동" value="${esc(App.name || '')}">
+          <label for="attReId">고유번호 13자리</label>
+          <input id="attReId" inputmode="numeric" autocomplete="off" maxlength="20" placeholder="예: 00201130-00010" value="${esc(App.memberId || '')}">
+          <button type="button" class="att-relogin-btn" id="attReBtn">확인하고 출석하기</button>
+          <div class="ctc-bar">${ctcChip('roster')}</div>
+        </div>`;
+      const btn = document.getElementById('attReBtn');
+      btn.onclick = () => {
+        const nm = document.getElementById('attReName').value.replace(/\s/g, '');
+        const id = document.getElementById('attReId').value.trim();
+        if (!nm) { toast('이름을 입력해 주세요.', true); return; }
+        if (id.replace(/\D/g, '').length !== 13) { toast('고유번호는 숫자 13자리예요. (예: 00201130-00010)', true); return; }
+        App.memberId = id; App.name = nm;
+        MEMBER_ID = id; MY_NAME = nm; memberId = id; name = nm;
+        pdSave(id, nm);
+        renderMeChips();
+        attOpen(attSt.meetingId, attSt.method, true);
+      };
+    }
     function attRenderForm() {
       const host = document.getElementById('attSheet'); if (!host || !attSt.cur) return;
       const c = attSt.cur;
+      if (c.badLogin) { attRenderRelogin(host, c.error); return; }
       if (c.error) { host.innerHTML = `<div class="att-result"><div class="att-big">⚠️</div><b>${esc(c.error)}</b></div>`; return; }
       const m = c.meeting;
       const head = `<div class="att-title">${esc(m.title)}</div>${attMeetLabel(m) ? `<div style="margin-top:4px">${attOrgTag(m)}</div>` : ''}<div class="att-muted">${esc(attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''}</div>`;
@@ -6678,6 +6716,7 @@
       try {
         // 2026-10-08: 연결 실패(Failed)·서버 혼잡(retry)까지 자동 재시도(attApi, 최대 약 1분)
         const res = await attApi(attPayload, n => { if (btn) btn.textContent = `접속이 몰려 순서대로 처리하고 있어요... (${n})`; });
+        if (res && res.badLogin) { attSt.cur = { badLogin: true, error: res.error }; attSt.busy = false; attRenderForm(); return; }
         if (res && res.error) throw new Error(res.error);
         attSt.cur.mine = res.record;
         toast(res.already ? '이미 출석했어요.' : /지각/.test(res.record && res.record.late || '') ? res.record.late + '입니다.' : '정상 출석했어요!');
