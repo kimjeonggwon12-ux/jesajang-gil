@@ -4,6 +4,7 @@ import { normId, kstDate, kstDateTime, fmtTs, sameId } from '../lib/util.js';
 import { clip, pickList, newId, isDate } from '../lib/input.js';
 import { afterAction } from '../lib/events.js';
 import { teachersByNid, isOwner } from './roster.js';
+import { storeImage } from '../lib/images.js';
 
 const DEPTS = ['교', '자', '장', '부', '청'];
 // ⚠️ app.html 의 역할·항목 목록과 같이 맞출 것.
@@ -76,9 +77,10 @@ async function saveCardOnce(body) {
     if (to < from) return { error: '종료일은 시작일보다 빠를 수 없습니다.' };
     schedule = { from_date: from, to_date: to, days: pickList(d.days, DAYS), times: pickList(d.times, TIMES), sched_note: clip(d.schedNote, 60) };
   }
-  const photo = String(d.photoUrl || '');
+  const raw = String(d.photoUrl || '');
+  const photo = raw.length > PHOTO_MAX ? '' : await storeImage(raw, 'connect');   // R2 에 올리고 주소만(설정이 없으면 그대로)
   const card = {
-    member_id: mid, name, photo_url: photo.length > PHOTO_MAX ? '' : photo, phone,
+    member_id: mid, name, photo_url: photo, phone,
     intro: clip(d.intro, 800), career: clip(d.career, 800), has_major: !!d.hasMajor, major_name: d.hasMajor ? clip(d.majorName, 40) : '',
     cert: clip(d.cert, 100), one_liner: clip(d.oneLiner, 80),
     roles: pickList(d.roles, CARD_ROLES), langs: pickList(d.langs, CARD_LANGS),

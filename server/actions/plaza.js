@@ -4,6 +4,7 @@ import { normId, kstDate, kstDateTime, fmtTs, sameId } from '../lib/util.js';
 import { clip, pickList, newId } from '../lib/input.js';
 import { afterAction } from '../lib/events.js';
 import { teachersByNid, isAdmin } from './roster.js';
+import { storeImage, isStoredUrl } from '../lib/images.js';
 import { TARGET_STAGES } from './targets.js';
 
 const CATEGORIES = ['사례', '질문', '나눔', '불편신고', '전도부'];
@@ -19,9 +20,14 @@ const PHOTO_MAX = 44000;
 const THUMB_MAX = 12000;
 const ORG_MAIN_DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
 
-/** 사진은 크기 제한 안의 data:image 만 받는다. */
-const image = (v, max) => { const s = String(v || ''); return /^data:image\//.test(s) && s.length <= max ? s : ''; };
+/** 사진은 크기 제한 안의 data:image 또는 이미 R2 에 올린 주소만 받는다. */
+const image = (v, max) => { const s = String(v || ''); return isStoredUrl(s) || (/^data:image\//.test(s) && s.length <= max) ? s : ''; };
 const photosFrom = (list) => (Array.isArray(list) ? list : []).map((x) => image(x, PHOTO_MAX)).filter(Boolean).slice(0, 4);
+/** 받은 사진·썸네일을 R2 에 올리고 주소로 바꾼다(R2 설정이 없으면 그대로). */
+async function storePhotos(photos, thumb) {
+  const stored = (await Promise.all(photos.map((p) => storeImage(p, 'plaza')))).filter(Boolean);
+  return { photos: stored, thumb: stored.length && thumb ? await storeImage(thumb, 'plaza/thumb') : '' };
+}
 
 const visiblePosts = () => selectAll(() => db().from('plaza_posts').select('*').neq('status', '삭제').order('id'));
 
@@ -132,8 +138,7 @@ async function savePlazaPost(body) {
   const text = clip(d.body, 5000);
   if (!text) return { error: '내용을 입력해주세요.' };
   const tags = pickList((Array.isArray(d.tags) ? d.tags : []).map((t) => String(t || '').replace(/^#/, '').slice(0, 20)), null, 10);
-  const photos = photosFrom(d.photos);
-  const content = { category, title, body: text, tags, thumb: photos.length ? image(d.thumb, THUMB_MAX) : '', photos };
+  const content = { category, title, body: text, tags, ...(await storePhotos(photosFrom(d.photos), image(d.thumb, THUMB_MAX))) };
   const now = kstDateTime();
 
   const postId = clip(d.postId, 40);
@@ -158,9 +163,8 @@ async function adminSetPlazaPhotos(body) {
   const mid = clip(body.memberId, 40);
   const postId = clip(body.postId, 40);
   if (!mid || !(await isAdmin(mid))) return { error: '관리자만 사진을 고칠 수 있어요.' };
-  const photos = photosFrom(body.photos);
   const updated = await run(db().from('plaza_posts')
-    .update({ photos, thumb: photos.length ? image(body.thumb, THUMB_MAX) : '' }).eq('post_id', postId).select('id'));
+    .update(await storePhotos(photosFrom(body.photos), image(body.thumb, THUMB_MAX))).eq('post_id', postId).select('id'));
   return updated.length ? { ok: true, postId } : { error: '글을 찾지 못했어요.' };
 }
 

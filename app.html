@@ -4815,7 +4815,8 @@
       }
 
       // ── 사진 줄이기: 긴 변 maxSide 이하, dataURL이 maxChars 이하가 될 때까지 화질·크기를 낮춘다 ──
-      function loadImage(src) { return new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => no(new Error('이미지를 불러오지 못했어요.')); im.src = src; }); }
+      // 2026-10-15: R2 주소(https) 사진도 캔버스로 다시 그릴 수 있게 crossOrigin(R2 버킷 CORS에 앱 주소 허용 필요)
+      function loadImage(src) { return new Promise((ok, no) => { const im = new Image(); if (/^https?:/.test(src)) im.crossOrigin = 'anonymous'; im.onload = () => ok(im); im.onerror = () => no(new Error('이미지를 불러오지 못했어요.')); im.src = src; }); }
       function fileToDataURL(file) { return new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(new Error('이미지를 읽지 못했어요.')); r.readAsDataURL(file); }); }
       async function shrink(src, maxSide, maxChars, square) {
         const im = await loadImage(src);
