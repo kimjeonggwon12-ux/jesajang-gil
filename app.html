@@ -4818,6 +4818,8 @@
       // 2026-10-15: R2 주소(https) 사진도 캔버스로 다시 그릴 수 있게 crossOrigin(R2 버킷 CORS에 앱 주소 허용 필요)
       function loadImage(src) { return new Promise((ok, no) => { const im = new Image(); if (/^https?:/.test(src)) im.crossOrigin = 'anonymous'; im.onload = () => ok(im); im.onerror = () => no(new Error('이미지를 불러오지 못했어요.')); im.src = src; }); }
       function fileToDataURL(file) { return new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(new Error('이미지를 읽지 못했어요.')); r.readAsDataURL(file); }); }
+      // 2026-10-15: 사진은 원본이 아니라 줄여서 올린다 — 긴 변 제한 + 용량 한도 안에서 가장 좋은 화질.
+      // WebP를 만들 수 있는 폰이면 WebP(같은 화질에 JPEG보다 25~35% 작음), 아니면 JPEG. 캔버스로 다시 그려 위치정보(EXIF)도 빠진다.
       async function shrink(src, maxSide, maxChars, square) {
         const im = await loadImage(src);
         let side = maxSide;
@@ -4828,7 +4830,7 @@
           const scale = Math.min(1, side / Math.max(sw, sh));
           c.width = Math.round(sw * scale); c.height = Math.round(sh * scale);
           c.getContext('2d').drawImage(im, sx, sy, sw, sh, 0, 0, c.width, c.height);
-          for (const q of [0.8, 0.7, 0.6, 0.5, 0.42]) { const u = c.toDataURL('image/jpeg', q); if (u.length <= maxChars) return u; }
+          for (const q of [0.82, 0.72, 0.62, 0.52, 0.42]) { const u = encodeImage(c, q); if (u.length <= maxChars) return u; }
           side = Math.round(side * 0.8);
         }
         throw new Error('사진이 너무 커요. 다른 사진을 골라주세요.');
@@ -7115,6 +7117,16 @@
       if (url) return `<img class="cn-avatar zoomable ${cls || ''}" src="${esc(url)}" alt="프로필 사진">`;
       return `<div class="cn-avatar-ph ${cls || ''}">${esc(String(name || '').trim().charAt(0) || '👤')}</div>`;
     }
+    // 2026-10-15: 캔버스 → 사진 글자(dataURL). WebP를 만들 수 있으면 WebP, 못 만드는 브라우저(일부 아이폰)는 JPEG.
+    let canWebp = null;
+    function encodeImage(canvas, q) {
+      if (canWebp !== false) {
+        const u = canvas.toDataURL('image/webp', q);
+        canWebp = u.startsWith('data:image/webp');   // 못 만들면 PNG가 나옴 → 다음부터는 JPEG
+        if (canWebp) return u;
+      }
+      return canvas.toDataURL('image/jpeg', q);
+    }
     function cnFileToThumb(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -7127,7 +7139,7 @@
             const ratio = W / H; let sw = img.width, sh = img.height;
             if (sw / sh > ratio) sw = sh * ratio; else sh = sw / ratio;
             c.getContext('2d').drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, W, H);
-            resolve(c.toDataURL('image/jpeg', 0.75));
+            resolve(encodeImage(c, 0.8));   // 2026-10-15: WebP 되면 WebP
           };
           img.src = reader.result;
         };
