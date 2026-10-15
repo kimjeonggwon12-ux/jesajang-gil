@@ -288,7 +288,7 @@ async function submitAttendance(body) {
     return (await alreadyDone()) || { retry: true, error: '접속이 몰려 순서대로 처리하고 있어요.' };
   }
   const record = toRecord(data[0]);
-  runLater(notifyAttendance(m, record));   // 알림은 응답을 보낸 뒤에
+  runLater(notifyAttendance(m, record, data[0].id));   // 알림은 응답을 보낸 뒤에
   return { ok: true, record };
 }
 
@@ -296,28 +296,36 @@ async function submitAttendance(body) {
 
 const answerText = (v) => (Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v).trim());
 
-async function notifyAttendance(m, rec) {
+async function notifyAttendance(m, rec, rowId) {
   if (isTestMeeting(m)) return;
   const label = meetLabel(m);
   const where = m.title + (label ? ` [${label}]` : '');
   const minute = rec.at.slice(0, 16);
-  const { count } = await db().from('attend_records').select('*', { count: 'exact', head: true })
-    .eq('meeting_id', m.meetingId).gte('at', `${minute}:00`).lte('at', `${minute}:59`);
+  // 이 모임에서 몇 번째 출석인가 = 첫 출석부터 이 기록까지 들어온 기록 수.
+  const [{ count }, { count: order }] = await Promise.all([
+    db().from('attend_records').select('*', { count: 'exact', head: true })
+      .eq('meeting_id', m.meetingId).gte('at', `${minute}:00`).lte('at', `${minute}:59`),
+    db().from('attend_records').select('*', { count: 'exact', head: true })
+      .eq('meeting_id', m.meetingId).neq('record_id', '').lte('id', rowId),
+  ]);
 
   if ((count || 0) <= 8) {
     const picked = pickText(rec);
     const survey = m.questions.length
       ? '\n\n📝 설문\n' + m.questions.map((q) => `• ${q.label}: ${answerText(rec.answers[q.id]) || '-'}`).join('\n')
       : '';
-    await sendAttendText(`✅ 출석 완료\n👤 ${rec.name}${rec.dept ? ' · ' + rec.dept : ''}${rec.position ? ' · ' + rec.position : ''}\n` +
+    await sendAttendText(`✅ 출석 완료${order ? ` · ${order}번째` : ''}\n👤 ${rec.name}${rec.dept ? ' · ' + rec.dept : ''}${rec.position ? ' · ' + rec.position : ''}\n` +
       `📋 ${where} (${m.date})\n🕐 ${rec.at}${rec.late ? ' · ' + rec.late : ''}` + (picked ? `\n📍 ${picked}` : '') + survey);
     return;
   }
-  await run(db().from('attend_notify_queue').insert({ meeting_id: m.meetingId, label: rec.name + (rec.dept ? `(${rec.dept})` : '') }));
+  await run(db().from('attend_notify_queue').insert({ meeting_id: m.meetingId, label: (order ? order + '. ' : '') + rec.name + (rec.dept ? `(${rec.dept})` : '') }));
   const queued = await run(db().from('attend_notify_queue').select('id, label').eq('meeting_id', m.meetingId).order('id'));
   if (queued.length >= 20) {
     const taken = await run(db().from('attend_notify_queue').delete().in('id', queued.map((q) => q.id)).select('label'));
-    if (taken.length) await sendAttendText(`✅ 출석 몰림 — ${where}\n${taken.length}명: ${taken.map((q) => q.label).join(', ')}`);
+    const nums = taken.map((q) => parseInt(q.label, 10)).filter((n) => n > 0);
+    const range = nums.length ? ` (${Math.min(...nums)}~${Math.max(...nums)}번째, 누적 ${Math.max(...nums)}명)` : '';
+    const labels = taken.map((q) => q.label).sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
+    if (taken.length) await sendAttendText(`✅ 출석 몰림 — ${where}${range}\n${taken.length}명: ${labels.join(', ')}`);
   }
 }
 
