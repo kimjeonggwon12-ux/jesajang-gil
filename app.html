@@ -566,6 +566,27 @@
     .cal-num { font-size:12px; font-weight:600; width:22px; height:22px; line-height:22px; text-align:center; border-radius:50%; display:inline-block; margin-left:1px; }
     .cal-day.today .cal-num { background:var(--color-primary); color:#fff !important; }
     .cal-chip { display:block; font-size:10px; line-height:14px; border-radius:3px; padding:0 3px; margin-top:2px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    /* 2026-10-15: 일정 팝업 — 주관·문의, 공식 일정 잠금 안내, 응원 댓글·행사 사진 */
+    .cal-host { margin-top:10px; padding:10px 12px; border-radius:12px; background:#F0FAF6; border:1px solid #CDEFE2; font-size:14px; line-height:1.8; color:#1F2937; }
+    .cal-host b { color:#064E3B; }
+    .cal-tel { margin-left:4px; padding:2px 10px; border:1.5px solid #00AE82; border-radius:999px; background:#fff; color:#00775A; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; }
+    .cal-lock { margin-top:14px; padding:10px 12px; border-radius:12px; background:#F3F4F6; color:#4B5563; font-size:13px; line-height:1.5; }
+    .cal-ch-t { margin-top:20px; padding-top:14px; border-top:1px solid #EEF0F2; font-size:15px; font-weight:800; color:#111; }
+    .cal-ch-t small { margin-left:4px; color:#00936E; font-size:13px; }
+    .cal-ch { margin-top:10px; padding:10px 12px; border-radius:12px; background:#F8FAFB; }
+    .cal-ch-h { display:flex; align-items:center; gap:6px; font-size:13px; }
+    .cal-ch-h span { color:#6B7280; } .cal-ch-h time { margin-left:auto; color:#9CA3AF; font-size:12px; }
+    .cal-ch-h button { border:none; background:none; color:#B00020; font-size:12px; cursor:pointer; font-family:inherit; }
+    .cal-ch-b { margin-top:4px; font-size:14px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
+    .cal-ch-ph { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .cal-ch-ph img { width:84px; height:84px; object-fit:cover; border-radius:10px; background:#E5E7EB; cursor:zoom-in; }
+    .cal-ch-ph span { position:relative; } .cal-ch-ph span button { position:absolute; top:-6px; right:-6px; width:22px; height:22px; border-radius:50%; border:none; background:#111; color:#fff; font-size:11px; cursor:pointer; }
+    .cal-ch-w { margin-top:12px; padding:10px; border:1.5px solid #E5E7EB; border-radius:14px; }
+    .cal-ch-w textarea { width:100%; min-height:60px; border:none; outline:none; resize:vertical; font-size:14px; font-family:inherit; line-height:1.5; box-sizing:border-box; }
+    .cal-ch-act { display:flex; align-items:center; justify-content:space-between; margin-top:6px; }
+    .cal-ch-act label { font-size:13px; font-weight:700; color:#00775A; cursor:pointer; }
+    .cal-ch-act button { height:36px; padding:0 18px; border:none; border-radius:10px; background:#00AE82; color:#fff; font-size:14px; font-weight:800; font-family:inherit; cursor:pointer; }
+    .cal-ch-act button:disabled { opacity:.6; }
     /* 2026-09-22: 일정 유형 3종(공식/부서/내일정) 색상 — 기존 open(개강)/event(행사) 2색 체계를
        카테고리 기준 3색 체계로 교체(공식=파랑, 부서=초록, 내일정=주황). */
     .cal-chip.official { background:#2F6FDE; }
@@ -3842,9 +3863,99 @@
     }
 
     let calCur = null, calMine = { staff: null, attendees: [], totalAttendees: 0 };
+
+    // ── 일정 응원 댓글 + 행사 사진 (2026-10-15) ── 공식·부서 일정 팝업 아래. 사진은 줄여서(WebP/JPEG) 보내면 서버가 R2에 올림.
+    let calCheer = { eventId: '', rows: null, body: '', photos: [], busy: false };
+    async function calLoadCheers(ev) {
+      try {
+        const res = await callApi({ action: 'getEventCheers', eventId: ev.eventId, memberId: MEMBER_ID });
+        if (calCheer.eventId !== ev.eventId) return;
+        calCheer.rows = (res && res.rows) || [];
+      } catch (e) { if (calCheer.eventId === ev.eventId) calCheer.rows = []; }
+      calRedrawCheers();
+    }
+    function calCheerHtml() {
+      const c = calCheer, when = t => String(t || '').slice(5, 16).replace('-', '/');
+      const list = c.rows == null ? '<div class="cal-hint">응원을 불러오는 중...</div>'
+        : !c.rows.length ? '<div class="cal-hint">아직 응원이 없어요. 첫 응원과 행사 사진을 남겨 주세요!</div>'
+        : c.rows.map(r => `<div class="cal-ch">
+            <div class="cal-ch-h"><b>${esc(r.name || '교사')}</b>${r.dept ? `<span>${esc(r.dept)}</span>` : ''}<time>${esc(when(r.createdAt))}</time>${r.isMine || isAdmin() ? `<button type="button" data-chdel="${esc(r.cheerId)}">삭제</button>` : ''}</div>
+            ${r.body ? `<div class="cal-ch-b">${esc(r.body)}</div>` : ''}
+            ${r.photos.length ? `<div class="cal-ch-ph">${r.photos.map(u => `<img class="zoomable" src="${esc(u)}" loading="lazy" alt="">`).join('')}</div>` : ''}
+          </div>`).join('');
+      return `<div class="cal-ch-t">💬 응원 · 행사 사진${c.rows && c.rows.length ? ` <small>${c.rows.length}</small>` : ''}</div>${list}
+        <div class="cal-ch-w">
+          <textarea id="calChBody" maxlength="500" placeholder="응원의 한마디, 행사 소식을 남겨 주세요 🙌">${esc(c.body)}</textarea>
+          ${c.photos.length ? `<div class="cal-ch-ph">${c.photos.map((u, i) => `<span><img src="${u}" alt=""><button type="button" data-chrm="${i}">✕</button></span>`).join('')}</div>` : ''}
+          <div class="cal-ch-act"><label>📷 행사 사진 ${c.photos.length}/4<input type="file" id="calChFile" accept="image/*" multiple hidden></label>
+            <button type="button" id="calChSend"${c.busy ? ' disabled' : ''}>${c.busy ? '올리는 중...' : '올리기'}</button></div>
+        </div>`;
+    }
+    function calRedrawCheers() {
+      const host = document.getElementById('calCheers');
+      if (!host || !calCur || calCur.eventId !== calCheer.eventId) return;
+      host.innerHTML = calCheerHtml(); calBindCheers();
+    }
+    /** 사진 한 장을 긴 변 1000px·약 32KB 이하로 줄인다(광장 글 사진과 같은 기준). */
+    function calShrinkFile(file) {
+      return new Promise((ok, no) => {
+        const rd = new FileReader();
+        rd.onerror = () => no(new Error('사진을 읽지 못했어요.'));
+        rd.onload = () => {
+          const im = new Image();
+          im.onerror = () => no(new Error('사진을 불러오지 못했어요.'));
+          im.onload = () => {
+            let side = 1000;
+            for (let k = 0; k < 6; k++) {
+              const sc = Math.min(1, side / Math.max(im.width, im.height)), cv = document.createElement('canvas');
+              cv.width = Math.round(im.width * sc); cv.height = Math.round(im.height * sc);
+              cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+              for (const q of [0.82, 0.72, 0.62, 0.52, 0.42]) { const u = encodeImage(cv, q); if (u.length <= 44000) return ok(u); }
+              side = Math.round(side * 0.8);
+            }
+            no(new Error('사진이 너무 커요. 다른 사진을 골라 주세요.'));
+          };
+          im.src = rd.result;
+        };
+        rd.readAsDataURL(file);
+      });
+    }
+    function calBindCheers() {
+      const c = calCheer, $c = id => document.getElementById(id);
+      const body = $c('calChBody'); if (!body) return;
+      body.oninput = () => { c.body = body.value; };
+      $c('calChFile').onchange = async ev => {
+        const files = [...ev.target.files].slice(0, 4 - c.photos.length);
+        try { for (const f of files) c.photos.push(await calShrinkFile(f)); } catch (e) { toast(e.message, true); }
+        calRedrawCheers();
+      };
+      document.querySelectorAll('#calCheers [data-chrm]').forEach(b => b.onclick = () => { c.photos.splice(Number(b.dataset.chrm), 1); calRedrawCheers(); });
+      document.querySelectorAll('#calCheers [data-chdel]').forEach(b => b.onclick = async () => {
+        if (!confirm('이 응원을 지울까요?')) return;
+        try {
+          const res = await callApi({ action: 'deleteEventCheer', cheerId: b.dataset.chdel, memberId: MEMBER_ID });
+          if (res && res.error) throw new Error(res.error);
+          c.rows = c.rows.filter(r => r.cheerId !== b.dataset.chdel); calRedrawCheers();
+        } catch (e) { toast(e.message, true); }
+      });
+      $c('calChSend').onclick = async () => {
+        if (c.busy) return;
+        if (!c.body.trim() && !c.photos.length) return toast('응원 글이나 사진을 넣어 주세요.', true);
+        c.busy = true; calRedrawCheers();
+        try {
+          const res = await callApi({ action: 'saveEventCheer', eventId: c.eventId, memberId: MEMBER_ID, name: MY_NAME, body: c.body.trim(), photos: c.photos });
+          if (res && res.error) throw new Error(res.error);
+          (c.rows || (c.rows = [])).push(res.cheer); c.body = ''; c.photos = [];
+          toast('응원을 남겼어요! 🙌');
+        } catch (e) { toast(e.message, true); }
+        c.busy = false; calRedrawCheers();
+      };
+    }
     async function calOpenEvent(ev) {
       calCur = ev; calMine = { staff: null, attendees: [], totalAttendees: 0 };
+      calCheer = { eventId: ev.eventId, rows: null, body: '', photos: [], busy: false };
       calRenderEvent(true);
+      if (ev.category !== '내일정') calLoadCheers(ev);
       if (!(ev.category === '공식' && ev.type === '행사')) return;
       try {
         const res = await callApi({ action: 'getMyEventSignups', eventId: ev.eventId, memberId: MEMBER_ID });
@@ -3859,14 +3970,19 @@
     function calSetAttIntent(ev, v) { try { localStorage.setItem(calAttIntentKey(ev), v); } catch(e) {} }
     function calRenderEvent(loading) {
       const e = calCur, isOfficialEvent = e.category === '공식' && e.type === '행사';
+      // 2026-10-15: 내 일정·부서(초록) 일정은 등록한 본인이 이 팝업에서 고친다. 공식(파랑)은 팝업에서 못 고치고 관리자 페이지 안내.
       const isMineNonOfficial = e.category !== '공식' && sameIdClient(e.createdBy, MEMBER_ID);
-      const isMine = sameIdClient(e.createdBy, MEMBER_ID);   // 2026-10-13: 내가 넣은 일정은 다시 눌러 바로 고친다
       const attIntent = calGetAttIntent(e);
       const showAttIntent = e.category !== '내일정'; // 공식·부서 일정에서 참석 의사 표시
+      const host = e.hostDept || (e.category === '공식' ? e.dept : '');
       openSheet(`
         <span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category)}${e.category === '공식' ? ' · ' + esc(e.type) : ''}${calPrefix(e) ? ' · ' + esc(calPrefix(e)) : ''}</span>
         <div style="font-size:21px;font-weight:800;margin:8px 0 4px">${esc(e.title)}</div>
-        <div class="cal-hint">📅 ${esc(calRangeText(e))}${e.place ? ' · 📍 ' + esc(e.place) : ''}${e.dept ? ' · ' + esc(e.dept) : ''}</div>
+        <div class="cal-hint">📅 ${esc(calRangeText(e))}${e.place ? ' · 📍 ' + esc(e.place) : ''}${e.dept && e.category !== '공식' ? ' · ' + esc(e.dept) : ''}</div>
+        ${host || e.contactName || e.contactPhone ? `<div class="cal-host">
+          ${host ? `<div>🏢 주관 <b>${esc(host)}</b></div>` : ''}
+          ${e.contactName || e.contactPhone ? `<div>📞 문의) <b>${esc(e.contactName)}</b>${e.contactPhone ? ` <button type="button" class="cal-tel" id="calContact">${esc(e.contactPhone)}</button>` : ''}</div>` : ''}
+        </div>` : ''}
         ${e.desc ? `<div style="margin-top:12px;font-size:14px;white-space:pre-wrap">${esc(e.desc)}</div>` : ''}
         ${showAttIntent ? `
         <div style="margin-top:16px">
@@ -3882,9 +3998,14 @@
           <button class="kko-btn-outline" id="calGoAtt">👥 참석자 신청 <span style="font-weight:400">· 총 ${calMine.totalAttendees}명${calMine.attendees.length ? ' (내 섭외 ' + calMine.attendees.length + '명)' : ''}</span></button>
         </div>
         ${loading ? '<div class="cal-hint" style="text-align:center;margin-top:8px">내 신청 내역 확인 중...</div>' : ''}` : (e.category === '공식' ? '<div class="cal-hint" style="margin-top:14px">개강일은 안내용이에요.</div>' : '')}
-        ${isMine ? '<button class="kko-btn-outline" id="calEditMine" style="margin-top:14px">✏️ 이 일정 수정</button>' : ''}
+        ${isMineNonOfficial ? '<button class="kko-btn-outline" id="calEditMine" style="margin-top:14px">✏️ 이 일정 수정</button>' : ''}
         ${isMineNonOfficial ? '<button class="kko-btn-outline" id="calDelMine" style="margin-top:10px;color:var(--color-error);border-color:var(--color-error)">이 일정 삭제</button>' : ''}
+        ${e.category === '공식' ? '<div class="cal-lock">🔒 공식 일정은 여기서 고칠 수 없어요. 수정은 <b>관리자 페이지</b>에서 해요.</div>'
+          : (e.category === '부서' && !isMineNonOfficial ? '<div class="cal-lock">✏️ 부서 일정은 등록한 분이 이 화면에서 직접 고칠 수 있어요.</div>' : '')}
+        ${e.category !== '내일정' ? `<div id="calCheers">${calCheerHtml()}</div>` : ''}
         <div style="text-align:center;margin-top:12px"><button class="cal-hint" style="background:none;border:none;cursor:pointer" onclick="closeSheet()">닫기</button></div>`);
+      calBindCheers();
+      const ct = document.getElementById('calContact'); if (ct) ct.onclick = () => ctcOpen(e.contactName || '문의', e.contactPhone);
       // 참석 의사 버튼 이벤트
       const intentBtns = document.getElementById('calIntentBtns');
       if (intentBtns) {
@@ -4255,8 +4376,11 @@
     // ex 를 주면 그 일정을 고치는 화면(2026-10-13) — 같은 입력칸에 지금 값을 채워서 연다.
     function calOpenAddForm(category, ex) {
       const f = ex
-        ? { eventId: ex.eventId, category, type: ex.type, title: ex.title || '', startDate: ex.startDate, endDate: ex.endDate && ex.endDate !== ex.startDate ? ex.endDate : '', dept: ex.dept || '', region: ex.region || '', place: ex.place || '', desc: ex.desc || '' }
-        : { category, type: category === '공식' ? '행사' : category, title: '', startDate: todayStr(), endDate: '', dept: '', region: '', place: '', desc: '' };
+        ? { eventId: ex.eventId, category, type: ex.type, title: ex.title || '', startDate: ex.startDate, endDate: ex.endDate && ex.endDate !== ex.startDate ? ex.endDate : '', dept: ex.dept || '', region: ex.region || '', place: ex.place || '', desc: ex.desc || '',
+            hostDept: ex.hostDept || '', contactName: ex.contactName || '', contactPhone: ex.contactPhone || '' }
+        : { category, type: category === '공식' ? '행사' : category, title: '', startDate: todayStr(), endDate: '', dept: '', region: '', place: '', desc: '',
+            hostDept: '', contactName: MY_NAME || '', contactPhone: '' };
+      const withHost = category !== '내일정';   // 2026-10-15: 공식·부서 일정은 주관 부서와 문의처를 적는다
       const rep0 = !!ex && calIsRepeat(ex);
       openSheet(`
         <div style="font-size:19px;font-weight:800">${esc(category)} 일정 ${ex ? '수정' : '등록'}</div>
@@ -4278,6 +4402,11 @@
         ${calSegHtml('calNewRegion', CAL_REGION_OPTS, f.region)}
         <div class="cal-hint">달력에는 "부-1) 제목"처럼 부서·지역이 앞에 붙어요.</div>` : ''}
         ${category === '공식' ? `<label class="cal-lbl">장소</label><input class="cal-inp" id="calNewPlace" maxlength="60" value="${esc(f.place)}">` : ''}
+        ${withHost ? `<label class="cal-lbl">주관 부서 <span class="cal-req">*</span></label>
+        <input class="cal-inp" id="calNewHost" maxlength="30" placeholder="예: 전도부, 부녀회 3지역, 청년회 문화부" value="${esc(f.hostDept)}">
+        <label class="cal-lbl">문의 <span class="cal-req">*</span> <small style="font-weight:400">— 일정 팝업에 "문의) 이름 전화"로 보여요</small></label>
+        <div style="display:flex;gap:8px"><input class="cal-inp" id="calNewCName" style="flex:1" maxlength="20" placeholder="홍길동" value="${esc(f.contactName)}">
+        <input class="cal-inp" id="calNewCPhone" style="flex:1.4" maxlength="20" inputmode="tel" placeholder="010-0000-0000" value="${esc(f.contactPhone)}"></div>` : ''}
         <label class="cal-lbl">설명 <small style="font-weight:400">(선택)</small></label><textarea class="cal-inp" id="calNewDesc" maxlength="1000" style="min-height:70px">${esc(f.desc)}</textarea>
         <div style="display:flex;gap:10px;margin-top:18px">
           <button class="kko-btn-outline" style="flex:1" id="calNewBack">뒤로</button><button class="kko-btn-main" style="flex:2" id="calNewSave">${ex ? '저장' : '등록'}</button>
@@ -4326,6 +4455,14 @@
         if (!f.title) return toast('제목을 입력해주세요.', true);
         if (!f.startDate) return toast('시작일을 선택해주세요.', true);
         if (category === '부서' && !f.dept) return toast('부서를 선택해주세요.', true);
+        if (withHost) {
+          f.hostDept = $id('calNewHost').value.trim();
+          f.contactName = $id('calNewCName').value.trim();
+          f.contactPhone = $id('calNewCPhone').value.trim();
+          if (!f.hostDept) return toast('주관 부서를 적어 주세요.', true);
+          if (!f.contactName || !f.contactPhone) return toast('문의할 분의 이름과 전화번호를 적어 주세요.', true);
+          if (f.contactPhone.replace(/\D/g, '').length < 9) return toast('문의 전화번호를 확인해 주세요.', true);
+        } else { delete f.hostDept; delete f.contactName; delete f.contactPhone; }   // 내 일정은 주관·문의 없음
         const btn = document.getElementById('calNewSave'); btn.disabled = true;
         try {
           const res = await callApi({ action: 'saveCalendarEvent', event: f, by: MEMBER_ID, memberId: MEMBER_ID });
@@ -12990,7 +13127,9 @@ function calAdmEventFormHtml(ev) {
       <label class="lbl">제목 *</label><input class="inp" id="efTitle" value="${esc(e.title)}" maxlength="80">
       <div style="display:flex;gap:8px"><div style="flex:1"><label class="lbl">시작일 *</label><input type="date" class="inp" id="efStart" value="${esc(e.startDate)}"></div><div style="flex:1"><label class="lbl">종료일</label><input type="date" class="inp" id="efEnd" value="${esc(e.endDate)}"></div></div>
       <label class="lbl">장소</label><input class="inp" id="efPlace" value="${esc(e.place)}" maxlength="60">
-      <label class="lbl">담당 부서(선택)</label><input class="inp" id="efDept" value="${esc(e.dept)}" maxlength="10" placeholder="예: 전도부">
+      <label class="lbl">주관 부서</label><input class="inp" id="efDept" value="${esc(e.hostDept || e.dept)}" maxlength="30" placeholder="예: 전도부, 부녀회 3지역">
+      <label class="lbl">문의 <small>(일정 팝업에 "문의) 이름 전화"로 보여요)</small></label>
+      <div style="display:flex;gap:8px"><input class="inp" id="efCName" style="flex:1" value="${esc(e.contactName || '')}" maxlength="20" placeholder="홍길동"><input class="inp" id="efCPhone" style="flex:1.4" value="${esc(e.contactPhone || '')}" maxlength="20" inputmode="tel" placeholder="010-0000-0000"></div>
       <label class="lbl">설명</label><textarea class="inp" id="efDesc" maxlength="1000">${esc(e.desc)}</textarea>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn out" id="efCancel">취소</button>
@@ -13028,7 +13167,12 @@ function calAdmBindEventForm(ev) {
     const body = {
       eventId: ev ? ev.eventId : '', type: document.getElementById('efType').value, title: document.getElementById('efTitle').value.trim(),
       startDate: document.getElementById('efStart').value, endDate: document.getElementById('efEnd').value || document.getElementById('efStart').value,
-      place: document.getElementById('efPlace').value.trim(), dept: document.getElementById('efDept').value.trim(), desc: document.getElementById('efDesc').value.trim()
+      place: document.getElementById('efPlace').value.trim(), desc: document.getElementById('efDesc').value.trim(),
+      // 부서 일정의 dept(교·자·장·부·청)는 보이는 범위라 그대로 둔다
+      dept: ev && ev.category === '부서' ? ev.dept : document.getElementById('efDept').value.trim(),
+      // 2026-10-15: 주관 부서(옛 '담당 부서' 칸을 같이 씀) · 문의. 고칠 때는 원래 분류(부서 일정 등) 유지 — 전에는 빠져서 공식으로 바뀌었음
+      category: ev ? ev.category : '공식', region: ev ? ev.region : '', repeatDays: ev ? ev.repeatDays : [], repeatUntil: ev ? ev.repeatUntil : '',
+      hostDept: document.getElementById('efDept').value.trim(), contactName: document.getElementById('efCName').value.trim(), contactPhone: document.getElementById('efCPhone').value.trim()
     };
     const btn = document.getElementById('efSave'); btn.disabled = true;
     try {

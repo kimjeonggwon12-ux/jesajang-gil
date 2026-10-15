@@ -3,6 +3,7 @@ import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs, sameId } from '../lib/util.js';
 import { clip, newId, isDate } from '../lib/input.js';
 import { findTeacher, isAdmin } from './roster.js';
+import { storeImage } from '../lib/images.js';
 
 const DEPTS = ['교', '자', '장', '부', '청'];            // 신청용 부서 약칭
 const ATTENDEE_ROLES = ['인', '교', '섬', '협'];
@@ -19,6 +20,7 @@ const toEvent = (e) => ({
   createdBy: e.created_by, createdAt: fmtTs(e.created_at),
   category: CATEGORIES.includes(e.category) ? e.category : '공식',
   region: e.region, repeatDays: e.repeat_days, repeatUntil: e.repeat_until,
+  hostDept: e.host_dept || '', contactName: e.contact_name || '', contactPhone: e.contact_phone || '',
 });
 
 /** 모든 행사(시작일 순). */
@@ -48,12 +50,16 @@ async function getCalendarEvents(body) {
   const me = clip(body.memberId, 40);
   const seeAll = me ? await isAdmin(me) : false;
   const viewer = me && !seeAll ? (await findTeacher(me)) || {} : null;
-  const [events, staff, attendees] = await Promise.all([allEvents(), countByEvent('event_staff'), countByEvent('event_attendees')]);
+  const [events, staff, attendees, cheers] = await Promise.all([
+    allEvents(), countByEvent('event_staff'), countByEvent('event_attendees'), cheerCounts(),
+  ]);
   const rows = events.filter((e) => {
     if (e.category === '내일정') return !!me && sameId(e.createdBy, me);
     if (e.category === '부서' && viewer && !sameId(e.createdBy, me)) return sameDept(e, viewer);
     return true;
-  }).map((e) => ({ ...e, staffCount: staff.get(e.eventId) || 0, attendeeCount: attendees.get(e.eventId) || 0 }));
+  }).map((e) => ({
+    ...e, staffCount: staff.get(e.eventId) || 0, attendeeCount: attendees.get(e.eventId) || 0, cheerCount: cheers.get(e.eventId) || 0,
+  }));
   return { rows };
 }
 
@@ -89,12 +95,19 @@ async function saveCalendarEvent(body) {
     type, title, start_date: start, end_date: end, dept, place: clip(ev.place, 60), description: clip(ev.desc, 1000),
     category, region: clip(ev.region, 20),
   };
+  // 2026-10-15: 주관 부서 · 문의(이름·전화) — 보내는 화면에서만 고친다(옛 화면이 지우지 않게).
+  if ('hostDept' in ev) fields.host_dept = clip(ev.hostDept, 30);
+  if ('contactName' in ev) fields.contact_name = clip(ev.contactName, 20);
+  if ('contactPhone' in ev) fields.contact_phone = clip(String(ev.contactPhone || '').replace(/[^0-9-]/g, ''), 20);
+  const mid = clip(body.memberId, 40);
+  // 앱 화면(memberId 를 보냄)에서 공식 일정은 관리자만 — 일반 교사에게는 관리자 페이지 안내.
+  if (mid && category === '공식' && !(await isAdmin(mid))) return { error: '공식 일정은 관리자 페이지에서 등록·수정해요.' };
   const eventId = clip(ev.eventId, 40);
   if (eventId) {
     const [row] = await run(db().from('calendar_events').select('id, repeat_days, category, created_by').eq('event_id', eventId).limit(1));
     if (row) {
       // 삭제와 같은 규칙: 공식 일정이 아니면 등록한 본인만 고친다(memberId 를 보내는 화면에서만 확인).
-      const mid = clip(body.memberId, 40);
+      if (mid && toEvent(row).category === '공식' && !(await isAdmin(mid))) return { error: '공식 일정은 관리자 페이지에서 수정해요.' };
       if (mid && toEvent(row).category !== '공식' && !sameId(row.created_by, mid)) {
         return { error: '본인이 등록한 일정만 수정할 수 있습니다.' };
       }
@@ -128,6 +141,65 @@ async function deleteCalendarEvent(body) {
   await run(db().from('calendar_events').delete().eq('event_id', eventId));
   await run(db().from('event_staff').delete().eq('event_id', eventId));
   await run(db().from('event_attendees').delete().eq('event_id', eventId));
+  await run(db().from('event_cheers').update({ status: '삭제' }).eq('event_id', eventId));
+  return { ok: true };
+}
+
+// ── 응원 댓글 + 행사 사진 (2026-10-15) ── 공식·부서 일정마다. 사진은 R2 에 올리고 주소만 저장.
+
+const CHEER_PHOTO_MAX = 44000;   // 앱이 줄여 보내는 사진(data:image) 한 장 한도 — 광장 글 사진과 같음
+
+async function cheerCounts() {
+  const rows = await selectAll(() => db().from('event_cheers').select('event_id').eq('status', '게시').order('id'));
+  const counts = new Map();
+  for (const r of rows) counts.set(r.event_id, (counts.get(r.event_id) || 0) + 1);
+  return counts;
+}
+
+const toCheer = (c, viewer) => ({
+  cheerId: c.cheer_id, memberId: c.member_id, name: c.name, dept: c.dept, body: c.body, photos: c.photos || [],
+  createdAt: fmtTs(c.created_at), isMine: !!viewer && sameId(c.member_id, viewer),
+});
+
+/** 응원·사진을 달 수 있는 일정인가(내 일정은 혼자 보는 것이라 없음). */
+async function cheerableEvent(eventId) {
+  const [row] = await run(db().from('calendar_events').select('event_id, category').eq('event_id', eventId).limit(1));
+  return row && toEvent(row).category !== '내일정' ? row : null;
+}
+
+async function getEventCheers(body) {
+  const eventId = clip(body.eventId, 40);
+  const me = clip(body.memberId, 40);
+  const rows = await selectAll(() => db().from('event_cheers').select('*').eq('event_id', eventId).eq('status', '게시').order('id'));
+  return { rows: rows.map((c) => toCheer(c, me)) };
+}
+
+async function saveEventCheer(body) {
+  const me = clip(body.memberId, 40);
+  const eventId = clip(body.eventId, 40);
+  if (!me) return { error: '로그인 정보가 없습니다.' };
+  if (!(await cheerableEvent(eventId))) return { error: '응원을 남길 수 없는 일정이에요.' };
+  const text = clip(body.body, 500);
+  const raw = (Array.isArray(body.photos) ? body.photos : []).slice(0, 4)
+    .filter((p) => /^data:image\//.test(String(p || '')) && String(p).length <= CHEER_PHOTO_MAX);
+  if (!text && !raw.length) return { error: '응원 글이나 사진을 넣어 주세요.' };
+  const photos = (await Promise.all(raw.map((p) => storeImage(p, 'event')))).filter(Boolean);
+  const t = (await findTeacher(me)) || {};
+  const row = {
+    cheer_id: newId('CH'), event_id: eventId, member_id: me, name: clip(t.name || body.name, 30), dept: t.dept || '',
+    body: text, photos, created_at: kstDateTime(),
+  };
+  const [saved] = await run(db().from('event_cheers').insert(row).select());
+  return { ok: true, cheer: toCheer(saved, me) };
+}
+
+/** 내가 쓴 응원만(관리자는 모두) 지운다. */
+async function deleteEventCheer(body) {
+  const me = clip(body.memberId, 40);
+  const [row] = await run(db().from('event_cheers').select('id, member_id').eq('cheer_id', clip(body.cheerId, 40)).limit(1));
+  if (!row) return { error: '응원을 찾지 못했어요.' };
+  if (!me || (!sameId(row.member_id, me) && !(await isAdmin(me)))) return { error: '내가 쓴 응원만 지울 수 있어요.' };
+  await run(db().from('event_cheers').update({ status: '삭제' }).eq('id', row.id));
   return { ok: true };
 }
 
@@ -350,7 +422,7 @@ async function answerAdQuestion(body) {
 }
 
 export default {
-  getCalendarEvents, saveCalendarEvent, deleteCalendarEvent,
+  getCalendarEvents, saveCalendarEvent, deleteCalendarEvent, getEventCheers, saveEventCheer, deleteEventCheer,
   applyEventStaff, cancelEventStaff, applyEventAttendee, deleteEventAttendee, getMyEventSignups, getCalendarReport,
   getCalendarAds, saveCalendarAd, deleteCalendarAd,
   getAdQuestions, saveAdQuestion, deleteAdQuestion, answerAdQuestion,
