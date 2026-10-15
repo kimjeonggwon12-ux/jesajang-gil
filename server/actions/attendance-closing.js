@@ -2,7 +2,7 @@
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDateTime } from '../lib/util.js';
 import { clip } from '../lib/input.js';
-import { sheetFiles } from '../lib/xlsx-sheet.js';
+import { workbookFiles } from '../lib/xlsx-multi.js';
 import { zip } from '../lib/zip.js';
 import { sendAttendFile, sendAttendPhoto, sendAttendText } from '../lib/attend-bot.js';
 import { isAdmin } from './roster.js';
@@ -166,10 +166,11 @@ export const closingBoxText = async (m) => boxText(await closingData(m));
 const STYLE = { plain: 0, head: 1, cell: 2, title: 3, session: 4, fixed: 5, warn: 6, total: 7, text: 8, dup: 9 };
 const cell = (v, s) => ({ v, s });
 
-/** 마감 엑셀 파일과 함께 보낼 설명 글. */
-async function closingFile(m) {
-  const data = await closingData(m);
-  const title = `${m.date} ${[...new Set(data.meetings.map((x) => x.title))].join(' + ')} 출석 명단`;
+/**
+ * 시트 한 장의 줄들. sessions = 이 시트에 넣을 구분(오전/저녁 …) — 그 구분의 요약과 명단만.
+ * 2026-10-15: 오전+저녁이 있는 날은 '합계' 시트(전부)와 '저녁' 시트(저녁만)를 따로 만든다(오전은 오전 마감 때 이미 감).
+ */
+function sheetRows(title, data, sessions) {
   const rows = [];
   rows.push([cell(title, STYLE.title)]);
   rows.push([cell(`마감 ${kstDateTime().slice(0, 16)} · 고유번호는 교사명단과 대조해 정리 · 노랑=번호 수정, 빨강=확인 필요, 회색=중복`, STYLE.plain)]);
@@ -179,7 +180,7 @@ async function closingFile(m) {
   rows.push([cell('구분', STYLE.head), ...ORGS.map((o) => cell(o, STYLE.head)), cell('합계', STYLE.head), cell('정상 출석', STYLE.head), cell('지각', STYLE.head)]);
   const total = {};
   let onTime = 0, late = 0;
-  for (const s of data.sessions) {
+  for (const s of sessions) {
     const lc = data.lateCount[s] || { 정상: 0, 지각: 0 };
     onTime += lc.정상; late += lc.지각;
     let sum = 0;
@@ -187,25 +188,43 @@ async function closingFile(m) {
     rows.push([cell(s, STYLE.session), ...counts, cell(sum, STYLE.total), cell(lc.정상, STYLE.cell), cell(lc.지각, STYLE.cell)]);
   }
   const all = ORGS.reduce((n, o) => n + (total[o] || 0), 0);
-  rows.push([cell(data.sessions.length > 1 ? '합계(연인원)' : '합계', STYLE.total), ...ORGS.map((o) => cell(total[o] || 0, STYLE.total)),
+  rows.push([cell(sessions.length > 1 ? '합계(연인원)' : '합계', STYLE.total), ...ORGS.map((o) => cell(total[o] || 0, STYLE.total)),
     cell(all, STYLE.total), cell(onTime, STYLE.total), cell(late, STYLE.total)]);
+  const mine = data.rows.filter((r) => sessions.includes(r.session));
+  if (sessions.length > 1) {
+    const people = new Set(mine.filter((r) => !r.dup).map((r) => normId(r.id) + '|' + r.name)).size;
+    rows.push([cell('실제 인원(두 번 온 분은 한 번)', STYLE.total), cell(people, STYLE.total)]);
+  }
   rows.push([]);
 
   // 명단
   const headRow = rows.length;
   rows.push(['번호', '구분', '이름', '고유번호', '부서', '직책', '소속·지역', '24부서', '출석시각', '출석 상태', '모임', '비고'].map((h) => cell(h, STYLE.head)));
-  for (const r of data.rows) {
+  for (const r of mine) {
     const noteStyle = r.dup ? STYLE.dup : (r.note ? (r.fixed ? STYLE.fixed : STYLE.warn) : STYLE.text);
     rows.push([cell(r.no, STYLE.cell), cell(r.session, STYLE.cell), cell(r.name, STYLE.cell), cell(r.id, STYLE.cell), cell(r.dept, STYLE.cell),
       cell(r.position, STYLE.cell), cell(r.pick || r.org, STYLE.cell), cell(r.dept24, STYLE.cell), cell(r.at.slice(11), STYLE.cell),
       cell(r.late, /지각/.test(r.late) ? STYLE.warn : STYLE.cell), cell(r.title, STYLE.text), cell(r.note, noteStyle)]);
   }
+  return {
+    rows, opts: { widths: [6, 9, 10, 17, 10, 18, 16, 9, 10, 11, 22, 44], merges: ['A1:L1', 'A2:L2'], freezeRow: headRow + 1, heights: { 0: 26 } },
+  };
+}
+
+/** 마감 엑셀 파일과 함께 보낼 설명 글. */
+async function closingFile(m) {
+  const data = await closingData(m);
+  const title = `${m.date} ${[...new Set(data.meetings.map((x) => x.title))].join(' + ')} 출석 명단`;
+  const both = data.sessions.length > 1;
+  const sheets = [{ name: (both ? '합계 ' : '출석 ') + m.date.slice(5), ...sheetRows(title, data, data.sessions) }];
+  if (both) {
+    const last = data.sessions.at(-1);   // 마지막 구분(저녁)만 따로 한 장 더
+    sheets.push({ name: `${last} ${m.date.slice(5)}`, ...sheetRows(`${m.date} ${last} 출석 명단`, data, [last]) });
+  }
 
   const lastTitle = String(data.meetings.at(-1).title).replace(/[\\/:*?"<>|]/g, ' ');
-  const fileName = `출석_${m.date}_${lastTitle}${data.sessions.length > 1 ? '(오전+저녁)' : ''}.xlsx`;
-  const bytes = zip(sheetFiles('출석 ' + m.date.slice(5), rows, {
-    widths: [6, 9, 10, 17, 10, 18, 16, 9, 10, 11, 22, 44], merges: ['A1:L1', 'A2:L2'], freezeRow: headRow + 1, heights: { 0: 26 },
-  }, fileName));
+  const fileName = `출석_${m.date}_${lastTitle}${both ? '(오전+저녁)' : ''}.xlsx`;
+  const bytes = zip(workbookFiles(sheets), fileName);
 
   const people = data.rows.filter((r) => !r.dup).length;
   const fixedCount = data.rows.filter((r) => r.fixed).length;
