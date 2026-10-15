@@ -24,6 +24,22 @@ export async function sendAttendText(text) {
   }
 }
 
+/** 사진 한 장(PNG) + 설명. */
+export async function sendAttendPhoto(bytes, caption) {
+  if (!configured()) return { ok: false, error: '봇 설정 없음' };
+  const form = new FormData();
+  form.set('chat_id', process.env.ATT_ADMIN_CHAT);
+  form.set('caption', String(caption).slice(0, 1024));
+  form.set('photo', new Blob([bytes], { type: 'image/png' }), 'chart.png');
+  try {
+    const r = await fetch(api('sendPhoto'), { method: 'POST', body: form });
+    const j = await r.json().catch(() => ({}));
+    return { ok: !!j.ok, error: j.ok ? '' : (j.description || 'HTTP ' + r.status) };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+}
+
 /** 파일 한 개 + 설명. */
 export async function sendAttendFile(bytes, fileName, caption) {
   if (!configured()) return { ok: false, error: '봇 설정 없음' };
