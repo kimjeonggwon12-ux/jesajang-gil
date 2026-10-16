@@ -310,7 +310,30 @@ async function getPlazaMonthly(body) {
   return { month, teachers, coupon, popular };
 }
 
+/**
+ * 2026-10-16: 글·댓글 쓴 사람 이름을 누르면 전화·문자·텔레그램 — 그 사람 전화번호.
+ * 명함(connect_cards)에 올린 번호는 명함 화면에서 누구나 보는 것이므로 누구에게나, 관리자 명단·교사 프로필의 번호는 관리자에게만.
+ */
+async function getMemberContact(body) {
+  const me = clip(body.memberId, 40);
+  const nid = normId(body.targetId);
+  if (!me || nid === '0') return { error: '대상이 없어요.' };
+  const [cards, admin] = await Promise.all([
+    run(db().from('connect_cards').select('phone').eq('nid', nid).neq('phone', '').order('id', { ascending: false }).limit(1)),
+    isAdmin(me),
+  ]);
+  if (cards[0]) return { phone: cards[0].phone, from: '명함' };
+  if (!admin) return { phone: '' };
+  const [admins, profiles] = await Promise.all([
+    run(db().from('admins').select('phone').eq('nid', nid).neq('phone', '').limit(1)),
+    run(db().from('teacher_profiles').select('phone').eq('nid', nid).neq('phone', '').order('id', { ascending: false }).limit(1)),
+  ]);
+  const phone = admins[0]?.phone || profiles[0]?.phone || '';
+  return { phone, from: admins[0] ? '관리자 명단' : profiles[0] ? '교사 프로필' : '' };
+}
+
 export default {
+  getMemberContact,
   listPlazaPosts, getPlazaPost, savePlazaPost, adminSetPlazaPhotos, deletePlazaPost,
   togglePlazaLike, addPlazaComment, editPlazaComment, deletePlazaComment, getPlazaMonthly,
 };

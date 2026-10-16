@@ -2213,7 +2213,7 @@
     #deptCtc.on { display:inline-flex; }
     #deptCtc b { color:#064E3B; font-weight:800; }
     #deptCtc svg { width:14px; height:14px; flex-shrink:0; }
-    #ctcMenu { position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,.4); display:flex; align-items:flex-end; justify-content:center; }
+    #ctcMenu { position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.4); display:flex; align-items:flex-end; justify-content:center; }
     /* 2026-10-15: 번호 옆 전화·문자·텔레그램 단추(telActsHtml) — 작은 알약, 명함 상세(.tel-big)에서는 큰 단추 3개 */
     .tel-acts { display:inline-flex; flex-wrap:wrap; gap:5px; vertical-align:middle; }
     .tel-acts a { display:inline-flex; align-items:center; height:26px; padding:0 9px; border-radius:999px; border:1.5px solid #00AE82; background:#fff; color:#00775A; font-size:12px; font-weight:700; text-decoration:none; white-space:nowrap; }
@@ -2228,6 +2228,9 @@
     #ctcMenu .ctc-acts a { display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 4px; border-radius:14px; background:#F3F5F7; color:#222; font-size:14px; font-weight:700; text-decoration:none; }
     #ctcMenu .ctc-acts a span { font-size:24px; line-height:1; }
     #ctcMenu .ctc-acts a.tg { background:#E8F4FD; color:#1D78B5; }
+    #ctcMenu .ctc-more { width:100%; margin-top:8px; height:44px; border:1px solid #E5E8EB; border-radius:12px; background:#fff; color:#333; font-size:15px; font-weight:700; font-family:inherit; }
+    .pz-cmt-name[data-pz-who] { cursor:pointer; }
+    .pz-cmt-name[data-pz-who]::after { content:' ✈️'; font-size:11px; }
     #ctcMenu .ctc-close { width:100%; margin-top:10px; height:44px; border:0; border-radius:12px; background:#fff; color:#888; font-size:15px; font-weight:700; font-family:inherit; }
     html.pz-dk #deptCtc { bottom:16px; }
     body:has(#pzOverlayHost > *) #deptCtc, body:has(.pz-mz) #deptCtc { display:none; }
@@ -3450,7 +3453,7 @@
       return `<span class="tel-acts"><a href="tel:${tel}">📞 전화</a><a href="sms:${tel}">💬 문자</a><a class="tg" href="https://t.me/+${intl}" target="_blank" rel="noopener">✈️ 텔레그램</a></span>`;
     }
     /** 이름을 누르면 아래에서 올라오는 창: 전화 / 문자 / 텔레그램. */
-    function ctcOpen(name, phone) {
+    function ctcOpen(name, phone, more) {
       const tel = String(phone || '').replace(/[^0-9]/g, '');
       if (!tel) return;
       const intl = '82' + tel.replace(/^0/, '');
@@ -3459,9 +3462,24 @@
       el.id = 'ctcMenu';
       el.innerHTML = `<div class="ctc-pop"><div class="ctc-who">${esc(name)}</div><div class="ctc-num">${esc(phone)}</div>
         <div class="ctc-acts"><a href="tel:${tel}"><span>📞</span>전화</a><a href="sms:${tel}"><span>💬</span>문자</a><a class="tg" href="https://t.me/+${intl}" target="_blank" rel="noopener"><span>✈️</span>텔레그램</a></div>
+        ${more ? `<button type="button" class="ctc-more">${esc(more.label)}</button>` : ''}
         <button type="button" class="ctc-close">닫기</button></div>`;
-      el.addEventListener('click', (e) => { if (e.target === el || e.target.closest('.ctc-close') || e.target.closest('.ctc-acts a')) el.remove(); });
+      el.addEventListener('click', (e) => {
+        if (more && e.target.closest('.ctc-more')) { el.remove(); more.fn(); return; }
+        if (e.target === el || e.target.closest('.ctc-close') || e.target.closest('.ctc-acts a')) el.remove();
+      });
       document.body.appendChild(el);
+    }
+    /**
+     * 2026-10-16: 글·댓글 쓴 사람 이름을 누르면 → 전화·문자·텔레그램 창(번호는 서버 getMemberContact: 명함 번호는 누구나, 관리자 명단 번호는 관리자만).
+     * 번호가 없으면 onCard(명함 보기)로 넘긴다.
+     */
+    async function memberContact(memberId, name, onCard) {
+      let r = null;
+      try { r = await callApi({ action: 'getMemberContact', memberId: App.memberId, targetId: memberId }); } catch (e) {}
+      if (r && r.phone) { ctcOpen(name, r.phone, onCard ? { label: '명함 보기', fn: onCard } : null); return; }
+      toast(`${name} 님은 등록된 전화번호가 없어요.${onCard ? ' 명함을 엽니다.' : ''}`);
+      if (onCard) onCard();
     }
     function ctcSet(id, key) { const el = document.getElementById(id); if (el) el.innerHTML = key ? ctcChip(key) : ''; }
     function renderDeptCtc(dept) {
@@ -4831,8 +4849,8 @@
           <div class="pz-ov-body" id="pzOvBody">
             ${photos.length > 1 ? carHtml(photos) : photos[0] ? `<img class="pz-d-photo pz-d-hero" src="${esc(photos[0])}" alt="대표 사진">` : ''}
             ${catHtml(p.category, p.title)}
-            <div class="pz-author" data-pz-author title="이름을 누르면 이 교사의 명함을 볼 수 있어요">${avaHtml(p.name, p.authorPhoto)}
-              <div><div style="font-size:15px;font-weight:800">${esc(p.name)}${p.isMine ? '' : ' <span class="pz-author-hint">명함 ›</span>'}</div><div class="pz-cmt-meta">${esc([p.region, p.dept].filter(Boolean).join(' '))}${p.region || p.dept ? ' · ' : ''}${esc(ago(p.createdAt))}${p.updatedAt && p.updatedAt !== p.createdAt ? ' (수정됨)' : ''}</div></div>
+            <div class="pz-author" data-pz-author title="이름을 누르면 전화·문자·텔레그램으로 연락할 수 있어요">${avaHtml(p.name, p.authorPhoto)}
+              <div><div style="font-size:15px;font-weight:800">${esc(p.name)}${p.isMine ? '' : ' <span class="pz-author-hint">✈️ 연락 ›</span>'}</div><div class="pz-cmt-meta">${esc([p.region, p.dept].filter(Boolean).join(' '))}${p.region || p.dept ? ' · ' : ''}${esc(ago(p.createdAt))}${p.updatedAt && p.updatedAt !== p.createdAt ? ' (수정됨)' : ''}</div></div>
             </div>
             <div class="pz-d-title">${esc(p.title)}</div>
             <div class="pz-d-body">${catOf(p.category) === '사례' ? pzBodyHtml(p.body) : esc(p.body)}</div>
@@ -4844,7 +4862,7 @@
             </div>
             <div class="pz-sort"><button type="button" data-pz-sort="asc" class="${P.sort === 'asc' ? 'on' : ''}">등록순</button><button type="button" data-pz-sort="desc" class="${P.sort === 'desc' ? 'on' : ''}">최신순</button></div>
             ${cs.length ? cs.map(c => `<div class="pz-cmt">${avaHtml(c.name, '', true)}
-                <div style="flex:1;min-width:0"><div class="pz-cmt-name">${esc(c.name)}</div><div class="pz-cmt-meta">${esc([c.region, ago(c.createdAt)].filter(Boolean).join(' · '))}</div>
+                <div style="flex:1;min-width:0"><div class="pz-cmt-name"${c.isMine || !c.memberId ? '' : ` data-pz-who="${esc(c.memberId)}" data-pz-name="${esc(c.name)}" title="누르면 전화·문자·텔레그램"`}>${esc(c.name)}</div><div class="pz-cmt-meta">${esc([c.region, ago(c.createdAt)].filter(Boolean).join(' · '))}</div>
                 <div class="pz-cmt-text"${c.isMine ? ` data-pz-editcmt="${esc(c.commentId)}" title="누르면 고칠 수 있어요" style="cursor:pointer"` : ''}>${esc(c.text)}</div>${c.isMine ? `<button type="button" class="pz-cmt-del" data-pz-editcmt="${esc(c.commentId)}" style="margin-right:12px">수정</button><button type="button" class="pz-cmt-del" data-pz-delcmt="${esc(c.commentId)}">삭제</button>` : ''}</div></div>`).join('')
               : '<div class="pz-empty" style="padding:22px 0">첫 댓글로 응원을 남겨주세요.</div>'}
             ${popular.length ? `<div class="pz-popular"><div class="pz-sec-title" style="display:flex;justify-content:space-between;font-size:17px;font-weight:800;margin:0 0 4px">교사광장 인기글<small style="font-size:13px;font-weight:600;color:var(--dg-text-sub);cursor:pointer" data-pz-tofeed>더보기 ›</small></div>
@@ -4865,6 +4883,7 @@
         $('pzLikeBtn').onclick = toggleLike;
         const menu = $('pzPostMenu'); if (menu) menu.onclick = () => postMenu(p);
         bindAuthor(host.querySelector('[data-pz-author]'), p);
+        host.querySelectorAll('[data-pz-who]').forEach(el => { el.onclick = () => memberContact(el.dataset.pzWho, el.dataset.pzName); });
       }
       // 공감은 글 전체를 다시 그리지 않고 공감 버튼·문구만 바꾼다 — 다시 그리면 사진이 새로 불러와지는 동안
       // 화면이 짧아져 스크롤이 맨 위로 튀었음(2026-10-02)
@@ -4879,13 +4898,14 @@
       function bindAuthor(el, p) {
         if (!el || !p.memberId) return;
         let timer = null, fired = false;
+        const card = () => openMemberCard(p.memberId, p.name, r => {
+          ovClose();   // 글 상세를 닫고 연결 탭 채팅방으로
+          setTimeout(() => requestChatWith(r.memberId, r.name, ''), 250);
+        });
         const open = () => {
           fired = true;
           if (navigator.vibrate) try { navigator.vibrate(15); } catch (e) {}
-          openMemberCard(p.memberId, p.name, r => {
-            ovClose();   // 글 상세를 닫고 연결 탭 채팅방으로
-            setTimeout(() => requestChatWith(r.memberId, r.name, ''), 250);
-          });
+          p.isMine ? card() : memberContact(p.memberId, p.name, card);
         };
         const cancel = () => { clearTimeout(timer); timer = null; };
         el.addEventListener('touchstart', () => { fired = false; cancel(); timer = setTimeout(open, 500); }, { passive: true });
