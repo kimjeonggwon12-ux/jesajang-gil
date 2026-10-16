@@ -13932,18 +13932,22 @@ async function calAdmInit() {
           <div class="ra-list">${st.list.length ? st.list.map(c => `
             <button type="button" class="ra-row" onclick="cohortAdm.detail('${esc(c.cohortId)}')">
               <span style="flex:1;min-width:0"><b>${esc(c.title)}</b>
-                <div class="ra-sub">교육생 ${c.memberCount}명${c.startDate ? ` · ${mmdd(c.startDate)}~${mmdd(c.endDate)}` : ''}${c.days ? ' · ' + daysText(c.days) : ''}${c.startTime ? ' ' + c.startTime : ''}${c.tgChat ? ' · 텔레그램 연결' : ''}</div></span>
+                <div class="ra-sub">교육생 ${c.memberCount}명${c.startDate ? ` · ${mmdd(c.startDate)}~${mmdd(c.endDate)}` : ''}${c.days ? ' · ' + daysText(c.days) : ''}${c.startTime ? ' ' + c.startTime : ''}${c.tgChat ? ' · 텔레그램 연결' : ''}</div>${c.hostDept || c.managerName ? `<div class="ra-sub">주관 ${esc(c.hostDept || '-')} · 담당 ${esc(c.managerName || '-')} ${esc(c.managerPhone || '')}</div>` : ''}</span>
               <span class="ra-tag ${c.status === '진행' ? '' : 'out'}">${esc(c.status)}</span>
             </button>`).join('') : '<p class="ra-note">아직 교육 과정이 없어요.</p>'}</div>
           <div class="ra-h">새 교육 과정 만들기</div>
           <label class="ra-f">교육명칭<input id="chNewTitle" placeholder="예: 2026 가을 교관 양성반" autocomplete="off"></label>
+          <label class="ra-f">운영 주관 부서<input id="chNewDept" placeholder="예: 도마지파 교육부" autocomplete="off"></label>
+          <div class="ra-two"><label class="ra-f">담당자 이름<input id="chNewMgr" autocomplete="off"></label>
+            <label class="ra-f">담당자 전화<input id="chNewPhone" type="tel" inputmode="tel" placeholder="010-1234-5678" autocomplete="off"></label></div>
           <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.create()">만들기</button></div>
           <p class="ra-note">만든 뒤 그 과정의 [교육생] 탭에서 교육생을 넣고, [설정]에서 텔레그램 방을 연결합니다.</p>`;
       }
       async function create() {
-        const title = val('chNewTitle');
+        const title = val('chNewTitle'), hostDept = val('chNewDept'), managerName = val('chNewMgr'), managerPhone = val('chNewPhone');
         if (!title) { toast('교육명칭을 넣어 주세요.', true); return; }
-        const res = await call({ action: 'cohortSave', cohort: { title, useAttend: true, useAssign: true } });
+        if (!hostDept || !managerName || !managerPhone) { toast('운영 주관 부서, 담당자 이름, 담당자 전화를 모두 넣어 주세요.', true); return; }
+        const res = await call({ action: 'cohortSave', cohort: { title, hostDept, managerName, managerPhone, useAttend: true, useAssign: true } });
         if (res.error) { toast(res.error, true); return; }
         toast('교육 과정을 만들었어요. 교육생을 넣어 주세요.');
         st.tab = 'members';
@@ -14163,6 +14167,14 @@ async function calAdmInit() {
         const to = [...document.querySelectorAll('#ttTo input:checked')].map(i => i.value);
         ttAct({ action: 'cohortCopyDay', cohortId: cid(), from: val('ttFrom'), to }, `${to.length}일에 복사했어요.`, btn);
       }
+      /** 주관 부서 · 담당자 — 누르면 전화·문자·텔레그램 */
+      function mgrLine(c) {
+        if (!c.hostDept && !c.managerName) return `<div class="ra-sub" style="margin-top:4px;color:#c0392b">⚠️ 주관 부서·담당자가 비어 있어요 — [설정]에서 넣어 주세요.</div>`;
+        const who = `${esc(c.managerName || '-')}${c.managerPhone ? ' ' + esc(c.managerPhone) : ''}`;
+        return `<div class="ra-sub" style="margin-top:4px">주관 <b>${esc(c.hostDept || '-')}</b> · 담당 ${c.managerPhone
+          ? `<button type="button" style="font:inherit;color:#00875f;font-weight:800;text-decoration:underline;background:none;border:0;padding:0" onclick="ctcOpen('${esc(c.managerName || '담당자').replace(/'/g, '')}','${esc(c.managerPhone)}')">📞 ${who}</button>`
+          : `<b>${who}</b>`}</div>`;
+      }
       function setTab(t) { st.tab = t; saveView(); draw(); }
       function draw() {
         const d = st.cur, c = d.cohort, r = root(); if (!r) return;
@@ -14171,6 +14183,7 @@ async function calAdmInit() {
           <div class="ch-top"><button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.open()">‹ 목록</button>
             <h3>${esc(c.title)}</h3><span class="ra-tag ${c.status === '진행' ? '' : 'out'}">${esc(c.status)}</span></div>
           <div class="ra-sub" style="margin-top:6px">교육생 ${d.total}명${c.startDate ? ` · ${mmdd(c.startDate)}~${mmdd(c.endDate)}` : ' · 기간 미정'}${c.days ? ' · ' + daysText(c.days) : ''}${c.startTime ? ` ${c.startTime}~${c.endTime}` : ''}${c.tgChat ? ' · ✈️ 텔레그램 연결' : ' · ⚠️ 텔레그램 방 미연결'}</div>
+          ${mgrLine(c)}
           <div class="ra-acts" style="margin-top:10px">
             <button type="button" class="ra-btn" style="${SMALL}" onclick="cohortAdm.sheet(this)">취합 표</button>
             <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.excel(this)">엑셀 받기</button>
@@ -14501,6 +14514,9 @@ async function calAdmInit() {
         const chk = (id, on, label) => `<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:15px;font-weight:700"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="width:20px;height:20px">${label}</label>`;
         return `
           <label class="ra-f">교육명칭<input id="chEdTitle" value="${esc(c.title)}"></label>
+          <label class="ra-f">운영 주관 부서<input id="chEdDept" value="${esc(c.hostDept)}" placeholder="예: 도마지파 교육부"></label>
+          <div class="ra-two"><label class="ra-f">담당자 이름<input id="chEdMgr" value="${esc(c.managerName)}"></label>
+            <label class="ra-f">담당자 전화<input id="chEdPhone" type="tel" inputmode="tel" value="${esc(c.managerPhone)}" placeholder="010-1234-5678"></label></div>
           ${chk('chUseAttend', c.useAttend, '출석 사용')}
           ${chk('chUseAssign', c.useAssign, '과제 제출 사용')}
           <div class="ra-h">텔레그램 방</div>
@@ -14533,6 +14549,8 @@ async function calAdmInit() {
           useAttend: box('chUseAttend') ? box('chUseAttend').checked : c.useAttend,
           useAssign: box('chUseAssign') ? box('chUseAssign').checked : c.useAssign,
           tgChat: box('chTg') ? val('chTg') : c.tgChat,
+          hostDept: box('chEdDept') ? val('chEdDept') : c.hostDept, managerName: box('chEdMgr') ? val('chEdMgr') : c.managerName,
+          managerPhone: box('chEdPhone') ? val('chEdPhone') : c.managerPhone,
           days: box('chAttDays') ? daysOf('chAttDays') : c.days,
           startTime: box('chStartTime') ? val('chStartTime') : c.startTime, endTime: box('chEndTime') ? val('chEndTime') : c.endTime,
           startDate: box('chStartDate') ? val('chStartDate') : c.startDate, endDate: box('chEndDate') ? val('chEndDate') : c.endDate,

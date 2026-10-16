@@ -10,6 +10,7 @@ export const toCohort = (r) => ({
   cohortId: r.cohort_id, title: r.title, status: r.status, useAttend: r.use_attend, useAssign: r.use_assign,
   tgChat: r.tg_chat, createdAt: r.created_at ? String(r.created_at).replace('T', ' ').slice(0, 16) : '',
   startDate: r.start_date || '', endDate: r.end_date || '', days: r.days || '', startTime: r.start_time || '', endTime: r.end_time || '',
+  hostDept: r.host_dept || '', managerName: r.manager_name || '', managerPhone: r.manager_phone || '',
 });
 
 /** 'a,b,c' → 날짜 목록(올바른 날짜만, 순서대로, 중복 없이) */

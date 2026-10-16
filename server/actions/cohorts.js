@@ -90,7 +90,14 @@ async function cohortSave(body) {
     start_date: startDate, end_date: endDate, days: cleanDays(c.days), start_time: startTime, end_time: endTime,
     status: ['진행', '종료', '삭제'].includes(String(c.status)) ? String(c.status) : '진행', updated_at: kstDateTime(),
   };
+  // 운영 주관 부서 · 담당자(이름·전화) — 새로 만들 때는 꼭, 고칠 때는 보낸 것만
+  const phone = clip(c.managerPhone, 20).replace(/[^0-9-]/g, '');
+  if ('hostDept' in c) fields.host_dept = clip(c.hostDept, 40);
+  if ('managerName' in c) fields.manager_name = clip(c.managerName, 30);
+  if ('managerPhone' in c) fields.manager_phone = phone;
+  if (phone && phone.replace(/\D/g, '').length < 9) return { error: '담당자 전화번호를 다시 확인해 주세요(예: 010-1234-5678).' };
   const id = clip(c.cohortId, 40);
+  if (!id && (!fields.host_dept || !fields.manager_name || !fields.manager_phone)) return { error: '운영 주관 부서, 담당자 이름, 담당자 전화번호를 모두 넣어 주세요.' };
   if (id) {
     if (!(await findCohort(id))) return { error: '교육 과정을 찾을 수 없어요.' };
     await run(db().from('cohorts').update(fields).eq('cohort_id', id));
@@ -530,6 +537,7 @@ async function cohortSaveExam(body) {
 function summaryText(c, d, all) {
   const { members, assignments, exams, total, today, todayMeetings, heldCount } = d;
   const lines = [`📊 ${c.title} 종합 보고 · ${mmdd(today)}(${weekdayOf(today)})`, `교육생 ${total}명${c.startDate ? ` · 기간 ${mmdd(c.startDate)}~${mmdd(c.endDate || c.startDate)}` : ''}`];
+  if (c.hostDept || c.managerName) lines.push(`주관 ${c.hostDept || '-'} · 담당 ${c.managerName || '-'}${c.managerPhone ? ' ☎ ' + c.managerPhone : ''}`);
   const todayAsg = assignments.filter((a) => a.onToday);
   const todayExams = (d.examRoutines || []).filter((x) => x.onToday);
   if (todayMeetings.length || todayAsg.length || todayExams.length) {

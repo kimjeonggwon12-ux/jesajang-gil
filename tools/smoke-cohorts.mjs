@@ -44,8 +44,9 @@ const todayWd = WD[new Date(today + 'T00:00:00Z').getUTCDay()];
 let cohortId;
 try {
   ok((await call('cohortList', {}, { memberId: '0099999000002', name: 'x' })).error, '7777 아니면 막힘');
-  cohortId = (await call('cohortSave', { cohort: { title: 'ZZTEST 교육', tgChat: String(TG_CHAT) } })).cohortId;
-  ok(!!cohortId, '과정 만들기');
+  ok(/주관 부서/.test((await call('cohortSave', { cohort: { title: 'ZZTEST 교육', tgChat: String(TG_CHAT) } })).error || ''), '주관 부서·담당자 없으면 못 만듦');
+  cohortId = (await call('cohortSave', { cohort: { title: 'ZZTEST 교육', tgChat: String(TG_CHAT), hostDept: 'ZZTEST부', managerName: 'ZZ담당', managerPhone: '010-0000-0000' } })).cohortId;
+  ok(!!cohortId, '과정 만들기(주관·담당 포함)');
   const add = await call('cohortAddMembers', { cohortId, members: [{ church: '전주', ...A }, { church: '장수', ...B }] });
   ok(add.added === 2, '교육생 2명');
 
