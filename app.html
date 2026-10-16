@@ -13088,6 +13088,7 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
     const adminMounted = { edu: false, dist: false, connectAdmin: false, calAdmin: false };
     function adminSwitchSubTab(tab) {
       adminSubTab = tab;
+      try { sessionStorage.setItem('adm_sub', tab); } catch (e) {}   // 새로 고침하면 이 탭으로
       document.querySelectorAll('#admin-subtabs .kko-tab').forEach(b => b.classList.toggle('kko-tab-active', b.dataset.subtab === tab));
       document.querySelectorAll('.admin-pane').forEach(p => { p.style.display = 'none'; });
       const pane = document.getElementById('admin-pane-' + tab);
@@ -13107,10 +13108,10 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         else if (tab === 'calAdmin') calAdmInit();
         else if (tab === 'attend') attAdmLoad();
         else if (tab === 'roster') rosterAdm.mount();
-        else if (tab === 'cohort') cohortAdm.open();
+        else if (tab === 'cohort') cohortAdm.mount();
       }
       else if (tab === 'attend') attAdmLoad();   // 다시 들어올 때마다 최신 출석 인원
-      else if (tab === 'cohort') cohortAdm.open();   // 다시 들어올 때마다 최신 교육 과정
+      else if (tab === 'cohort') cohortAdm.mount();   // 다시 들어올 때마다 최신(보던 과정이면 그 과정)
     }
     // ════════════════════════════════════════════════════════════════
     // [ADMIN] connect-admin.html(3️⃣연결 현황 관리) + calendar-admin.html(4️⃣캘린더 관리) 병합.
@@ -13902,8 +13903,21 @@ async function calAdmInit() {
       }
 
       /** 교육 과정 목록 */
+      // 새로 고침해도 보던 화면(과정·탭·주차)으로 — 이 창에서만 기억
+      const VIEW_KEY = 'ch_view';
+      function saveView() {
+        try { st.cur ? sessionStorage.setItem(VIEW_KEY, JSON.stringify({ cohortId: st.cur.cohort.cohortId, tab: st.tab, week: st.week })) : sessionStorage.removeItem(VIEW_KEY); } catch (e) {}
+      }
+      /** 교육 관리 탭을 열 때: 기억한 과정이 있으면 그 화면, 없으면 목록 */
+      function mount() {
+        let v = null;
+        try { v = JSON.parse(sessionStorage.getItem(VIEW_KEY) || 'null'); } catch (e) {}
+        if (v && v.cohortId) { st.tab = v.tab || 'timetable'; st.restoreWeek = v.week || null; detail(v.cohortId, true); }
+        else open();
+      }
       async function open() {
         if (document.getElementById('appSheetBack')) closeSheet();
+        try { sessionStorage.removeItem(VIEW_KEY); } catch (e) {}
         if (adminSubTab !== 'cohort') { adminSwitchSubTab('cohort'); return; }   // 탭을 열면 다시 여기로 온다
         css();
         st.cur = null;
@@ -13998,9 +14012,11 @@ async function calAdmInit() {
         if (!st.cur || st.cur.cohort.cohortId !== cohortId) r.innerHTML = '<p class="ra-note">불러오는 중…</p>';
         let d;
         try { d = await call({ action: 'cohortDetail', cohortId }); } catch (e) { d = { error: e.message }; }
-        if (d.error) { r.innerHTML = `<p class="ra-note" style="color:#c0392b">${esc(d.error)}</p><button type="button" class="ra-btn line" onclick="cohortAdm.open()">‹ 과정 목록</button>`; return; }
+        if (d.error) { try { sessionStorage.removeItem(VIEW_KEY); } catch (e) {} r.innerHTML = `<p class="ra-note" style="color:#c0392b">${esc(d.error)}</p><button type="button" class="ra-btn line" onclick="cohortAdm.open()">‹ 과정 목록</button>`; return; }
         if (!st.cur || st.cur.cohort.cohortId !== cohortId) { st.tt = null; st.week = null; }
+        if (st.restoreWeek) { st.week = st.restoreWeek; st.restoreWeek = null; }
         st.cur = d; st.sheetData = null;
+        saveView();
         draw();
       }
 
@@ -14075,7 +14091,7 @@ async function calAdmInit() {
       function week(step) {
         const weeks = weeksOf(st.cur.cohort, st.tt.items);
         const i = weeks.indexOf(st.week) + step;
-        if (i >= 0 && i < weeks.length) { st.week = weeks[i]; draw(); }
+        if (i >= 0 && i < weeks.length) { st.week = weeks[i]; saveView(); draw(); }
       }
       function itemForm(x) {
         return `<label class="ra-f">날짜<input type="date" id="ttDate" value="${esc(x.date || '')}"></label>
@@ -14142,7 +14158,7 @@ async function calAdmInit() {
         const to = [...document.querySelectorAll('#ttTo input:checked')].map(i => i.value);
         ttAct({ action: 'cohortCopyDay', cohortId: cid(), from: val('ttFrom'), to }, `${to.length}일에 복사했어요.`, btn);
       }
-      function setTab(t) { st.tab = t; draw(); }
+      function setTab(t) { st.tab = t; saveView(); draw(); }
       function draw() {
         const d = st.cur, c = d.cohort, r = root(); if (!r) return;
         const body = { timetable: timetableTab, attend: attendTab, assign: assignTab, exam: examTab, members: membersTab, settings: settingsTab }[st.tab] || timetableTab;
@@ -14550,7 +14566,7 @@ async function calAdmInit() {
         document.head.appendChild(el);
       });
 
-      return { editAtt, setAtt, allPresent, week, addItem, editItem, saveItem, deleteItem, importItems, previewImport, doImport, copyDay, doCopy, setMode,
+      return { mount, editAtt, setAtt, allPresent, week, addItem, editItem, saveItem, deleteItem, importItems, previewImport, doImport, copyDay, doCopy, setMode,
         open, create, addMembers, saveMembers, detail, setTab, allDays, saveRoutine, showQr, createMeeting, link,
         editAssign, saveAssign, toggleAssign, submissions, editExam, saveExam, toggleExam, removeMember,
         saveSettings, setStatus, findChats, connectBot, sendSummary, sheet, excel };
@@ -14560,7 +14576,11 @@ async function calAdmInit() {
     window.Sections.admin = { mount() {
       const t = document.querySelector('#admin-subtabs [data-subtab="cohort"]');
       if (t) t.style.display = isOwnerSession() ? '' : 'none';   // 교육 관리는 7777(앱 관리자)만
-      adminSwitchSubTab('dist');
+      // 2026-10-16(사용자 요청): 새로 고침하면 보던 작은 탭으로(처음이면 '활동')
+      let sub = 'dist';
+      try { sub = sessionStorage.getItem('adm_sub') || 'dist'; } catch (e) {}
+      if ((sub === 'cohort' && !isOwnerSession()) || !document.getElementById('admin-pane-' + sub)) sub = 'dist';
+      adminSwitchSubTab(sub);
     } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
 
   </script>
