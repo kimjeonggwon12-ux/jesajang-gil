@@ -584,7 +584,10 @@ async function attAutoSummary(body) {
   const now = new Date();
   const today = kstDate();
   const closed = [];
-  for (const m of await loadMeetings()) {
+  // 2026-10-16: 5분마다 도므로 마감 대상이 될 수 있는 것만 받는다 — 일반 모임(교육 과정 모임 제외), 아직 집계 전, 최근 이틀
+  const since = kstDate(new Date(Date.now() - 2 * 864e5));
+  const recent = (await run(db().from('attend_meetings').select('*').eq('cohort_id', '').not('status', 'in', '("삭제","집계완료")').gte('date', since).order('id'))).map(toMeeting);
+  for (const m of recent) {
     if (!m.end || !m.date || m.status === '집계완료') continue;
     if (m.cohortId) continue;   // 교육 과정 모임은 과정 방으로 따로(cohort-tick.js)
     const [y, mo, d] = m.date.split('-').map(Number);

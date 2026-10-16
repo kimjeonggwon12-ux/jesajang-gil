@@ -14017,7 +14017,7 @@ async function calAdmInit() {
         if (d.error) { try { sessionStorage.removeItem(VIEW_KEY); } catch (e) {} r.innerHTML = `<p class="ra-note" style="color:#c0392b">${esc(d.error)}</p><button type="button" class="ra-btn line" onclick="cohortAdm.open()">‹ 과정 목록</button>`; return; }
         if (!st.cur || st.cur.cohort.cohortId !== cohortId) { st.tt = null; st.week = null; }
         if (st.restoreWeek) { st.week = st.restoreWeek; st.restoreWeek = null; }
-        st.cur = d; st.sheetData = null;
+        st.cur = d; st.sheetData = d.sheet || null;   // 표 자료는 상세와 함께 한 번에 온다
         saveView();
         draw();
       }
@@ -14328,10 +14328,15 @@ async function calAdmInit() {
           <tr><td class="tm">낸 사람</td>${cols.map(([, i]) => `<td><b>${s.rows.filter(r => r.daily[i]).length}</b>/${s.rows.length}</td>`).join('')}<td></td></tr>
           </tbody></table></div>`;
       }
-      function dayWork(date, memberId) {
+      async function dayWork(date, memberId) {
         const r = st.sheetData.rows.find(x => x.memberId === memberId); if (!r) return;
-        const subs = (st.sheetData.submissions || []).filter(x => x.name === r.name && (x.workDate || String(x.at).slice(0, 10)) === date);
-        openSheet(`${H(`${esc(r.name)} · ${mmdd(date)}(${wdOf(date)}) 과제`)}
+        const head = H(`${esc(r.name)} · ${mmdd(date)}(${wdOf(date)}) 과제`);
+        openSheet(`${head}<p class="ra-note">불러오는 중…</p>`);
+        let res;
+        try { res = await call({ action: 'cohortDayWork', cohortId: cid(), date, targetId: memberId }); } catch (e) { res = { error: e.message }; }
+        if (res.error) { openSheet(`${head}<p class="ra-note" style="color:#c0392b">${esc(res.error)}</p>`); return; }
+        const subs = res.items || [];
+        openSheet(`${head}
           ${subs.length ? subs.map(x => `<div class="ra-log"><b>${esc(x.title)}</b> <small>${esc(x.at)}${x.late ? ' · ⏰ 늦음' : ''}</small><div style="white-space:pre-wrap;margin-top:4px">${esc(x.content)}</div></div>`).join('') : '<p class="ra-note">이날 낸 과제가 없어요.</p>'}`);
       }
 
@@ -14615,10 +14620,10 @@ async function calAdmInit() {
       }
 
       // ── 취합 표 · 엑셀 ──
-      async function loadSheet(btn) {
+      async function loadSheet(btn, content = false) {
         if (btn) btn.disabled = true;
         let res;
-        try { res = await call({ action: 'cohortSheet', cohortId: cid() }); } catch (e) { res = { error: e.message }; }
+        try { res = await call({ action: 'cohortSheet', cohortId: cid(), content }); } catch (e) { res = { error: e.message }; }
         if (btn) btn.disabled = false;
         if (res.error) { toast(res.error, true); return null; }
         return res;
@@ -14641,7 +14646,7 @@ async function calAdmInit() {
       }
       /** 엑셀: 종합 · 출석(날짜별) · 과제(날짜별) · 시험 점수 · 과제 내용 */
       async function excel(btn) {
-        const d = await loadSheet(btn); if (!d) return;
+        const d = await loadSheet(btn, true); if (!d) return;   // 엑셀은 과제 내용까지
         try {
           await loadXlsx();
           const wb = XLSX.utils.book_new();

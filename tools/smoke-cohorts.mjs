@@ -157,6 +157,14 @@ try {
   const ti = sh.dates.indexOf(today);
   ok(rowA.daily[ti].includes('항해자') && rowA.daily[ti].includes('정리') && /출석|지각/.test(rowA.attend[ti]), '취합 표: 오늘 출석·과제 칸 (' + rowA.daily[ti] + ')');
   ok(sh.submissions.length === 4, '과제 내용 목록 4건');
+  // 전송량 점검: 상세에 표 자료가 함께 오고, 과제 내용은 요청할 때만
+  const det = await call('cohortDetail', { cohortId });
+  ok(det.sheet && det.sheet.rows.length === 2 && det.sheet.submissions.length === 0, '상세에 표 자료 함께(과제 목록은 뺌)');
+  ok(sh.submissions.every((x) => x.content === undefined), '취합 표는 과제 내용 없이');
+  const shC = await call('cohortSheet', { cohortId, content: true });
+  ok(shC.submissions.some((x) => x.content === '오늘 항해 내용'), '엑셀용은 과제 내용까지');
+  const dw = await call('cohortDayWork', { cohortId, date: today, targetId: A.memberId });
+  ok(dw.items && dw.items.length === 3 && dw.items.some((x) => x.title === '노트 정리' && x.content), `하루 과제 보기 (${dw.items && dw.items.length}건)`);
   const sum = await call('cohortSendSummary', { cohortId });
   ok(/오늘/.test(sum.text) && /시험 계시록/.test(sum.text), '집계 글');
   console.log(sum.text);

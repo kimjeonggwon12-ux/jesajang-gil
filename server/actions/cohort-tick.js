@@ -44,7 +44,20 @@ export async function cohortTick(only = '') {
 async function tickOne(c, today, hm, sent) {
   {
     if (!c.tgChat) return;   // 방이 연결된 과정만
-    const members = await run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('seq').order('id'));
+    // 5분마다 도는 일이라, 먼저 "지금 보낼 서머리가 있나"만 가볍게 본다 — 없으면 교육생 명단 등은 받지 않는다
+    const [mts, asgs, exs, done] = await Promise.all([
+      c.useAttend ? run(db().from('attend_meetings').select('meeting_id, end_time').eq('cohort_id', c.cohortId).eq('date', today).neq('status', '삭제')) : [],
+      c.useAssign ? run(db().from('cohort_assignments').select('assignment_id, repeat, days, dates, due, due_time').eq('cohort_id', c.cohortId).eq('status', '열림')) : [],
+      run(db().from('cohort_exams').select('exam_id, days, dates, date, due_time, status').eq('cohort_id', c.cohortId).eq('status', '열림')),
+      run(db().from('cohort_summary_log').select('kind, ref_id').eq('cohort_id', c.cohortId).eq('date', today)),
+    ]);
+    const sentAlready = new Set(done.map((x) => x.kind + '|' + x.ref_id));
+    const inPeriod = isClassDay({ ...c, days: '' }, today);
+    const due = mts.some((m) => m.end_time && hm >= plus10(m.end_time) && !sentAlready.has('출석|' + m.meeting_id))
+      || (inPeriod && asgs.map(toAssignment).some((a) => (a.repeat !== '한번' ? assignmentOn(a, today) : a.due === today) && hm >= (a.dueTime || '23:55') && !sentAlready.has('과제|' + a.assignmentId)))
+      || (inPeriod && exs.map(toExam).some((e) => examOn(e, today) && hm >= (e.dueTime || '23:55') && !sentAlready.has('시험|' + e.examId)));
+    if (!due) return;
+    const members = await run(db().from('cohort_members').select('seq, member_id, nid, name, church').eq('cohort_id', c.cohortId).order('seq').order('id'));
     if (!members.length) return;
     const total = members.length;
     const day = `${mmdd(today)}(${weekdayOf(today)})`;   // 보고 맨 위: 교육 이름 + 무엇에 대한 보고

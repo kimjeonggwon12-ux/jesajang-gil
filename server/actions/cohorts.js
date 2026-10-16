@@ -1,7 +1,7 @@
 // 교육 과정(교육생 반): 앱 관리자(7777 = 김정권 계정)만 만들고 교육생을 넣는다.
 // 2026-10-16(2차): 기간·요일이 있는 정기 교육 — 날짜마다 출석 모임(고정 QR 하나로 그날 모임에 출석),
 // 과제는 한번/매일/요일 반복이고 날짜마다 따로 기록, 시험 점수는 텔레그램으로 수시로(cohort-bot.js).
-import { db, run, isDuplicate } from '../lib/db.js';
+import { db, run, selectAll, isDuplicate } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { clip, newId, isDate } from '../lib/input.js';
 import { runLater } from '../lib/background.js';
@@ -9,7 +9,6 @@ import { sendAttendText, sendAttendHtml, sendAttendPhoto } from '../lib/attend-b
 import { scoreBoard, scoreSubjects, attendBoard, assignBoard, timetableBoard, boardHtml, boardPng } from '../lib/cohort-tables.js';
 import { toCohort, findCohort, WEEK, weekdayOf, isClassDay, assignmentOn, cleanDates } from '../lib/cohort.js';
 import { isOwner, memberInfo } from './roster.js';
-import { loadRecords } from './attendance.js';
 
 const DENIED = { error: '교육 과정은 앱 관리자(7777)만 관리할 수 있어요.' };
 const owner = (body) => isOwner(clip(body.memberId, 40));
@@ -104,19 +103,47 @@ async function cohortSave(body) {
   return { ok: true, cohortId };
 }
 
-/** 과정의 모든 자료(상세·집계·취합 표가 같이 쓴다). */
-export async function loadAll(c) {
+// 2026-10-16 점검: 과정 자료는 "쓰는 부분 · 쓰는 칸"만 받는다(Supabase 전송량 아끼기).
+//   과제 제출 내용(content, 최대 4000자)은 엑셀·하루 제출 보기에서만 받는다 — 숫자 셀 때는 빼고.
+export const FULL = ['members', 'assignments', 'meetings', 'subs', 'scores', 'exams', 'schedule', 'records'];
+/** 결과물별로 필요한 부분 */
+export const NEED = {
+  attend: ['members', 'meetings', 'records'],
+  assign: ['members', 'assignments', 'meetings', 'subs'],
+  score: ['members', 'scores'],
+  timetable: ['schedule'],
+  absence: ['members', 'meetings', 'records', 'schedule'],
+};
+const COLS = {
+  members: 'seq, member_id, nid, name, church, added_at',
+  assignments: 'assignment_id, cohort_id, title, guide, due, status, repeat, days, dates, due_time, created_at',
+  meetings: 'meeting_id, title, date, start_time, end_time, status',
+  subs: 'assignment_id, nid, member_id, name, work_date, late, source, submitted_at, updated_at',
+  scores: 'date, subject, nid, name, score',
+  schedule: 'date, start_time, end_time, title, sub, kind',
+};
+/** 과정 자료. parts = 받을 부분(기본 전부), content = 과제 제출 내용까지 */
+export async function loadAll(c, parts = FULL, { content = false } = {}) {
+  const has = (p) => parts.includes(p);
+  const none = Promise.resolve([]);
+  const id = c.cohortId;
   const [members, assignments, meetings, subs, scores, examRows, schedule] = await Promise.all([
-    run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('seq').order('id')),
-    run(db().from('cohort_assignments').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('id')),
-    run(db().from('attend_meetings').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('date').order('start_time')),
-    run(db().from('cohort_submissions').select('*').eq('cohort_id', c.cohortId).order('id')),
-    run(db().from('cohort_scores').select('*').eq('cohort_id', c.cohortId).order('date').order('subject')),
-    run(db().from('cohort_exams').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('id')),
-    run(db().from('cohort_schedule').select('date, start_time, end_time, title, sub, kind').eq('cohort_id', c.cohortId).order('date').order('start_time')),
+    has('members') ? run(db().from('cohort_members').select(COLS.members).eq('cohort_id', id).order('seq').order('id')) : none,
+    has('assignments') ? run(db().from('cohort_assignments').select(COLS.assignments).eq('cohort_id', id).neq('status', '삭제').order('id')) : none,
+    has('meetings') || has('records') ? run(db().from('attend_meetings').select(COLS.meetings).eq('cohort_id', id).neq('status', '삭제').order('date').order('start_time')) : none,
+    has('subs') ? selectAll(() => db().from('cohort_submissions').select(content ? COLS.subs + ', content' : COLS.subs).eq('cohort_id', id).order('id')) : none,
+    has('scores') ? selectAll(() => db().from('cohort_scores').select(COLS.scores).eq('cohort_id', id).order('date').order('subject').order('id')) : none,
+    has('exams') ? run(db().from('cohort_exams').select('*').eq('cohort_id', id).neq('status', '삭제').order('id')) : none,
+    has('schedule') ? run(db().from('cohort_schedule').select(COLS.schedule).eq('cohort_id', id).order('date').order('start_time')) : none,
   ]);
-  const ids = meetings.map((m) => m.meeting_id);
-  const records = ids.length ? await loadRecords((q) => q.in('meeting_id', ids)) : [];
+  let records = [];
+  if (has('records') && meetings.length) {
+    // 출석 기록: 표에 쓰는 칸만(설문 답 등 제외), 같은 모임·같은 사람은 첫 기록만
+    const rows = await selectAll(() => db().from('attend_records').select('id, meeting_id, member_id, nid, late, at').in('meeting_id', meetings.map((m) => m.meeting_id)).neq('record_id', '').order('id'));
+    const seen = new Set();
+    records = rows.filter((r) => { const k = r.meeting_id + '|' + r.nid; if (seen.has(k)) return false; seen.add(k); return true; })
+      .map((r) => ({ meetingId: r.meeting_id, memberId: r.member_id, late: r.late, at: fmtTs(r.at) }));
+  }
   return { members, assignments: assignments.map(toAssignment), meetings, subs, scores, records, examRoutines: examRows.map(toExam), schedule };
 }
 
@@ -240,8 +267,12 @@ async function cohortDetail(body) {
   if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
-  const free = await run(db().from('attend_meetings').select('*').eq('cohort_id', '').neq('status', '삭제').order('id', { ascending: false }).limit(20));
-  return { cohort: c, ...crunch(c, await loadAll(c)), freeMeetings: free.map(toMeetingRow) };
+  const [all, free] = await Promise.all([
+    loadAll(c),
+    run(db().from('attend_meetings').select(COLS.meetings).eq('cohort_id', '').neq('status', '삭제').order('id', { ascending: false }).limit(20)),
+  ]);
+  const d = crunch(c, all);
+  return { cohort: c, ...d, freeMeetings: free.map(toMeetingRow), sheet: buildSheet(c, all, d, false) };
 }
 
 // ── 교육생 ──
@@ -524,7 +555,7 @@ function summaryText(c, d, all) {
 }
 
 /** 결석 누적 줄들(매일 출석 마감 요약에 붙임) */
-export const cohortAbsenceLines = async (c) => absenceLines(await loadAll(c), kstDate());
+export const cohortAbsenceLines = async (c) => absenceLines(await loadAll(c, NEED.absence), kstDate());
 
 export const cohortSummaryText = async (c) => { const all = await loadAll(c); return summaryText(c, crunch(c, all), all); };
 
@@ -541,9 +572,10 @@ function makeBoard(all, c, kind, { subject = '', week = '', maxCols = 12 } = {})
 
 /** 표를 과정 방으로. kind: attend | assign | score | timetable | all(출석부 + 과제 제출 현황 + 과목별 시험 결과 및 순위) */
 export async function sendBoards(c, { kind = 'all', subject = '', week = '', all = null, caption = '' } = {}) {
-  all = all || await loadAll(c);
+  const kinds = kind === 'all' ? ['attend', 'assign', 'score'] : [kind];
+  all = all || await loadAll(c, [...new Set(kinds.flatMap((k) => NEED[k] || []))]);
   const boards = [];
-  for (const k of kind === 'all' ? ['attend', 'assign', 'score'] : [kind]) {
+  for (const k of kinds) {
     if (k === 'score') { for (const s of subject ? [subject] : scoreSubjects(all)) { const b = makeBoard(all, c, 'score', { subject: s }); if (b) boards.push([s, b]); } continue; }
     const b = makeBoard(all, c, k, { week }); if (b) boards.push([k, b]);
   }
@@ -566,8 +598,10 @@ async function cohortBoardImage(body) {
   if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
-  const all = await loadAll(c);
-  const b = makeBoard(all, c, clip(body.kind, 20), { subject: clip(body.subject, 40), week: clip(body.week, 10), maxCols: 31 });
+  const kind = clip(body.kind, 20);
+  if (!NEED[kind]) return { error: '표 종류를 알 수 없어요.' };
+  const all = await loadAll(c, NEED[kind]);
+  const b = makeBoard(all, c, kind, { subject: clip(body.subject, 40), week: clip(body.week, 10), maxCols: 31 });
   if (!b) return { error: '아직 표에 넣을 기록이 없어요.' };
   const png = boardPng(b);
   if (!png) return { error: '이미지를 만들지 못했어요.' };
@@ -622,8 +656,27 @@ async function cohortSheet(body) {
   if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
-  const all = await loadAll(c);
-  const d = crunch(c, all);
+  const all = await loadAll(c, FULL, { content: !!body.content });
+  return buildSheet(c, all, crunch(c, all), true);
+}
+
+/** 그날 한 교육생이 낸 과제(내용 포함) — 앱 과제 현황표 칸 */
+async function cohortDayWork(body) {
+  if (!owner(body)) return DENIED;
+  const c = await findCohort(clip(body.cohortId, 40));
+  if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
+  const date = clip(body.date, 10);
+  if (!isDate(date)) return { error: '날짜가 필요해요.' };
+  const [subs, asg] = await Promise.all([
+    run(db().from('cohort_submissions').select('assignment_id, content, late, source, submitted_at, updated_at, work_date').eq('cohort_id', c.cohortId).eq('nid', normId(body.targetId)).or(`work_date.eq.${date},and(work_date.eq.,submitted_at.gte.${date}T00:00:00,submitted_at.lte.${date}T23:59:59)`).order('id')),
+    run(db().from('cohort_assignments').select('assignment_id, title').eq('cohort_id', c.cohortId)),
+  ]);
+  const title = new Map(asg.map((a) => [a.assignment_id, a.title]));
+  return { items: subs.map((s) => ({ title: title.get(s.assignment_id) || '', content: s.content, late: !!s.late, at: fmtTs(s.updated_at || s.submitted_at) })) };
+}
+
+/** 취합 표 자료. withSubs = 과제 제출 목록까지(엑셀) */
+function buildSheet(c, all, d, withSubs) {
   const today = d.today;
   const nids = all.members.map((m) => m.nid);
   const firsts = [c.startDate, all.meetings[0]?.date, all.subs.map((s) => s.work_date).filter(Boolean).sort()[0]].filter(Boolean).sort();
@@ -672,7 +725,7 @@ async function cohortSheet(body) {
       }
       return out.sort((x, y) => (x.date + x.name < y.date + y.name ? -1 : 1));
     })(),
-    submissions: all.subs.filter((s) => nids.includes(s.nid)).map((s) => {
+    submissions: !withSubs ? [] : all.subs.filter((s) => nids.includes(s.nid)).map((s) => {
       const m = all.members.find((x) => x.nid === s.nid) || {};
       return { ...toSubmission(s), title: asgById.get(s.assignment_id)?.title || '', church: m.church || '' };
     }),
@@ -681,5 +734,5 @@ async function cohortSheet(body) {
 
 export default {
   cohortList, cohortSave, cohortDetail, cohortAddMembers, cohortRemoveMember, cohortMakeSchedule, cohortLinkMeeting, cohortCreateMeeting,
-  cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet, cohortSetAttendance, cohortSendBoard, cohortSetScore, cohortBoardImage, cohortSetOrder,
+  cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet, cohortSetAttendance, cohortSendBoard, cohortSetScore, cohortBoardImage, cohortSetOrder, cohortDayWork,
 };
