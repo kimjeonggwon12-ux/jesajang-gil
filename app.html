@@ -14369,7 +14369,7 @@ async function calAdmInit() {
           ${assignBoard(d)}
           ${EDIT_HEAD}
           <div class="ra-h" style="margin-top:12px">과제 루틴 ${d.assignments.length}개</div>
-          ${d.assignments.map(a => `<div class="ch-card">
+          ${[...d.assignments].sort((x, y) => (x.status === '열림' ? 0 : 1) - (y.status === '열림' ? 0 : 1)).map(a => `<div class="ch-card">
               <div style="display:flex;align-items:center;gap:8px"><b style="flex:1;font-size:16px">${esc(a.title)}</b><span class="ra-tag ${a.status === '열림' ? '' : 'out'}">${a.status === '열림' ? '진행' : '마감'}</span></div>
               <div class="ra-sub">${esc(a.repeatText)}${a.dayCount > 1 ? ` · 지금까지 ${a.dayCount}일` : ''} · 누적 ${a.doneAll}/${a.expectAll || d.total}건</div>
               ${a.guide ? `<div class="ra-diff" style="margin-top:4px;white-space:pre-wrap">${esc(a.guide)}</div>` : ''}
@@ -14377,6 +14377,7 @@ async function calAdmInit() {
                 <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.submissions('${esc(a.assignmentId)}')">${a.repeat === '한번' ? '제출 보기' : '오늘 제출 보기'}</button>
                 <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.editAssign('${esc(a.assignmentId)}')">고치기</button>
                 <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.toggleAssign('${esc(a.assignmentId)}')">${a.status === '열림' ? '마감' : '다시 열기'}</button>
+                <button type="button" class="ra-btn line" style="${SMALL};color:#c0392b;border-color:#f0b9b3" onclick="cohortAdm.removeAssign('${esc(a.assignmentId)}')">🗑 지우기</button>
               </div></div>`).join('') || '<p class="ra-note">아직 과제가 없어요. 아래에서 루틴을 만드세요.</p>'}
           <div class="ra-h" id="chAsHead">새 과제 루틴</div>
           <input type="hidden" id="chAsId">
@@ -14627,6 +14628,12 @@ async function calAdmInit() {
         if (meetingId) act({ action: 'cohortLinkMeeting', cohortId: cid(), meetingId, on }, on ? '출석 모임을 연결했어요.' : '연결을 풀었어요.');
       }
       const createMeeting = btn => act({ action: 'cohortCreateMeeting', cohortId: cid(), meeting: { date: val('chMtDate'), title: val('chMtTitle'), start: val('chMtStart'), end: val('chMtEnd') } }, '출석 모임을 추가했어요.', btn);
+      /** 과제 루틴 지우기(두 번 누르면) — 표·집계에서 빠짐. 이미 낸 기록은 남아 있음 */
+      function removeAssign(assignmentId) {
+        const a = st.cur.assignments.find(x => x.assignmentId === assignmentId); if (!a) return;
+        if (!confirmTwice('delAs' + assignmentId, `'${a.title}' 과제를 지우려면 한 번 더 누르세요.`)) return;
+        act({ action: 'cohortSaveAssignment', cohortId: cid(), assignment: { ...a, status: '삭제' } }, '과제 루틴을 지웠어요.');
+      }
       function toggleAssign(assignmentId) {
         const a = st.cur.assignments.find(x => x.assignmentId === assignmentId); if (!a) return;
         act({ action: 'cohortSaveAssignment', cohortId: cid(), assignment: { ...a, status: a.status === '열림' ? '닫힘' : '열림' } }, a.status === '열림' ? '마감했어요.' : '다시 열었어요.');
@@ -14720,7 +14727,7 @@ async function calAdmInit() {
       }
       return { mount, moveMember, showImage, sendBoard, dayWork, editScore, saveScore, editAtt, setAtt, allPresent, week, addItem, editItem, saveItem, deleteItem, importItems, previewImport, doImport, copyDay, doCopy, setMode,
         open, create, addMembers, saveMembers, detail, setTab, allDays, saveRoutine, showQr, createMeeting, link,
-        editAssign, saveAssign, toggleAssign, submissions, editExam, saveExam, toggleExam, removeMember,
+        editAssign, saveAssign, toggleAssign, removeAssign, submissions, editExam, saveExam, toggleExam, removeMember,
         saveSettings, setStatus, findChats, connectBot, sendSummary, sheet, excel };
     })();
     window.cohortAdm = cohortAdm;
