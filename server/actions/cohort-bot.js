@@ -56,7 +56,7 @@ async function cohortOfChat(chatId) {
   return row ? toCohort(row) : null;
 }
 
-const loadMembers = (cohortId) => run(db().from('cohort_members').select('*').eq('cohort_id', cohortId));
+const loadMembers = (cohortId) => run(db().from('cohort_members').select('*').eq('cohort_id', cohortId).order('seq').order('id'));
 
 /** 글 앞쪽에서 교육생 이름을 찾는다(긴 이름부터). 찾으면 { member, rest }. */
 function nameAtStart(text, members) {

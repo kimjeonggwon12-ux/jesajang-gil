@@ -14251,7 +14251,7 @@ async function calAdmInit() {
         const absList = (s.absences || []);
         return `<p class="ra-note" style="margin-top:6px">칸을 누르면 출석·지각·부분 결석·결석으로 바꾸고, 날짜를 두 번 누르면 그날 전원 출석으로 넣습니다.</p>
           <div class="ch-tt ch-att"><table><thead><tr><th style="position:sticky;left:0;z-index:2">이름</th>${cols.map(([x]) => `<th class="${x === d.today ? 'today' : ''}" style="cursor:pointer" onclick="cohortAdm.allPresent('${x}')">${mmdd(x)}<br>${wdOf(x)}</th>`).join('')}<th>합계</th></tr></thead><tbody>
-          ${s.rows.map(r => `<tr><td class="tm" style="text-align:left">${esc(r.name)}<br><small style="font-weight:400">${esc(r.church)}</small></td>${cols.map(([x, i]) => `<td style="cursor:pointer" onclick="cohortAdm.editAtt('${x}','${esc(r.memberId)}')">${mark(r.attend[i])}</td>`).join('')}<td><b>${r.attended}/${r.held}</b></td></tr>`).join('')}
+          ${s.rows.map(r => `<tr><td class="tm" style="text-align:left">${r.seq ? r.seq + '. ' : ''}${esc(r.name)}<br><small style="font-weight:400">${esc(r.church)}</small></td>${cols.map(([x, i]) => `<td style="cursor:pointer" onclick="cohortAdm.editAtt('${x}','${esc(r.memberId)}')">${mark(r.attend[i])}</td>`).join('')}<td><b>${r.attended}/${r.held}</b></td></tr>`).join('')}
           <tr><td class="tm">인원</td>${cols.map(([, i]) => `<td><b>${s.rows.filter(r => r.attend[i]).length}</b>/${s.rows.length}</td>`).join('')}<td></td></tr>
           </tbody></table></div>
           <div class="ra-h">결석 · 빠진 교육 <small style="font-weight:400;color:#6b7772">(일정표 기준)</small></div>
@@ -14315,7 +14315,7 @@ async function calAdmInit() {
         if (!cols.length) return '<p class="ra-note">아직 과제 날이 없어요. 아래에서 과제 루틴을 만드세요.</p>';
         return `<p class="ra-note" style="margin-top:6px">칸을 누르면 그날 낸 내용을 봅니다. (늦음) = 마감 뒤에 냄</p>
           <div class="ch-tt ch-att"><table><thead><tr><th style="position:sticky;left:0;z-index:2">이름</th>${cols.map(([x]) => `<th class="${x === d.today ? 'today' : ''}">${mmdd(x)}<br>${wdOf(x)}</th>`).join('')}<th>합계</th></tr></thead><tbody>
-          ${s.rows.map(r => `<tr><td class="tm" style="text-align:left">${esc(r.name)}<br><small style="font-weight:400">${esc(r.church)}</small></td>${cols.map(([x, i]) => {
+          ${s.rows.map(r => `<tr><td class="tm" style="text-align:left">${r.seq ? r.seq + '. ' : ''}${esc(r.name)}<br><small style="font-weight:400">${esc(r.church)}</small></td>${cols.map(([x, i]) => {
               const v = r.daily[i];
               return `<td style="cursor:pointer;font-size:11.5px" onclick="cohortAdm.dayWork('${x}','${esc(r.memberId)}')">${v ? `<span style="color:#00875f">${esc(v)}</span>` : '<span style="color:#c0392b">×</span>'}</td>`;
             }).join('')}<td><b>${r.submitted}/${r.expected}</b></td></tr>`).join('')}
@@ -14393,7 +14393,7 @@ async function calAdmInit() {
           const list = s.rows.map(r => {
             const vals = cols.map(([, i]) => r.scores[i]).filter(v => v != null);
             return { r, avg: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null, taken: vals.length };
-          }).sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1) || a.r.name.localeCompare(b.r.name));
+          }).sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1) || (a.r.seq || 0) - (b.r.seq || 0));
           let rank = 0, prev = null;
           list.forEach((x, i) => { if (x.avg == null) x.rank = '-'; else { if (x.avg !== prev) rank = i + 1; prev = x.avg; x.rank = rank; } });
           const medal = { 1: '#ffe8a3', 2: '#e6e9ec', 3: '#f3d9c6' };
@@ -14473,12 +14473,14 @@ async function calAdmInit() {
       function membersTab(d, c) {
         return `
           <div class="ra-h">교육생 ${d.total}명</div>
-          ${d.members.map(m => `<div class="ra-log" style="display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0"><b>${esc(m.name)}</b> <small>${esc(m.church)} · ${esc(m.memberId)}</small>
+          ${d.members.map((m, i) => `<div class="ra-log" style="display:flex;align-items:center;gap:8px">
+            <span style="display:flex;flex-direction:column;gap:2px"><button type="button" class="ra-btn line" style="height:24px;padding:0 8px;font-size:11px" ${i ? '' : 'disabled'} onclick="cohortAdm.moveMember(${i}, -1)">▲</button><button type="button" class="ra-btn line" style="height:24px;padding:0 8px;font-size:11px" ${i < d.members.length - 1 ? '' : 'disabled'} onclick="cohortAdm.moveMember(${i}, 1)">▼</button></span>
+            <span style="flex:1;min-width:0"><b>${i + 1}. ${esc(m.name)}</b> <small>${esc(m.church)} · ${esc(m.memberId)}</small>
               <div class="ra-diff">출석 ${m.attended}/${m.held} · 과제 ${m.submitted}/${m.expected}</div></span>
             <button type="button" class="ra-btn warn" style="${SMALL}" data-label="빼기" onclick="cohortAdm.removeMember('${esc(m.memberId)}', this)">빼기</button></div>`).join('') || '<p class="ra-note">아직 교육생이 없어요. 아래 [+ 교육생 추가]로 넣으세요.</p>'}
           ${EDIT_HEAD}
           <div class="ra-acts" style="margin-top:12px"><button type="button" class="ra-btn" onclick="cohortAdm.addMembers('${esc(c.cohortId)}')">+ 교육생 추가</button></div>
-          <p class="ra-note">교회·이름·고유번호를 한 명씩 또는 여러 줄로 붙여 넣어 등록합니다.</p>`;
+          <p class="ra-note">교회·이름·고유번호를 한 명씩 또는 여러 줄로 붙여 넣어 등록합니다. 새 교육생은 맨 뒤 번호가 되고, ▲▼로 순서를 바꿉니다. 명단·출석표·과제표·엑셀은 이 번호순, 시험 성적은 순위순입니다.</p>`;
       }
 
       // ⑤ 설정
@@ -14637,11 +14639,11 @@ async function calAdmInit() {
           const wb = XLSX.utils.book_new();
           const add = (rows, name) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
           const dayHead = x => `${mmdd(x)}(${'일월화수목금토'[new Date(x + 'T00:00:00Z').getUTCDay()]})`;
-          add([['교회', '이름', '고유번호', '출석', '과제', ...d.assignments.map(a => '과제 ' + a.title), ...d.exams.map(examLabel)],
-            ...d.rows.map(r => [r.church, r.name, r.memberId, `${r.attended}/${r.held}`, `${r.submitted}/${r.expected}`, ...r.perAssign, ...r.scores.map(v => v == null ? '' : v)])], '종합');
+          add([['번호', '교회', '이름', '고유번호', '출석', '과제', ...d.assignments.map(a => '과제 ' + a.title), ...d.exams.map(examLabel)],
+            ...d.rows.map(r => [r.seq, r.church, r.name, r.memberId, `${r.attended}/${r.held}`, `${r.submitted}/${r.expected}`, ...r.perAssign, ...r.scores.map(v => v == null ? '' : v)])], '종합');
           const cls = d.dates.map((x, i) => [x, i]).filter(([x]) => d.classDates.includes(x));
-          add([['교회', '이름', ...cls.map(([x]) => dayHead(x))], ...d.rows.map(r => [r.church, r.name, ...cls.map(([, i]) => r.attend[i] || '결석')])], '출석(날짜별)');
-          add([['교회', '이름', ...d.dates.map(dayHead)], ...d.rows.map(r => [r.church, r.name, ...r.daily])], '과제(날짜별)');
+          add([['번호', '교회', '이름', ...cls.map(([x]) => dayHead(x))], ...d.rows.map(r => [r.seq, r.church, r.name, ...cls.map(([, i]) => r.attend[i] || '결석')])], '출석(날짜별)');
+          add([['번호', '교회', '이름', ...d.dates.map(dayHead)], ...d.rows.map(r => [r.seq, r.church, r.name, ...r.daily])], '과제(날짜별)');
           const sc = [['날짜', '과목', '교회', '이름', '점수']];
           d.exams.forEach((e, i) => d.rows.forEach(r => { if (r.scores[i] != null) sc.push([e.date, e.subject, r.church, r.name, r.scores[i]]); }));
           add(sc, '시험 점수');
@@ -14658,7 +14660,14 @@ async function calAdmInit() {
         document.head.appendChild(el);
       });
 
-      return { mount, showImage, sendBoard, dayWork, editScore, saveScore, editAtt, setAtt, allPresent, week, addItem, editItem, saveItem, deleteItem, importItems, previewImport, doImport, copyDay, doCopy, setMode,
+      /** 교육생 번호 순서 바꾸기(▲▼) */
+      function moveMember(i, step) {
+        const ids = st.cur.members.map(m => m.memberId);
+        const j = i + step; if (j < 0 || j >= ids.length) return;
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+        act({ action: 'cohortSetOrder', cohortId: cid(), memberIds: ids }, null);
+      }
+      return { mount, moveMember, showImage, sendBoard, dayWork, editScore, saveScore, editAtt, setAtt, allPresent, week, addItem, editItem, saveItem, deleteItem, importItems, previewImport, doImport, copyDay, doCopy, setMode,
         open, create, addMembers, saveMembers, detail, setTab, allDays, saveRoutine, showQr, createMeeting, link,
         editAssign, saveAssign, toggleAssign, submissions, editExam, saveExam, toggleExam, removeMember,
         saveSettings, setStatus, findChats, connectBot, sendSummary, sheet, excel };

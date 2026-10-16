@@ -19,7 +19,7 @@ const mmdd = (d) => String(d).slice(5).replace('-', '/');
 const REPEATS = ['한번', '매일', '요일', '날짜'];
 const datesText = (list) => list.map((d) => mmdd(d)).join('·');
 
-const toMember = (r) => ({ memberId: r.member_id, name: r.name, church: r.church, addedAt: fmtTs(r.added_at) });
+const toMember = (r) => ({ seq: r.seq || 0, memberId: r.member_id, name: r.name, church: r.church, addedAt: fmtTs(r.added_at) });
 export const toAssignment = (r) => ({
   assignmentId: r.assignment_id, cohortId: r.cohort_id, title: r.title, guide: r.guide, due: r.due, status: r.status,
   repeat: r.repeat || '한번', days: r.days || '', dates: r.dates || '', dueTime: r.due_time || '', createdAt: fmtTs(r.created_at).slice(0, 10),
@@ -107,7 +107,7 @@ async function cohortSave(body) {
 /** 과정의 모든 자료(상세·집계·취합 표가 같이 쓴다). */
 export async function loadAll(c) {
   const [members, assignments, meetings, subs, scores, examRows, schedule] = await Promise.all([
-    run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('church').order('name')),
+    run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('seq').order('id')),
     run(db().from('cohort_assignments').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('id')),
     run(db().from('attend_meetings').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('date').order('start_time')),
     run(db().from('cohort_submissions').select('*').eq('cohort_id', c.cohortId).order('id')),
@@ -253,6 +253,8 @@ async function cohortAddMembers(body) {
   if (!c) return { error: '교육 과정을 먼저 고르거나 만들어 주세요.' };
   const list = (Array.isArray(body.members) ? body.members : []).slice(0, 500);
   const added = [], skipped = [];
+  const [last] = await run(db().from('cohort_members').select('seq').eq('cohort_id', c.cohortId).order('seq', { ascending: false }).limit(1));
+  let seq = last ? last.seq : 0;
   for (const raw of list) {
     const p = { church: clip(raw?.church, 40), name: clip(raw?.name, 30), memberId: clip(raw?.memberId, 40) };
     if (!p.name || p.memberId.replace(/\D/g, '').length < 5) { skipped.push({ ...p, why: '이름·고유번호 확인' }); continue; }
@@ -261,8 +263,9 @@ async function cohortAddMembers(body) {
       p.church = teacher ? [teacher.dept, teacher.region].filter(Boolean).join(' ') : '';
     }
     const { error } = await db().from('cohort_members').insert({
-      cohort_id: c.cohortId, member_id: p.memberId, name: p.name, church: p.church, added_by: clip(body.memberId, 40), added_at: kstDateTime(),
+      cohort_id: c.cohortId, member_id: p.memberId, name: p.name, church: p.church, added_by: clip(body.memberId, 40), added_at: kstDateTime(), seq: seq + 1,
     });
+    if (!error) seq++;
     if (error) { skipped.push({ ...p, why: isDuplicate(error) ? '이미 등록됨' : error.message }); continue; }
     added.push(p);
     await logChange(body, '교육생 추가', p, { 교육: c.title, 교회: p.church });
@@ -271,6 +274,18 @@ async function cohortAddMembers(body) {
     runLater(sendAttendText(`🎓 [${c.title}] 교육생 ${added.length}명 등록\n${added.map((p) => `• ${p.name}${p.church ? ' (' + p.church + ')' : ''}`).join('\n')}`, c.tgChat));
   }
   return { ok: true, added: added.length, skipped };
+}
+
+/** 교육생 번호 순서: memberIds 를 1번부터 차례로 */
+async function cohortSetOrder(body) {
+  if (!owner(body)) return DENIED;
+  const c = await findCohort(clip(body.cohortId, 40));
+  if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
+  const ids = (Array.isArray(body.memberIds) ? body.memberIds : []).map((x) => normId(x));
+  const members = await run(db().from('cohort_members').select('id, nid').eq('cohort_id', c.cohortId).order('seq').order('id'));
+  const ordered = [...ids.map((nid) => members.find((m) => m.nid === nid)).filter(Boolean), ...members.filter((m) => !ids.includes(m.nid))];
+  for (const [i, m] of ordered.entries()) await run(db().from('cohort_members').update({ seq: i + 1 }).eq('id', m.id));
+  return { ok: true, count: ordered.length };
 }
 
 async function cohortRemoveMember(body) {
@@ -445,7 +460,7 @@ async function cohortSubmissions(body) {
   const date = a.repeat === '한번' ? '' : (isDate(clip(body.date, 10)) ? clip(body.date, 10) : kstDate());
   const [subs, members] = await Promise.all([
     run(db().from('cohort_submissions').select('*').eq('assignment_id', id).eq('work_date', date).order('id')),
-    run(db().from('cohort_members').select('*').eq('cohort_id', row.cohort_id).order('church').order('name')),
+    run(db().from('cohort_members').select('*').eq('cohort_id', row.cohort_id).order('seq').order('id')),
   ]);
   const done = new Set(subs.map((s) => s.nid));
   return { assignment: { ...a, repeatText: repeatText(a) }, date, submissions: subs.map(toSubmission), missing: members.filter((m) => !done.has(m.nid)).map(toMember) };
@@ -653,5 +668,5 @@ async function cohortSheet(body) {
 
 export default {
   cohortList, cohortSave, cohortDetail, cohortAddMembers, cohortRemoveMember, cohortMakeSchedule, cohortLinkMeeting, cohortCreateMeeting,
-  cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet, cohortSetAttendance, cohortSendBoard, cohortSetScore, cohortBoardImage,
+  cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet, cohortSetAttendance, cohortSendBoard, cohortSetScore, cohortBoardImage, cohortSetOrder,
 };

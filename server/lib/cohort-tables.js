@@ -23,8 +23,8 @@ export function scoreBoard(all, subject, maxCols = 12, cohortTitle = '') {
   const of = new Map(scores.map((s) => [s.date + '|' + s.nid, Number(s.score)]));
   const list = all.members.map((m) => {
     const vals = dates.map((d) => of.get(d + '|' + m.nid)).filter((v) => v != null);
-    return { name: m.name, church: m.church, avg: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null, taken: vals.length, cells: cols.map((d) => of.get(d + '|' + m.nid)) };
-  }).sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1) || a.name.localeCompare(b.name));
+    return { seq: m.seq || 0, name: m.name, church: m.church, avg: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null, taken: vals.length, cells: cols.map((d) => of.get(d + '|' + m.nid)) };
+  }).sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1) || a.seq - b.seq);   // 같은 점수면 교육생 번호순
   let rank = 0, prev = null;
   list.forEach((r, i) => { if (r.avg == null) r.rank = '-'; else { if (r.avg !== prev) rank = i + 1; prev = r.avg; r.rank = rank; } });
   const missing = list.flatMap((r) => r.cells.map((v, i) => (v == null ? `${r.name} ${mmdd(cols[i])}` : null)).filter(Boolean));
@@ -63,17 +63,17 @@ export function attendBoard(all, today, maxCols = 12, cohortTitle = '') {
     if (/결석|조퇴|외출/.test(r.late || '')) return '부분';
     return '출석';
   };
-  const head = ['이름', ...cols.map((d) => `${mmdd(d)}(${wd(d)})`), '출석'];
+  const head = ['번호', '이름', ...cols.map((d) => `${mmdd(d)}(${wd(d)})`), '출석'];
   const rows = all.members.map((m) => {
     const cs = days.map((d) => cell(d, m.nid));
-    return [m.name, ...cs.slice(-cols.length).map((x) => (x === '출석' ? '○' : x)), `${cs.filter((x) => x !== '결석').length}/${days.length}`];
+    return [m.seq || '', m.name, ...cs.slice(-cols.length).map((x) => (x === '출석' ? '○' : x)), `${cs.filter((x) => x !== '결석').length}/${days.length}`];
   });
-  rows.push(['인원', ...cols.map((d) => `${all.members.filter((m) => cell(d, m.nid) !== '결석').length}/${all.members.length}`), '']);
+  rows.push(['', '인원', ...cols.map((d) => `${all.members.filter((m) => cell(d, m.nid) !== '결석').length}/${all.members.length}`), '']);
   const COLOR = { '○': { color: '#00875f', bold: true }, 지각: { fill: '#fff4cc', color: '#8a6200' }, 부분: { fill: '#fde3cf', color: '#b5530b' }, 결석: { fill: '#fde8e8', color: '#c0392b', bold: true } };
   return {
     title: `📋 출석표`,
     sub: `${cohortTitle ? cohortTitle + ' · ' : ''}${mmdd(cols[0])}~${mmdd(cols.at(-1))}${days.length > cols.length ? ` (최근 ${cols.length}일)` : ''}`,
-    head, rows, align: ['left'],
+    head, rows, align: ['center', 'left'],
     style: (r, c, v) => (r === rows.length - 1 ? { bold: true } : COLOR[v] || null),
     foot: '○ 출석 · 지각 · 부분(부분 결석) · 결석',
   };

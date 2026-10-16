@@ -44,7 +44,7 @@ export async function cohortTick(only = '') {
 async function tickOne(c, today, hm, sent) {
   {
     if (!c.tgChat) return;   // 방이 연결된 과정만
-    const members = await run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('church').order('name'));
+    const members = await run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('seq').order('id'));
     if (!members.length) return;
     const total = members.length;
     const title = `[${c.title}] ${mmdd(today)}(${weekdayOf(today)})`;
