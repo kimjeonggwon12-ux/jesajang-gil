@@ -14,7 +14,7 @@ const esc = (s) => fixGlyphs(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
 const textW = (s, size) => [...fixGlyphs(s)].reduce((n, ch) => n + (/[ᄀ-ᇿ　-鿿가-힣＀-￯]/.test(ch) ? 1 : 0.58), 0) * size;
 
 /**
- * b = { title, sub?, head:[..], rows:[[..]], align?:['left'|'center'|'right'..], style?(r, c, value) → {fill, color, bold}, foot? }
+ * b = { title, sub?, groups?:[{label, span}] (머리 위 묶음 줄), head:[..], rows:[[..]], align?:['left'|'center'|'right'..], style?(r, c, value) → {fill, color, bold}, foot? }
  * 돌려줌: PNG Buffer
  */
 export function tablePng(b) {
@@ -25,11 +25,21 @@ export function tablePng(b) {
     ...b.rows.map((r) => textW(r[c], F) + CELLPAD * 2),
     44,
   ));
+  // 묶음 머리 글자가 칸보다 넓으면 그 묶음 칸들을 고르게 넓힘
+  if (b.groups) {
+    let c0 = 0;
+    for (const g of b.groups) {
+      const need = textW(g.label, F) + CELLPAD * 2, have = colW.slice(c0, c0 + g.span).reduce((a, v) => a + v, 0);
+      if (g.label && need > have) for (let i = c0; i < c0 + g.span; i++) colW[i] += (need - have) / g.span;
+      c0 += g.span;
+    }
+  }
   const tableW = colW.reduce((a, x) => a + x, 0);
   const titleH = 34 + (b.sub ? 24 : 0);
   const footLines = b.foot ? String(b.foot).match(/.{1,60}(\s|$)|.{1,60}/g).map((x) => x.trim()).filter(Boolean) : [];
   const W = Math.max(tableW, textW(b.title, 22), ...footLines.map((l) => textW(l, 14))) + PAD * 2;
-  const tableTop = PAD + titleH + 6;
+  const GH = b.groups ? H : 0;   // 묶음 머리 줄
+  const tableTop = PAD + titleH + 6 + GH;
   const Hgt = tableTop + H * (b.rows.length + 1) + (footLines.length ? 14 + footLines.length * 20 : 0) + PAD;
   const xs = colW.reduce((a, w, i) => (a.push(i ? a[i - 1] + colW[i - 1] : PAD), a), []);
   const align = b.align || [];
@@ -44,6 +54,19 @@ export function tablePng(b) {
   const title = String(b.title).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').trim();   // 글꼴에 없는 이모지는 뺌
   parts.push(`<text x="${PAD}" y="${PAD + 24}" font-size="22" font-weight="700" fill="#111">${esc(title)}</text>`);
   if (b.sub) parts.push(`<text x="${PAD}" y="${PAD + 50}" font-size="14" fill="#6b7772">${esc(b.sub)}</text>`);
+  // 묶음 머리 줄(날짜 등)
+  if (b.groups) {
+    let c0 = 0;
+    for (const g of b.groups) {
+      const x0 = xs[c0], w = colW.slice(c0, c0 + g.span).reduce((a2, v) => a2 + v, 0);
+      if (g.label) {
+        parts.push(`<rect x="${x0}" y="${tableTop - GH}" width="${w}" height="${GH}" fill="#0b8a68"/>`);
+        parts.push(`<text x="${x0 + w / 2}" y="${tableTop - GH + GH / 2 + F * 0.36}" font-size="${F}" text-anchor="middle" fill="#ffffff" font-weight="700">${esc(g.label)}</text>`);
+        parts.push(`<line x1="${x0}" x2="${x0}" y1="${tableTop - GH}" y2="${tableTop}" stroke="#ffffff"/><line x1="${x0 + w}" x2="${x0 + w}" y1="${tableTop - GH}" y2="${tableTop}" stroke="#ffffff"/>`);
+      }
+      c0 += g.span;
+    }
+  }
   // 머리줄
   parts.push(`<rect x="${PAD}" y="${tableTop}" width="${tableW}" height="${H}" fill="#00AE82"/>`);
   b.head.forEach((h, c) => parts.push(cellText(h, c, tableTop, { color: '#ffffff', bold: true })));

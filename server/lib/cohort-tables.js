@@ -86,30 +86,55 @@ export function attendBoard(all, today, maxCols = 12, cohortTitle = '') {
   };
 }
 
-/** 과제 제출 현황 — 교육생 × 과제 날(오늘까지, 최근 maxCols) — 칸에 낸 과제(짧은 이름), 낼 게 있는데 안 냈으면 × */
+/** 과제 제출 현황 — 시험 결과표와 같은 꼴: 교육생 × 과제 날(위 칸 = 날짜, 아래 칸 = 그날 낼 과제마다 O/X).
+ *  오늘까지 안 냈으면 X, 아직 안 온 날은 빈칸(미리 냈으면 O). 끝에 과제마다 "낸 수/전체"와 미제출(오늘까지) 수. */
 export function assignBoard(all, today, maxCols = 12, cohortTitle = '') {
+  const asg = all.assignments.filter((a) => a.status !== '삭제' && !(a.repeat === '한번' && a.status === '닫힘'));
+  const dueOn = (a, d) => (a.repeat === '날짜' ? String(a.dates || '').split(',').includes(d)
+    : a.repeat === '한번' ? a.due === d
+    : assignmentOn(a, d) && d >= (a.createdAt || ''));
   const days = [...new Set([
-    ...all.subs.map((s) => s.work_date).filter(Boolean),
+    ...asg.filter((a) => a.repeat === '날짜').flatMap((a) => String(a.dates || '').split(',')),
+    ...asg.filter((a) => a.repeat === '한번' && a.due).map((a) => a.due),
     ...all.meetings.map((m) => m.date),
-  ])].filter((d) => d <= today && all.assignments.some((a) => assignmentOn(a, d) && (a.repeat === '날짜' || a.repeat === '한번' || d >= (a.createdAt || '')))).sort();
+    ...all.subs.map((s) => s.work_date),
+  ].filter(Boolean))].filter((d) => asg.some((a) => dueOn(a, d))).sort();
   if (!days.length) return null;
-  const cols = days.slice(-maxCols);
-  const short = (t) => String(t).split(/\s+/).at(-1);
-  const titleOf = new Map(all.assignments.map((a) => [a.assignmentId, short(a.title)]));
-  const by = new Map();
-  for (const s of all.subs) { const k = s.work_date + '|' + s.nid; if (!by.has(k)) by.set(k, []); by.get(k).push(titleOf.get(s.assignment_id) || '?'); }
-  const head = ['번호', '이름', ...cols.map((d) => `${mmdd(d)}(${wd(d)})`), '낸 날'];
+  // 짧은 이름: 앞 두 글자(겹치면 전체)
+  const two = (t) => [...String(t).replace(/s/g, '')].slice(0, 2).join('');
+  const label = new Map(asg.map((a) => [a.assignmentId, asg.filter((x) => two(x.title) === two(a.title)).length > 1 ? String(a.title) : two(a.title)]));
+  let cols = days.flatMap((d) => asg.filter((a) => dueOn(a, d)).map((a) => ({ d, a })));
+  const cut = cols.length > maxCols * 2;
+  if (cut) cols = cols.slice(-maxCols * 2);
+  const done = new Set(all.subs.map((s) => s.assignment_id + '|' + (s.work_date || '') + '|' + s.nid));
+  const has = (a, d, nid) => done.has(a.assignmentId + '|' + d + '|' + nid) || (a.repeat === '한번' && done.has(a.assignmentId + '||' + nid));
+  const head = ['번호', '이름', ...cols.map((x) => label.get(x.a.assignmentId)), ...asg.map((a) => label.get(a.assignmentId)), '미제출'];
+  const groups = [{ label: '', span: 2 }];
+  for (const x of cols) { const g = `${mmdd(x.d)}(${wd(x.d)})`; if (groups.at(-1).label === g) groups.at(-1).span++; else groups.push({ label: g, span: 1 }); }
+  groups.push({ label: '낸 수 / 전체', span: asg.length }, { label: '', span: 1 });
+  const missOf = [];
   const rows = all.members.map((m) => {
-    const cells = cols.map((d) => (by.get(d + '|' + m.nid) || []).join('·') || '×');
-    return [m.seq || '', m.name, ...cells, `${days.filter((d) => by.has(d + '|' + m.nid)).length}/${days.length}`];
+    const cells = cols.map((x) => (has(x.a, x.d, m.nid) ? 'O' : x.d <= today ? 'X' : ''));
+    const tot = asg.map((a) => { const ds = days.filter((d) => dueOn(a, d)); return `${ds.filter((d) => has(a, d, m.nid)).length}/${ds.length}`; });
+    const miss = days.flatMap((d) => (d <= today ? asg.filter((a) => dueOn(a, d) && !has(a, d, m.nid)).map((a) => `${mmdd(d)} ${label.get(a.assignmentId)}`) : []));
+    if (miss.length) missOf.push(`${m.name} ${miss.length}개`);
+    return [m.seq || '', m.name, ...cells, ...tot, miss.length ? `${miss.length}개` : '0'];
   });
-  rows.push(['', '낸 사람', ...cols.map((d) => `${all.members.filter((m) => by.has(d + '|' + m.nid)).length}/${all.members.length}`), '']);
+  rows.push(['', '낸 사람', ...cols.map((x) => `${all.members.filter((m) => has(x.a, x.d, m.nid)).length}`), ...asg.map(() => ''), '']);
+  const first = 2, totFrom = 2 + cols.length;
   return {
     title: `${cohortTitle ? cohortTitle + ' ' : ''}과제 제출 현황`,
-    sub: `${mmdd(cols[0])}~${mmdd(cols.at(-1))}${days.length > cols.length ? ` (최근 ${cols.length}일)` : ''} · 칸 = 그날 낸 과제`,
-    head, rows, align: ['center', 'left'],
-    style: (r, c, v) => (r === rows.length - 1 ? { bold: true } : v === '×' ? { fill: '#fde8e8', color: '#c0392b', bold: true } : c > 1 && c < head.length - 1 ? { color: '#00875f' } : null),
-    foot: '× = 낼 과제가 있었는데 안 냄',
+    sub: `${mmdd(cols[0].d)}~${mmdd(cols.at(-1).d)} · ${today.slice(5).replace('-', '/')} 기준${cut ? ' (최근만 표시)' : ''} · ${asg.map((a) => `${label.get(a.assignmentId)} = ${a.title}`).join(', ')}`,
+    groups, head, rows, align: ['center', 'left'],
+    style: (r, c, v) => {
+      if (r === rows.length - 1) return { bold: true, fill: c >= first && c < totFrom ? '#e3f6ef' : null, color: '#0b5e44' };
+      if (v === 'O') return { color: '#00875f', bold: true };
+      if (v === 'X') return { fill: '#fde8e8', color: '#c0392b', bold: true };
+      if (c >= totFrom && c < head.length - 1) return { bold: true };
+      if (c === head.length - 1 && v !== '0') return { color: '#c0392b', bold: true };
+      return null;
+    },
+    foot: 'O 제출 · X 미제출 · 빈칸 = 아직 날이 안 옴' + (missOf.length ? ` / 미제출(오늘까지): ${missOf.join(', ')}` : ''),
   };
 }
 
@@ -141,6 +166,7 @@ export function timetableBoard(all, weekStart, cohortTitle = '', classDays = '')
 
 /** 글 표(<pre>) — 이미지를 못 만들 때 */
 export function boardHtml(b, before = '') {
+  if (b.groups) { const g = b.groups.flatMap((x) => Array(x.span).fill(x.label)); b = { ...b, head: b.head.map((h, i) => (g[i] && g[i] !== '낸 수 / 전체' ? String(g[i]).slice(0, 5) + ' ' : '') + h) }; }
   const w = b.head.map((h, c) => Math.max(width(h), ...b.rows.map((r) => width(r[c]))));
   const line = (r) => r.map((v, c) => ((b.align || [])[c] === 'left' ? padR(v, w[c]) : padL(v, w[c]))).join(' ');
   return (before ? escHtml(before) + '\n\n' : '') + `<b>${escHtml(b.title)}</b> ${escHtml(b.sub || '')}\n<pre>${escHtml([line(b.head), ...b.rows.map(line)].join('\n'))}</pre>` + (b.foot ? `\n${escHtml(b.foot)}` : '');
