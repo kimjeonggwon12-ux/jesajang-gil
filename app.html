@@ -14415,7 +14415,7 @@ async function calAdmInit() {
             ${list.map(x => `<tr><td style="cursor:default;background:${medal[x.rank] || 'transparent'};font-weight:800">${x.rank}</td><td class="tm" style="text-align:left">${esc(x.r.name)}<br><small style="font-weight:400">${esc(x.r.church)}</small></td>
               ${cols.map(([e, i]) => { const v = x.r.scores[i]; return `<td style="cursor:pointer" onclick="cohortAdm.editScore('${e.date}','${esc(sub)}','${esc(x.r.memberId)}')">${v == null ? '<span style="color:#b0b8b4">-</span>' : `<b>${esc(v)}</b>`}</td>`; }).join('')}
               <td style="cursor:default">${x.taken}/${cols.length}</td><td style="cursor:default;color:#00875f;font-weight:800">${x.avg == null ? '-' : x.avg.toFixed(1)}</td></tr>`).join('')}
-            <tr><td></td><td class="tm">평균</td>${cols.map(([, i]) => { const v = s.rows.map(r => r.scores[i]).filter(x => x != null); return `<td><b>${v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : '-'}</b></td>`; }).join('')}<td></td><td></td></tr>
+            <tr style="background:#e3f6ef"><td></td><td class="tm" style="background:#e3f6ef">평균 <small style="font-weight:400">(당일)</small></td>${cols.map(([, i]) => { const v = s.rows.map(r => r.scores[i]).filter(x => x != null); return `<td style="cursor:default"><b>${v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : '-'}</b></td>`; }).join('')}<td style="cursor:default">${(() => { const v = cols.flatMap(([, i]) => s.rows.map(r => r.scores[i])).filter(x => x != null); return v.length + '회'; })()}</td><td style="cursor:default;color:#0b5e44;font-weight:800">${(() => { const v = cols.flatMap(([, i]) => s.rows.map(r => r.scores[i])).filter(x => x != null); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : '-'; })()}</td></tr>
             </tbody></table></div>`;
         }).join('');
       }
@@ -14668,6 +14668,8 @@ async function calAdmInit() {
             sc.push(['순위', '번호', '이름', '교회', ...cols.map(([e]) => dayHead(e.date)), '응시', '평균']);
             list.forEach((x, k) => { if (x.avg != null && x.avg !== prev) { rank = k + 1; prev = x.avg; }
               sc.push([x.avg == null ? '-' : rank, x.r.seq, x.r.name, x.r.church, ...cols.map(([, i]) => x.r.scores[i] == null ? '미응시' : x.r.scores[i]), `${x.taken}/${cols.length}`, x.avg == null ? '' : Math.round(x.avg * 10) / 10]); });
+            { const m = v => v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10 : ''; const all = cols.flatMap(([, i]) => d.rows.map(r => r.scores[i])).filter(v => v != null);
+              sc.push(['', '', '평균(당일)', '', ...cols.map(([, i]) => m(d.rows.map(r => r.scores[i]).filter(v => v != null))), `${all.length}회`, m(all)]); }
           }
           add(sc, '시험 결과', '시험 결과 및 순위');
           add([['날짜', '요일', '교회', '이름', '구분', '내용', '빠진 교육'],

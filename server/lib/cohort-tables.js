@@ -31,12 +31,18 @@ export function scoreBoard(all, subject, maxCols = 12, cohortTitle = '') {
   const missing = list.flatMap((r) => r.cells.map((v, i) => (v == null ? `${r.name} ${mmdd(cols[i])}` : null)).filter(Boolean));
   const head = ['순위', '이름', ...cols.map(mmdd), '응시', '평균'];
   const rows = list.map((r) => [r.rank, r.name, ...r.cells.map((v) => (v == null ? '-' : v)), `${r.taken}/${dates.length}`, r.avg == null ? '-' : r.avg.toFixed(1)]);
+  // 맨 아래 평균 줄: 날짜 칸 = 그날(당일) 평균, 응시 칸 = 응시 인원, 평균 칸 = 과목 전체 평균
+  const mean = (v) => (v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : '-');
+  const taken = list.reduce((a, r) => a + r.taken, 0);
+  rows.push(['', '평균', ...cols.map((d) => mean(scores.filter((s) => s.date === d).map((s) => Number(s.score)))), `${taken}회`, mean(scores.map((s) => Number(s.score)))]);
+  const avgRow = rows.length - 1;
   const avgCol = head.length - 1;
   return {
     title: `${cohortTitle ? cohortTitle + ' ' : ''}시험 결과 및 순위`,
     sub: `${subject} · 시험 ${dates.length}회${dates.length > cols.length ? ` (최근 ${cols.length}회 표시)` : ''} · 평균 높은 순`,
     head, rows, align: ['center', 'left'],
     style: (r, c, v) => {
+      if (r === avgRow) return { fill: c ? '#e3f6ef' : null, bold: true, color: '#0b5e44' };
       if (c === 0 && [1, 2, 3].includes(v)) return { fill: ['#ffe8a3', '#e6e9ec', '#f3d9c6'][v - 1], bold: true };
       if (c === avgCol) return { bold: true, color: '#00875f' };
       if (v === '-') return { color: '#b0b8b4' };
