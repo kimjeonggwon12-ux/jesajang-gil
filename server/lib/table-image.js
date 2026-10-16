@@ -7,9 +7,11 @@ import { Resvg } from '@resvg/resvg-js';
 const FONT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'fonts');
 const FONTS = ['NanumGothic-Regular.ttf', 'NanumGothic-Bold.ttf'].map((f) => path.join(FONT_DIR, f));
 
-const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
+const fixGlyphs = (t) => String(t ?? '').replace(/[①-⑳]/g, (ch) => `(${CIRCLED.indexOf(ch) + 1})`);
+const esc = (s) => fixGlyphs(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 /** 글자 폭 어림(px): 한글·전각 1em, 그 밖 0.58em */
-const textW = (s, size) => [...String(s ?? '')].reduce((n, ch) => n + (/[ᄀ-ᇿ　-鿿가-힣＀-￯]/.test(ch) ? 1 : 0.58), 0) * size;
+const textW = (s, size) => [...fixGlyphs(s)].reduce((n, ch) => n + (/[ᄀ-ᇿ　-鿿가-힣＀-￯]/.test(ch) ? 1 : 0.58), 0) * size;
 
 /**
  * b = { title, sub?, head:[..], rows:[[..]], align?:['left'|'center'|'right'..], style?(r, c, value) → {fill, color, bold}, foot? }

@@ -47,7 +47,7 @@ async function tickOne(c, today, hm, sent) {
     const members = await run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('seq').order('id'));
     if (!members.length) return;
     const total = members.length;
-    const title = `[${c.title}] ${mmdd(today)}(${weekdayOf(today)})`;
+    const day = `${mmdd(today)}(${weekdayOf(today)})`;   // 보고 맨 위: 교육 이름 + 무엇에 대한 보고
 
     // ── 출석 ──
     if (c.useAttend) {
@@ -63,7 +63,7 @@ async function tickOne(c, today, hm, sent) {
         const part = came.filter((x) => /결석|조퇴|외출/.test(byNid.get(x.nid).late || ''));
         const absent = members.filter((x) => !byNid.has(x.nid));
         await sendAttendText([
-          `📋 ${title} 출석 마감 (${String(m.start_time).slice(0, 5)}~${String(m.end_time).slice(0, 5)})`,
+          `📋 ${c.title} 출석부 · ${day} 출석 마감 (${String(m.start_time).slice(0, 5)}~${String(m.end_time).slice(0, 5)})`,
           `✅ 출석 ${came.length}/${total}명 (${Math.round((came.length / total) * 100)}%)`,
           late.length ? `⏰ 지각 ${late.length}명: ${late.map((x) => `${x.name} ${byNid.get(x.nid).late}`).join(', ')}` : '',
           part.length ? `◐ 부분 결석 ${part.length}명: ${part.map((x) => `${x.name} ${byNid.get(x.nid).late}`).join(', ')}` : '',
@@ -88,7 +88,7 @@ async function tickOne(c, today, hm, sent) {
         const late = ok.filter((x) => done.get(x.nid).late);
         const missing = members.filter((x) => !done.has(x.nid));
         await sendAttendText([
-          `📝 ${title} 과제 마감 — ${a.title} (${a.dueTime || '자정'})`,
+          `📝 ${c.title} 과제 제출 현황 · ${day} 마감 — ${a.title} (${a.dueTime || '자정'})`,
           `✅ 제출 ${ok.length}/${total}명 (${Math.round((ok.length / total) * 100)}%)`,
           late.length ? `⏰ 늦게 냄 ${late.length}명: ${names(late)}` : '',
           missing.length ? `❌ 미제출 ${missing.length}명: ${names(missing)}` : '🎉 전원 제출!',
@@ -111,7 +111,7 @@ async function tickOne(c, today, hm, sent) {
       const vals = got.map((x) => byNid.get(x.nid));
       const avg = vals.length ? Math.round((vals.reduce((p, q) => p + q, 0) / vals.length) * 10) / 10 : 0;
       await sendAttendText([
-        `🧪 ${title} 시험 결과 — ${e.subject}`,
+        `🧪 ${c.title} 시험 결과 및 순위 · ${day} — ${e.subject}`,
         `✅ 점수 ${got.length}/${total}명${vals.length ? ` · 평균 ${avg} · 최고 ${Math.max(...vals)} · 최저 ${Math.min(...vals)}` : ''}`,
         got.length ? got.map((x, i) => `${i + 1}. ${x.name} ${byNid.get(x.nid)}`).join('\n') : '',
         missing.length ? `❌ 점수 없음 ${missing.length}명: ${names(missing)}` : '',

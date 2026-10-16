@@ -126,7 +126,7 @@ try {
   ok((await call('cohortSetScore', { cohortId, date: today, subject: '계시록', targetId: A.memberId, score: '85' })).ok, '점수 되돌리기');
   sent.length = 0;
   const sb = await call('cohortSendBoard', { cohortId });
-  ok(sb.ok && sent.filter((t) => t.startsWith('[사진]')).length === sb.sent.length && sb.sent.includes('출석표'), `표를 사진으로 보내기 (${sb.sent && sb.sent.join(', ')})`);
+  ok(sb.ok && sent.filter((t) => t.startsWith('[사진]')).length === sb.sent.length && sb.sent.includes('attend') && sb.sent.includes('assign'), `표를 사진으로 보내기 (${sb.sent && sb.sent.join(', ')})`);
   r = await say(TG_ADMIN, '점수 계시록 ZZTEST하나 70');
   ok(sent.some((t) => t.startsWith('[사진]')), '점수 올리면 순위표 사진도');
 
@@ -144,9 +144,9 @@ try {
   const done = await cohortTick(cohortId);
   const all = sent.join('\n---\n');
   if (process.env.DEBUG) console.log(all, done);
-  ok(/출석 마감/.test(all) && /출석 1\/2명/.test(all) && /결석 1명: ZZTEST둘/.test(all), '자동 서머리: 출석 결과·결석 명단');
-  ok(/과제 마감 — 천국 가는 항해자/.test(all) && /미제출 1명: ZZTEST둘/.test(all), '자동 서머리: 과제 제출·미제출');
-  ok(/시험 결과 — 계시록/.test(all) && /1\. ZZTEST둘 92/.test(all), '자동 서머리: 시험 순위');
+  ok(/ZZTEST 교육 출석부 · .* 출석 마감/.test(all) && /출석 1\/2명/.test(all) && /결석 1명: ZZTEST둘/.test(all), '자동 서머리: 출석 결과·결석 명단');
+  ok(/ZZTEST 교육 과제 제출 현황 · .* 마감 — 천국 가는 항해자/.test(all) && /미제출 1명: ZZTEST둘/.test(all), '자동 서머리: 과제 제출·미제출');
+  ok(/ZZTEST 교육 시험 결과 및 순위 · .* — 계시록/.test(all) && /1\. ZZTEST둘 92/.test(all), '자동 서머리: 시험 순위');
   sent.length = 0;
   await cohortTick(cohortId);
   ok(!sent.some((t) => /\[ZZTEST 교육\]/.test(t)), '같은 서머리는 한 번만 (' + done.filter((x) => x.startsWith('ZZTEST')).length + '건 보냄)');

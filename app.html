@@ -13863,6 +13863,8 @@ async function calAdmInit() {
           .ch-today{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
           .ch-today div{flex:1;min-width:120px;background:#e3f6ef;border-radius:12px;padding:10px 12px;font-size:13px;color:#4b5651}
           .ch-today b{display:block;font-size:20px;color:#00875f}
+          .ch-rep{margin-top:16px;padding:12px 14px;border-radius:12px;background:#e3f6ef;color:#0b5e44;font-size:18px;font-weight:800;line-height:1.35}
+          .ch-rep small{display:block;font-size:13px;font-weight:600;color:#4b5651;margin-top:2px}
           .ch-guide{background:#f3f5f4;border-radius:10px;padding:10px 12px;line-height:1.7;font-size:13.5px;color:#4b5651;margin-top:10px}
           .ch-wk{display:flex;align-items:center;gap:8px;margin-top:12px}
           .ch-wk b{flex:1;text-align:center;font-size:16px}
@@ -14074,6 +14076,8 @@ async function calAdmInit() {
         const allDayRow = allDay.length ? `<tr><td class="tm">종일</td>${cols.map(day => { const xs = allDay.filter(x => x.date === day); return xs.length ? `<td onclick="cohortAdm.editItem('${esc(xs[0].itemId)}')">${xs.map(x => `<b>${esc(x.title)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ''}`).join('')}</td>` : '<td class="empty"></td>'; }).join('')}</tr>` : '';
         const wkNo = c.startDate ? Math.floor((Date.parse(st.week) - Date.parse(mondayOf(c.startDate))) / (7 * 864e5)) + 1 : wi + 1;
         return `
+          ${repHead('일정표', `${wkNo}주차 · ${mmdd(st.week)}~${mmdd(addDays(st.week, 6))}`)}
+          ${rows.length || allDay.length ? boardBar('timetable', '', st.week) : ''}
           <div class="ch-wk"><button type="button" ${wi <= 0 ? 'disabled' : ''} onclick="cohortAdm.week(-1)">‹</button>
             <b>${wkNo}주차 · ${mmdd(st.week)}~${mmdd(addDays(st.week, 6))} <small style="color:#6b7772;font-weight:600">(${wi + 1}/${weeks.length})</small></b>
             <button type="button" ${wi >= weeks.length - 1 ? 'disabled' : ''} onclick="cohortAdm.week(1)">›</button></div>
@@ -14191,20 +14195,22 @@ async function calAdmInit() {
         return false;
       }
       /** 표 위 단추: 이미지로 보기(우클릭·길게 눌러 복사) · 텔레그램으로 보내기 */
-      const boardBar = (kind, subject = '') => `<div class="ra-acts" style="margin-top:8px">
-          <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.showImage('${kind}', '${esc(subject)}', this)">🖼 이미지로 보기·복사</button>
-          <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.sendBoard('${kind}', '${esc(subject)}', this)">✈️ 텔레그램으로 보내기</button></div>`;
-      async function showImage(kind, subject, btn) {
+      const boardBar = (kind, subject = '', week = '') => `<div class="ra-acts" style="margin-top:8px">
+          <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.showImage('${kind}', '${esc(subject)}', this, '${week}')">🖼 이미지로 보기·복사</button>
+          <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.sendBoard('${kind}', '${esc(subject)}', this, '${week}')">✈️ 텔레그램으로 보내기</button></div>`;
+      /** 결과물 맨 위 제목: "교육 이름 + 무엇에 대한 보고" */
+      const repHead = (what, sub = '') => `<div class="ch-rep">${esc(st.cur.cohort.title)} ${what}${sub ? `<small>${sub}</small>` : ''}</div>`;
+      async function showImage(kind, subject, btn, week = '') {
         if (btn) btn.disabled = true;
         let res;
-        try { res = await call({ action: 'cohortBoardImage', cohortId: cid(), kind, subject }); } catch (e) { res = { error: e.message }; }
+        try { res = await call({ action: 'cohortBoardImage', cohortId: cid(), kind, subject, week }); } catch (e) { res = { error: e.message }; }
         if (btn) btn.disabled = false;
         if (res.error) { toast(res.error, true); return; }
         openSheet(`${H(esc(res.title))}
           <p class="ra-note">PC는 이미지에서 <b>마우스 오른쪽 → 이미지 복사</b>, 휴대폰은 <b>길게 눌러</b> 복사·저장하세요.</p>
           <img src="${res.image}" alt="${esc(res.title)}" style="display:block;width:100%;height:auto;border:1px solid #e3e8e5;border-radius:10px;margin-top:8px">`);
       }
-      const sendBoard = (kind, subject, btn) => act({ action: 'cohortSendBoard', cohortId: cid(), kind, subject }, '텔레그램 방에 보냈어요.', btn, null);
+      const sendBoard = (kind, subject, btn, week = '') => act({ action: 'cohortSendBoard', cohortId: cid(), kind, subject, week }, '텔레그램 방에 보냈어요.', btn, null);
 
       // ① 출석
       function attendTab(d, c) {
@@ -14216,7 +14222,7 @@ async function calAdmInit() {
             <div>지난 교육<b>${d.heldCount}회</b></div>
             <div>앞으로<b>${next.length}회</b></div>
           </div>
-          <div class="ra-h">출석 현황</div>
+          ${repHead('출석부', '교육생 × 교육 날 · ○ 출석 · 지각 · ◐ 부분 결석 · × 결석')}
           ${boardBar('attend')}
           ${attendBoard(d)}
           ${next.length ? `<p class="ra-note">다음 교육: ${next.slice(0, 5).map(m => mmdd(m.date)).join(', ')}${next.length > 5 ? ` 외 ${next.length - 5}회` : ''}</p>` : ''}
@@ -14305,7 +14311,7 @@ async function calAdmInit() {
       const datesOf = id => [...document.querySelectorAll(`#${id} input:checked`)].map(i => i.value).join(',');
       const setChecks = (id, has) => document.querySelectorAll(`#${id} input`).forEach(b => { b.checked = has(b.value); });
       /** 그날 낼 과제가 있었나(서버 assignmentOn 과 같은 규칙) */
-      const asgOn = (a, date) => a.repeat === '매일' ? true : a.repeat === '요일' ? String(a.days).includes(wdOf(date)) : a.repeat === '날짜' ? String(a.dates).split(',').includes(date) : a.due === date;
+      const asgOn = (a, date) => (a.repeat === '매일' ? date >= (a.createdAt || '') : a.repeat === '요일' ? String(a.days).includes(wdOf(date)) && date >= (a.createdAt || '') : a.repeat === '날짜' ? String(a.dates).split(',').includes(date) : a.due === date);
 
       /** 과제 제출 현황판: 교육생 × 날짜(오늘까지) — 칸에 낸 과제, 낼 과제가 있는데 안 냈으면 × */
       function assignBoard(d) {
@@ -14332,7 +14338,8 @@ async function calAdmInit() {
       function assignTab(d, c) {
         return `
           <div class="ch-today">${d.assignments.filter(a => a.onToday).map(a => `<div>오늘 ${esc(a.title)}<b>${a.doneToday}/${d.total}명</b></div>`).join('') || '<div>오늘 낼 과제<b>없음</b></div>'}</div>
-          <div class="ra-h">과제 제출 현황</div>
+          ${repHead('과제 제출 현황', '교육생 × 과제 날 · 칸 = 그날 낸 과제')}
+          ${boardBar('assign')}
           ${assignBoard(d)}
           ${EDIT_HEAD}
           <div class="ra-h" style="margin-top:12px">과제 루틴 ${d.assignments.length}개</div>
@@ -14424,6 +14431,7 @@ async function calAdmInit() {
         const routines = d.examRoutines || [];
         return `
           <div class="ch-today">${routines.filter(e => e.onToday).map(e => `<div>오늘 ${esc(e.subject)}<b>${e.doneToday}/${d.total}명</b></div>`).join('') || '<div>오늘 시험<b>없음</b></div>'}</div>
+          ${repHead('시험 결과 및 순위', '과목별 · 평균 높은 순 (같으면 교육생 번호순)')}
           ${examBoards(d)}
           ${EDIT_HEAD}
           <div class="ch-guide"><b>점수 올리기(텔레그램 방 관리자)</b> — 올릴 때마다 위 표와 방의 순위표(이미지)가 바로 바뀝니다.<br>점수 계시록 홍길동 85 김영희 90<br>여러 줄도 됩니다: 첫 줄 "점수 계시록", 다음 줄부터 "홍길동 85"<br>지난날 점수: 점수 계시록 10/15 홍길동 85<br><b>여러 날을 표로</b>: 첫 줄 "점수 과목", 둘째 줄 날짜 "10.12 / 14/15/16", 다음 줄부터 "1. 홍길동 80/ 90/ 미/ 100" (미 = 미응시 · 과목 루틴이 하나면 과목은 빼도 됨)</div>
@@ -14637,20 +14645,30 @@ async function calAdmInit() {
         try {
           await loadXlsx();
           const wb = XLSX.utils.book_new();
-          const add = (rows, name) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
+          const add = (rows, name, what) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[`${d.cohort.title} ${what || name}`], [`작성 ${todayStr()}`], [], ...rows]), name);
           const dayHead = x => `${mmdd(x)}(${'일월화수목금토'[new Date(x + 'T00:00:00Z').getUTCDay()]})`;
           add([['번호', '교회', '이름', '고유번호', '출석', '과제', ...d.assignments.map(a => '과제 ' + a.title), ...d.exams.map(examLabel)],
-            ...d.rows.map(r => [r.seq, r.church, r.name, r.memberId, `${r.attended}/${r.held}`, `${r.submitted}/${r.expected}`, ...r.perAssign, ...r.scores.map(v => v == null ? '' : v)])], '종합');
+            ...d.rows.map(r => [r.seq, r.church, r.name, r.memberId, `${r.attended}/${r.held}`, `${r.submitted}/${r.expected}`, ...r.perAssign, ...r.scores.map(v => v == null ? '' : v)])], '종합', '종합 보고');
           const cls = d.dates.map((x, i) => [x, i]).filter(([x]) => d.classDates.includes(x));
-          add([['번호', '교회', '이름', ...cls.map(([x]) => dayHead(x))], ...d.rows.map(r => [r.seq, r.church, r.name, ...cls.map(([, i]) => r.attend[i] || '결석')])], '출석(날짜별)');
-          add([['번호', '교회', '이름', ...d.dates.map(dayHead)], ...d.rows.map(r => [r.seq, r.church, r.name, ...r.daily])], '과제(날짜별)');
-          const sc = [['날짜', '과목', '교회', '이름', '점수']];
-          d.exams.forEach((e, i) => d.rows.forEach(r => { if (r.scores[i] != null) sc.push([e.date, e.subject, r.church, r.name, r.scores[i]]); }));
-          add(sc, '시험 점수');
+          add([['번호', '교회', '이름', ...cls.map(([x]) => dayHead(x))], ...d.rows.map(r => [r.seq, r.church, r.name, ...cls.map(([, i]) => r.attend[i] || '결석')])], '출석부');
+          add([['번호', '교회', '이름', ...d.dates.map(dayHead)], ...d.rows.map(r => [r.seq, r.church, r.name, ...r.daily])], '과제 제출 현황');
+          const sc = [];
+          for (const sub of [...new Set(d.exams.map(e => e.subject))]) {
+            const cols = d.exams.map((e, i) => [e, i]).filter(([e]) => e.subject === sub);
+            const list = d.rows.map(r => { const v = cols.map(([, i]) => r.scores[i]).filter(x => x != null); return { r, avg: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null, taken: v.length }; })
+              .sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1) || (a.r.seq || 0) - (b.r.seq || 0));
+            let rank = 0, prev = null;
+            if (sc.length) sc.push([]);
+            sc.push([`[${sub}]`]);
+            sc.push(['순위', '번호', '이름', '교회', ...cols.map(([e]) => dayHead(e.date)), '응시', '평균']);
+            list.forEach((x, k) => { if (x.avg != null && x.avg !== prev) { rank = k + 1; prev = x.avg; }
+              sc.push([x.avg == null ? '-' : rank, x.r.seq, x.r.name, x.r.church, ...cols.map(([, i]) => x.r.scores[i] == null ? '미응시' : x.r.scores[i]), `${x.taken}/${cols.length}`, x.avg == null ? '' : Math.round(x.avg * 10) / 10]); });
+          }
+          add(sc, '시험 결과', '시험 결과 및 순위');
           add([['날짜', '요일', '교회', '이름', '구분', '내용', '빠진 교육'],
-            ...(d.absences || []).map(a => [a.date, wdOf(a.date), a.church, a.name, a.type, a.text, a.missed])], '결석·빠진 교육');
+            ...(d.absences || []).map(a => [a.date, wdOf(a.date), a.church, a.name, a.type, a.text, a.missed])], '결석·빠진 교육', '결석 및 빠진 교육');
           add([['날짜', '과제', '교회', '이름', '제출 시각', '늦음', '경로', '내용'],
-            ...d.submissions.map(s => [s.workDate, s.title, s.church, s.name, s.at, s.late ? '늦음' : '', s.source, s.content])], '과제 내용');
+            ...d.submissions.map(s => [s.workDate, s.title, s.church, s.name, s.at, s.late ? '늦음' : '', s.source, s.content])], '과제 내용', '과제 제출 내용');
           XLSX.writeFile(wb, `${d.cohort.title}_취합_${todayStr()}.xlsx`.replace(/[\\/:*?"<>|]/g, '_'));
         } catch (e) { toast(e.message, true); }
       }

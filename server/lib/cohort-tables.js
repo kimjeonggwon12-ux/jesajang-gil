@@ -2,6 +2,7 @@
 // 자료는 cohorts.js loadAll() 의 결과(all)를 그대로 받는다.
 import { normId } from './util.js';
 import { tablePng } from './table-image.js';
+import { assignmentOn } from './cohort.js';
 
 const mmdd = (d) => String(d).slice(5).replace('-', '/');
 const WD = '일월화수목금토';
@@ -32,8 +33,8 @@ export function scoreBoard(all, subject, maxCols = 12, cohortTitle = '') {
   const rows = list.map((r) => [r.rank, r.name, ...r.cells.map((v) => (v == null ? '-' : v)), `${r.taken}/${dates.length}`, r.avg == null ? '-' : r.avg.toFixed(1)]);
   const avgCol = head.length - 1;
   return {
-    title: `🏆 ${subject} 순위`,
-    sub: `${cohortTitle ? cohortTitle + ' · ' : ''}시험 ${dates.length}회${dates.length > cols.length ? ` (최근 ${cols.length}회 표시)` : ''} · 평균 높은 순`,
+    title: `${cohortTitle ? cohortTitle + ' ' : ''}시험 결과 및 순위`,
+    sub: `${subject} · 시험 ${dates.length}회${dates.length > cols.length ? ` (최근 ${cols.length}회 표시)` : ''} · 평균 높은 순`,
     head, rows, align: ['center', 'left'],
     style: (r, c, v) => {
       if (c === 0 && [1, 2, 3].includes(v)) return { fill: ['#ffe8a3', '#e6e9ec', '#f3d9c6'][v - 1], bold: true };
@@ -71,11 +72,64 @@ export function attendBoard(all, today, maxCols = 12, cohortTitle = '') {
   rows.push(['', '인원', ...cols.map((d) => `${all.members.filter((m) => cell(d, m.nid) !== '결석').length}/${all.members.length}`), '']);
   const COLOR = { '○': { color: '#00875f', bold: true }, 지각: { fill: '#fff4cc', color: '#8a6200' }, 부분: { fill: '#fde3cf', color: '#b5530b' }, 결석: { fill: '#fde8e8', color: '#c0392b', bold: true } };
   return {
-    title: `📋 출석표`,
-    sub: `${cohortTitle ? cohortTitle + ' · ' : ''}${mmdd(cols[0])}~${mmdd(cols.at(-1))}${days.length > cols.length ? ` (최근 ${cols.length}일)` : ''}`,
+    title: `${cohortTitle ? cohortTitle + ' ' : ''}출석부`,
+    sub: `${mmdd(cols[0])}~${mmdd(cols.at(-1))}${days.length > cols.length ? ` (최근 ${cols.length}일)` : ''}`,
     head, rows, align: ['center', 'left'],
     style: (r, c, v) => (r === rows.length - 1 ? { bold: true } : COLOR[v] || null),
     foot: '○ 출석 · 지각 · 부분(부분 결석) · 결석',
+  };
+}
+
+/** 과제 제출 현황 — 교육생 × 과제 날(오늘까지, 최근 maxCols) — 칸에 낸 과제(짧은 이름), 낼 게 있는데 안 냈으면 × */
+export function assignBoard(all, today, maxCols = 12, cohortTitle = '') {
+  const days = [...new Set([
+    ...all.subs.map((s) => s.work_date).filter(Boolean),
+    ...all.meetings.map((m) => m.date),
+  ])].filter((d) => d <= today && all.assignments.some((a) => assignmentOn(a, d) && (a.repeat === '날짜' || a.repeat === '한번' || d >= (a.createdAt || '')))).sort();
+  if (!days.length) return null;
+  const cols = days.slice(-maxCols);
+  const short = (t) => String(t).split(/\s+/).at(-1);
+  const titleOf = new Map(all.assignments.map((a) => [a.assignmentId, short(a.title)]));
+  const by = new Map();
+  for (const s of all.subs) { const k = s.work_date + '|' + s.nid; if (!by.has(k)) by.set(k, []); by.get(k).push(titleOf.get(s.assignment_id) || '?'); }
+  const head = ['번호', '이름', ...cols.map((d) => `${mmdd(d)}(${wd(d)})`), '낸 날'];
+  const rows = all.members.map((m) => {
+    const cells = cols.map((d) => (by.get(d + '|' + m.nid) || []).join('·') || '×');
+    return [m.seq || '', m.name, ...cells, `${days.filter((d) => by.has(d + '|' + m.nid)).length}/${days.length}`];
+  });
+  rows.push(['', '낸 사람', ...cols.map((d) => `${all.members.filter((m) => by.has(d + '|' + m.nid)).length}/${all.members.length}`), '']);
+  return {
+    title: `${cohortTitle ? cohortTitle + ' ' : ''}과제 제출 현황`,
+    sub: `${mmdd(cols[0])}~${mmdd(cols.at(-1))}${days.length > cols.length ? ` (최근 ${cols.length}일)` : ''} · 칸 = 그날 낸 과제`,
+    head, rows, align: ['center', 'left'],
+    style: (r, c, v) => (r === rows.length - 1 ? { bold: true } : v === '×' ? { fill: '#fde8e8', color: '#c0392b', bold: true } : c > 1 && c < head.length - 1 ? { color: '#00875f' } : null),
+    foot: '× = 낼 과제가 있었는데 안 냄',
+  };
+}
+
+/** 일정표 — 한 주(weekStart 월요일부터 7일) 시간 × 날짜. 교육 요일(없으면 일정이 있는 날) */
+export function timetableBoard(all, weekStart, cohortTitle = '', classDays = '') {
+  const add = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  const week = Array.from({ length: 7 }, (_, i) => add(weekStart, i));
+  const items = (all.schedule || []).filter((x) => week.includes(x.date) && x.kind !== '주간메모');
+  const days = week.filter((d) => items.some((x) => x.date === d) || (classDays && classDays.includes(wd(d))));
+  if (!items.length || !days.length) return null;
+  const times = [...new Set(items.map((x) => x.start_time || '종일'))].sort((a, b) => (a === '종일' ? -1 : b === '종일' ? 1 : a < b ? -1 : 1));
+  const clip = (t) => (width(t) > 30 ? [...t].slice(0, 15).join('') + '…' : t);
+  const head = ['시간', ...days.map((d) => `${mmdd(d)}(${wd(d)})`)];
+  const rows = times.map((t) => {
+    const ends = items.filter((x) => (x.start_time || '종일') === t && x.end_time).map((x) => x.end_time).sort();
+    return [t === '종일' ? '종일' : t + (ends[0] ? '~' + ends[0] : ''), ...days.map((d) => items.filter((x) => x.date === d && (x.start_time || '종일') === t).map((x) => clip(x.title) + (x.sub ? ` (${clip(x.sub)})` : '')).join(' / '))];
+  });
+  const kindOf = new Map(items.map((x) => [x.date + '|' + (x.start_time || '종일'), x.kind]));
+  const FILL = { 시험: '#fde8e8', 과제: '#fff4cc', 실습: '#e8f0fe', 활동: '#e3f6ef', 예배: '#f1f1f1', 식사: '#f1f1f1' };
+  const memo = (all.schedule || []).filter((x) => week.includes(x.date) && x.kind === '주간메모').map((x) => x.title);
+  return {
+    title: `${cohortTitle ? cohortTitle + ' ' : ''}일정표`,
+    sub: `${mmdd(week[0])}~${mmdd(week[6])}`,
+    head, rows, align: ['center'],
+    style: (r, c) => { if (!c) return { bold: true }; const k = kindOf.get(days[c - 1] + '|' + times[r]); return FILL[k] ? { fill: FILL[k], color: k === '시험' ? '#c0392b' : undefined } : null; },
+    foot: memo.length ? '이번 주 안내: ' + memo.join(' · ') : '',
   };
 }
 

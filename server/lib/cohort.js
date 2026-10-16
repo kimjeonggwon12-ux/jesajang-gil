@@ -87,7 +87,7 @@ export async function notifyCohortAttendance(m, rec) {
   ]);
   const who = rec.name + (member?.church ? ` · ${member.church}` : rec.dept ? ` · ${rec.dept}` : '');
   await sendAttendText(
-    `✅ [${c.title}] 출석 ${done || 0}/${total || 0}명\n👤 ${who}${member ? '' : ' (교육생 명단 밖)'}\n📋 ${m.title}\n🕐 ${rec.at}${rec.late ? ' · ' + rec.late : ''}`,
+    `✅ ${c.title} 출석부 · 출석 ${done || 0}/${total || 0}명\n👤 ${who}${member ? '' : ' (교육생 명단 밖)'}\n📋 ${m.title}\n🕐 ${rec.at}${rec.late ? ' · ' + rec.late : ''}`,
     c.tgChat,
   );
 }

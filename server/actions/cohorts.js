@@ -6,7 +6,7 @@ import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { clip, newId, isDate } from '../lib/input.js';
 import { runLater } from '../lib/background.js';
 import { sendAttendText, sendAttendHtml, sendAttendPhoto } from '../lib/attend-bot.js';
-import { scoreBoard, scoreSubjects, attendBoard, boardHtml, boardPng } from '../lib/cohort-tables.js';
+import { scoreBoard, scoreSubjects, attendBoard, assignBoard, timetableBoard, boardHtml, boardPng } from '../lib/cohort-tables.js';
 import { toCohort, findCohort, WEEK, weekdayOf, isClassDay, assignmentOn, cleanDates } from '../lib/cohort.js';
 import { isOwner, memberInfo } from './roster.js';
 import { loadRecords } from './attendance.js';
@@ -113,7 +113,7 @@ export async function loadAll(c) {
     run(db().from('cohort_submissions').select('*').eq('cohort_id', c.cohortId).order('id')),
     run(db().from('cohort_scores').select('*').eq('cohort_id', c.cohortId).order('date').order('subject')),
     run(db().from('cohort_exams').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('id')),
-    run(db().from('cohort_schedule').select('date, start_time, end_time, title, kind').eq('cohort_id', c.cohortId).order('date').order('start_time')),
+    run(db().from('cohort_schedule').select('date, start_time, end_time, title, sub, kind').eq('cohort_id', c.cohortId).order('date').order('start_time')),
   ]);
   const ids = meetings.map((m) => m.meeting_id);
   const records = ids.length ? await loadRecords((q) => q.in('meeting_id', ids)) : [];
@@ -498,7 +498,7 @@ async function cohortSaveExam(body) {
 
 function summaryText(c, d, all) {
   const { members, assignments, exams, total, today, todayMeetings, heldCount } = d;
-  const lines = [`📊 [${c.title}] ${mmdd(today)}(${weekdayOf(today)}) 집계`, `교육생 ${total}명${c.startDate ? ` · 기간 ${mmdd(c.startDate)}~${mmdd(c.endDate || c.startDate)}` : ''}`];
+  const lines = [`📊 ${c.title} 종합 보고 · ${mmdd(today)}(${weekdayOf(today)})`, `교육생 ${total}명${c.startDate ? ` · 기간 ${mmdd(c.startDate)}~${mmdd(c.endDate || c.startDate)}` : ''}`];
   const todayAsg = assignments.filter((a) => a.onToday);
   const todayExams = (d.examRoutines || []).filter((x) => x.onToday);
   if (todayMeetings.length || todayAsg.length || todayExams.length) {
@@ -528,12 +528,25 @@ export const cohortAbsenceLines = async (c) => absenceLines(await loadAll(c), ks
 
 export const cohortSummaryText = async (c) => { const all = await loadAll(c); return summaryText(c, crunch(c, all), all); };
 
-/** 표(출석표·과목별 순위표)를 과정 방으로. kind: 'attend' | 'score' | 'all'(기본), subject 를 주면 그 과목만 */
-export async function sendBoards(c, { kind = 'all', subject = '', all = null, caption = '' } = {}) {
+/** 월요일 */
+const mondayOf = (d) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x.toISOString().slice(0, 10); };
+/** 결과물 하나: 일정표(week) · 출석부 · 과제 제출 현황 · 시험 결과 및 순위(subject) — 모두 맨 위에 "교육 이름 + 무엇" */
+function makeBoard(all, c, kind, { subject = '', week = '', maxCols = 12 } = {}) {
+  if (kind === 'timetable') return timetableBoard(all, mondayOf(isDate(week) ? week : kstDate()), c.title, c.days);
+  if (kind === 'attend') return attendBoard(all, kstDate(), maxCols, c.title);
+  if (kind === 'assign') return assignBoard(all, kstDate(), maxCols, c.title);
+  if (kind === 'score') return scoreBoard(all, subject, maxCols, c.title);
+  return null;
+}
+
+/** 표를 과정 방으로. kind: attend | assign | score | timetable | all(출석부 + 과제 제출 현황 + 과목별 시험 결과 및 순위) */
+export async function sendBoards(c, { kind = 'all', subject = '', week = '', all = null, caption = '' } = {}) {
   all = all || await loadAll(c);
   const boards = [];
-  if (kind !== 'score') { const b = attendBoard(all, kstDate(), 12, c.title); if (b) boards.push(['출석표', b]); }
-  if (kind !== 'attend') for (const s of subject ? [subject] : scoreSubjects(all)) { const b = scoreBoard(all, s, 12, c.title); if (b) boards.push([s, b]); }
+  for (const k of kind === 'all' ? ['attend', 'assign', 'score'] : [kind]) {
+    if (k === 'score') { for (const s of subject ? [subject] : scoreSubjects(all)) { const b = makeBoard(all, c, 'score', { subject: s }); if (b) boards.push([s, b]); } continue; }
+    const b = makeBoard(all, c, k, { week }); if (b) boards.push([k, b]);
+  }
   for (const [i, [, b]] of boards.entries()) await sendBoard(c, b, i === 0 ? caption : '');
   return boards.map(([name]) => name);
 }
@@ -554,11 +567,11 @@ async function cohortBoardImage(body) {
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const all = await loadAll(c);
-  const b = body.kind === 'attend' ? attendBoard(all, kstDate(), 31, c.title) : scoreBoard(all, clip(body.subject, 40), 31, c.title);
+  const b = makeBoard(all, c, clip(body.kind, 20), { subject: clip(body.subject, 40), week: clip(body.week, 10), maxCols: 31 });
   if (!b) return { error: '아직 표에 넣을 기록이 없어요.' };
   const png = boardPng(b);
   if (!png) return { error: '이미지를 만들지 못했어요.' };
-  return { ok: true, title: b.title.replace(/^\S+\s/, ''), image: 'data:image/png;base64,' + png.toString('base64') };
+  return { ok: true, title: b.title, image: 'data:image/png;base64,' + png.toString('base64') };
 }
 
 async function cohortSendSummary(body) {
@@ -577,8 +590,8 @@ async function cohortSendBoard(body) {
   if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
-  const sent = await sendBoards(c, { kind: ['attend', 'score'].includes(body.kind) ? body.kind : 'all', subject: clip(body.subject, 40) });
-  return sent.length ? { ok: true, sent } : { error: '보낼 표가 없어요(출석 기록이나 점수가 아직 없음).' };
+  const sent = await sendBoards(c, { kind: ['attend', 'assign', 'score', 'timetable'].includes(body.kind) ? body.kind : 'all', subject: clip(body.subject, 40), week: clip(body.week, 10) });
+  return sent.length ? { ok: true, sent } : { error: '보낼 표가 없어요(아직 기록이 없음).' };
 }
 
 /** 점수 하나 고치기(앱 시험 결과표 칸): score 가 비면 지움(미응시) */

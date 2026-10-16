@@ -263,7 +263,7 @@ async function onScoreTable(msg, c, members, byName, table) {
   }
   if (save.length) await run(db().from('cohort_scores').upsert(save, { onConflict: 'cohort_id,date,subject,nid' }));
   const perDate = dates.map((d) => `${d.slice(5).replace('-', '/')} ${save.filter((s) => s.date === d).length}명`);
-  const lines = [`📊 ${subject} 날짜별 점수 ${save.length}개 기록 (교육생 ${members.length}명)`, perDate.join(' · ')];
+  const lines = [`📊 ${c.title} 시험 결과 및 순위 · ${subject} 날짜별 점수 ${save.length}개 기록 (교육생 ${members.length}명)`, perDate.join(' · ')];
   if (absent.length) lines.push('🔸 미응시: ' + absent.join(', '));
   const listed = new Set(rows.map((r) => nameKey(r.name)));
   const notListed = members.filter((m) => !listed.has(nameKey(m.name)));
@@ -316,7 +316,7 @@ async function onScore(msg, c, body) {
   }
   if (rows.length) await run(db().from('cohort_scores').upsert(rows, { onConflict: 'cohort_id,date,subject,nid' }));
   const { count } = await db().from('cohort_scores').select('*', { count: 'exact', head: true }).eq('cohort_id', c.cohortId).eq('date', date).eq('subject', subject);
-  const lines = [`📊 ${subject} (${date.slice(5).replace('-', '/')}) 점수 ${rows.length}명 기록 — 입력 ${count || 0}/${members.length}명`, saved.join(', ')];
+  const lines = [`📊 ${c.title} 시험 결과 및 순위 · ${subject} (${date.slice(5).replace('-', '/')}) 점수 ${rows.length}명 기록 — 입력 ${count || 0}/${members.length}명`, saved.join(', ')];
   if (unknown.length) lines.push('❓ 명단에 없는 이름: ' + unknown.map((p) => p.name).join(', '));
   if (dup.length) lines.push('⚠️ 같은 이름이 둘 이상이라 못 넣음: ' + dup.join(', '));
   await reply(msg, lines.join('\n'));
