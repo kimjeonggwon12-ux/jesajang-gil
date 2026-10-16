@@ -8,19 +8,22 @@ import { db, run, isDuplicate } from '../lib/db.js';
 import { normId, kstDate, kstDateTime } from '../lib/util.js';
 import { clip, newId } from '../lib/input.js';
 import { attendBotCall } from '../lib/attend-bot.js';
-import { toCohort } from '../lib/cohort.js';
+import { toCohort, assignmentOn, isLate, weekdayOf } from '../lib/cohort.js';
+import { toAssignment, toExam } from './cohorts.js';
 import { isOwner } from './roster.js';
 
 const APP_URL = () => process.env.APP_URL || 'https://jesajang-gil.vercel.app';
 /** 텔레그램이 웹훅 머리글에 실어 보내는 비밀값(크론 키에서 만든다 — 따로 환경값을 늘리지 않으려고). */
 export const webhookSecret = () => crypto.createHash('sha256').update(String(process.env.TEACHERSQUARE_CRON_KEY || '') + '|att-tg').digest('hex').slice(0, 48);
 
+const mmdd = (d) => String(d).slice(5).replace('-', '/');
 const nameKey = (s) => String(s == null ? '' : s).replace(/\s/g, '');
 const HELP = [
   '📘 교육 방 사용법',
   '• 과제 제출: 제출 홍길동 내용…  (처음 한 번만 이름, 다음부터는 "제출 내용"만)',
   '  사진·파일을 올릴 때 설명에 "제출 홍길동"이라고 써도 됩니다.',
-  '  과제가 여러 개면: 제출 홍길동 1과요약 내용…',
+  '  과제가 여러 개면 과제 낱말을 앞에: 제출 항해자 내용… / 제출 노트 내용…',
+  '  지난날 것은: 제출 어제 항해자 내용…  또는  제출 10/15 노트 내용…',
   '• 시험 점수(방 관리자): 점수 계시록 홍길동 85 김영희 90',
   '  날짜를 넣으려면: 점수 계시록 10/16 홍길동 85  (없으면 오늘)',
   '  여러 줄로 써도 됩니다(첫 줄 "점수 과목", 다음 줄부터 "이름 점수").',
@@ -57,13 +60,54 @@ function nameAtStart(text, members) {
 }
 
 // ── 과제 제출 ──
+// 2026-10-16(2차): 과제가 여러 개(천국 가는 항해자·노트 정리 …)이고 매일/요일 반복 — 제출은 날짜마다 따로.
+//   제출 [어제|10/15] [이름] [과제 낱말] 내용   (순서: 날짜 → 이름 → 과제, 날짜·이름·과제는 없어도 됨)
+
+/** 글 앞의 "어제"·"그제"·"10/15" → 날짜(반복 과제를 늦게 낼 때). */
+function dateAtStart(text) {
+  const t = text.trimStart();
+  const today = kstDate();
+  const back = (n) => { const d = new Date(today + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); };
+  let m = /^(어제|그제|그저께)(?=\s|$)/.exec(t);
+  if (m) return { date: back(m[1] === '어제' ? 1 : 2), rest: t.slice(m[0].length).trimStart() };
+  m = /^(\d{1,2})[/.](\d{1,2})(?=\s|$)/.exec(t);
+  if (m) {
+    const d = `${today.slice(0, 4)}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+    if (d <= today) return { date: d, rest: t.slice(m[0].length).trimStart() };
+  }
+  return null;
+}
+
+/** 글 앞에서 과제를 찾는다: 과제 이름 전체, 또는 첫 낱말이 이름에 들어 있는 과제가 하나뿐일 때. */
+function assignmentAtStart(text, list) {
+  const t = text.trimStart();
+  for (const a of [...list].sort((x, y) => nameKey(y.title).length - nameKey(x.title).length)) {
+    const want = nameKey(a.title);
+    if (!want || !nameKey(t).startsWith(want)) continue;
+    let k = 0, i = 0;   // 제목 글자 수만큼(띄어쓰기 무시) 앞을 떼어 낸다
+    while (i < t.length && k < want.length) { if (!/\s/.test(t[i])) k++; i++; }
+    return { a, rest: t.slice(i).replace(/^[\s:：,·-]+/, '') };
+  }
+  const word = (/^(\S{2,})/.exec(t) || [])[1];
+  if (word) {
+    const hits = list.filter((a) => nameKey(a.title).includes(nameKey(word)));
+    if (hits.length === 1) return { a: hits[0], rest: t.slice(word.length).replace(/^[\s:：,·-]+/, '') };
+  }
+  return null;
+}
 
 async function onSubmit(msg, c, body) {
   const members = await loadMembers(c.cohortId);
   const uid = String(msg.from.id);
-  let member = null;
+  const today = kstDate();
   let rest = body;
-  const byName = nameAtStart(body, members);
+  const dated = dateAtStart(rest);
+  if (dated) rest = dated.rest;
+  const workDay = dated ? dated.date : today;
+
+  // 누구인가: 글 앞 이름 → (없으면) 연결된 텔레그램 계정 → 텔레그램 이름
+  let member = null;
+  const byName = nameAtStart(rest, members);
   if (byName) {
     member = byName.member; rest = byName.rest;
     const { error } = await db().from('cohort_tg_links').upsert(
@@ -73,46 +117,47 @@ async function onSubmit(msg, c, body) {
   } else {
     const [link] = await run(db().from('cohort_tg_links').select('*').eq('cohort_id', c.cohortId).eq('tg_user_id', uid).limit(1));
     if (link) member = members.find((m) => m.nid === link.nid) || null;
-    if (!member) member = members.find((m) => nameKey(m.name) === nameKey(tgName(msg.from))) || null;   // 텔레그램 이름이 교육생 이름과 같으면
+    if (!member) member = members.find((m) => nameKey(m.name) === nameKey(tgName(msg.from))) || null;
   }
-  if (!member) return reply(msg, '누구신지 아직 몰라요. 처음 한 번은 "제출 홍길동 내용"처럼 이름을 함께 써 주세요.\n(교육생 명단에 없는 이름이면 관리자에게 등록을 부탁하세요)');
+  if (!member) return reply(msg, '누구신지 아직 몰라요. 처음 한 번은 "제출 홍길동 항해자 내용"처럼 이름을 함께 써 주세요.\n(교육생 명단에 없는 이름이면 관리자에게 등록을 부탁하세요)');
 
-  // 과제 고르기: 글 앞이 과제 이름이면 그 과제, 아니면 가장 최근 열린 과제, 없으면 오늘 날짜 과제를 만든다.
-  const open = await run(db().from('cohort_assignments').select('*').eq('cohort_id', c.cohortId).eq('status', '열림').order('id', { ascending: false }));
-  let a = [...open].sort((x, y) => nameKey(y.title).length - nameKey(x.title).length)
-    .find((x) => nameKey(rest).startsWith(nameKey(x.title)) && nameKey(x.title));
-  if (a) {
-    // 제목 글자 수만큼(띄어쓰기 무시) 앞을 떼어 낸다
-    let k = 0, i = 0;
-    const want = nameKey(a.title).length;
-    while (i < rest.length && k < want) { if (!/\s/.test(rest[i])) k++; i++; }
-    rest = rest.slice(i).replace(/^[\s:：,·-]+/, '');
-  } else a = open[0];
-  const today = kstDate();
-  if (!a) {
-    const title = `${today.slice(5).replace('-', '/')} 과제`;
-    const row = { assignment_id: newId('AS'), cohort_id: c.cohortId, title, guide: '텔레그램 제출로 자동 생성', due: today, status: '열림', created_at: kstDateTime() };
+  // 어떤 과제인가: 그날 낼 수 있는 과제(반복 과제는 그날 요일, 한번 과제는 열려 있는 것) 중에서
+  const open = (await run(db().from('cohort_assignments').select('*').eq('cohort_id', c.cohortId).eq('status', '열림').order('id'))).map(toAssignment);
+  const usable = open.filter((a) => (a.repeat === '한번' ? !dated : assignmentOn(a, workDay)));
+  let a = null;
+  const picked = assignmentAtStart(rest, usable);
+  if (picked) { a = picked.a; rest = picked.rest; }
+  else if (usable.length === 1) a = usable[0];
+  else if (usable.length > 1) {
+    const hint = usable.map((x) => `• 제출 ${x.title.split(/\s+/).at(-1)} 내용…  (${x.title})`).join('\n');
+    return reply(msg, `어느 과제인지 알려 주세요. 과제 이름의 한 낱말을 앞에 써 주시면 됩니다.\n${hint}`);
+  } else if (!open.length) {
+    // 과제를 하나도 안 만들었으면 그날 날짜 과제를 만든다
+    const row = { assignment_id: newId('AS'), cohort_id: c.cohortId, title: `${mmdd(today)} 과제`, guide: '텔레그램 제출로 자동 생성', due: today, status: '열림', repeat: '한번', days: '', due_time: '', created_at: kstDateTime() };
     await run(db().from('cohort_assignments').insert(row));
-    a = row;
-  }
+    a = toAssignment(row);
+  } else return reply(msg, `${mmdd(workDay)}(${weekdayOf(workDay)})에는 낼 과제가 없어요.`);
 
+  const repeat = a.repeat !== '한번';
+  const workDate = repeat ? workDay : '';
+  const now = kstDateTime();
+  const late = (repeat && workDay < today) || isLate(a, now);
   const file = msg.photo ? msg.photo.at(-1).file_id : msg.document ? msg.document.file_id : '';
   const attach = msg.photo ? '[사진]' : msg.document ? `[파일 ${msg.document.file_name || ''}]` : '';
   const content = clip([rest.trim(), attach].filter(Boolean).join('\n'), 4000) || '(내용 없음)';
-  const now = kstDateTime();
-  const [had] = await run(db().from('cohort_submissions').select('id').eq('assignment_id', a.assignment_id).eq('nid', member.nid).limit(1));
+  const [had] = await run(db().from('cohort_submissions').select('id').eq('assignment_id', a.assignmentId).eq('nid', member.nid).eq('work_date', workDate).limit(1));
   if (had) {
     await run(db().from('cohort_submissions').update({ content, updated_at: now, source: '텔레그램', ...(file ? { tg_file: file } : {}) }).eq('id', had.id));
   } else {
     const { error } = await db().from('cohort_submissions').insert({
-      assignment_id: a.assignment_id, cohort_id: c.cohortId, member_id: member.member_id, name: member.name,
-      content, submitted_at: now, updated_at: now, source: '텔레그램', tg_file: file,
+      assignment_id: a.assignmentId, cohort_id: c.cohortId, member_id: member.member_id, name: member.name,
+      content, submitted_at: now, updated_at: now, source: '텔레그램', tg_file: file, work_date: workDate, late,
     });
     if (error && !isDuplicate(error)) throw new Error(error.message);
   }
-  const { count } = await db().from('cohort_submissions').select('*', { count: 'exact', head: true }).eq('assignment_id', a.assignment_id);
-  const late = a.due && today > a.due ? ' · 기한 지남' : '';
-  return reply(msg, `📝 ${member.name}${member.church ? '(' + member.church + ')' : ''} · ${a.title} ${had ? '다시 제출' : '제출'} 기록${late}\n제출 ${count || 0}/${members.length}명`);
+  const { count } = await db().from('cohort_submissions').select('*', { count: 'exact', head: true }).eq('assignment_id', a.assignmentId).eq('work_date', workDate);
+  const when = repeat ? ` ${mmdd(workDay)}(${weekdayOf(workDay)})` : '';
+  return reply(msg, `📝 ${member.name}${member.church ? '(' + member.church + ')' : ''} · ${a.title}${when} ${had ? '다시 제출' : '제출'} 기록${late ? ' · ⏰ 늦게 냄' : ''}\n제출 ${count || 0}/${members.length}명`);
 }
 
 // ── 시험 점수 ──
@@ -144,7 +189,13 @@ async function onScore(msg, c, body) {
   }
   let date = '';
   const words = head.split(/\s+/).filter(Boolean).filter((w) => { const d = readDate(w); if (d && !date) { date = d; return false; } return true; });
-  const subject = clip(words.join(' '), 40);
+  let subject = clip(words.join(' '), 40);
+  // 시험 루틴 과목과 같거나(띄어쓰기 무시) 한쪽이 다른 쪽을 품으면 루틴 과목 이름으로 맞춘다 — 서머리가 같은 과목으로 모이게
+  if (subject) {
+    const routines = (await run(db().from('cohort_exams').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제'))).map(toExam);
+    const hit = routines.find((e) => nameKey(e.subject) === nameKey(subject)) || routines.find((e) => nameKey(e.subject).includes(nameKey(subject)) || nameKey(subject).includes(nameKey(e.subject)));
+    if (hit) subject = hit.subject;
+  }
   const unknown = others.filter((n) => !words.includes(n)).map((name) => ({ name }));
   if (!subject) return reply(msg, '과목을 알 수 없어요. 예: 점수 계시록 홍길동 85 김영희 90');
   if (!good.length) return reply(msg, `${subject}: 교육생 이름과 점수를 찾지 못했어요.${unknown.length ? '\n명단에 없는 이름: ' + unknown.map((p) => p.name).join(', ') : ''}\n예: 점수 ${subject} 홍길동 85 김영희 90`);

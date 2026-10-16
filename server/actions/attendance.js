@@ -6,7 +6,7 @@ import { sendAttendText } from '../lib/attend-bot.js';
 import { runLater } from '../lib/background.js';
 import { memberInfo, isAdmin } from './roster.js';
 import { closingBoxText, sendClosing } from './attendance-closing.js';
-import { cohortMember, notifyCohortAttendance } from '../lib/cohort.js';
+import { cohortMember, notifyCohortAttendance, resolveCohortMeeting } from '../lib/cohort.js';
 
 const QUESTION_TYPES = ['choice', 'multi', 'text'];
 const ORG_OPTIONS = ['부녀', '장년', '청년', '자문', '교역자', '전체', '기타'];   // 모임의 부서
@@ -234,7 +234,10 @@ async function checkIdentity(memberId, name, checkName = true, cohortId = '') {
 }
 
 async function getAttendMeeting(body) {
-  const m = await findMeeting(clip(body.meetingId, 40));
+  // 2026-10-16: 교육 과정 고정 QR(#attend=CH…)이면 오늘 그 과정의 출석 모임으로
+  const pick = await resolveCohortMeeting(clip(body.meetingId, 40));
+  if (pick.error) return { error: pick.error };
+  const m = await findMeeting(pick.meetingId);
   if (!m) return { error: '출석 모임을 찾을 수 없어요. QR을 다시 확인해 주세요.' };
   const nid = normId(body.memberId);
   const [mineRows, who] = await Promise.all([
@@ -305,7 +308,10 @@ function readPicks(m, body) {
 async function submitAttendance(body) {
   const mid = clip(body.memberId, 40);
   if (!mid) return { error: '로그인 정보가 없습니다.' };
-  const m = await findMeeting(clip(body.meetingId, 40));
+  // 2026-10-16: 교육 과정 고정 QR(#attend=CH…)이면 오늘 그 과정의 출석 모임으로
+  const pick = await resolveCohortMeeting(clip(body.meetingId, 40));
+  if (pick.error) return { error: pick.error };
+  const m = await findMeeting(pick.meetingId);
   if (!m) return { error: '출석 모임을 찾을 수 없어요.' };
   const window = attendWindow(m);
   if (!window.open) return { error: window.reason };
@@ -488,7 +494,8 @@ async function getAttendAdmin(body) {
 }
 
 async function getAttendCount(body) {
-  const meetingId = clip(body.meetingId, 40);
+  const meetingId = (await resolveCohortMeeting(clip(body.meetingId, 40))).meetingId;   // 과정 고정 QR이면 오늘 모임
+  if (!meetingId) return { count: 0 };
   const { count, error } = await db().from('attend_records').select('*', { count: 'exact', head: true }).eq('meeting_id', meetingId).neq('record_id', '');
   if (error) throw new Error(error.message);
   return { count: count || 0 };
@@ -579,6 +586,7 @@ async function attAutoSummary(body) {
   const closed = [];
   for (const m of await loadMeetings()) {
     if (!m.end || !m.date || m.status === '집계완료') continue;
+    if (m.cohortId) continue;   // 교육 과정 모임은 과정 방으로 따로(cohort-tick.js)
     const [y, mo, d] = m.date.split('-').map(Number);
     const [h, min] = m.end.split(':').map(Number);
     const sinceClose = Math.round((now - new Date(y, mo - 1, d, h, min + 10)) / 60000);   // 끝나고 10분 뒤부터
@@ -602,7 +610,10 @@ async function attAutoSummary(body) {
       try { await sendClosing(m); } catch (e) { await sendAttendText('⚠️ 출석 명단 파일을 만들지 못했어요: ' + e); }
     }
   }
-  return { ok: true, closed };
+  // 2026-10-16: 교육 과정 — 출석·과제·시험 마감 시각이 지나면 과정 방으로 결과 서머리
+  let cohort = [];
+  try { cohort = await (await import('./cohort-tick.js')).cohortTick(); } catch (e) { console.log('교육 과정 서머리 오류: ' + e); }
+  return { ok: true, closed, cohort };
 }
 
 export default {

@@ -13806,18 +13806,56 @@ async function calAdmInit() {
       return { css, mount() { css(); render(); }, search, add, edit, save, remove, setAdmin, log, upload, readTab, preview, apply, download, backup };
     })();
     // ════════════════════════════════════════════════════════════════
-    // [ADMIN] 교육 과정 · 교육생 (2026-10-16) — 7777(앱 관리자)로 들어왔을 때만 명단 코너에 보인다.
-    // 교육명칭 + 교회·이름·고유번호로 교육생을 넣고, 과정마다 출석(QR 출석 모임 연결)·과제 제출을 켠다.
-    // 출석·과제 알림과 집계는 과정의 텔레그램 방(출석 봇)으로 간다. 서버: server/actions/cohorts.js
+    // [ADMIN] 교육 관리 (2026-10-16) — 7777(앱 관리자)만 보이는 관리자 탭. 서버: server/actions/cohorts.js · cohort-bot.js · cohort-tick.js
+    // 과정 화면 맨 위 탭: 출석 · 과제 · 시험 점수 · 교육생 · 설정. 출석·과제·시험은 각각 루틴(월~일 + 정기 시각)을 정하고,
+    // 그 시각이 지나면 과정 텔레그램 방으로 결과 서머리가 자동으로 간다(5분마다 확인).
     // ════════════════════════════════════════════════════════════════
     const cohortAdm = (() => {
-      const st = { list: [], cur: null };
+      const st = { list: [], cur: null, tab: 'attend' };
       const call = payload => callApi({ ...payload, memberId: App.memberId, name: App.name });
       const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
       const H = t => `<h3 style="font-size:18px;font-weight:800">${t}</h3>`;
       const mmdd = d => String(d || '').slice(5).replace('-', '/');
+      const WEEK = ['월', '화', '수', '목', '금', '토', '일'];
       const AREA = 'display:block;width:100%;margin-top:4px;border:1px solid #d6dbd8;border-radius:10px;padding:10px 12px;font-size:15px;font-weight:400';
       const SMALL = 'height:34px;padding:0 10px;font-size:13px';
+      const TABS = [['attend', '출석'], ['assign', '과제'], ['exam', '시험 점수'], ['members', '교육생'], ['settings', '설정']];
+      const root = () => document.getElementById('cohortAdmRoot');
+
+      function css() {
+        rosterAdm.css();
+        if (document.getElementById('chCss')) return;
+        const el = document.createElement('style'); el.id = 'chCss';
+        el.textContent = `
+          .ch-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+          .ch-top h3{flex:1;min-width:0;font-size:19px;font-weight:800;margin:0}
+          .ch-tabs{display:flex;gap:6px;margin:14px 0 4px;overflow-x:auto;border-bottom:1px solid #e3e8e5}
+          .ch-tabs button{flex:none;padding:10px 14px;font-size:15px;font-weight:800;color:#6b7772;border-bottom:3px solid transparent;background:none}
+          .ch-tabs button.on{color:#00875f;border-bottom-color:#00AE82}
+          .ch-days{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+          .ch-days label{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid #d6dbd8;border-radius:10px;font-size:15px;font-weight:800;color:#4b5651;background:#fff;cursor:pointer}
+          .ch-days input{display:none}
+          .ch-days label:has(input:checked){background:#00AE82;border-color:#00AE82;color:#fff}
+          .ch-days .all{width:auto;padding:0 12px;font-size:13px}
+          .ch-card{background:#fff;border:1px solid #e3e8e5;border-radius:12px;padding:12px 14px;margin-top:10px}
+          .ch-today{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+          .ch-today div{flex:1;min-width:120px;background:#e3f6ef;border-radius:12px;padding:10px 12px;font-size:13px;color:#4b5651}
+          .ch-today b{display:block;font-size:20px;color:#00875f}
+          .ch-guide{background:#f3f5f4;border-radius:10px;padding:10px 12px;line-height:1.7;font-size:13.5px;color:#4b5651;margin-top:10px}
+        `;
+        document.head.appendChild(el);
+      }
+      /** 월~일 고르기(+ 매일). value = '월수금' 같은 글자들 */
+      const daysPick = (id, value) => `<div class="ch-days" id="${id}">
+          ${WEEK.map(d => `<label><input type="checkbox" value="${d}" ${String(value || '').includes(d) ? 'checked' : ''}>${d}</label>`).join('')}
+          <label class="all" onclick="event.preventDefault();cohortAdm.allDays('${id}')">매일</label></div>`;
+      const daysOf = id => [...document.querySelectorAll(`#${id} input:checked`)].map(i => i.value).join('');
+      function allDays(id) {
+        const boxes = [...document.querySelectorAll(`#${id} input`)];
+        const on = !boxes.every(b => b.checked);
+        boxes.forEach(b => { b.checked = on; });
+      }
+      const daysText = d => !d ? '' : d.length === 7 ? '매일' : d;
 
       async function loadList() {
         const res = await call({ action: 'cohortList' });
@@ -13826,22 +13864,23 @@ async function calAdmInit() {
         return st.list;
       }
 
-      /** 교육 과정 목록 + 새 과정 만들기 */
+      /** 교육 과정 목록 */
       async function open() {
         if (document.getElementById('appSheetBack')) closeSheet();
         if (adminSubTab !== 'cohort') { adminSwitchSubTab('cohort'); return; }   // 탭을 열면 다시 여기로 온다
-        rosterAdm.css();
-        const root = document.getElementById('cohortAdmRoot'); if (!root) return;
-        root.innerHTML = '<p class="ra-note">불러오는 중…</p>';
-        try { await loadList(); } catch (e) { root.innerHTML = `<p class="ra-note" style="color:#c0392b">${esc(e.message)}</p>`; return; }
-        root.innerHTML = `
+        css();
+        st.cur = null;
+        const r = root(); if (!r) return;
+        r.innerHTML = '<p class="ra-note">불러오는 중…</p>';
+        try { await loadList(); } catch (e) { r.innerHTML = `<p class="ra-note" style="color:#c0392b">${esc(e.message)}</p>`; return; }
+        r.innerHTML = `
           <div class="ra-bar"><button type="button" class="ra-btn" onclick="cohortAdm.addMembers()">+ 교육생 추가</button></div>
-          <p class="ra-note">교육명칭·교회·이름·고유번호로 교육생을 넣으면 그 교육이 함께 만들어집니다. 과정을 누르면 교육생·출석·과제·시험·텔레그램 방을 관리합니다.</p>
+          <p class="ra-note">교육명칭·교회·이름·고유번호로 교육생을 넣으면 그 교육이 함께 만들어집니다. 과정을 누르면 출석·과제·시험 점수를 파트별로 관리합니다.</p>
           <div class="ra-h" style="margin-top:14px">교육 과정 ${st.list.length}개</div>
           <div class="ra-list">${st.list.length ? st.list.map(c => `
             <button type="button" class="ra-row" onclick="cohortAdm.detail('${esc(c.cohortId)}')">
               <span style="flex:1;min-width:0"><b>${esc(c.title)}</b>
-                <div class="ra-sub">교육생 ${c.memberCount}명 · ${[c.useAttend ? '출석' : '', c.useAssign ? '과제' : ''].filter(Boolean).join('·') || '기능 꺼짐'}${c.tgChat ? ' · 텔레그램 방 연결' : ''}</div></span>
+                <div class="ra-sub">교육생 ${c.memberCount}명${c.startDate ? ` · ${mmdd(c.startDate)}~${mmdd(c.endDate)}` : ''}${c.days ? ' · ' + daysText(c.days) : ''}${c.startTime ? ' ' + c.startTime : ''}${c.tgChat ? ' · 텔레그램 연결' : ''}</div></span>
               <span class="ra-tag ${c.status === '진행' ? '' : 'out'}">${esc(c.status)}</span>
             </button>`).join('') : '<p class="ra-note">아직 교육 과정이 없어요.</p>'}</div>
           <div class="ra-h">교육생 없이 과정만 먼저 만들기</div>
@@ -13854,6 +13893,7 @@ async function calAdmInit() {
         const res = await call({ action: 'cohortSave', cohort: { title, useAttend: true, useAssign: true } });
         if (res.error) { toast(res.error, true); return; }
         toast('교육 과정을 만들었어요.');
+        st.tab = 'settings';
         detail(res.cohortId);
       }
 
@@ -13901,95 +13941,218 @@ async function calAdmInit() {
           if (res.error) throw new Error(res.error);
           const skipped = res.skipped || [];
           toast(`${res.added}명 등록했어요${skipped.length ? ` · ${skipped.length}명 제외` : ''}`);
+          closeSheet();
+          st.tab = 'members';
+          await detail(cohortId);
           if (skipped.length) {
             openSheet(`${H('교육생 추가 결과')}<p class="ra-note">${res.added}명 등록 · 아래 ${skipped.length}명은 넣지 않았어요.</p>
-              ${skipped.map(s => `<div class="ra-log"><b>${esc(s.name || '(이름 없음)')}</b> <small>${esc(s.church)} ${esc(s.memberId)}</small><div class="ra-diff">${esc(s.why)}</div></div>`).join('')}
-              <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.detail('${esc(cohortId)}')">과정 보기</button></div>`);
-          } else detail(cohortId);
+              ${skipped.map(s => `<div class="ra-log"><b>${esc(s.name || '(이름 없음)')}</b> <small>${esc(s.church)} ${esc(s.memberId)}</small><div class="ra-diff">${esc(s.why)}</div></div>`).join('')}`);
+          }
         } catch (e) { toast(e.message, true); }
         if (btn) btn.disabled = false;
       }
 
-      /** 과정 한 개: 기능 켜기·텔레그램 방·교육생·출석 모임·과제·집계 보내기 */
+      // ── 과정 화면: 맨 위 탭 ──
       async function detail(cohortId) {
-        openSheet(`${H('교육 과정')}<p class="ra-note">불러오는 중…</p>`);
+        if (document.getElementById('appSheetBack')) closeSheet();
+        if (adminSubTab !== 'cohort') adminSwitchSubTab('cohort');
+        css();
+        const r = root(); if (!r) return;
+        if (!st.cur || st.cur.cohort.cohortId !== cohortId) r.innerHTML = '<p class="ra-note">불러오는 중…</p>';
         let d;
         try { d = await call({ action: 'cohortDetail', cohortId }); } catch (e) { d = { error: e.message }; }
-        if (d.error) { openSheet(`${H('교육 과정')}<p class="ra-note" style="color:#c0392b">${esc(d.error)}</p>`); return; }
+        if (d.error) { r.innerHTML = `<p class="ra-note" style="color:#c0392b">${esc(d.error)}</p><button type="button" class="ra-btn line" onclick="cohortAdm.open()">‹ 과정 목록</button>`; return; }
         st.cur = d;
-        const c = d.cohort, total = d.members.length;
+        draw();
+      }
+      function setTab(t) { st.tab = t; draw(); }
+      function draw() {
+        const d = st.cur, c = d.cohort, r = root(); if (!r) return;
+        const body = { attend: attendTab, assign: assignTab, exam: examTab, members: membersTab, settings: settingsTab }[st.tab] || attendTab;
+        r.innerHTML = `
+          <div class="ch-top"><button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.open()">‹ 목록</button>
+            <h3>${esc(c.title)}</h3><span class="ra-tag ${c.status === '진행' ? '' : 'out'}">${esc(c.status)}</span></div>
+          <div class="ra-sub" style="margin-top:6px">교육생 ${d.total}명${c.startDate ? ` · ${mmdd(c.startDate)}~${mmdd(c.endDate)}` : ' · 기간 미정'}${c.days ? ' · ' + daysText(c.days) : ''}${c.startTime ? ` ${c.startTime}~${c.endTime}` : ''}${c.tgChat ? ' · ✈️ 텔레그램 연결' : ' · ⚠️ 텔레그램 방 미연결'}</div>
+          <div class="ra-acts" style="margin-top:10px">
+            <button type="button" class="ra-btn" style="${SMALL}" onclick="cohortAdm.sheet(this)">취합 표</button>
+            <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.excel(this)">엑셀 받기</button>
+            <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.sendSummary(this)">지금 집계 보내기</button>
+          </div>
+          <div class="ch-tabs">${TABS.map(([k, l]) => `<button type="button" class="${st.tab === k ? 'on' : ''}" onclick="cohortAdm.setTab('${k}')">${l}</button>`).join('')}</div>
+          ${body(d, c)}`;
+      }
+
+      // ① 출석
+      function attendTab(d, c) {
+        const today = d.today;
+        const tm = d.todayMeetings || [];
+        const past = d.meetings.filter(m => m.date <= today).slice(-7).reverse();
+        const next = d.meetings.filter(m => m.date > today);
+        return `
+          <div class="ch-today">
+            <div>오늘 출석<b>${tm.length ? `${tm.reduce((s, m) => s + m.count, 0)}/${d.total}명` : '교육 없음'}</b></div>
+            <div>지난 출석 모임<b>${d.heldCount}회</b></div>
+            <div>앞으로<b>${next.length}회</b></div>
+          </div>
+          <div class="ra-h">출석 루틴</div>
+          <p class="ra-note" style="margin-top:6px">교육 요일과 정기 시간을 정하고 [루틴 저장 · 일정 만들기]를 누르면 기간 안의 교육 날마다 출석 모임이 생깁니다. 끝나고 10분 뒤 출석 결과가 텔레그램 방으로 갑니다.</p>
+          <label class="ra-f">교육 요일</label>${daysPick('chAttDays', c.days)}
+          <div class="ra-two"><label class="ra-f">시작 시각<input type="time" id="chStartTime" value="${esc(c.startTime)}"></label><label class="ra-f">끝 시각<input type="time" id="chEndTime" value="${esc(c.endTime)}"></label></div>
+          <div class="ra-two"><label class="ra-f">교육 시작일<input type="date" id="chStartDate" value="${esc(c.startDate)}"></label><label class="ra-f">교육 끝날<input type="date" id="chEndDate" value="${esc(c.endDate)}"></label></div>
+          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.saveRoutine(this)">루틴 저장 · 일정 만들기</button>
+            <button type="button" class="ra-btn line" onclick="cohortAdm.showQr()">출석 QR 띄우기</button></div>
+          <p class="ra-note">출석 QR은 교육 기간 내내 <b>하나</b>입니다. 인쇄해 두거나 화면에 띄우면, 찍는 날의 출석 모임으로 들어갑니다.</p>
+          <div class="ra-h">최근 출석</div>
+          ${past.map(m => `<div class="ra-log" style="display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0"><b>${esc(mmdd(m.date))}</b> <small>${esc(m.start)}~${esc(m.end)} · ${esc(m.title)}</small></span>
+              <span class="ra-tag ${m.count ? '' : 'out'}">${m.count}/${d.total}명</span></div>`).join('') || '<p class="ra-note">아직 지난 출석 모임이 없어요.</p>'}
+          ${next.length ? `<p class="ra-note">다음 교육: ${next.slice(0, 5).map(m => mmdd(m.date)).join(', ')}${next.length > 5 ? ` 외 ${next.length - 5}회` : ''}</p>` : ''}
+          <details style="margin-top:14px"><summary class="ra-note" style="cursor:pointer">보충·특별 출석 모임 하나 추가 / 기존 모임 연결</summary>
+            <div class="ra-two"><label class="ra-f">날짜<input type="date" id="chMtDate"></label><label class="ra-f">모임 이름(비우면 자동)<input id="chMtTitle"></label></div>
+            <div class="ra-two"><label class="ra-f">시작<input type="time" id="chMtStart"></label><label class="ra-f">끝<input type="time" id="chMtEnd"></label></div>
+            <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.createMeeting(this)">모임 추가</button></div>
+            ${d.freeMeetings.length ? `<label class="ra-f">이미 만든 모임 연결<select id="chLinkSel" style="display:block;width:100%;height:44px;margin-top:4px;border:1px solid #d6dbd8;border-radius:10px;padding:0 10px;font-size:15px;background:#fff">
+                ${d.freeMeetings.map(m => `<option value="${esc(m.meetingId)}">${esc(mmdd(m.date))} ${esc(m.title)}</option>`).join('')}</select></label>
+              <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.link(document.getElementById('chLinkSel').value, true)">연결</button></div>` : ''}
+          </details>`;
+      }
+
+      // ② 과제
+      function assignTab(d) {
+        return `
+          <div class="ch-today">${d.assignments.filter(a => a.onToday).map(a => `<div>오늘 ${esc(a.title)}<b>${a.doneToday}/${d.total}명</b></div>`).join('') || '<div>오늘 낼 과제<b>없음</b></div>'}</div>
+          <div class="ra-h">과제 루틴 ${d.assignments.length}개</div>
+          ${d.assignments.map(a => `<div class="ch-card">
+              <div style="display:flex;align-items:center;gap:8px"><b style="flex:1;font-size:16px">${esc(a.title)}</b><span class="ra-tag ${a.status === '열림' ? '' : 'out'}">${a.status === '열림' ? '진행' : '마감'}</span></div>
+              <div class="ra-sub">${esc(a.repeatText)}${a.dayCount > 1 ? ` · 지금까지 ${a.dayCount}일` : ''} · 누적 ${a.doneAll}/${a.expectAll || d.total}건</div>
+              ${a.guide ? `<div class="ra-diff" style="margin-top:4px;white-space:pre-wrap">${esc(a.guide)}</div>` : ''}
+              <div class="ra-acts" style="margin-top:8px">
+                <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.submissions('${esc(a.assignmentId)}')">${a.repeat === '한번' ? '제출 보기' : '오늘 제출 보기'}</button>
+                <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.editAssign('${esc(a.assignmentId)}')">고치기</button>
+                <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.toggleAssign('${esc(a.assignmentId)}')">${a.status === '열림' ? '마감' : '다시 열기'}</button>
+              </div></div>`).join('') || '<p class="ra-note">아직 과제가 없어요. 아래에서 루틴을 만드세요.</p>'}
+          <div class="ra-h" id="chAsHead">새 과제 루틴</div>
+          <input type="hidden" id="chAsId">
+          <label class="ra-f">과제 이름<input id="chAsTitle" placeholder="예: 천국 가는 항해자"></label>
+          <label class="ra-f">설명(선택)<textarea id="chAsGuide" rows="2" style="${AREA}"></textarea></label>
+          <label class="ra-f">내는 요일 <small style="font-weight:400">(하나도 안 고르면 한 번만 내는 과제)</small></label>${daysPick('chAsDays', '월화수목금토일')}
+          <div class="ra-two"><label class="ra-f">마감 시각(비우면 자정)<input type="time" id="chAsDueTime"></label><label class="ra-f">한 번만일 때 기한 날짜<input type="date" id="chAsDue"></label></div>
+          <p class="ra-note">마감 시각이 지나면 그날 제출·미제출 명단이 텔레그램 방으로 갑니다. 교육생은 방에 <b>제출 [과제 낱말] 내용</b>으로 냅니다(예: 제출 항해자 …).</p>
+          <div class="ra-acts"><button type="button" class="ra-btn" id="chAsSave" onclick="cohortAdm.saveAssign(this)">과제 루틴 저장</button></div>`;
+      }
+      function editAssign(id) {
+        const a = st.cur.assignments.find(x => x.assignmentId === id); if (!a) return;
+        document.getElementById('chAsHead').textContent = `과제 고치기 — ${a.title}`;
+        document.getElementById('chAsId').value = a.assignmentId;
+        document.getElementById('chAsTitle').value = a.title;
+        document.getElementById('chAsGuide').value = a.guide || '';
+        const days = a.repeat === '매일' ? '월화수목금토일' : a.repeat === '요일' ? a.days : '';
+        document.querySelectorAll('#chAsDays input').forEach(b => { b.checked = days.includes(b.value); });
+        document.getElementById('chAsDueTime').value = a.dueTime || '';
+        document.getElementById('chAsDue').value = a.due || '';
+        document.getElementById('chAsHead').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      function saveAssign(btn) {
+        const days = daysOf('chAsDays');
+        const old = st.cur.assignments.find(x => x.assignmentId === val('chAsId'));
+        const assignment = { assignmentId: val('chAsId'), title: val('chAsTitle'), guide: val('chAsGuide'), dueTime: val('chAsDueTime'),
+          repeat: days.length === 7 ? '매일' : days ? '요일' : '한번', days, due: days ? '' : val('chAsDue'), status: old ? old.status : '열림' };
+        act({ action: 'cohortSaveAssignment', cohortId: cid(), assignment }, assignment.assignmentId ? '과제를 고쳤어요.' : '과제 루틴을 만들었어요.', btn);
+      }
+
+      // ③ 시험 점수
+      function examTab(d) {
+        const routines = d.examRoutines || [];
+        return `
+          <div class="ch-today">${routines.filter(e => e.onToday).map(e => `<div>오늘 ${esc(e.subject)}<b>${e.doneToday}/${d.total}명</b></div>`).join('') || '<div>오늘 시험<b>없음</b></div>'}</div>
+          <div class="ra-h">시험 루틴 ${routines.length}개</div>
+          ${routines.map(e => `<div class="ch-card" style="display:flex;align-items:center;gap:8px">
+              <span style="flex:1;min-width:0"><b style="font-size:16px">${esc(e.subject)}</b><div class="ra-sub">${esc(e.examText)}</div></span>
+              <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.editExam('${esc(e.examId)}')">고치기</button>
+              <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.toggleExam('${esc(e.examId)}')">${e.status === '열림' ? '끝내기' : '다시'}</button></div>`).join('') || '<p class="ra-note">아직 시험 루틴이 없어요.</p>'}
+          <div class="ra-h" id="chExHead">새 시험 루틴</div>
+          <input type="hidden" id="chExId">
+          <label class="ra-f">과목<input id="chExSubject" placeholder="예: 계시록"></label>
+          <label class="ra-f">시험 요일 <small style="font-weight:400">(하나도 안 고르면 한 번만 보는 시험)</small></label>${daysPick('chExDays', '')}
+          <div class="ra-two"><label class="ra-f">점수 입력 마감(비우면 자정)<input type="time" id="chExDue"></label><label class="ra-f">한 번만일 때 날짜<input type="date" id="chExDate"></label></div>
+          <p class="ra-note">마감 시각이 지나면 그날 점수 순위·평균·미입력 명단이 텔레그램 방으로 갑니다.</p>
+          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.saveExam(this)">시험 루틴 저장</button></div>
+          <div class="ch-guide"><b>점수 올리기(텔레그램 방 관리자)</b><br>점수 계시록 홍길동 85 김영희 90<br>여러 줄도 됩니다: 첫 줄 "점수 계시록", 다음 줄부터 "홍길동 85"<br>지난날 점수: 점수 계시록 10/15 홍길동 85</div>
+          <div class="ra-h">최근 시험 결과</div>
+          ${d.exams.slice().reverse().slice(0, 15).map(e => `<div class="ra-log"><b>${esc(mmdd(e.date))} ${esc(e.subject)}</b><div class="ra-diff">입력 ${e.count}/${d.total}명 · 평균 ${e.avg}</div></div>`).join('') || '<p class="ra-note">아직 올라온 점수가 없어요.</p>'}`;
+      }
+      function editExam(id) {
+        const e = (st.cur.examRoutines || []).find(x => x.examId === id); if (!e) return;
+        document.getElementById('chExHead').textContent = `시험 고치기 — ${e.subject}`;
+        document.getElementById('chExId').value = e.examId;
+        document.getElementById('chExSubject').value = e.subject;
+        document.querySelectorAll('#chExDays input').forEach(b => { b.checked = e.days.includes(b.value); });
+        document.getElementById('chExDue').value = e.dueTime || '';
+        document.getElementById('chExDate').value = e.date || '';
+        document.getElementById('chExHead').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      function saveExam(btn) {
+        const old = (st.cur.examRoutines || []).find(x => x.examId === val('chExId'));
+        const exam = { examId: val('chExId'), subject: val('chExSubject'), days: daysOf('chExDays'), dueTime: val('chExDue'), date: val('chExDate'), status: old ? old.status : '열림' };
+        act({ action: 'cohortSaveExam', cohortId: cid(), exam }, exam.examId ? '시험을 고쳤어요.' : '시험 루틴을 만들었어요.', btn);
+      }
+      function toggleExam(id) {
+        const e = (st.cur.examRoutines || []).find(x => x.examId === id); if (!e) return;
+        act({ action: 'cohortSaveExam', cohortId: cid(), exam: { ...e, status: e.status === '열림' ? '닫힘' : '열림' } }, e.status === '열림' ? '시험 루틴을 끝냈어요.' : '다시 열었어요.');
+      }
+
+      // ④ 교육생
+      function membersTab(d, c) {
+        return `
+          <div class="ra-acts" style="margin-top:12px"><button type="button" class="ra-btn" onclick="cohortAdm.addMembers('${esc(c.cohortId)}')">+ 교육생 추가</button></div>
+          <div class="ra-h">교육생 ${d.total}명</div>
+          ${d.members.map(m => `<div class="ra-log" style="display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0"><b>${esc(m.name)}</b> <small>${esc(m.church)} · ${esc(m.memberId)}</small>
+              <div class="ra-diff">출석 ${m.attended}/${m.held} · 과제 ${m.submitted}/${m.expected}</div></span>
+            <button type="button" class="ra-btn warn" style="${SMALL}" data-label="빼기" onclick="cohortAdm.removeMember('${esc(m.memberId)}', this)">빼기</button></div>`).join('') || '<p class="ra-note">아직 교육생이 없어요.</p>'}`;
+      }
+
+      // ⑤ 설정
+      function settingsTab(d, c) {
         const chk = (id, on, label) => `<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:15px;font-weight:700"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="width:20px;height:20px">${label}</label>`;
-        const memberRows = d.members.map(m => `<div class="ra-log" style="display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0"><b>${esc(m.name)}</b> <small>${esc(m.church)} · ${esc(m.memberId)}</small>
-              <div class="ra-diff">${c.useAttend ? `출석 ${m.attended}/${d.meetings.length}` : ''}${c.useAttend && c.useAssign ? ' · ' : ''}${c.useAssign ? `과제 ${m.submitted}/${d.assignments.length}` : ''}</div></span>
-            <button type="button" class="ra-btn warn" style="${SMALL}" data-label="빼기" onclick="cohortAdm.removeMember('${esc(m.memberId)}', this)">빼기</button></div>`).join('');
-        const attendPart = !c.useAttend ? '' : `<div class="ra-h">출석 모임 ${d.meetings.length}회</div>
-          ${d.meetings.map(m => `<div class="ra-log" style="display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0"><b>${esc(m.title)}</b> <small>${esc(mmdd(m.date))} ${esc(m.start)} · ${esc(m.status)}</small>
-              <div class="ra-diff">교육생 출석 ${m.count}/${total}명</div></span>
-            <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.link('${esc(m.meetingId)}', false)">연결 해제</button></div>`).join('') || '<p class="ra-note">연결된 출석 모임이 없어요.</p>'}
-          <p class="ra-note">QR·설문·마감은 관리자 탭 [출석]에서 그대로 관리합니다. 연결된 모임은 이 과정 교육생이면 교사명단에 없어도 출석할 수 있고, 출석 알림은 이 과정의 텔레그램 방으로 갑니다.</p>
-          <div class="ra-two"><label class="ra-f">날짜<input type="date" id="chMtDate"></label><label class="ra-f">모임 이름(비우면 자동)<input id="chMtTitle"></label></div>
-          <div class="ra-two"><label class="ra-f">시작<input type="time" id="chMtStart"></label><label class="ra-f">끝<input type="time" id="chMtEnd"></label></div>
-          <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.createMeeting(this)">새 출석 모임 만들기</button></div>
-          ${d.freeMeetings.length ? `<label class="ra-f">이미 만든 모임 연결<select id="chLinkSel" style="display:block;width:100%;height:44px;margin-top:4px;border:1px solid #d6dbd8;border-radius:10px;padding:0 10px;font-size:15px;background:#fff">
-              ${d.freeMeetings.map(m => `<option value="${esc(m.meetingId)}">${esc(mmdd(m.date))} ${esc(m.title)}</option>`).join('')}</select></label>
-            <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.link(document.getElementById('chLinkSel').value, true)">연결</button></div>` : ''}`;
-        const assignPart = !c.useAssign ? '' : `<div class="ra-h">과제 ${d.assignments.length}개</div>
-          ${d.assignments.map(a => `<div class="ra-log" style="display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0"><b>${esc(a.title)}</b> <small>${a.due ? '기한 ' + esc(mmdd(a.due)) + ' · ' : ''}${esc(a.status)}</small>
-              <div class="ra-diff">제출 ${a.count}/${total}명</div></span>
-            <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.submissions('${esc(a.assignmentId)}')">제출 보기</button>
-            <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.toggleAssign('${esc(a.assignmentId)}')">${a.status === '열림' ? '마감' : '다시 열기'}</button></div>`).join('') || '<p class="ra-note">아직 과제가 없어요.</p>'}
-          <label class="ra-f">과제 이름<input id="chAsTitle" placeholder="예: 1과 요약 쓰기"></label>
-          <label class="ra-f">설명<textarea id="chAsGuide" rows="3" style="${AREA}"></textarea></label>
-          <label class="ra-f">기한(선택)<input type="date" id="chAsDue"></label>
-          <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.addAssign(this)">과제 내기</button></div>`;
-        openSheet(`${H(esc(c.title))}
-          <div class="ra-sub">교육생 ${total}명 · ${esc(c.status)}</div>
-          <div class="ra-h">설정</div>
+        return `
           <label class="ra-f">교육명칭<input id="chEdTitle" value="${esc(c.title)}"></label>
-          ${chk('chUseAttend', c.useAttend, '출석 기능 켜기 (QR 출석 모임 연결)')}
-          ${chk('chUseAssign', c.useAssign, '과제 제출 기능 켜기 (텔레그램 방에 "제출")')}
-          <label class="ra-f">텔레그램 방 번호 (비우면 출석 알림 기본 방)<input id="chTg" value="${esc(c.tgChat)}" placeholder="예: -1001234567890" inputmode="numeric"></label>
-          <p class="ra-note" style="margin-top:6px">① 출석 봇을 교육 방에 초대하고 <b>방 관리자로 지정</b> → ② [방 찾기]에서 방을 고르고 [설정 저장]. 봇은 처음 한 번 [봇 연결]을 눌러 두면 됩니다.</p>
+          ${chk('chUseAttend', c.useAttend, '출석 사용')}
+          ${chk('chUseAssign', c.useAssign, '과제 제출 사용')}
+          <div class="ra-h">텔레그램 방</div>
+          <label class="ra-f">방 번호 (비우면 출석 알림 기본 방)<input id="chTg" value="${esc(c.tgChat)}" placeholder="예: -1001234567890" inputmode="numeric"></label>
+          <p class="ra-note" style="margin-top:6px">① 텔레그램 그룹에 @teachersquare_att_bot 초대 → <b>방 관리자로 지정</b> → ② [방 찾기]에서 방을 고르고 [설정 저장].</p>
           <div id="chChats"></div>
           <div class="ra-acts">
             <button type="button" class="ra-btn" onclick="cohortAdm.saveSettings()">설정 저장</button>
             <button type="button" class="ra-btn line" onclick="cohortAdm.findChats(this)">방 찾기</button>
-            <button type="button" class="ra-btn line" onclick="cohortAdm.connectBot(this)">봇 연결</button>
+            <button type="button" class="ra-btn line" onclick="cohortAdm.connectBot(this)">봇 다시 연결</button>
           </div>
-          <div class="ra-h">텔레그램 방에서 쓰는 법</div>
-          <div class="ra-note" style="background:#f3f5f4;border-radius:10px;padding:10px 12px;line-height:1.7">
-            <b>과제</b> — 제출 홍길동 내용… <small>(처음 한 번만 이름, 다음부터 "제출 내용"만 · 사진 설명에 써도 됨)</small><br>
-            <b>시험</b> — 점수 계시록 홍길동 85 김영희 90 <small>(방 관리자만 · 날짜는 "점수 계시록 10/16 …", 없으면 오늘)</small><br>
-            <b>집계</b> — 집계 <small>(방 관리자)</small> · <b>도움말</b> · <b>방번호</b></div>
-          <div class="ra-h">취합</div>
-          <div class="ra-acts" style="margin-top:8px">
-            <button type="button" class="ra-btn" onclick="cohortAdm.sheet(this)">취합 표 보기</button>
-            <button type="button" class="ra-btn line" onclick="cohortAdm.excel(this)">엑셀 받기</button>
-            <button type="button" class="ra-btn line" onclick="cohortAdm.sendSummary(this)">텔레그램으로 집계 보내기</button>
-          </div>
-          ${(d.exams || []).length ? `<div class="ra-h">시험 ${d.exams.length}회</div>${d.exams.map(e => `<div class="ra-log"><b>${esc(e.subject)}</b> <small>${esc(mmdd(e.date))}</small><div class="ra-diff">입력 ${e.count}/${total}명 · 평균 ${e.avg}</div></div>`).join('')}` : ''}
-          <div class="ra-h">교육생 ${total}명</div>
-          <div class="ra-acts" style="margin-top:8px"><button type="button" class="ra-btn line" onclick="cohortAdm.addMembers('${esc(c.cohortId)}')">+ 교육생 추가</button></div>
-          ${memberRows || '<p class="ra-note">아직 교육생이 없어요.</p>'}
-          ${attendPart}
-          ${assignPart}
+          <div class="ch-guide"><b>텔레그램 방에서 쓰는 말</b><br>
+            과제 — 제출 홍길동 항해자 내용… (처음 한 번만 이름) · 지난날: 제출 어제 노트 …<br>
+            시험 — 점수 계시록 홍길동 85 김영희 90 (방 관리자)<br>
+            집계 · 도움말 · 방번호</div>
           <div class="ra-h">과정 상태</div>
           <div class="ra-acts">
             ${c.status === '진행' ? `<button type="button" class="ra-btn line" onclick="cohortAdm.setStatus('종료')">교육 종료</button>` : `<button type="button" class="ra-btn line" onclick="cohortAdm.setStatus('진행')">다시 진행</button>`}
             <button type="button" class="ra-btn warn" data-label="과정 지우기" onclick="cohortAdm.setStatus('삭제', this)">과정 지우기</button>
-            <button type="button" class="ra-btn line" onclick="cohortAdm.open()">‹ 과정 목록</button>
-          </div>`);
+          </div>`;
       }
+
       const reload = () => st.cur && detail(st.cur.cohort.cohortId);
-      /** 지금 화면의 설정 값(설정 칸을 고치고 저장 안 한 채 상태만 바꿔도 함께 저장). */
+      const cid = () => st.cur.cohort.cohortId;
+      /** 지금 화면에 있는 칸 + 나머지는 저장된 값 그대로 */
       const settings = extra => {
         const c = st.cur.cohort, box = id => document.getElementById(id);
-        return { cohortId: c.cohortId, title: val('chEdTitle') || c.title,
+        return {
+          cohortId: c.cohortId, title: box('chEdTitle') ? (val('chEdTitle') || c.title) : c.title,
           useAttend: box('chUseAttend') ? box('chUseAttend').checked : c.useAttend,
           useAssign: box('chUseAssign') ? box('chUseAssign').checked : c.useAssign,
-          tgChat: box('chTg') ? val('chTg') : c.tgChat, status: c.status, ...extra };
+          tgChat: box('chTg') ? val('chTg') : c.tgChat,
+          days: box('chAttDays') ? daysOf('chAttDays') : c.days,
+          startTime: box('chStartTime') ? val('chStartTime') : c.startTime, endTime: box('chEndTime') ? val('chEndTime') : c.endTime,
+          startDate: box('chStartDate') ? val('chStartDate') : c.startDate, endDate: box('chEndDate') ? val('chEndDate') : c.endDate,
+          status: c.status, ...extra,
+        };
       };
-      /** 되돌리기 어려운 것은 같은 단추를 두 번 눌러야 한다. */
       function sure(btn, label) {
         if (!btn || btn.classList.contains('sure')) return true;
         btn.classList.add('sure'); btn.textContent = label;
@@ -14004,14 +14167,27 @@ async function calAdmInit() {
         if (btn) btn.disabled = false;
         if (res.error) { toast(res.error, true); return null; }
         if (message) toast(message);
-        if (after) after();
+        if (after) await after();
         return res;
       }
-      const cid = () => st.cur.cohort.cohortId;
       const saveSettings = () => act({ action: 'cohortSave', cohort: settings() }, '저장했어요.');
+      async function saveRoutine(btn) {
+        const s = settings();
+        if (!s.days) { toast('교육 요일을 골라 주세요.', true); return; }
+        if (!s.startDate || !s.endDate) { toast('교육 시작일과 끝날을 넣어 주세요.', true); return; }
+        if (!s.startTime || !s.endTime) { toast('시작·끝 시각을 넣어 주세요.', true); return; }
+        const saved = await act({ action: 'cohortSave', cohort: s }, null, btn, null);
+        if (!saved) return;
+        const res = await act({ action: 'cohortMakeSchedule', cohortId: cid() }, null, btn, reload);
+        if (res) toast(`출석 일정: 교육 ${res.days}일 · 새로 ${res.created}개${res.retimed ? ` · 시간 바꿈 ${res.retimed}개` : ''}${res.removed ? ` · 뺌 ${res.removed}개` : ''}`);
+      }
       function setStatus(status, btn) {
         if (status === '삭제' && !sure(btn, '한 번 더 누르면 지웁니다')) return;
         act({ action: 'cohortSave', cohort: settings({ status }) }, status === '삭제' ? '과정을 지웠어요.' : `'${status}'(으)로 바꿨어요.`, null, status === '삭제' ? open : reload);
+      }
+      function showQr() {
+        const c = st.cur.cohort, today = st.cur.today;
+        attShowQr({ meetingId: c.cohortId, title: `${c.title} 출석`, date: today, start: c.startTime, end: c.endTime, place: '', slots: [], count: (st.cur.todayMeetings || []).reduce((s, m) => s + m.count, 0) });
       }
       async function findChats(btn) {
         btn.disabled = true;
@@ -14023,15 +14199,41 @@ async function calAdmInit() {
         el.innerHTML = (res.chats || []).length
           ? res.chats.map(ch => `<button type="button" class="ra-row" style="margin-top:6px" onclick="document.getElementById('chTg').value='${esc(ch.id)}'"><span style="flex:1"><b>${esc(ch.title || '(이름 없음)')}</b><div class="ra-sub">${esc(ch.id)}</div></span><span class="ra-tag">고르기</span></button>`).join('')
             + '<p class="ra-note">고른 뒤 [설정 저장]을 눌러야 연결됩니다.</p>'
-          : `<p class="ra-note">봇이 본 방이 아직 없어요. ${res.connected ? '봇을 방에 초대(관리자 지정)하고 아무 글이나 쓴 뒤 다시 눌러 주세요.' : '먼저 [봇 연결]을 눌러 주세요.'}</p>`;
+          : `<p class="ra-note">봇이 본 방이 아직 없어요. ${res.connected ? '봇을 방에 초대(관리자 지정)하고 아무 글이나 쓴 뒤 다시 눌러 주세요.' : '먼저 [봇 다시 연결]을 눌러 주세요.'}</p>`;
         if (res.lastError) el.innerHTML += `<p class="ra-note" style="color:#c0392b">텔레그램 최근 오류: ${esc(res.lastError)}</p>`;
       }
       async function connectBot(btn) {
         const res = await act({ action: 'cohortBotConnect' }, null, btn, null);
-        if (res) toast(`봇 연결 완료${res.bot ? ' (@' + res.bot + ')' : ''} — 이제 방에 초대하세요.`);
+        if (res) toast(`봇 연결 완료${res.bot ? ' (@' + res.bot + ')' : ''}`);
+      }
+      const sendSummary = btn => act({ action: 'cohortSendSummary', cohortId: cid() }, '텔레그램 방에 집계를 보냈어요.', btn, null);
+      function removeMember(memberId, btn) {
+        if (!sure(btn, '한 번 더')) return;
+        act({ action: 'cohortRemoveMember', cohortId: cid(), targetId: memberId }, '교육생에서 뺐어요.');
+      }
+      function link(meetingId, on) {
+        if (meetingId) act({ action: 'cohortLinkMeeting', cohortId: cid(), meetingId, on }, on ? '출석 모임을 연결했어요.' : '연결을 풀었어요.');
+      }
+      const createMeeting = btn => act({ action: 'cohortCreateMeeting', cohortId: cid(), meeting: { date: val('chMtDate'), title: val('chMtTitle'), start: val('chMtStart'), end: val('chMtEnd') } }, '출석 모임을 추가했어요.', btn);
+      function toggleAssign(assignmentId) {
+        const a = st.cur.assignments.find(x => x.assignmentId === assignmentId); if (!a) return;
+        act({ action: 'cohortSaveAssignment', cohortId: cid(), assignment: { ...a, status: a.status === '열림' ? '닫힘' : '열림' } }, a.status === '열림' ? '마감했어요.' : '다시 열었어요.');
+      }
+      async function submissions(assignmentId, date) {
+        openSheet(`${H('제출 보기')}<p class="ra-note">불러오는 중…</p>`);
+        let res;
+        try { res = await call({ action: 'cohortSubmissions', assignmentId, date }); } catch (e) { res = { error: e.message }; }
+        if (res.error) { openSheet(`${H('제출 보기')}<p class="ra-note" style="color:#c0392b">${esc(res.error)}</p>`); return; }
+        const a = res.assignment;
+        openSheet(`${H(esc(a.title))}
+          <div class="ra-sub">${esc(a.repeatText)}${res.date ? ` · ${esc(mmdd(res.date))}` : ''}</div>
+          ${res.date ? `<label class="ra-f">다른 날 보기<input type="date" value="${esc(res.date)}" onchange="cohortAdm.submissions('${esc(a.assignmentId)}', this.value)"></label>` : ''}
+          <p class="ra-note">제출 ${res.submissions.length}명 · 미제출 ${res.missing.length}명</p>
+          ${res.submissions.map(s => `<div class="ra-log"><b>${esc(s.name)}</b> <small>${esc(s.at)}${s.late ? ' · ⏰ 늦음' : ''}</small><div style="white-space:pre-wrap;margin-top:4px">${esc(s.content)}</div></div>`).join('')}
+          ${res.missing.length ? `<div class="ra-h">미제출</div><p class="ra-note">${res.missing.map(m => esc(m.name + (m.church ? '(' + m.church + ')' : ''))).join(', ')}</p>` : ''}`);
       }
 
-      // ── 취합 표: 교육생 × 출석 모임 · 과제 · 시험 점수 ──
+      // ── 취합 표 · 엑셀 ──
       async function loadSheet(btn) {
         if (btn) btn.disabled = true;
         let res;
@@ -14045,34 +14247,35 @@ async function calAdmInit() {
         const d = await loadSheet(btn); if (!d) return;
         const th = 'style="position:sticky;top:0;background:#e3f6ef;padding:6px 8px;border:1px solid #d6dbd8;white-space:nowrap;font-size:12px"';
         const td = 'style="padding:6px 8px;border:1px solid #e3e8e5;white-space:nowrap;font-size:13px;text-align:center"';
-        const head = ['교회', '이름', ...d.meetings.map(m => '출석 ' + mmdd(m.date)), ...d.assignments.map(a => '과제 ' + a.title), ...d.exams.map(examLabel)];
+        const head = ['교회', '이름', '출석', '과제', ...d.assignments.map(a => a.title), ...d.exams.map(examLabel)];
         const body = d.rows.map(r => `<tr><td ${td}>${esc(r.church)}</td><td ${td}><b>${esc(r.name)}</b></td>
-          ${r.attend.map(v => `<td ${td}>${v ? (v === '출석' ? '○' : esc(v)) : '<span style="color:#c0392b">×</span>'}</td>`).join('')}
-          ${r.submit.map(v => `<td ${td} title="${esc(v ? v.content : '')}">${v ? '○ ' + esc(v.at) : '<span style="color:#c0392b">×</span>'}</td>`).join('')}
+          <td ${td}>${r.attended}/${r.held}</td><td ${td}>${r.submitted}/${r.expected}</td>
+          ${r.perAssign.map(v => `<td ${td}>${v}</td>`).join('')}
           ${r.scores.map(v => `<td ${td}>${v == null ? '' : esc(v)}</td>`).join('')}</tr>`).join('');
         openSheet(`${H(esc(d.cohort.title) + ' 취합')}
-          <p class="ra-note">교육생 ${d.rows.length}명 · 출석 ${d.meetings.length}회 · 과제 ${d.assignments.length}개 · 시험 ${d.exams.length}회</p>
+          <p class="ra-note">교육생 ${d.rows.length}명 · 날짜별 출석·과제는 [엑셀 받기]에 시트로 들어 있어요.</p>
           <div style="overflow:auto;max-height:65vh;border:1px solid #e3e8e5;border-radius:10px">
             <table style="border-collapse:collapse;min-width:100%"><thead><tr>${head.map(h => `<th ${th}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>
-          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.excel(this)">엑셀 받기</button>
-            <button type="button" class="ra-btn line" onclick="cohortAdm.detail('${esc(d.cohort.cohortId)}')">‹ 과정으로</button></div>`);
+          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.excel(this)">엑셀 받기</button></div>`);
       }
-      /** 엑셀: 종합(한 장에 모두) + 과제 내용 + 점수 시트 */
+      /** 엑셀: 종합 · 출석(날짜별) · 과제(날짜별) · 시험 점수 · 과제 내용 */
       async function excel(btn) {
         const d = await loadSheet(btn); if (!d) return;
         try {
           await loadXlsx();
           const wb = XLSX.utils.book_new();
-          const all = [['교회', '이름', '고유번호', ...d.meetings.map(m => '출석 ' + mmdd(m.date) + ' ' + m.title), ...d.assignments.map(a => '과제 ' + a.title), ...d.exams.map(examLabel), '출석 수', '과제 수'],
-            ...d.rows.map(r => [r.church, r.name, r.memberId, ...r.attend.map(v => v || '결석'), ...r.submit.map(v => v ? '제출 ' + v.at : '미제출'), ...r.scores.map(v => v == null ? '' : v),
-              r.attend.filter(Boolean).length, r.submit.filter(Boolean).length])];
-          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(all), '종합');
-          const subs = [['과제', '교회', '이름', '제출 시각', '경로', '내용']];
-          d.assignments.forEach((a, i) => d.rows.forEach(r => { const v = r.submit[i]; if (v) subs.push([a.title, r.church, r.name, v.at, v.source || '', v.content]); }));
-          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(subs), '과제 내용');
+          const add = (rows, name) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
+          const dayHead = x => `${mmdd(x)}(${'일월화수목금토'[new Date(x + 'T00:00:00Z').getUTCDay()]})`;
+          add([['교회', '이름', '고유번호', '출석', '과제', ...d.assignments.map(a => '과제 ' + a.title), ...d.exams.map(examLabel)],
+            ...d.rows.map(r => [r.church, r.name, r.memberId, `${r.attended}/${r.held}`, `${r.submitted}/${r.expected}`, ...r.perAssign, ...r.scores.map(v => v == null ? '' : v)])], '종합');
+          const cls = d.dates.map((x, i) => [x, i]).filter(([x]) => d.classDates.includes(x));
+          add([['교회', '이름', ...cls.map(([x]) => dayHead(x))], ...d.rows.map(r => [r.church, r.name, ...cls.map(([, i]) => r.attend[i] || '결석')])], '출석(날짜별)');
+          add([['교회', '이름', ...d.dates.map(dayHead)], ...d.rows.map(r => [r.church, r.name, ...r.daily])], '과제(날짜별)');
           const sc = [['날짜', '과목', '교회', '이름', '점수']];
           d.exams.forEach((e, i) => d.rows.forEach(r => { if (r.scores[i] != null) sc.push([e.date, e.subject, r.church, r.name, r.scores[i]]); }));
-          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sc), '시험 점수');
+          add(sc, '시험 점수');
+          add([['날짜', '과제', '교회', '이름', '제출 시각', '늦음', '경로', '내용'],
+            ...d.submissions.map(s => [s.workDate, s.title, s.church, s.name, s.at, s.late ? '늦음' : '', s.source, s.content])], '과제 내용');
           XLSX.writeFile(wb, `${d.cohort.title}_취합_${todayStr()}.xlsx`.replace(/[\\/:*?"<>|]/g, '_'));
         } catch (e) { toast(e.message, true); }
       }
@@ -14081,33 +14284,10 @@ async function calAdmInit() {
         el.onload = ok; el.onerror = () => fail(new Error('엑셀 도구를 불러오지 못했어요.'));
         document.head.appendChild(el);
       });
-      const sendSummary = btn => act({ action: 'cohortSendSummary', cohortId: cid() }, '텔레그램 방에 집계를 보냈어요.', btn, null);
-      function removeMember(memberId, btn) {
-        if (!sure(btn, '한 번 더')) return;
-        act({ action: 'cohortRemoveMember', cohortId: cid(), targetId: memberId }, '교육생에서 뺐어요.');
-      }
-      function link(meetingId, on) {
-        if (meetingId) act({ action: 'cohortLinkMeeting', cohortId: cid(), meetingId, on }, on ? '출석 모임을 연결했어요.' : '연결을 풀었어요.');
-      }
-      const createMeeting = btn => act({ action: 'cohortCreateMeeting', cohortId: cid(), meeting: { date: val('chMtDate'), title: val('chMtTitle'), start: val('chMtStart'), end: val('chMtEnd') } },
-        '출석 모임을 만들었어요. QR은 관리자 탭 [출석]에서 띄우세요.', btn);
-      const addAssign = btn => act({ action: 'cohortSaveAssignment', cohortId: cid(), assignment: { title: val('chAsTitle'), guide: val('chAsGuide'), due: val('chAsDue') } }, '과제를 냈어요.', btn);
-      function toggleAssign(assignmentId) {
-        const a = st.cur.assignments.find(x => x.assignmentId === assignmentId); if (!a) return;
-        act({ action: 'cohortSaveAssignment', cohortId: cid(), assignment: { ...a, status: a.status === '열림' ? '닫힘' : '열림' } }, a.status === '열림' ? '마감했어요.' : '다시 열었어요.');
-      }
-      async function submissions(assignmentId) {
-        openSheet(`${H('제출 보기')}<p class="ra-note">불러오는 중…</p>`);
-        let res;
-        try { res = await call({ action: 'cohortSubmissions', assignmentId }); } catch (e) { res = { error: e.message }; }
-        if (res.error) { openSheet(`${H('제출 보기')}<p class="ra-note" style="color:#c0392b">${esc(res.error)}</p>`); return; }
-        openSheet(`${H(esc(res.assignment.title))}
-          <p class="ra-note">제출 ${res.submissions.length}명 · 미제출 ${res.missing.length}명</p>
-          ${res.submissions.map(s => `<div class="ra-log"><b>${esc(s.name)}</b> <small>${esc(s.at)}</small><div style="white-space:pre-wrap;margin-top:4px">${esc(s.content)}</div></div>`).join('')}
-          ${res.missing.length ? `<div class="ra-h">미제출</div><p class="ra-note">${res.missing.map(m => esc(m.name + (m.church ? '(' + m.church + ')' : ''))).join(', ')}</p>` : ''}
-          <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.detail('${esc(res.assignment.cohortId)}')">‹ 과정으로</button></div>`);
-      }
-      return { open, create, addMembers, saveMembers, detail, saveSettings, setStatus, findChats, connectBot, sheet, excel, sendSummary, removeMember, link, createMeeting, addAssign, toggleAssign, submissions };
+
+      return { open, create, addMembers, saveMembers, detail, setTab, allDays, saveRoutine, showQr, createMeeting, link,
+        editAssign, saveAssign, toggleAssign, submissions, editExam, saveExam, toggleExam, removeMember,
+        saveSettings, setStatus, findChats, connectBot, sendSummary, sheet, excel };
     })();
     window.cohortAdm = cohortAdm;
 
