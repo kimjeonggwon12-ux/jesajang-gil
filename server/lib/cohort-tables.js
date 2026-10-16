@@ -126,6 +126,7 @@ export function assignBoard(all, today, maxCols = 12, cohortTitle = '') {
     title: `${cohortTitle ? cohortTitle + ' ' : ''}과제 제출 현황`,
     sub: `${mmdd(cols[0].d)}~${mmdd(cols.at(-1).d)} · ${today.slice(5).replace('-', '/')} 기준${cut ? ' (최근만 표시)' : ''} · ${asg.map((a) => `${label.get(a.assignmentId)} = ${a.title}`).join(', ')}`,
     groups, head, rows, align: ['center', 'left'],
+    cols: cols.map((x) => ({ date: x.d, id: x.a.assignmentId })),   // 앱 칸 누르기용
     style: (r, c, v) => {
       if (r === rows.length - 1) return { bold: true, fill: c >= first && c < totFrom ? '#e3f6ef' : null, color: '#0b5e44' };
       if (v === 'O') return { color: '#00875f', bold: true };

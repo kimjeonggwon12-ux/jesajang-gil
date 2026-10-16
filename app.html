@@ -14326,19 +14326,27 @@ async function calAdmInit() {
       /** 그날 낼 과제가 있었나(서버 assignmentOn 과 같은 규칙) */
       const asgOn = (a, date) => (a.repeat === '매일' ? date >= (a.createdAt || '') : a.repeat === '요일' ? String(a.days).includes(wdOf(date)) && date >= (a.createdAt || '') : a.repeat === '날짜' ? String(a.dates).split(',').includes(date) : a.due === date);
 
-      /** 과제 제출 현황판: 교육생 × 날짜(오늘까지) — 칸에 낸 과제, 낼 과제가 있는데 안 냈으면 × */
+      /** 과제 제출 현황판(시험 결과표 꼴): 위 줄 날짜, 아래 줄 그날 과제마다 O/X. 끝에 과제마다 낸 수/전체 · 미제출 */
       function assignBoard(d) {
         if (!sheetReady()) return '<p class="ra-note">과제 현황을 불러오는 중…</p>';
-        const s = st.sheetData;
-        const cols = s.dates.map((x, i) => [x, i]).filter(([x]) => x <= d.today && d.assignments.some(a => asgOn(a, x)));
-        if (!cols.length) return '<p class="ra-note">아직 과제 날이 없어요. 아래에서 과제 루틴을 만드세요.</p>';
-        return `<p class="ra-note" style="margin-top:6px">칸을 누르면 그날 낸 내용을 봅니다. (늦음) = 마감 뒤에 냄</p>
-          <div class="ch-tt ch-att"><table><thead><tr><th style="position:sticky;left:0;z-index:2">이름</th>${cols.map(([x]) => `<th class="${x === d.today ? 'today' : ''}">${mmdd(x)}<br>${wdOf(x)}</th>`).join('')}<th>합계</th></tr></thead><tbody>
-          ${s.rows.map(r => `<tr><td class="tm" style="text-align:left">${r.seq ? r.seq + '. ' : ''}${esc(r.name)}<br><small style="font-weight:400">${esc(r.church)}</small></td>${cols.map(([x, i]) => {
-              const v = r.daily[i];
-              return `<td style="cursor:pointer;font-size:11.5px" onclick="cohortAdm.dayWork('${x}','${esc(r.memberId)}')">${v ? `<span style="color:#00875f">${esc(v)}</span>` : '<span style="color:#c0392b">×</span>'}</td>`;
-            }).join('')}<td><b>${r.submitted}/${r.expected}</b></td></tr>`).join('')}
-          <tr><td class="tm">낸 사람</td>${cols.map(([, i]) => `<td><b>${s.rows.filter(r => r.daily[i]).length}</b>/${s.rows.length}</td>`).join('')}<td></td></tr>
+        const s = st.sheetData, g = s.assignGrid;
+        if (!g || !g.cols.length) return '<p class="ra-note">아직 과제 날이 없어요. 아래에서 과제 루틴을 만드세요.</p>';
+        const n = g.cols.length, last = g.rows.length - 1, stick = 'position:sticky;left:0;z-index:2';
+        const cell = (v, ci, ri) => {
+          if (ri === last) return `<td style="background:#e3f6ef;color:#0b5e44"><b>${esc(v)}</b></td>`;
+          if (ci < n) {
+            const x = g.cols[ci], r = s.rows[ri];
+            const look = v === 'O' ? 'color:#00875f;font-weight:800' : v === 'X' ? 'background:#fde8e8;color:#c0392b;font-weight:800' : 'color:#b0b8b4';
+            return `<td style="cursor:pointer;${look}" onclick="cohortAdm.dayWork('${x.date}','${esc(r ? r.memberId : '')}')">${esc(v)}</td>`;
+          }
+          return ci === g.head.length - 3 && v !== '0' ? `<td style="color:#c0392b"><b>${esc(v)}</b></td>` : `<td><b>${esc(v)}</b></td>`;
+        };
+        return `<p class="ra-note" style="margin-top:6px">O 제출 · X 미제출 · 빈칸 = 아직 날이 안 옴. 칸을 누르면 그날 낸 내용을 봅니다. <span style="color:#6b7772">${esc(g.sub || '')}</span></p>
+          <div class="ch-tt ch-att"><table><thead>
+          <tr><th rowspan="2" style="${stick}">이름</th>${g.groups.slice(1).map(x => `<th colspan="${x.span}" style="${x.label.includes(d.today.slice(5).replace('-', '/')) ? 'background:#0b5e44' : ''}">${esc(x.label)}</th>`).join('')}</tr>
+          <tr>${g.head.slice(2).map(h => `<th>${esc(h)}</th>`).join('')}</tr>
+          </thead><tbody>
+          ${g.rows.map((row, ri) => `<tr><td class="tm" style="text-align:left;${ri === last ? 'background:#e3f6ef' : ''}">${ri === last ? '<b>낸 사람</b>' : `${row[0] ? row[0] + '. ' : ''}${esc(row[1])}<br><small style="font-weight:400">${esc((s.rows[ri] || {}).church || '')}</small>`}</td>${row.slice(2).map((v, ci) => cell(v, ci, ri)).join('')}</tr>`).join('')}
           </tbody></table></div>`;
       }
       async function dayWork(date, memberId) {
@@ -14356,7 +14364,7 @@ async function calAdmInit() {
       function assignTab(d, c) {
         return `
           <div class="ch-today">${d.assignments.filter(a => a.onToday).map(a => `<div>오늘 ${esc(a.title)}<b>${a.doneToday}/${d.total}명</b></div>`).join('') || '<div>오늘 낼 과제<b>없음</b></div>'}</div>
-          ${repHead('과제 제출 현황', '교육생 × 과제 날 · 칸 = 그날 낸 과제')}
+          ${repHead('과제 제출 현황', '날짜 아래 과제마다 O/X')}
           ${boardBar('assign')}
           ${assignBoard(d)}
           ${EDIT_HEAD}

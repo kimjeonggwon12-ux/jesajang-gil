@@ -733,6 +733,8 @@ function buildSheet(c, all, d, withSubs) {
       }
       return out.sort((x, y) => (x.date + x.name < y.date + y.name ? -1 : 1));
     })(),
+    // 과제 제출 현황(시험 결과표 꼴: 날짜 아래 과제마다 O/X) — 앱 [과제] 탭이 바로 그린다
+    assignGrid: (() => { const b = assignBoard(all, today, 400, ''); return b ? { groups: b.groups, head: b.head, rows: b.rows, cols: b.cols, foot: b.foot, sub: b.sub } : null; })(),
     submissions: !withSubs ? [] : all.subs.filter((s) => nids.includes(s.nid)).map((s) => {
       const m = all.members.find((x) => x.nid === s.nid) || {};
       return { ...toSubmission(s), title: asgById.get(s.assignment_id)?.title || '', church: m.church || '' };
