@@ -95,6 +95,20 @@ try {
   const one = tt.items[0];
   ok((await call('cohortSaveItem', { cohortId, item: { ...one, title: '입실' } })).ok && (await call('cohortDeleteItem', { cohortId, itemId: one.itemId })).ok, '일정 고치기·지우기');
 
+  // 수기 출석 + 빠진 교육(일정표 기준)
+  const y = shift(-1), ym = y.slice(5).replace('-', '/');
+  await call('cohortImportTimetable', { cohortId, text: `${ym}\n09:00~10:00 손마사지 #실습\n12:00~13:00 중식\n15:00~17:00 섭외 도구 – 이혈① | 김미라` });
+  ok((await call('cohortSetAttendance', { cohortId, date: y, memberIds: [A.memberId, B.memberId], status: '출석' })).changed === 2, '어제 전원 출석(모임 없으면 만듦)');
+  ok((await call('cohortSetAttendance', { cohortId, date: y, targetId: B.memberId, status: '부분', note: '15:00부터 결석' })).ok, '어제 ZZTEST둘 15시부터 결석');
+  ok((await call('cohortSetAttendance', { cohortId, date: y, targetId: A.memberId, status: '지각', note: '10:30' })).ok, '어제 ZZTEST하나 10:30 지각');
+  const sh0 = await call('cohortSheet', { cohortId });
+  const abB = sh0.absences.find((x) => x.name === 'ZZTEST둘' && x.date === y);
+  const abA = sh0.absences.find((x) => x.name === 'ZZTEST하나' && x.date === y);
+  ok(abB && /이혈①/.test(abB.missed) && !/손마사지/.test(abB.missed), '빠진 교육: 15시 이후 → 이혈① (' + (abB && abB.missed) + ')');
+  ok(abA && /손마사지/.test(abA.missed) && !/이혈/.test(abA.missed) && /지각/.test(abA.text), '빠진 교육: 10:30 지각 → 손마사지 (' + (abA && abA.text) + ')');
+  const sumAbs = await call('cohortSendSummary', { cohortId });
+  ok(/결석 누적 · 빠진 교육/.test(sumAbs.text) && /이혈①/.test(sumAbs.text), '집계 글에 결석 누적·빠진 교육');
+
   // 상세 숫자
   const d = await call('cohortDetail', { cohortId });
   const h = d.assignments.find((x) => x.title === '천국 가는 항해자');

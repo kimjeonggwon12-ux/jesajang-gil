@@ -105,17 +105,78 @@ async function cohortSave(body) {
 
 /** 과정의 모든 자료(상세·집계·취합 표가 같이 쓴다). */
 async function loadAll(c) {
-  const [members, assignments, meetings, subs, scores, examRows] = await Promise.all([
+  const [members, assignments, meetings, subs, scores, examRows, schedule] = await Promise.all([
     run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('church').order('name')),
     run(db().from('cohort_assignments').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('id')),
     run(db().from('attend_meetings').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('date').order('start_time')),
     run(db().from('cohort_submissions').select('*').eq('cohort_id', c.cohortId).order('id')),
     run(db().from('cohort_scores').select('*').eq('cohort_id', c.cohortId).order('date').order('subject')),
     run(db().from('cohort_exams').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('id')),
+    run(db().from('cohort_schedule').select('date, start_time, end_time, title, kind').eq('cohort_id', c.cohortId).order('date').order('start_time')),
   ]);
   const ids = meetings.map((m) => m.meeting_id);
   const records = ids.length ? await loadRecords((q) => q.in('meeting_id', ids)) : [];
-  return { members, assignments: assignments.map(toAssignment), meetings, subs, scores, records, examRoutines: examRows.map(toExam) };
+  return { members, assignments: assignments.map(toAssignment), meetings, subs, scores, records, examRoutines: examRows.map(toExam), schedule };
+}
+
+// ── 결석·빠진 교육 ──
+// 출석 기록과 일정표를 맞춰, 교육생마다 결석한 날·지각·부분 결석과 그때 빠진 교육(일정표 항목)을 찾는다.
+const NOT_CLASS = ['식사', '주간메모', '기타'];   // 빠진 교육으로 세지 않는 것
+const toMin = (t) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m; };
+/** 출석 기록의 빠진 시간대 [시작, 끝) 분 — 지각: 0~온 시각, "15:00부터": 15:00~끝, "09:00~17:00": 그 사이 */
+function missedWindow(rec) {
+  const t = String(rec.late || '');
+  if (/지각/.test(t)) return [0, toMin(String(rec.at).slice(11, 16))];
+  const range = /(\d{1,2}:\d{2})\s*[~\-–]\s*(\d{1,2}:\d{2})/.exec(t);
+  if (range) return [toMin(range[1]), toMin(range[2])];
+  const from = /(\d{1,2}:\d{2})\s*(?:부터|이후)/.exec(t);
+  if (from) return [toMin(from[1]), 24 * 60];
+  const until = /(\d{1,2}:\d{2})\s*(?:까지)/.exec(t);
+  if (until) return [0, toMin(until[1])];
+  return null;
+}
+/** 교육생 nid → { absentDays:[날짜], partial:[{date, text}], missed:[{date, start, title}] } (오늘까지) */
+export function absenceOf(all, today) {
+  const att = new Map(all.records.map((r) => [r.meetingId + '|' + normId(r.memberId), r]));
+  const dayMeetings = new Map();
+  for (const m of all.meetings) if (m.date <= today) { if (!dayMeetings.has(m.date)) dayMeetings.set(m.date, []); dayMeetings.get(m.date).push(m.meeting_id); }
+  const classItems = (date) => (all.schedule || []).filter((x) => x.date === date && x.start_time && !NOT_CLASS.includes(x.kind));
+  const out = new Map();
+  for (const mem of all.members) {
+    const a = { absentDays: [], partial: [], missed: [] };
+    for (const [date, ids] of [...dayMeetings].sort()) {
+      const rec = ids.map((id) => att.get(id + '|' + mem.nid)).find(Boolean);
+      if (!rec) {
+        a.absentDays.push(date);
+        for (const x of classItems(date)) a.missed.push({ date, start: x.start_time, title: x.title });
+        continue;
+      }
+      const w = missedWindow(rec);
+      if (!w) continue;
+      a.partial.push({ date, text: rec.late });
+      for (const x of classItems(date)) {
+        const s = toMin(x.start_time), e = x.end_time ? toMin(x.end_time) : s + 1;
+        if (s < w[1] && e > w[0]) a.missed.push({ date, start: x.start_time, title: x.title });
+      }
+    }
+    out.set(mem.nid, a);
+  }
+  return out;
+}
+/** 텔레그램용 결석 누적 줄들(빠진 게 있는 사람만) */
+export function absenceLines(all, today) {
+  const abs = absenceOf(all, today);
+  const lines = [];
+  for (const mem of all.members) {
+    const a = abs.get(mem.nid);
+    if (!a.absentDays.length && !a.partial.length) continue;
+    const parts = [];
+    if (a.absentDays.length) parts.push(`결석 ${a.absentDays.length}일(${a.absentDays.map(mmdd).join('·')})`);
+    for (const p of a.partial) parts.push(`${mmdd(p.date)} ${p.text}`);
+    lines.push(`• ${mem.name}${mem.church ? '(' + mem.church + ')' : ''} — ${parts.join(' / ')}`);
+    if (a.missed.length) lines.push(`   빠진 교육 ${a.missed.length}개: ${a.missed.map((x) => `${mmdd(x.date)} ${x.title}`).join(', ')}`);
+  }
+  return lines;
 }
 
 /** 상세·집계용 숫자. */
@@ -273,6 +334,56 @@ async function cohortLinkMeeting(body) {
 }
 
 /** 정기 일정 밖의 출석 모임 하나(보충·특별 교육 등). */
+/**
+ * 출석 수기 입력(관리자): 그날 과정 출석 모임이 없으면 만들고, 교육생 한 명(또는 여럿)의 출석을 정한다.
+ *   status: 출석 | 지각(note = 몇 시에 왔는지, 예 '10:20') | 부분(note = 예 '15:00부터 결석', '09:00~17:00 결석') | 결석(기록 지움)
+ * 알림은 보내지 않는다.
+ */
+async function cohortSetAttendance(body) {
+  if (!owner(body)) return DENIED;
+  const c = await findCohort(clip(body.cohortId, 40));
+  if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
+  const date = clip(body.date, 10);
+  if (!isDate(date)) return { error: '날짜를 골라 주세요.' };
+  const status = ['출석', '지각', '부분', '결석'].includes(String(body.status)) ? String(body.status) : '';
+  if (!status) return { error: '출석·지각·부분·결석 중에서 골라 주세요.' };
+  const note = clip(body.note, 40);
+  const ids = (Array.isArray(body.memberIds) ? body.memberIds : [body.targetId]).map((x) => normId(x)).filter((x) => x !== '0');
+  const members = (await run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId))).filter((m) => ids.includes(m.nid));
+  if (!members.length) return { error: '교육생을 찾을 수 없어요.' };
+  // 그날 모임(없으면 과정 시간으로 만들고, 지난날이면 마감 처리)
+  let [m] = await run(db().from('attend_meetings').select('*').eq('cohort_id', c.cohortId).eq('date', date).neq('status', '삭제').order('start_time').limit(1));
+  if (!m) {
+    if (status === '결석') return { ok: true, changed: 0 };
+    const start = c.startTime || '09:00', end = c.endTime || '18:00';
+    m = { meeting_id: newId('MT') + date.slice(8), title: `${c.title} ${mmdd(date)}(${weekdayOf(date)})`, date, start_time: start, end_time: end,
+      place: '', open_before: 30, questions: [], status: date < kstDate() ? '집계완료' : '열림', org: '전체', district: '',
+      created_by: clip(body.memberId, 40), created_at: kstDateTime(), cohort_id: c.cohortId };
+    await run(db().from('attend_meetings').insert(m));
+  }
+  const start = String(m.start_time || '09:00').slice(0, 5);
+  const toMin = (t) => { const [h, mm] = t.split(':').map(Number); return h * 60 + mm; };
+  let late = '', at = `${date} ${start}:00`;
+  if (status === '지각') {
+    const came = hm(note);
+    if (!came) return { error: '지각은 온 시각을 넣어 주세요(예: 10:20).' };
+    late = `${Math.max(1, toMin(came) - toMin(start))}분 지각`;
+    at = `${date} ${came}:00`;
+  } else if (status === '부분') {
+    if (!note) return { error: '부분 결석은 결석한 시간을 적어 주세요(예: 15:00부터 결석).' };
+    late = /결석|조퇴|외출/.test(note) ? note : note + ' 결석';
+  }
+  const nids = members.map((x) => x.nid);
+  await run(db().from('attend_records').delete().eq('meeting_id', m.meeting_id).in('nid', nids));
+  if (status !== '결석') {
+    await run(db().from('attend_records').insert(members.map((x) => ({
+      record_id: newId('AT') + x.nid.slice(-4), meeting_id: m.meeting_id, member_id: x.member_id, name: x.name, dept: x.church,
+      position: '교육생', answers: {}, at, method: '수기', pick_org: '', pick_district: '', dept24: '', late,
+    }))));
+  }
+  return { ok: true, changed: members.length, meetingId: m.meeting_id };
+}
+
 async function cohortCreateMeeting(body) {
   if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
@@ -369,7 +480,7 @@ async function cohortSaveExam(body) {
 
 // ── 집계 · 취합 ──
 
-function summaryText(c, d) {
+function summaryText(c, d, all) {
   const { members, assignments, exams, total, today, todayMeetings, heldCount } = d;
   const lines = [`📊 [${c.title}] ${mmdd(today)}(${weekdayOf(today)}) 집계`, `교육생 ${total}명${c.startDate ? ` · 기간 ${mmdd(c.startDate)}~${mmdd(c.endDate || c.startDate)}` : ''}`];
   const todayAsg = assignments.filter((a) => a.onToday);
@@ -384,6 +495,8 @@ function summaryText(c, d) {
     lines.push('', '📊 시험(최근)');
     for (const e of exams.slice(-5)) lines.push(`• ${mmdd(e.date)} ${e.subject}: ${e.count}/${total}명 · 평균 ${e.avg}`);
   }
+  const abs = all ? absenceLines(all, today) : [];
+  if (abs.length) lines.push('', '🚫 결석 누적 · 빠진 교육', ...abs);
   lines.push('', `👤 누적 (출석 ${heldCount}회 기준)`);
   for (const m of members) {
     const parts = [];
@@ -394,7 +507,10 @@ function summaryText(c, d) {
   return lines.join('\n');
 }
 
-export const cohortSummaryText = async (c) => summaryText(c, crunch(c, await loadAll(c)));
+/** 결석 누적 줄들(매일 출석 마감 요약에 붙임) */
+export const cohortAbsenceLines = async (c) => absenceLines(await loadAll(c), kstDate());
+
+export const cohortSummaryText = async (c) => { const all = await loadAll(c); return summaryText(c, crunch(c, all), all); };
 
 async function cohortSendSummary(body) {
   if (!owner(body)) return DENIED;
@@ -429,7 +545,7 @@ async function cohortSheet(body) {
     const ms = meetOfDate.get(date);
     if (!ms) return null;   // 교육 없는 날
     const r = ms.map((id) => att.get(id + '|' + nid)).find(Boolean);
-    return r ? (/지각/.test(r.late || '') ? r.late : '출석') : '';
+    return r ? (/지각|결석|조퇴|외출/.test(r.late || '') ? r.late : '출석') : '';
   };
   // 날짜별 과제: 그날 낸 과제 이름들
   const short = (a) => a.title.split(/\s+/).at(-1);
@@ -451,6 +567,18 @@ async function cohortSheet(body) {
       perAssign: d.assignments.map((a) => all.subs.filter((s) => s.assignment_id === a.assignmentId && s.nid === nids[i]).length),
       scores: examCols.map((e) => scoreOf.get(e.date + '|' + e.subject + '|' + nids[i]) ?? null),
     })),
+    // 결석·빠진 교육(엑셀 시트 + 화면)
+    absences: (() => {
+      const abs = absenceOf(all, today);
+      const out = [];
+      for (const m of all.members) {
+        const a = abs.get(m.nid);
+        const missedOn = (date) => a.missed.filter((x) => x.date === date).map((x) => x.title).join(', ');
+        for (const date of a.absentDays) out.push({ date, church: m.church, name: m.name, type: '결석', text: '하루 결석', missed: missedOn(date) });
+        for (const p of a.partial) out.push({ date: p.date, church: m.church, name: m.name, type: /지각/.test(p.text) ? '지각' : '부분 결석', text: p.text, missed: missedOn(p.date) });
+      }
+      return out.sort((x, y) => (x.date + x.name < y.date + y.name ? -1 : 1));
+    })(),
     submissions: all.subs.filter((s) => nids.includes(s.nid)).map((s) => {
       const m = all.members.find((x) => x.nid === s.nid) || {};
       return { ...toSubmission(s), title: asgById.get(s.assignment_id)?.title || '', church: m.church || '' };
@@ -460,5 +588,5 @@ async function cohortSheet(body) {
 
 export default {
   cohortList, cohortSave, cohortDetail, cohortAddMembers, cohortRemoveMember, cohortMakeSchedule, cohortLinkMeeting, cohortCreateMeeting,
-  cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet,
+  cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet, cohortSetAttendance,
 };

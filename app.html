@@ -14204,11 +14204,48 @@ async function calAdmInit() {
         const s = st.sheetData;
         const cols = s.dates.map((x, i) => [x, i]).filter(([x]) => s.classDates.includes(x) && x <= d.today);
         if (!cols.length) return '<p class="ra-note">아직 지난 교육 날이 없어요. 출석 루틴을 저장하면 교육 날마다 여기에 쌓입니다.</p>';
-        const mark = v => v == null ? '' : v === '출석' ? '<span style="color:#00875f;font-weight:800">○</span>' : /지각/.test(v) ? `<span style="color:#b7791f;font-size:11px">${esc(v.replace(' 지각', ''))}<br>지각</span>` : '<span style="color:#c0392b">×</span>';
-        return `<div class="ch-tt ch-att"><table><thead><tr><th style="position:sticky;left:0;z-index:2">이름</th>${cols.map(([x]) => `<th class="${x === d.today ? 'today' : ''}">${mmdd(x)}<br>${wdOf(x)}</th>`).join('')}<th>합계</th></tr></thead><tbody>
-          ${s.rows.map(r => `<tr><td class="tm" style="text-align:left">${esc(r.name)}<br><small style="font-weight:400">${esc(r.church)}</small></td>${cols.map(([, i]) => `<td>${mark(r.attend[i])}</td>`).join('')}<td><b>${r.attended}/${r.held}</b></td></tr>`).join('')}
+        const mark = v => v == null ? '' : v === '출석' ? '<span style="color:#00875f;font-weight:800">○</span>'
+          : /지각/.test(v) ? `<span style="color:#b7791f;font-size:11px">${esc(v.replace(' 지각', ''))}<br>지각</span>`
+          : v ? `<span style="color:#d35400;font-size:11px">◐<br>${esc(v)}</span>` : '<span style="color:#c0392b">×</span>';
+        const absList = (s.absences || []);
+        return `<p class="ra-note" style="margin-top:6px">칸을 누르면 출석·지각·부분 결석·결석으로 바꿀 수 있고, 날짜를 누르면 그날 전원 출석으로 넣습니다.</p>
+          <div class="ch-tt ch-att"><table><thead><tr><th style="position:sticky;left:0;z-index:2">이름</th>${cols.map(([x]) => `<th class="${x === d.today ? 'today' : ''}" style="cursor:pointer" onclick="cohortAdm.allPresent('${x}')">${mmdd(x)}<br>${wdOf(x)}</th>`).join('')}<th>합계</th></tr></thead><tbody>
+          ${s.rows.map(r => `<tr><td class="tm" style="text-align:left">${esc(r.name)}<br><small style="font-weight:400">${esc(r.church)}</small></td>${cols.map(([x, i]) => `<td style="cursor:pointer" onclick="cohortAdm.editAtt('${x}','${esc(r.memberId)}')">${mark(r.attend[i])}</td>`).join('')}<td><b>${r.attended}/${r.held}</b></td></tr>`).join('')}
           <tr><td class="tm">인원</td>${cols.map(([, i]) => `<td><b>${s.rows.filter(r => r.attend[i]).length}</b>/${s.rows.length}</td>`).join('')}<td></td></tr>
-          </tbody></table></div>`;
+          </tbody></table></div>
+          <div class="ra-h">결석 · 빠진 교육 <small style="font-weight:400;color:#6b7772">(일정표 기준)</small></div>
+          ${absList.length ? absList.map(a => `<div class="ra-log"><b>${esc(mmdd(a.date))}(${wdOf(a.date)}) ${esc(a.name)}</b> <small>${esc(a.church)} · ${esc(a.type)}${a.type !== '결석' ? ' · ' + esc(a.text) : ''}</small>
+              <div class="ra-diff">${a.missed ? '빠진 교육: ' + esc(a.missed) : '(그 시간에 일정표 교육 없음)'}</div></div>`).join('') : '<p class="ra-note">빠진 사람이 없어요. 🎉</p>'}`;
+      }
+      /** 출석 칸 고치기 */
+      function editAtt(date, memberId) {
+        const r = st.sheetData.rows.find(x => x.memberId === memberId); if (!r) return;
+        const i = st.sheetData.dates.indexOf(date), v = r.attend[i];
+        openSheet(`${H(`${esc(r.name)} · ${mmdd(date)}(${wdOf(date)})`)}
+          <p class="ra-note">지금: ${v === '출석' ? '출석' : v ? esc(v) : '결석'}</p>
+          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.setAtt('${date}','${esc(memberId)}','출석')">출석</button>
+            <button type="button" class="ra-btn warn" onclick="cohortAdm.setAtt('${date}','${esc(memberId)}','결석')">결석</button></div>
+          <label class="ra-f">지각 — 온 시각<input type="time" id="attCame"></label>
+          <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.setAtt('${date}','${esc(memberId)}','지각', document.getElementById('attCame').value)">지각으로</button></div>
+          <label class="ra-f">부분 결석 — 빠진 시간<input id="attPart" placeholder="예: 15:00부터 결석  /  09:00~17:00 결석"></label>
+          <div class="ch-days" style="margin-top:6px">${['13:00부터 결석', '15:00부터 결석', '16:00부터 결석'].map(t => `<label class="all" style="width:auto;padding:0 10px" onclick="document.getElementById('attPart').value='${t}'">${t}</label>`).join('')}</div>
+          <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.setAtt('${date}','${esc(memberId)}','부분', document.getElementById('attPart').value)">부분 결석으로</button></div>`);
+      }
+      async function setAtt(date, memberId, status, note) {
+        const res = await act({ action: 'cohortSetAttendance', cohortId: cid(), date, targetId: memberId, status, note }, '바꿨어요.', null, null);
+        if (res) { closeSheet(); st.sheetData = null; reload(); }
+      }
+      async function allPresent(date) {
+        if (!confirmTwice('all' + date, `${mmdd(date)} 전원 출석으로 넣을까요? 날짜를 한 번 더 누르면 넣습니다.`)) return;
+        const ids = st.sheetData.rows.map(r => r.memberId);
+        const res = await act({ action: 'cohortSetAttendance', cohortId: cid(), date, memberIds: ids, status: '출석' }, `${mmdd(date)} 전원 출석으로 넣었어요.`, null, null);
+        if (res) { st.sheetData = null; reload(); }
+      }
+      /** 같은 것을 4초 안에 두 번 눌러야 실행(창 없이) */
+      let pending = { key: '', at: 0 };
+      function confirmTwice(key, message) {
+        if (pending.key === key && Date.now() - pending.at < 4000) { pending = { key: '', at: 0 }; return true; }
+        pending = { key, at: Date.now() }; toast(message); return false;
       }
 
       // ② 과제
@@ -14500,6 +14537,8 @@ async function calAdmInit() {
           const sc = [['날짜', '과목', '교회', '이름', '점수']];
           d.exams.forEach((e, i) => d.rows.forEach(r => { if (r.scores[i] != null) sc.push([e.date, e.subject, r.church, r.name, r.scores[i]]); }));
           add(sc, '시험 점수');
+          add([['날짜', '요일', '교회', '이름', '구분', '내용', '빠진 교육'],
+            ...(d.absences || []).map(a => [a.date, wdOf(a.date), a.church, a.name, a.type, a.text, a.missed])], '결석·빠진 교육');
           add([['날짜', '과제', '교회', '이름', '제출 시각', '늦음', '경로', '내용'],
             ...d.submissions.map(s => [s.workDate, s.title, s.church, s.name, s.at, s.late ? '늦음' : '', s.source, s.content])], '과제 내용');
           XLSX.writeFile(wb, `${d.cohort.title}_취합_${todayStr()}.xlsx`.replace(/[\\/:*?"<>|]/g, '_'));
@@ -14511,7 +14550,7 @@ async function calAdmInit() {
         document.head.appendChild(el);
       });
 
-      return { week, addItem, editItem, saveItem, deleteItem, importItems, previewImport, doImport, copyDay, doCopy, setMode,
+      return { editAtt, setAtt, allPresent, week, addItem, editItem, saveItem, deleteItem, importItems, previewImport, doImport, copyDay, doCopy, setMode,
         open, create, addMembers, saveMembers, detail, setTab, allDays, saveRoutine, showQr, createMeeting, link,
         editAssign, saveAssign, toggleAssign, submissions, editExam, saveExam, toggleExam, removeMember,
         saveSettings, setStatus, findChats, connectBot, sendSummary, sheet, excel };

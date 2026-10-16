@@ -7,7 +7,15 @@ import { db, run } from '../lib/db.js';
 import { normId, kstDate, kstDateTime } from '../lib/util.js';
 import { sendAttendText } from '../lib/attend-bot.js';
 import { toCohort, weekdayOf, isClassDay, assignmentOn } from '../lib/cohort.js';
-import { toAssignment, toExam, examOn } from './cohorts.js';
+import { toAssignment, toExam, examOn, cohortAbsenceLines } from './cohorts.js';
+
+/** 출석 마감 요약 끝에 붙이는 결석 누적·빠진 교육(일정표 기준) */
+async function absenceBlock(c) {
+  try {
+    const lines = await cohortAbsenceLines(c);
+    return lines.length ? ['', '🚫 결석 누적 · 빠진 교육', ...lines] : [];
+  } catch (e) { return []; }
+}
 import { loadRecords } from './attendance.js';
 
 const mmdd = (d) => String(d).slice(5).replace('-', '/');
@@ -44,13 +52,15 @@ export async function cohortTick() {
         const byNid = new Map(recs.map((r) => [normId(r.memberId), r]));
         const came = members.filter((x) => byNid.has(x.nid));
         const late = came.filter((x) => /지각/.test(byNid.get(x.nid).late || ''));
+        const part = came.filter((x) => /결석|조퇴|외출/.test(byNid.get(x.nid).late || ''));
         const absent = members.filter((x) => !byNid.has(x.nid));
         await sendAttendText([
           `📋 ${title} 출석 마감 (${String(m.start_time).slice(0, 5)}~${String(m.end_time).slice(0, 5)})`,
           `✅ 출석 ${came.length}/${total}명 (${Math.round((came.length / total) * 100)}%)`,
           late.length ? `⏰ 지각 ${late.length}명: ${late.map((x) => `${x.name} ${byNid.get(x.nid).late}`).join(', ')}` : '',
+          part.length ? `◐ 부분 결석 ${part.length}명: ${part.map((x) => `${x.name} ${byNid.get(x.nid).late}`).join(', ')}` : '',
           absent.length ? `❌ 결석 ${absent.length}명: ${names(absent)}` : '🎉 전원 출석!',
-        ].filter(Boolean).join('\n'), c.tgChat);
+        ].filter(Boolean).concat(await absenceBlock(c)).join('\n'), c.tgChat);
         sent.push(`${c.title} 출석`);
       }
     }
