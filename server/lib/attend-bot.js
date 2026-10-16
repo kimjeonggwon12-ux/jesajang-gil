@@ -25,11 +25,25 @@ export async function sendAttendText(text, chatId) {
   }
 }
 
+/** HTML 글 한 통(표 <pre> 등). 길면 4000자에서 자른다. */
+export async function sendAttendHtml(html, chatId) {
+  if (!configured()) return;
+  const chat = String(chatId || '').trim() || process.env.ATT_ADMIN_CHAT;
+  try {
+    const r = await fetch(api('sendMessage'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chat, text: String(html).slice(0, 4000), parse_mode: 'HTML' }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!j.ok) console.log('출석 봇 HTML 오류: ' + (j.description || r.status));
+  } catch (e) { console.log('출석 봇 오류: ' + e); }
+}
+
 /** 사진 한 장(PNG) + 설명. */
-export async function sendAttendPhoto(bytes, caption) {
+export async function sendAttendPhoto(bytes, caption, chatId) {
   if (!configured()) return { ok: false, error: '봇 설정 없음' };
   const form = new FormData();
-  form.set('chat_id', process.env.ATT_ADMIN_CHAT);
+  form.set('chat_id', String(chatId || '').trim() || process.env.ATT_ADMIN_CHAT);
   form.set('caption', String(caption).slice(0, 1024));
   form.set('photo', new Blob([bytes], { type: 'image/png' }), 'chart.png');
   try {

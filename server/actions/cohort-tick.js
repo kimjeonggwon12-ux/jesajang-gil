@@ -7,7 +7,7 @@ import { db, run } from '../lib/db.js';
 import { normId, kstDate, kstDateTime } from '../lib/util.js';
 import { sendAttendText } from '../lib/attend-bot.js';
 import { toCohort, weekdayOf, isClassDay, assignmentOn } from '../lib/cohort.js';
-import { toAssignment, toExam, examOn, cohortAbsenceLines } from './cohorts.js';
+import { toAssignment, toExam, examOn, cohortAbsenceLines, sendBoards } from './cohorts.js';
 
 /** 출석 마감 요약 끝에 붙이는 결석 누적·빠진 교육(일정표 기준) */
 async function absenceBlock(c) {
@@ -69,6 +69,7 @@ async function tickOne(c, today, hm, sent) {
           part.length ? `◐ 부분 결석 ${part.length}명: ${part.map((x) => `${x.name} ${byNid.get(x.nid).late}`).join(', ')}` : '',
           absent.length ? `❌ 결석 ${absent.length}명: ${names(absent)}` : '🎉 전원 출석!',
         ].filter(Boolean).concat(await absenceBlock(c)).join('\n'), c.tgChat);
+        await sendBoards(c, { kind: 'attend' }).catch((e) => console.log('출석표 오류: ' + e));   // 출석표 이미지
         sent.push(`${c.title} 출석`);
       }
     }
@@ -115,6 +116,7 @@ async function tickOne(c, today, hm, sent) {
         got.length ? got.map((x, i) => `${i + 1}. ${x.name} ${byNid.get(x.nid)}`).join('\n') : '',
         missing.length ? `❌ 점수 없음 ${missing.length}명: ${names(missing)}` : '',
       ].filter(Boolean).join('\n'), c.tgChat);
+      await sendBoards(c, { kind: 'score', subject: e.subject }).catch((x) => console.log('순위표 오류: ' + x));   // 누적 순위표 이미지
       sent.push(`${c.title} 시험 ${e.subject}`);
     }
   }

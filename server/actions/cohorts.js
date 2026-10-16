@@ -5,7 +5,8 @@ import { db, run, isDuplicate } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { clip, newId, isDate } from '../lib/input.js';
 import { runLater } from '../lib/background.js';
-import { sendAttendText } from '../lib/attend-bot.js';
+import { sendAttendText, sendAttendHtml, sendAttendPhoto } from '../lib/attend-bot.js';
+import { scoreBoard, scoreSubjects, attendBoard, boardHtml, boardPng } from '../lib/cohort-tables.js';
 import { toCohort, findCohort, WEEK, weekdayOf, isClassDay, assignmentOn, cleanDates } from '../lib/cohort.js';
 import { isOwner, memberInfo } from './roster.js';
 import { loadRecords } from './attendance.js';
@@ -104,7 +105,7 @@ async function cohortSave(body) {
 }
 
 /** 과정의 모든 자료(상세·집계·취합 표가 같이 쓴다). */
-async function loadAll(c) {
+export async function loadAll(c) {
   const [members, assignments, meetings, subs, scores, examRows, schedule] = await Promise.all([
     run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('church').order('name')),
     run(db().from('cohort_assignments').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('id')),
@@ -512,13 +513,77 @@ export const cohortAbsenceLines = async (c) => absenceLines(await loadAll(c), ks
 
 export const cohortSummaryText = async (c) => { const all = await loadAll(c); return summaryText(c, crunch(c, all), all); };
 
+/** 표(출석표·과목별 순위표)를 과정 방으로. kind: 'attend' | 'score' | 'all'(기본), subject 를 주면 그 과목만 */
+export async function sendBoards(c, { kind = 'all', subject = '', all = null, caption = '' } = {}) {
+  all = all || await loadAll(c);
+  const boards = [];
+  if (kind !== 'score') { const b = attendBoard(all, kstDate(), 12, c.title); if (b) boards.push(['출석표', b]); }
+  if (kind !== 'attend') for (const s of subject ? [subject] : scoreSubjects(all)) { const b = scoreBoard(all, s, 12, c.title); if (b) boards.push([s, b]); }
+  for (const [i, [, b]] of boards.entries()) await sendBoard(c, b, i === 0 ? caption : '');
+  return boards.map(([name]) => name);
+}
+
+/** 표 한 장: 이미지(사진)로, 안 되면 글 표로 */
+export async function sendBoard(c, b, caption = '') {
+  const png = boardPng(b);
+  if (png) {
+    const r = await sendAttendPhoto(png, [caption, b.foot].filter(Boolean).join('\n').slice(0, 1000) || b.title, c.tgChat);
+    if (r && r.ok) return;
+  }
+  await sendAttendHtml(boardHtml(b, caption), c.tgChat);
+}
+
+/** 앱 화면용 표 이미지(data URL) — 우클릭으로 복사·저장 */
+async function cohortBoardImage(body) {
+  if (!owner(body)) return DENIED;
+  const c = await findCohort(clip(body.cohortId, 40));
+  if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
+  const all = await loadAll(c);
+  const b = body.kind === 'attend' ? attendBoard(all, kstDate(), 31, c.title) : scoreBoard(all, clip(body.subject, 40), 31, c.title);
+  if (!b) return { error: '아직 표에 넣을 기록이 없어요.' };
+  const png = boardPng(b);
+  if (!png) return { error: '이미지를 만들지 못했어요.' };
+  return { ok: true, title: b.title.replace(/^\S+\s/, ''), image: 'data:image/png;base64,' + png.toString('base64') };
+}
+
 async function cohortSendSummary(body) {
   if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
-  const text = await cohortSummaryText(c);
+  const all = await loadAll(c);
+  const text = summaryText(c, crunch(c, all), all);
   await sendAttendText(text, c.tgChat);
+  await sendBoards(c, { all });
   return { ok: true, text };
+}
+
+/** 표만 보내기(앱의 [텔레그램으로 출석표·점수표 보내기]) */
+async function cohortSendBoard(body) {
+  if (!owner(body)) return DENIED;
+  const c = await findCohort(clip(body.cohortId, 40));
+  if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
+  const sent = await sendBoards(c, { kind: ['attend', 'score'].includes(body.kind) ? body.kind : 'all', subject: clip(body.subject, 40) });
+  return sent.length ? { ok: true, sent } : { error: '보낼 표가 없어요(출석 기록이나 점수가 아직 없음).' };
+}
+
+/** 점수 하나 고치기(앱 시험 결과표 칸): score 가 비면 지움(미응시) */
+async function cohortSetScore(body) {
+  if (!owner(body)) return DENIED;
+  const c = await findCohort(clip(body.cohortId, 40));
+  if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
+  const date = clip(body.date, 10), subject = clip(body.subject, 40);
+  if (!isDate(date) || !subject) return { error: '날짜와 과목이 필요해요.' };
+  const [m] = await run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).eq('nid', normId(body.targetId)).limit(1));
+  if (!m) return { error: '교육생을 찾을 수 없어요.' };
+  const raw = String(body.score ?? '').trim();
+  if (raw === '') {
+    await run(db().from('cohort_scores').delete().eq('cohort_id', c.cohortId).eq('date', date).eq('subject', subject).eq('nid', m.nid));
+    return { ok: true, removed: true };
+  }
+  const score = Number(raw);
+  if (!Number.isFinite(score) || score < 0 || score > 1000) return { error: '점수는 0~1000 숫자로 넣어 주세요.' };
+  await run(db().from('cohort_scores').upsert({ cohort_id: c.cohortId, date, subject, member_id: m.member_id, name: m.name, score, by_name: '앱', at: kstDateTime() }, { onConflict: 'cohort_id,date,subject,nid' }));
+  return { ok: true };
 }
 
 /**
@@ -588,5 +653,5 @@ async function cohortSheet(body) {
 
 export default {
   cohortList, cohortSave, cohortDetail, cohortAddMembers, cohortRemoveMember, cohortMakeSchedule, cohortLinkMeeting, cohortCreateMeeting,
-  cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet, cohortSetAttendance,
+  cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet, cohortSetAttendance, cohortSendBoard, cohortSetScore, cohortBoardImage,
 };

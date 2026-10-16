@@ -13925,8 +13925,7 @@ async function calAdmInit() {
         r.innerHTML = '<p class="ra-note">불러오는 중…</p>';
         try { await loadList(); } catch (e) { r.innerHTML = `<p class="ra-note" style="color:#c0392b">${esc(e.message)}</p>`; return; }
         r.innerHTML = `
-          <div class="ra-bar"><button type="button" class="ra-btn" onclick="cohortAdm.addMembers()">+ 교육생 추가</button></div>
-          <p class="ra-note">교육명칭·교회·이름·고유번호로 교육생을 넣으면 그 교육이 함께 만들어집니다. 과정을 누르면 출석·과제·시험 점수를 파트별로 관리합니다.</p>
+          <p class="ra-note">과정을 누르면 일정표·출석·과제·시험 점수를 관리합니다. 교육생은 과정 안 [교육생] 탭에서 넣습니다.</p>
           <div class="ra-h" style="margin-top:14px">교육 과정 ${st.list.length}개</div>
           <div class="ra-list">${st.list.length ? st.list.map(c => `
             <button type="button" class="ra-row" onclick="cohortAdm.detail('${esc(c.cohortId)}')">
@@ -13934,17 +13933,18 @@ async function calAdmInit() {
                 <div class="ra-sub">교육생 ${c.memberCount}명${c.startDate ? ` · ${mmdd(c.startDate)}~${mmdd(c.endDate)}` : ''}${c.days ? ' · ' + daysText(c.days) : ''}${c.startTime ? ' ' + c.startTime : ''}${c.tgChat ? ' · 텔레그램 연결' : ''}</div></span>
               <span class="ra-tag ${c.status === '진행' ? '' : 'out'}">${esc(c.status)}</span>
             </button>`).join('') : '<p class="ra-note">아직 교육 과정이 없어요.</p>'}</div>
-          <div class="ra-h">교육생 없이 과정만 먼저 만들기</div>
+          <div class="ra-h">새 교육 과정 만들기</div>
           <label class="ra-f">교육명칭<input id="chNewTitle" placeholder="예: 2026 가을 교관 양성반" autocomplete="off"></label>
-          <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.create()">만들기</button></div>`;
+          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.create()">만들기</button></div>
+          <p class="ra-note">만든 뒤 그 과정의 [교육생] 탭에서 교육생을 넣고, [설정]에서 텔레그램 방을 연결합니다.</p>`;
       }
       async function create() {
         const title = val('chNewTitle');
         if (!title) { toast('교육명칭을 넣어 주세요.', true); return; }
         const res = await call({ action: 'cohortSave', cohort: { title, useAttend: true, useAssign: true } });
         if (res.error) { toast(res.error, true); return; }
-        toast('교육 과정을 만들었어요.');
-        st.tab = 'settings';
+        toast('교육 과정을 만들었어요. 교육생을 넣어 주세요.');
+        st.tab = 'members';
         detail(res.cohortId);
       }
 
@@ -13954,7 +13954,7 @@ async function calAdmInit() {
         const cur = st.list.find(c => c.cohortId === cohortId);
         openSheet(`${H('교육생 추가')}
           <datalist id="chTitles">${st.list.filter(c => c.status === '진행').map(c => `<option value="${esc(c.title)}">`).join('')}</datalist>
-          <label class="ra-f">교육명칭<input id="chTitle" list="chTitles" value="${esc(cur ? cur.title : '')}" placeholder="있는 과정을 고르거나 새 이름을 쓰세요" autocomplete="off"></label>
+          <label class="ra-f">교육명칭<input id="chTitle" list="chTitles" value="${esc(cur ? cur.title : '')}" ${cur ? 'readonly' : ''} placeholder="있는 과정을 고르거나 새 이름을 쓰세요" autocomplete="off"></label>
           <div class="ra-two"><label class="ra-f">교회<input id="chChurch" placeholder="예: 전주" autocomplete="off"></label>
             <label class="ra-f">이름<input id="chName" autocomplete="off"></label></div>
           <label class="ra-f">고유번호<input id="chId" placeholder="예: 00201130-00010" inputmode="numeric" autocomplete="off"></label>
@@ -14081,6 +14081,7 @@ async function calAdmInit() {
             <tbody>${allDayRow}${body}</tbody></table></div>`
             : `<p class="ra-note">이 주에는 등록된 일정이 없어요.</p>`}
           ${memos.length ? `<div class="ch-memo"><b>이번 주 안내</b>${memos.map(x => `<div style="white-space:pre-wrap;cursor:pointer" onclick="cohortAdm.editItem('${esc(x.itemId)}')">• ${esc(x.title)}${x.sub ? ' — ' + esc(x.sub) : ''}</div>`).join('')}</div>` : ''}
+          ${EDIT_HEAD}
           <div class="ra-acts">
             <button type="button" class="ra-btn" onclick="cohortAdm.addItem()">+ 일정 추가</button>
             <button type="button" class="ra-btn line" onclick="cohortAdm.importItems()">여러 줄로 등록</button>
@@ -14175,29 +14176,59 @@ async function calAdmInit() {
           ${body(d, c)}`;
       }
 
+      // 탭마다: 위 = 결과(표), 아래 = 입력·수정
+      const EDIT_HEAD = '<div class="ra-h" style="margin-top:28px;padding-top:14px;border-top:2px solid #00AE82;color:#00875f">✏️ 입력 · 수정</div>';
+      /** 취합 자료(cohortSheet)를 한 번 받아 출석·과제·시험 표가 같이 쓴다 */
+      function sheetReady() {
+        if (st.sheetData) return true;
+        if (!st.sheetLoading) {
+          st.sheetLoading = true;
+          call({ action: 'cohortSheet', cohortId: cid() }).then(r => {
+            st.sheetLoading = false;
+            if (r && !r.error) { st.sheetData = r; if (['attend', 'assign', 'exam'].includes(st.tab)) draw(); }
+          }).catch(() => { st.sheetLoading = false; });
+        }
+        return false;
+      }
+      /** 표 위 단추: 이미지로 보기(우클릭·길게 눌러 복사) · 텔레그램으로 보내기 */
+      const boardBar = (kind, subject = '') => `<div class="ra-acts" style="margin-top:8px">
+          <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.showImage('${kind}', '${esc(subject)}', this)">🖼 이미지로 보기·복사</button>
+          <button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.sendBoard('${kind}', '${esc(subject)}', this)">✈️ 텔레그램으로 보내기</button></div>`;
+      async function showImage(kind, subject, btn) {
+        if (btn) btn.disabled = true;
+        let res;
+        try { res = await call({ action: 'cohortBoardImage', cohortId: cid(), kind, subject }); } catch (e) { res = { error: e.message }; }
+        if (btn) btn.disabled = false;
+        if (res.error) { toast(res.error, true); return; }
+        openSheet(`${H(esc(res.title))}
+          <p class="ra-note">PC는 이미지에서 <b>마우스 오른쪽 → 이미지 복사</b>, 휴대폰은 <b>길게 눌러</b> 복사·저장하세요.</p>
+          <img src="${res.image}" alt="${esc(res.title)}" style="display:block;width:100%;height:auto;border:1px solid #e3e8e5;border-radius:10px;margin-top:8px">`);
+      }
+      const sendBoard = (kind, subject, btn) => act({ action: 'cohortSendBoard', cohortId: cid(), kind, subject }, '텔레그램 방에 보냈어요.', btn, null);
+
       // ① 출석
       function attendTab(d, c) {
-        const today = d.today;
         const tm = d.todayMeetings || [];
-        const past = d.meetings.filter(m => m.date <= today).slice(-7).reverse();
-        const next = d.meetings.filter(m => m.date > today);
+        const next = d.meetings.filter(m => m.date > d.today);
         return `
           <div class="ch-today">
             <div>오늘 출석<b>${tm.length ? `${tm.reduce((s, m) => s + m.count, 0)}/${d.total}명` : '교육 없음'}</b></div>
-            <div>지난 출석 모임<b>${d.heldCount}회</b></div>
+            <div>지난 교육<b>${d.heldCount}회</b></div>
             <div>앞으로<b>${next.length}회</b></div>
           </div>
-          <div class="ra-h">출석 루틴</div>
-          <p class="ra-note" style="margin-top:6px">교육 요일과 정기 시간을 정하고 [루틴 저장 · 일정 만들기]를 누르면 기간 안의 교육 날마다 출석 모임이 생깁니다. 끝나고 10분 뒤 출석 결과가 텔레그램 방으로 갑니다.</p>
+          <div class="ra-h">출석 현황</div>
+          ${boardBar('attend')}
+          ${attendBoard(d)}
+          ${next.length ? `<p class="ra-note">다음 교육: ${next.slice(0, 5).map(m => mmdd(m.date)).join(', ')}${next.length > 5 ? ` 외 ${next.length - 5}회` : ''}</p>` : ''}
+          ${EDIT_HEAD}
+          <div class="ra-h" style="margin-top:12px">출석 루틴</div>
+          <p class="ra-note" style="margin-top:6px">교육 요일과 정기 시간을 정하고 [루틴 저장 · 일정 만들기]를 누르면 기간 안의 교육 날마다 출석 모임이 생깁니다. 끝나고 10분 뒤 출석 결과와 출석표가 텔레그램 방으로 갑니다.</p>
           <label class="ra-f">교육 요일</label>${daysPick('chAttDays', c.days)}
           <div class="ra-two"><label class="ra-f">시작 시각<input type="time" id="chStartTime" value="${esc(c.startTime)}"></label><label class="ra-f">끝 시각<input type="time" id="chEndTime" value="${esc(c.endTime)}"></label></div>
           <div class="ra-two"><label class="ra-f">교육 시작일<input type="date" id="chStartDate" value="${esc(c.startDate)}"></label><label class="ra-f">교육 끝날<input type="date" id="chEndDate" value="${esc(c.endDate)}"></label></div>
           <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.saveRoutine(this)">루틴 저장 · 일정 만들기</button>
             <button type="button" class="ra-btn line" onclick="cohortAdm.showQr()">출석 QR 띄우기</button></div>
           <p class="ra-note">출석 QR은 교육 기간 내내 <b>하나</b>입니다. 인쇄해 두거나 화면에 띄우면, 찍는 날의 출석 모임으로 들어갑니다.</p>
-          <div class="ra-h">출석 현황</div>
-          ${attendBoard(d)}
-          ${next.length ? `<p class="ra-note">다음 교육: ${next.slice(0, 5).map(m => mmdd(m.date)).join(', ')}${next.length > 5 ? ` 외 ${next.length - 5}회` : ''}</p>` : ''}
           <details style="margin-top:14px"><summary class="ra-note" style="cursor:pointer">보충·특별 출석 모임 하나 추가 / 기존 모임 연결</summary>
             <div class="ra-two"><label class="ra-f">날짜<input type="date" id="chMtDate"></label><label class="ra-f">모임 이름(비우면 자동)<input id="chMtTitle"></label></div>
             <div class="ra-two"><label class="ra-f">시작<input type="time" id="chMtStart"></label><label class="ra-f">끝<input type="time" id="chMtEnd"></label></div>
@@ -14208,23 +14239,17 @@ async function calAdmInit() {
           </details>`;
       }
 
-      /** 출석 현황판: 교육생 × 교육 날(오늘까지) — ○ 출석 · 지각 · × 결석, 맨 아래 날짜별 인원 */
+      /** 출석 현황판: 교육생 × 교육 날(오늘까지) — ○ 출석 · 지각 · ◐ 부분 · × 결석, 맨 아래 날짜별 인원 */
       function attendBoard(d) {
-        if (!st.sheetData) {
-          if (!st.sheetLoading) {
-            st.sheetLoading = true;
-            call({ action: 'cohortSheet', cohortId: cid() }).then(r => { st.sheetLoading = false; if (r && !r.error) { st.sheetData = r; if (st.tab === 'attend') draw(); } }).catch(() => { st.sheetLoading = false; });
-          }
-          return '<p class="ra-note">출석 현황을 불러오는 중…</p>';
-        }
+        if (!sheetReady()) return '<p class="ra-note">출석 현황을 불러오는 중…</p>';
         const s = st.sheetData;
         const cols = s.dates.map((x, i) => [x, i]).filter(([x]) => s.classDates.includes(x) && x <= d.today);
-        if (!cols.length) return '<p class="ra-note">아직 지난 교육 날이 없어요. 출석 루틴을 저장하면 교육 날마다 여기에 쌓입니다.</p>';
+        if (!cols.length) return '<p class="ra-note">아직 지난 교육 날이 없어요. 아래에서 출석 루틴을 저장하면 교육 날마다 여기에 쌓입니다.</p>';
         const mark = v => v == null ? '' : v === '출석' ? '<span style="color:#00875f;font-weight:800">○</span>'
           : /지각/.test(v) ? `<span style="color:#b7791f;font-size:11px">${esc(v.replace(' 지각', ''))}<br>지각</span>`
           : v ? `<span style="color:#d35400;font-size:11px">◐<br>${esc(v)}</span>` : '<span style="color:#c0392b">×</span>';
         const absList = (s.absences || []);
-        return `<p class="ra-note" style="margin-top:6px">칸을 누르면 출석·지각·부분 결석·결석으로 바꿀 수 있고, 날짜를 누르면 그날 전원 출석으로 넣습니다.</p>
+        return `<p class="ra-note" style="margin-top:6px">칸을 누르면 출석·지각·부분 결석·결석으로 바꾸고, 날짜를 두 번 누르면 그날 전원 출석으로 넣습니다.</p>
           <div class="ch-tt ch-att"><table><thead><tr><th style="position:sticky;left:0;z-index:2">이름</th>${cols.map(([x]) => `<th class="${x === d.today ? 'today' : ''}" style="cursor:pointer" onclick="cohortAdm.allPresent('${x}')">${mmdd(x)}<br>${wdOf(x)}</th>`).join('')}<th>합계</th></tr></thead><tbody>
           ${s.rows.map(r => `<tr><td class="tm" style="text-align:left">${esc(r.name)}<br><small style="font-weight:400">${esc(r.church)}</small></td>${cols.map(([x, i]) => `<td style="cursor:pointer" onclick="cohortAdm.editAtt('${x}','${esc(r.memberId)}')">${mark(r.attend[i])}</td>`).join('')}<td><b>${r.attended}/${r.held}</b></td></tr>`).join('')}
           <tr><td class="tm">인원</td>${cols.map(([, i]) => `<td><b>${s.rows.filter(r => r.attend[i]).length}</b>/${s.rows.length}</td>`).join('')}<td></td></tr>
@@ -14279,11 +14304,38 @@ async function calAdmInit() {
       const modeOf = p => (document.querySelector(`input[name="${p}Mode"]:checked`) || {}).value || 'week';
       const datesOf = id => [...document.querySelectorAll(`#${id} input:checked`)].map(i => i.value).join(',');
       const setChecks = (id, has) => document.querySelectorAll(`#${id} input`).forEach(b => { b.checked = has(b.value); });
+      /** 그날 낼 과제가 있었나(서버 assignmentOn 과 같은 규칙) */
+      const asgOn = (a, date) => a.repeat === '매일' ? true : a.repeat === '요일' ? String(a.days).includes(wdOf(date)) : a.repeat === '날짜' ? String(a.dates).split(',').includes(date) : a.due === date;
+
+      /** 과제 제출 현황판: 교육생 × 날짜(오늘까지) — 칸에 낸 과제, 낼 과제가 있는데 안 냈으면 × */
+      function assignBoard(d) {
+        if (!sheetReady()) return '<p class="ra-note">과제 현황을 불러오는 중…</p>';
+        const s = st.sheetData;
+        const cols = s.dates.map((x, i) => [x, i]).filter(([x]) => x <= d.today && d.assignments.some(a => asgOn(a, x)));
+        if (!cols.length) return '<p class="ra-note">아직 과제 날이 없어요. 아래에서 과제 루틴을 만드세요.</p>';
+        return `<p class="ra-note" style="margin-top:6px">칸을 누르면 그날 낸 내용을 봅니다. (늦음) = 마감 뒤에 냄</p>
+          <div class="ch-tt ch-att"><table><thead><tr><th style="position:sticky;left:0;z-index:2">이름</th>${cols.map(([x]) => `<th class="${x === d.today ? 'today' : ''}">${mmdd(x)}<br>${wdOf(x)}</th>`).join('')}<th>합계</th></tr></thead><tbody>
+          ${s.rows.map(r => `<tr><td class="tm" style="text-align:left">${esc(r.name)}<br><small style="font-weight:400">${esc(r.church)}</small></td>${cols.map(([x, i]) => {
+              const v = r.daily[i];
+              return `<td style="cursor:pointer;font-size:11.5px" onclick="cohortAdm.dayWork('${x}','${esc(r.memberId)}')">${v ? `<span style="color:#00875f">${esc(v)}</span>` : '<span style="color:#c0392b">×</span>'}</td>`;
+            }).join('')}<td><b>${r.submitted}/${r.expected}</b></td></tr>`).join('')}
+          <tr><td class="tm">낸 사람</td>${cols.map(([, i]) => `<td><b>${s.rows.filter(r => r.daily[i]).length}</b>/${s.rows.length}</td>`).join('')}<td></td></tr>
+          </tbody></table></div>`;
+      }
+      function dayWork(date, memberId) {
+        const r = st.sheetData.rows.find(x => x.memberId === memberId); if (!r) return;
+        const subs = (st.sheetData.submissions || []).filter(x => x.name === r.name && (x.workDate || String(x.at).slice(0, 10)) === date);
+        openSheet(`${H(`${esc(r.name)} · ${mmdd(date)}(${wdOf(date)}) 과제`)}
+          ${subs.length ? subs.map(x => `<div class="ra-log"><b>${esc(x.title)}</b> <small>${esc(x.at)}${x.late ? ' · ⏰ 늦음' : ''}</small><div style="white-space:pre-wrap;margin-top:4px">${esc(x.content)}</div></div>`).join('') : '<p class="ra-note">이날 낸 과제가 없어요.</p>'}`);
+      }
 
       function assignTab(d, c) {
         return `
           <div class="ch-today">${d.assignments.filter(a => a.onToday).map(a => `<div>오늘 ${esc(a.title)}<b>${a.doneToday}/${d.total}명</b></div>`).join('') || '<div>오늘 낼 과제<b>없음</b></div>'}</div>
-          <div class="ra-h">과제 루틴 ${d.assignments.length}개</div>
+          <div class="ra-h">과제 제출 현황</div>
+          ${assignBoard(d)}
+          ${EDIT_HEAD}
+          <div class="ra-h" style="margin-top:12px">과제 루틴 ${d.assignments.length}개</div>
           ${d.assignments.map(a => `<div class="ch-card">
               <div style="display:flex;align-items:center;gap:8px"><b style="flex:1;font-size:16px">${esc(a.title)}</b><span class="ra-tag ${a.status === '열림' ? '' : 'out'}">${a.status === '열림' ? '진행' : '마감'}</span></div>
               <div class="ra-sub">${esc(a.repeatText)}${a.dayCount > 1 ? ` · 지금까지 ${a.dayCount}일` : ''} · 누적 ${a.doneAll}/${a.expectAll || d.total}건</div>
@@ -14330,10 +14382,51 @@ async function calAdmInit() {
       }
 
       // ③ 시험 점수
+      /** 과목별 시험 결과표(순위·날짜별 점수·응시·평균) — 칸을 누르면 점수 고치기 */
+      function examBoards(d) {
+        if (!sheetReady()) return '<p class="ra-note">시험 결과를 불러오는 중…</p>';
+        const s = st.sheetData;
+        const subjects = [...new Set(s.exams.map(e => e.subject))];
+        if (!subjects.length) return '<p class="ra-note">아직 올라온 점수가 없어요. 텔레그램 방에 "점수 …"로 올리면 여기에 바로 쌓입니다.</p>';
+        return subjects.map(sub => {
+          const cols = s.exams.map((e, i) => [e, i]).filter(([e]) => e.subject === sub);
+          const list = s.rows.map(r => {
+            const vals = cols.map(([, i]) => r.scores[i]).filter(v => v != null);
+            return { r, avg: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null, taken: vals.length };
+          }).sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1) || a.r.name.localeCompare(b.r.name));
+          let rank = 0, prev = null;
+          list.forEach((x, i) => { if (x.avg == null) x.rank = '-'; else { if (x.avg !== prev) rank = i + 1; prev = x.avg; x.rank = rank; } });
+          const medal = { 1: '#ffe8a3', 2: '#e6e9ec', 3: '#f3d9c6' };
+          return `<div class="ra-h">🏆 ${esc(sub)} <small style="font-weight:400;color:#6b7772">시험 ${cols.length}회 · 평균 높은 순</small></div>
+            ${boardBar('score', sub)}
+            <div class="ch-tt ch-att"><table><thead><tr><th>순위</th><th style="position:sticky;left:0;z-index:2">이름</th>${cols.map(([e]) => `<th>${mmdd(e.date)}<br>${wdOf(e.date)}</th>`).join('')}<th>응시</th><th>평균</th></tr></thead><tbody>
+            ${list.map(x => `<tr><td style="cursor:default;background:${medal[x.rank] || 'transparent'};font-weight:800">${x.rank}</td><td class="tm" style="text-align:left">${esc(x.r.name)}<br><small style="font-weight:400">${esc(x.r.church)}</small></td>
+              ${cols.map(([e, i]) => { const v = x.r.scores[i]; return `<td style="cursor:pointer" onclick="cohortAdm.editScore('${e.date}','${esc(sub)}','${esc(x.r.memberId)}')">${v == null ? '<span style="color:#b0b8b4">-</span>' : `<b>${esc(v)}</b>`}</td>`; }).join('')}
+              <td style="cursor:default">${x.taken}/${cols.length}</td><td style="cursor:default;color:#00875f;font-weight:800">${x.avg == null ? '-' : x.avg.toFixed(1)}</td></tr>`).join('')}
+            <tr><td></td><td class="tm">평균</td>${cols.map(([, i]) => { const v = s.rows.map(r => r.scores[i]).filter(x => x != null); return `<td><b>${v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : '-'}</b></td>`; }).join('')}<td></td><td></td></tr>
+            </tbody></table></div>`;
+        }).join('');
+      }
+      function editScore(date, subject, memberId) {
+        const r = st.sheetData.rows.find(x => x.memberId === memberId); if (!r) return;
+        const i = st.sheetData.exams.findIndex(e => e.date === date && e.subject === subject), v = i >= 0 ? r.scores[i] : null;
+        openSheet(`${H(`${esc(r.name)} · ${mmdd(date)}(${wdOf(date)})`)}
+          <div class="ra-sub">${esc(subject)}</div>
+          <label class="ra-f">점수<input id="scVal" type="number" inputmode="decimal" value="${v == null ? '' : esc(v)}" placeholder="비우면 미응시"></label>
+          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.saveScore('${date}','${esc(subject)}','${esc(memberId)}', document.getElementById('scVal').value)">저장</button>
+            <button type="button" class="ra-btn warn" onclick="cohortAdm.saveScore('${date}','${esc(subject)}','${esc(memberId)}', '')">미응시로(지우기)</button></div>`);
+      }
+      async function saveScore(date, subject, memberId, score) {
+        const res = await act({ action: 'cohortSetScore', cohortId: cid(), date, subject, targetId: memberId, score }, score === '' ? '미응시로 바꿨어요.' : '점수를 고쳤어요.', null, null);
+        if (res) { closeSheet(); st.sheetData = null; reload(); }
+      }
       function examTab(d, c) {
         const routines = d.examRoutines || [];
         return `
           <div class="ch-today">${routines.filter(e => e.onToday).map(e => `<div>오늘 ${esc(e.subject)}<b>${e.doneToday}/${d.total}명</b></div>`).join('') || '<div>오늘 시험<b>없음</b></div>'}</div>
+          ${examBoards(d)}
+          ${EDIT_HEAD}
+          <div class="ch-guide"><b>점수 올리기(텔레그램 방 관리자)</b> — 올릴 때마다 위 표와 방의 순위표(이미지)가 바로 바뀝니다.<br>점수 계시록 홍길동 85 김영희 90<br>여러 줄도 됩니다: 첫 줄 "점수 계시록", 다음 줄부터 "홍길동 85"<br>지난날 점수: 점수 계시록 10/15 홍길동 85<br><b>여러 날을 표로</b>: 첫 줄 "점수 과목", 둘째 줄 날짜 "10.12 / 14/15/16", 다음 줄부터 "1. 홍길동 80/ 90/ 미/ 100" (미 = 미응시 · 과목 루틴이 하나면 과목은 빼도 됨)</div>
           <div class="ra-h">시험 루틴 ${routines.length}개</div>
           ${routines.map(e => `<div class="ch-card" style="display:flex;align-items:center;gap:8px">
               <span style="flex:1;min-width:0"><b style="font-size:16px">${esc(e.subject)}</b><div class="ra-sub">${esc(e.examText)}</div></span>
@@ -14347,11 +14440,8 @@ async function calAdmInit() {
           <div id="chExDateBox" style="display:none"><label class="ra-f">시험 날짜 <small style="font-weight:400">(불규칙한 날 하나하나 고르기)</small></label>${datesPick('chExDates', '', c)}</div>
           <div id="chExOnceBox" style="display:none"><label class="ra-f">날짜<input type="date" id="chExOnce"></label></div>
           <label class="ra-f">점수 입력 마감(비우면 자정)<input type="time" id="chExDue"></label>
-          <p class="ra-note">마감 시각이 지나면 그날 점수 순위·평균·미입력 명단이 텔레그램 방으로 갑니다.</p>
-          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.saveExam(this)">시험 루틴 저장</button></div>
-          <div class="ch-guide"><b>점수 올리기(텔레그램 방 관리자)</b><br>점수 계시록 홍길동 85 김영희 90<br>여러 줄도 됩니다: 첫 줄 "점수 계시록", 다음 줄부터 "홍길동 85"<br>지난날 점수: 점수 계시록 10/15 홍길동 85<br><b>여러 날을 표로</b>: 첫 줄 "점수 과목", 둘째 줄 날짜 "10.12 / 14/15/16", 다음 줄부터 "1. 홍길동 80/ 90/ 미/ 100" (미 = 미응시 · 과목 루틴이 하나면 과목은 빼도 됨)</div>
-          <div class="ra-h">최근 시험 결과</div>
-          ${d.exams.slice().reverse().slice(0, 15).map(e => `<div class="ra-log"><b>${esc(mmdd(e.date))} ${esc(e.subject)}</b><div class="ra-diff">입력 ${e.count}/${d.total}명 · 평균 ${e.avg}</div></div>`).join('') || '<p class="ra-note">아직 올라온 점수가 없어요.</p>'}`;
+          <p class="ra-note">마감 시각이 지나면 그날 점수 순위·평균·미입력 명단과 누적 순위표가 텔레그램 방으로 갑니다.</p>
+          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.saveExam(this)">시험 루틴 저장</button></div>`;
       }
       function editExam(id) {
         const e = (st.cur.examRoutines || []).find(x => x.examId === id); if (!e) return;
@@ -14382,11 +14472,13 @@ async function calAdmInit() {
       // ④ 교육생
       function membersTab(d, c) {
         return `
-          <div class="ra-acts" style="margin-top:12px"><button type="button" class="ra-btn" onclick="cohortAdm.addMembers('${esc(c.cohortId)}')">+ 교육생 추가</button></div>
           <div class="ra-h">교육생 ${d.total}명</div>
           ${d.members.map(m => `<div class="ra-log" style="display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0"><b>${esc(m.name)}</b> <small>${esc(m.church)} · ${esc(m.memberId)}</small>
               <div class="ra-diff">출석 ${m.attended}/${m.held} · 과제 ${m.submitted}/${m.expected}</div></span>
-            <button type="button" class="ra-btn warn" style="${SMALL}" data-label="빼기" onclick="cohortAdm.removeMember('${esc(m.memberId)}', this)">빼기</button></div>`).join('') || '<p class="ra-note">아직 교육생이 없어요.</p>'}`;
+            <button type="button" class="ra-btn warn" style="${SMALL}" data-label="빼기" onclick="cohortAdm.removeMember('${esc(m.memberId)}', this)">빼기</button></div>`).join('') || '<p class="ra-note">아직 교육생이 없어요. 아래 [+ 교육생 추가]로 넣으세요.</p>'}
+          ${EDIT_HEAD}
+          <div class="ra-acts" style="margin-top:12px"><button type="button" class="ra-btn" onclick="cohortAdm.addMembers('${esc(c.cohortId)}')">+ 교육생 추가</button></div>
+          <p class="ra-note">교회·이름·고유번호를 한 명씩 또는 여러 줄로 붙여 넣어 등록합니다.</p>`;
       }
 
       // ⑤ 설정
@@ -14566,7 +14658,7 @@ async function calAdmInit() {
         document.head.appendChild(el);
       });
 
-      return { mount, editAtt, setAtt, allPresent, week, addItem, editItem, saveItem, deleteItem, importItems, previewImport, doImport, copyDay, doCopy, setMode,
+      return { mount, showImage, sendBoard, dayWork, editScore, saveScore, editAtt, setAtt, allPresent, week, addItem, editItem, saveItem, deleteItem, importItems, previewImport, doImport, copyDay, doCopy, setMode,
         open, create, addMembers, saveMembers, detail, setTab, allDays, saveRoutine, showQr, createMeeting, link,
         editAssign, saveAssign, toggleAssign, submissions, editExam, saveExam, toggleExam, removeMember,
         saveSettings, setStatus, findChats, connectBot, sendSummary, sheet, excel };

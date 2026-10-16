@@ -10,6 +10,7 @@ globalThis.fetch = async (url, opts) => {
   const method = String(url).split('/').pop();
   const body = opts && typeof opts.body === 'string' ? JSON.parse(opts.body) : {};
   if (method === 'sendMessage') sent.push(body.text);
+  if (method === 'sendPhoto') sent.push('[사진] ' + (opts.body.get ? opts.body.get('caption') : ''));
   const result = method === 'getChatMember' ? { status: body.user_id === TG_ADMIN ? 'administrator' : 'member' } : {};
   return new Response(JSON.stringify({ ok: true, result }), { headers: { 'Content-Type': 'application/json' } });
 };
@@ -114,6 +115,20 @@ try {
   ok(abA && /손마사지/.test(abA.missed) && !/이혈/.test(abA.missed) && /지각/.test(abA.text), '빠진 교육: 10:30 지각 → 손마사지 (' + (abA && abA.text) + ')');
   const sumAbs = await call('cohortSendSummary', { cohortId });
   ok(/결석 누적 · 빠진 교육/.test(sumAbs.text) && /이혈①/.test(sumAbs.text), '집계 글에 결석 누적·빠진 교육');
+
+  // 표 이미지 · 점수 고치기 · 표 보내기
+  const imgA = await call('cohortBoardImage', { cohortId, kind: 'attend' });
+  const imgS = await call('cohortBoardImage', { cohortId, kind: 'score', subject: '계시록' });
+  ok(/^data:image\/png;base64,/.test(imgA.image || '') && /^data:image\/png;base64,/.test(imgS.image || ''), `출석표·순위표 이미지 (${Math.round((imgA.image || '').length / 1024)}KB, ${Math.round((imgS.image || '').length / 1024)}KB)`);
+  ok((await call('cohortSetScore', { cohortId, date: today, subject: '계시록', targetId: A.memberId, score: '99' })).ok, '앱에서 점수 고치기');
+  const sc99 = await run(db().from('cohort_scores').select('score').eq('cohort_id', cohortId).eq('date', today).eq('nid', '99999000001'));
+  ok(sc99.length === 1 && Number(sc99[0].score) === 99, '고친 점수 저장');
+  ok((await call('cohortSetScore', { cohortId, date: today, subject: '계시록', targetId: A.memberId, score: '85' })).ok, '점수 되돌리기');
+  sent.length = 0;
+  const sb = await call('cohortSendBoard', { cohortId });
+  ok(sb.ok && sent.filter((t) => t.startsWith('[사진]')).length === sb.sent.length && sb.sent.includes('출석표'), `표를 사진으로 보내기 (${sb.sent && sb.sent.join(', ')})`);
+  r = await say(TG_ADMIN, '점수 계시록 ZZTEST하나 70');
+  ok(sent.some((t) => t.startsWith('[사진]')), '점수 올리면 순위표 사진도');
 
   // 상세 숫자
   const d = await call('cohortDetail', { cohortId });

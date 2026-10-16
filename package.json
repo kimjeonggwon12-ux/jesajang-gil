@@ -9,6 +9,7 @@
     "parity": "node tools/parity.mjs"
   },
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@supabase/supabase-js": "^2.45.0",
     "@vercel/functions": "^3.9.11",
     "aws4fetch": "^1.0.20"

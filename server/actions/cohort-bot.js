@@ -9,7 +9,13 @@ import { normId, kstDate, kstDateTime } from '../lib/util.js';
 import { clip, newId } from '../lib/input.js';
 import { attendBotCall } from '../lib/attend-bot.js';
 import { toCohort, assignmentOn, isLate, weekdayOf } from '../lib/cohort.js';
-import { toAssignment, toExam } from './cohorts.js';
+import { toAssignment, toExam, loadAll, sendBoard } from './cohorts.js';
+import { scoreBoard } from '../lib/cohort-tables.js';
+
+/** 과목 순위표 이미지를 방으로 */
+async function sendRanking(c, subject) {
+  try { const b = scoreBoard(await loadAll(c), subject, 12, c.title); if (b) await sendBoard(c, b); } catch (e) { console.log('순위표 오류: ' + e); }
+}
 import { isOwner } from './roster.js';
 
 const APP_URL = () => process.env.APP_URL || 'https://jesajang-gil.vercel.app';
@@ -264,7 +270,8 @@ async function onScoreTable(msg, c, members, byName, table) {
   if (notListed.length) lines.push('❔ 표에 없는 교육생: ' + notListed.map((m) => m.name).join(', '));
   if (unknown.length) lines.push('❓ 명단에 없는 이름: ' + unknown.join(', '));
   if (dup.length) lines.push('⚠️ 같은 이름이 둘 이상이라 못 넣음: ' + dup.join(', '));
-  return reply(msg, lines.join('\n'));
+  await reply(msg, lines.join('\n'));
+  return sendRanking(c, subject);   // 점수가 들어올 때마다 순위표(이미지)
 }
 
 async function onScore(msg, c, body) {
@@ -312,7 +319,8 @@ async function onScore(msg, c, body) {
   const lines = [`📊 ${subject} (${date.slice(5).replace('-', '/')}) 점수 ${rows.length}명 기록 — 입력 ${count || 0}/${members.length}명`, saved.join(', ')];
   if (unknown.length) lines.push('❓ 명단에 없는 이름: ' + unknown.map((p) => p.name).join(', '));
   if (dup.length) lines.push('⚠️ 같은 이름이 둘 이상이라 못 넣음: ' + dup.join(', '));
-  return reply(msg, lines.join('\n'));
+  await reply(msg, lines.join('\n'));
+  return sendRanking(c, subject);   // 점수가 들어올 때마다 순위표(이미지)
 }
 
 // ── 웹훅 진입 ──
@@ -339,8 +347,9 @@ export async function handleAttendUpdate(update) {
   if (/^\/?(도움말|사용법)$/.test(text)) return reply(msg, HELP);
   if (/^\/?집계$/.test(text)) {
     if (!(await isChatAdmin(chat.id, msg.from.id))) return reply(msg, '집계는 방 관리자만 볼 수 있어요.');
-    const { cohortSummaryText } = await import('./cohorts.js');
-    return reply(msg, await cohortSummaryText(c));
+    const { cohortSummaryText, sendBoards } = await import('./cohorts.js');
+    await reply(msg, await cohortSummaryText(c));
+    return sendBoards(c);   // 출석표·과목별 순위표 이미지
   }
 }
 
