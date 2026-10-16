@@ -163,7 +163,7 @@ try {
   ok(det.sheet && det.sheet.rows.length === 2 && det.sheet.submissions.length === 0, '상세에 표 자료 함께(과제 목록은 뺌)');
   ok(sh.submissions.every((x) => x.content === undefined), '취합 표는 과제 내용 없이');
   const shC = await call('cohortSheet', { cohortId, content: true });
-  ok(shC.submissions.some((x) => x.content === '오늘 항해 내용'), '엑셀용은 과제 내용까지');
+  ok(shC.submissions.some((x) => /오늘 항해 내용/.test(x.content || '')), '엑셀용은 과제 내용까지');
   const dw = await call('cohortDayWork', { cohortId, date: today, targetId: A.memberId });
   ok(dw.items && dw.items.length === 3 && dw.items.some((x) => x.title === '노트 정리' && x.content), `하루 과제 보기 (${dw.items && dw.items.length}건)`);
   const sum = await call('cohortSendSummary', { cohortId });
