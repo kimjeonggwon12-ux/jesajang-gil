@@ -18,6 +18,7 @@ import transcripts from './actions/transcripts.js';
 import attendance from './actions/attendance.js';
 import attendanceClosing from './actions/attendance-closing.js';
 import bot from './actions/bot.js';
+import cohorts from './actions/cohorts.js';
 
 export const actions = {
   ...roster,
@@ -39,4 +40,5 @@ export const actions = {
   ...attendance,
   ...attendanceClosing,
   ...bot,
+  ...cohorts,
 };

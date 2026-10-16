@@ -6,6 +6,7 @@ import { sendAttendText } from '../lib/attend-bot.js';
 import { runLater } from '../lib/background.js';
 import { memberInfo, isAdmin } from './roster.js';
 import { closingBoxText, sendClosing } from './attendance-closing.js';
+import { cohortMember, notifyCohortAttendance } from '../lib/cohort.js';
 
 const QUESTION_TYPES = ['choice', 'multi', 'text'];
 const ORG_OPTIONS = ['부녀', '장년', '청년', '자문', '교역자', '전체', '기타'];   // 모임의 부서
@@ -106,7 +107,7 @@ function toMeeting(r) {
     status: r.status || '열림', createdBy: r.created_by, createdAt: fmtTs(r.created_at),
     org: r.org, district: district === '' ? null : district,
     askDistrict: r.ask_district, askDept: r.ask_dept, start2: hhmm(r.start2),
-    slots: cleanSlots(r.slots),
+    slots: cleanSlots(r.slots), cohortId: r.cohort_id || '',
   };
 }
 
@@ -213,11 +214,16 @@ const BAD_LOGIN = '명단에 없는 분입니다. 정확한 이름과 고유번�
  * 고유번호가 13자리가 아니거나 명단에 없거나 이름이 다르면 { badLogin, error }.
  * checkName 이 false 면 이름은 보지 않는다(이름을 안 보내는 예전 앱의 모임 조회).
  */
-async function checkIdentity(memberId, name, checkName = true) {
+async function checkIdentity(memberId, name, checkName = true, cohortId = '') {
   if (String(memberId || '').replace(/\D/g, '').length !== 13) return { badLogin: true, error: '고유번호는 13자리 숫자로 입력해 주세요. (예: 00201130-00010)' };
   const { teacher, admin } = await memberInfo(memberId);
   const typed = nameKey(name);
-  if (!teacher && !admin) return { badLogin: true, error: BAD_LOGIN };
+  if (!teacher && !admin) {
+    // 2026-10-16: 교육 과정에 연결된 모임은 그 과정 교육생이면 명단 밖이어도 받는다(교회를 부서 자리에).
+    const cm = cohortId ? await cohortMember(cohortId, memberId, checkName ? name : null) : null;
+    if (cm && (!checkName || typed)) return { person: { name: cm.name, dept: cm.church, position: '교육생', region: '', rosterDept: '' } };
+    return { badLogin: true, error: BAD_LOGIN };
+  }
   if (checkName && !(typed && [teacher?.name, admin?.name].some((n) => n && nameKey(n) === typed))) return { badLogin: true, error: BAD_LOGIN };
   return {
     person: {
@@ -233,7 +239,7 @@ async function getAttendMeeting(body) {
   const nid = normId(body.memberId);
   const [mineRows, who] = await Promise.all([
     run(db().from('attend_records').select('*').eq('meeting_id', m.meetingId).eq('nid', nid).order('id').limit(1)),
-    checkIdentity(body.memberId, body.name, body.name != null),
+    checkIdentity(body.memberId, body.name, body.name != null, m.cohortId),
   ]);
   if (who.badLogin) return { badLogin: true, error: who.error };
   const p = who.person;
@@ -303,7 +309,7 @@ async function submitAttendance(body) {
   if (!m) return { error: '출석 모임을 찾을 수 없어요.' };
   const window = attendWindow(m);
   if (!window.open) return { error: window.reason };
-  const who = await checkIdentity(mid, body.name);
+  const who = await checkIdentity(mid, body.name, true, m.cohortId);
   if (who.badLogin) return { badLogin: true, error: who.error };
   const nid = normId(mid);
   /** 이미 출석했으면 그 기록으로 답한다. */
@@ -341,7 +347,7 @@ async function submitAttendance(body) {
     return (await alreadyDone()) || { retry: true, error: '접속이 몰려 순서대로 처리하고 있어요.' };
   }
   const record = toRecord(data[0]);
-  runLater(notifyAttendance(m, record, data[0].id));   // 알림은 응답을 보낸 뒤에
+  runLater(m.cohortId && !isTestMeeting(m) ? notifyCohortAttendance(m, record) : notifyAttendance(m, record, data[0].id));   // 알림은 응답을 보낸 뒤에
   return { ok: true, record };
 }
 
