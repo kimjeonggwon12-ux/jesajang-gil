@@ -14336,15 +14336,16 @@ async function calAdmInit() {
           if (ri === last) return `<td style="background:#e3f6ef;color:#0b5e44"><b>${esc(v)}</b></td>`;
           if (ci < n) {
             const x = g.cols[ci], r = s.rows[ri];
-            const look = v === 'O' ? 'color:#00875f;font-weight:800' : v === 'X' ? 'background:#fde8e8;color:#c0392b;font-weight:800' : 'color:#b0b8b4';
+            const look = v === 'O' ? `color:${x.color || '#00875f'};font-weight:800` : v === '미보고' ? 'background:#fdeee6;color:#b5530b;font-weight:700;font-size:12px' : 'color:#b0b8b4';
             return `<td style="cursor:pointer;${look}" onclick="cohortAdm.dayWork('${x.date}','${esc(r ? r.memberId : '')}')">${esc(v)}</td>`;
           }
+          if (ci < g.head.length - 3) { const col = (g.headFill || [])[ci + 2]; return `<td style="color:${col || 'inherit'}"><b>${esc(v)}</b></td>`; }
           return ci === g.head.length - 3 && v !== '0' ? `<td style="color:#c0392b"><b>${esc(v)}</b></td>` : `<td><b>${esc(v)}</b></td>`;
         };
-        return `<p class="ra-note" style="margin-top:6px">O 제출 · X 미제출 · 빈칸 = 아직 날이 안 옴. 칸을 누르면 그날 낸 내용을 봅니다. <span style="color:#6b7772">${esc(g.sub || '')}</span></p>
+        return `<p class="ra-note" style="margin-top:6px">O 제출 · 미보고 = 제출 보고가 아직 없음 · 빈칸 = 아직 날이 안 옴. 과제마다 색이 다릅니다. 칸을 누르면 그날 낸 내용을 봅니다. <span style="color:#6b7772">${esc(g.sub || '')}</span></p>
           <div class="ch-tt ch-att"><table><thead>
           <tr><th rowspan="2" style="${stick}">이름</th>${g.groups.slice(1).map(x => `<th colspan="${x.span}" style="${x.label.includes(d.today.slice(5).replace('-', '/')) ? 'background:#0b5e44' : ''}">${esc(x.label)}</th>`).join('')}</tr>
-          <tr>${g.head.slice(2).map(h => `<th>${esc(h)}</th>`).join('')}</tr>
+          <tr>${g.head.slice(2).map((h, i) => `<th style="${(g.headFill || [])[i + 2] ? 'background:' + g.headFill[i + 2] : ''}">${esc(h)}</th>`).join('')}</tr>
           </thead><tbody>
           ${g.rows.map((row, ri) => `<tr><td class="tm" style="text-align:left;${ri === last ? 'background:#e3f6ef' : ''}">${ri === last ? '<b>낸 사람</b>' : `${row[0] ? row[0] + '. ' : ''}${esc(row[1])}<br><small style="font-weight:400">${esc((s.rows[ri] || {}).church || '')}</small>`}</td>${row.slice(2).map((v, ci) => cell(v, ci, ri)).join('')}</tr>`).join('')}
           </tbody></table></div>`;

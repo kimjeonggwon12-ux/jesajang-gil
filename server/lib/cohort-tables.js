@@ -103,18 +103,21 @@ export function assignBoard(all, today, maxCols = 12, cohortTitle = '') {
   // 짧은 이름: 앞 두 글자(겹치면 전체)
   const two = (t) => [...String(t).replace(/s/g, '')].slice(0, 2).join('');
   const label = new Map(asg.map((a) => [a.assignmentId, asg.filter((x) => two(x.title) === two(a.title)).length > 1 ? String(a.title) : two(a.title)]));
+  // 과제마다 글자색(첫째 초록 · 둘째 파랑 · 셋째 보라 …)
+  const PAL = [['#00875f', '#00AE82'], ['#1d5fd1', '#2f6fe0'], ['#7b3fc4', '#8a55d0'], ['#b5530b', '#c8661c']];
+  const colorOf = new Map(asg.map((a, i) => [a.assignmentId, PAL[i % PAL.length]]));
   let cols = days.flatMap((d) => asg.filter((a) => dueOn(a, d)).map((a) => ({ d, a })));
   const cut = cols.length > maxCols * 2;
   if (cut) cols = cols.slice(-maxCols * 2);
   const done = new Set(all.subs.map((s) => s.assignment_id + '|' + (s.work_date || '') + '|' + s.nid));
   const has = (a, d, nid) => done.has(a.assignmentId + '|' + d + '|' + nid) || (a.repeat === '한번' && done.has(a.assignmentId + '||' + nid));
-  const head = ['번호', '이름', ...cols.map((x) => label.get(x.a.assignmentId)), ...asg.map((a) => label.get(a.assignmentId)), '미제출'];
+  const head = ['번호', '이름', ...cols.map((x) => label.get(x.a.assignmentId)), ...asg.map((a) => label.get(a.assignmentId)), '미보고'];
   const groups = [{ label: '', span: 2 }];
   for (const x of cols) { const g = `${mmdd(x.d)}(${wd(x.d)})`; if (groups.at(-1).label === g) groups.at(-1).span++; else groups.push({ label: g, span: 1 }); }
   groups.push({ label: '낸 수 / 전체', span: asg.length }, { label: '', span: 1 });
   const missOf = [];
   const rows = all.members.map((m) => {
-    const cells = cols.map((x) => (has(x.a, x.d, m.nid) ? 'O' : x.d <= today ? 'X' : ''));
+    const cells = cols.map((x) => (has(x.a, x.d, m.nid) ? 'O' : x.d <= today ? '미보고' : ''));
     const tot = asg.map((a) => { const ds = days.filter((d) => dueOn(a, d)); return `${ds.filter((d) => has(a, d, m.nid)).length}/${ds.length}`; });
     const miss = days.flatMap((d) => (d <= today ? asg.filter((a) => dueOn(a, d) && !has(a, d, m.nid)).map((a) => `${mmdd(d)} ${label.get(a.assignmentId)}`) : []));
     if (miss.length) missOf.push(`${m.name} ${miss.length}개`);
@@ -126,16 +129,18 @@ export function assignBoard(all, today, maxCols = 12, cohortTitle = '') {
     title: `${cohortTitle ? cohortTitle + ' ' : ''}과제 제출 현황`,
     sub: `${mmdd(cols[0].d)}~${mmdd(cols.at(-1).d)} · ${today.slice(5).replace('-', '/')} 기준${cut ? ' (최근만 표시)' : ''} · ${asg.map((a) => `${label.get(a.assignmentId)} = ${a.title}`).join(', ')}`,
     groups, head, rows, align: ['center', 'left'],
-    cols: cols.map((x) => ({ date: x.d, id: x.a.assignmentId })),   // 앱 칸 누르기용
+    cols: cols.map((x) => ({ date: x.d, id: x.a.assignmentId, color: colorOf.get(x.a.assignmentId)[0] })),
+    headFill: ['', '', ...cols.map((x) => colorOf.get(x.a.assignmentId)[1]), ...asg.map((a) => colorOf.get(a.assignmentId)[1]), ''],   // 앱 칸 누르기용
     style: (r, c, v) => {
       if (r === rows.length - 1) return { bold: true, fill: c >= first && c < totFrom ? '#e3f6ef' : null, color: '#0b5e44' };
-      if (v === 'O') return { color: '#00875f', bold: true };
-      if (v === 'X') return { fill: '#fde8e8', color: '#c0392b', bold: true };
-      if (c >= totFrom && c < head.length - 1) return { bold: true };
+      const own = c >= first && c < totFrom ? cols[c - first].a : c >= totFrom && c < head.length - 1 ? asg[c - totFrom] : null;
+      if (v === 'O') return { color: colorOf.get(own.assignmentId)[0], bold: true };
+      if (v === '미보고') return { fill: '#fdeee6', color: '#b5530b', bold: true };
+      if (own) return { bold: true, color: colorOf.get(own.assignmentId)[0] };
       if (c === head.length - 1 && v !== '0') return { color: '#c0392b', bold: true };
       return null;
     },
-    foot: 'O 제출 · X 미제출 · 빈칸 = 아직 날이 안 옴' + (missOf.length ? ` / 미제출(오늘까지): ${missOf.join(', ')}` : ''),
+    foot: 'O 제출 · 미보고 = 제출 보고가 아직 없음 · 빈칸 = 아직 날이 안 옴' + (missOf.length ? ` / 미보고(오늘까지): ${missOf.join(', ')}` : ''),
   };
 }
 

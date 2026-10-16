@@ -69,6 +69,7 @@ export function tablePng(b) {
   }
   // 머리줄
   parts.push(`<rect x="${PAD}" y="${tableTop}" width="${tableW}" height="${H}" fill="#00AE82"/>`);
+  (b.headFill || []).forEach((f, c) => { if (f) parts.push(`<rect x="${xs[c]}" y="${tableTop}" width="${colW[c]}" height="${H}" fill="${f}"/>`); });   // 칸마다 머리 색
   b.head.forEach((h, c) => parts.push(cellText(h, c, tableTop, { color: '#ffffff', bold: true })));
   // 몸통
   b.rows.forEach((row, r) => {
