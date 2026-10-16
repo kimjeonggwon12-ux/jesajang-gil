@@ -13614,7 +13614,7 @@ async function calAdmInit() {
 
       const LABELS = { name: '이름', dept: '부서', region: '지역', affiliation: '소속', position: '직책', note: '비고', tier: '등급', phone: '연락처' };
       function diffText(c) {
-        if (c.kind === '엑셀 반영' || c.kind === '명단 되돌리기') {
+        if (c.kind === '엑셀 반영' || c.kind === '명단 되돌리기' || /^교육생/.test(c.kind)) {
           return Object.entries(c.after || {}).filter(([k]) => k !== '스냅샷').map(([k, v]) => `${k} ${v}`).join(' · ');
         }
         if (c.before && c.after) {
