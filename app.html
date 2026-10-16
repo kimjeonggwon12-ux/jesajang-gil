@@ -2506,7 +2506,9 @@
           <button type="button" class="kko-tab" data-subtab="calAdmin" onclick="adminSwitchSubTab('calAdmin')">행사</button>
           <button type="button" class="kko-tab" data-subtab="attend" onclick="adminSwitchSubTab('attend')">출석</button>
           <button type="button" class="kko-tab" data-subtab="roster" onclick="adminSwitchSubTab('roster')">명단</button>   <!-- 2026-10-12 명단 관리 -->
+          <button type="button" class="kko-tab" data-subtab="cohort" onclick="adminSwitchSubTab('cohort')" style="display:none">교육 관리</button>   <!-- 2026-10-16 교육생·교육 과정(7777만) -->
         </div>
+        <div id="admin-pane-cohort" class="admin-pane"><div id="cohortAdmRoot" class="ra"></div></div>
         <div id="admin-pane-roster" class="admin-pane"><div id="rosterAdmRoot" class="ra"></div></div>
         <div id="admin-pane-edu" class="admin-pane"><div id="eduRoot"></div></div>
         <div id="admin-pane-dist" class="admin-pane"><div id="distRoot"></div></div>
@@ -13105,8 +13107,10 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         else if (tab === 'calAdmin') calAdmInit();
         else if (tab === 'attend') attAdmLoad();
         else if (tab === 'roster') rosterAdm.mount();
+        else if (tab === 'cohort') cohortAdm.open();
       }
       else if (tab === 'attend') attAdmLoad();   // 다시 들어올 때마다 최신 출석 인원
+      else if (tab === 'cohort') cohortAdm.open();   // 다시 들어올 때마다 최신 교육 과정
     }
     // ════════════════════════════════════════════════════════════════
     // [ADMIN] connect-admin.html(3️⃣연결 현황 관리) + calendar-admin.html(4️⃣캘린더 관리) 병합.
@@ -13527,7 +13531,6 @@ async function calAdmInit() {
           <div class="ra-bar" style="margin-top:8px">
             <button type="button" class="ra-btn line" onclick="rosterAdm.add()">+ 교사 추가</button>
             <button type="button" class="ra-btn line" onclick="rosterAdm.log()">변경 기록</button>
-            ${isOwnerSession() ? '<button type="button" class="ra-btn line" onclick="cohortAdm.open()">🎓 교육생 · 교육 과정</button>' : ''}
           </div>
           <div class="ra-h" style="margin-top:18px">월별 엑셀 · 백업</div>
           <div class="ra-bar" style="margin-top:10px">
@@ -13800,7 +13803,7 @@ async function calAdmInit() {
         btn.disabled = false; btn.textContent = label;
       }
 
-      return { mount() { css(); render(); }, search, add, edit, save, remove, setAdmin, log, upload, readTab, preview, apply, download, backup };
+      return { css, mount() { css(); render(); }, search, add, edit, save, remove, setAdmin, log, upload, readTab, preview, apply, download, backup };
     })();
     // ════════════════════════════════════════════════════════════════
     // [ADMIN] 교육 과정 · 교육생 (2026-10-16) — 7777(앱 관리자)로 들어왔을 때만 명단 코너에 보인다.
@@ -13825,20 +13828,25 @@ async function calAdmInit() {
 
       /** 교육 과정 목록 + 새 과정 만들기 */
       async function open() {
-        openSheet(`${H('교육 과정')}<p class="ra-note">불러오는 중…</p>`);
-        try { await loadList(); } catch (e) { openSheet(`${H('교육 과정')}<p class="ra-note" style="color:#c0392b">${esc(e.message)}</p>`); return; }
-        openSheet(`${H('교육 과정')}
-          <p class="ra-note">과정을 누르면 교육생·출석·과제·텔레그램 방을 관리합니다.</p>
+        if (document.getElementById('appSheetBack')) closeSheet();
+        if (adminSubTab !== 'cohort') { adminSwitchSubTab('cohort'); return; }   // 탭을 열면 다시 여기로 온다
+        rosterAdm.css();
+        const root = document.getElementById('cohortAdmRoot'); if (!root) return;
+        root.innerHTML = '<p class="ra-note">불러오는 중…</p>';
+        try { await loadList(); } catch (e) { root.innerHTML = `<p class="ra-note" style="color:#c0392b">${esc(e.message)}</p>`; return; }
+        root.innerHTML = `
+          <div class="ra-bar"><button type="button" class="ra-btn" onclick="cohortAdm.addMembers()">+ 교육생 추가</button></div>
+          <p class="ra-note">교육명칭·교회·이름·고유번호로 교육생을 넣으면 그 교육이 함께 만들어집니다. 과정을 누르면 교육생·출석·과제·시험·텔레그램 방을 관리합니다.</p>
+          <div class="ra-h" style="margin-top:14px">교육 과정 ${st.list.length}개</div>
           <div class="ra-list">${st.list.length ? st.list.map(c => `
             <button type="button" class="ra-row" onclick="cohortAdm.detail('${esc(c.cohortId)}')">
               <span style="flex:1;min-width:0"><b>${esc(c.title)}</b>
                 <div class="ra-sub">교육생 ${c.memberCount}명 · ${[c.useAttend ? '출석' : '', c.useAssign ? '과제' : ''].filter(Boolean).join('·') || '기능 꺼짐'}${c.tgChat ? ' · 텔레그램 방 연결' : ''}</div></span>
               <span class="ra-tag ${c.status === '진행' ? '' : 'out'}">${esc(c.status)}</span>
             </button>`).join('') : '<p class="ra-note">아직 교육 과정이 없어요.</p>'}</div>
-          <div class="ra-h">새 교육 과정</div>
+          <div class="ra-h">교육생 없이 과정만 먼저 만들기</div>
           <label class="ra-f">교육명칭<input id="chNewTitle" placeholder="예: 2026 가을 교관 양성반" autocomplete="off"></label>
-          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.create()">만들기</button>
-            <button type="button" class="ra-btn line" onclick="cohortAdm.addMembers()">+ 교육생 추가</button></div>`);
+          <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.create()">만들기</button></div>`;
       }
       async function create() {
         const title = val('chNewTitle');
@@ -14103,7 +14111,11 @@ async function calAdmInit() {
     })();
     window.cohortAdm = cohortAdm;
 
-    window.Sections.admin = { mount() { adminSwitchSubTab('dist'); } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
+    window.Sections.admin = { mount() {
+      const t = document.querySelector('#admin-subtabs [data-subtab="cohort"]');
+      if (t) t.style.display = isOwnerSession() ? '' : 'none';   // 교육 관리는 7777(앱 관리자)만
+      adminSwitchSubTab('dist');
+    } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
 
   </script>
 </body>
