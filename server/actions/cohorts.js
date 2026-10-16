@@ -4,7 +4,7 @@ import { db, run, isDuplicate } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { clip, newId, isDate } from '../lib/input.js';
 import { runLater } from '../lib/background.js';
-import { sendAttendText, recentAttendChats } from '../lib/attend-bot.js';
+import { sendAttendText } from '../lib/attend-bot.js';
 import { toCohort, findCohort, cohortMember } from '../lib/cohort.js';
 import { isOwner, memberInfo } from './roster.js';
 import { loadRecords } from './attendance.js';
@@ -60,11 +60,12 @@ async function cohortSave(body) {
 
 /** 과정 한 개의 모든 것: 교육생, 연결된 출석 모임과 출석, 과제와 제출 수. */
 async function loadDetail(c) {
-  const [members, assignments, meetings, subs] = await Promise.all([
+  const [members, assignments, meetings, subs, scores] = await Promise.all([
     run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('church').order('name')),
     run(db().from('cohort_assignments').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('id')),
     run(db().from('attend_meetings').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('date').order('start_time')),
     run(db().from('cohort_submissions').select('assignment_id, nid').eq('cohort_id', c.cohortId)),
+    run(db().from('cohort_scores').select('date, subject, nid, score').eq('cohort_id', c.cohortId).order('date').order('subject')),
   ]);
   const ids = meetings.map((m) => m.meeting_id);
   const records = ids.length ? await loadRecords((q) => q.in('meeting_id', ids)) : [];
@@ -84,8 +85,18 @@ async function loadDetail(c) {
     submitted[s.nid] = (submitted[s.nid] || 0) + 1;
     perAssign[s.assignment_id] = (perAssign[s.assignment_id] || 0) + 1;
   }
+  // 시험: 날짜·과목별 입력 수와 평균
+  const exams = new Map();
+  for (const s of scores) {
+    if (!nids.has(s.nid)) continue;
+    const key = s.date + '|' + s.subject;
+    const e = exams.get(key) || { date: s.date, subject: s.subject, count: 0, sum: 0 };
+    e.count++; e.sum += Number(s.score);
+    exams.set(key, e);
+  }
   return {
     cohort: c,
+    exams: [...exams.values()].map((e) => ({ date: e.date, subject: e.subject, count: e.count, avg: Math.round((e.sum / e.count) * 10) / 10 })),
     members: members.map((m) => ({ ...toMember(m), attended: attended[m.nid] || 0, submitted: submitted[m.nid] || 0 })),
     meetings: meetings.map((m) => ({ ...toMeetingRow(m), count: perMeeting[m.meeting_id] || 0 })),
     assignments: assignments.map((a) => ({ ...toAssignment(a), count: perAssign[a.assignment_id] || 0 })),
@@ -213,13 +224,8 @@ async function cohortSubmissions(body) {
 
 // ── 텔레그램 ──
 
-async function cohortChats(body) {
-  if (!owner(body)) return DENIED;
-  return recentAttendChats();
-}
-
 function summaryText(d) {
-  const { cohort: c, members, meetings, assignments } = d;
+  const { cohort: c, members, meetings, assignments, exams } = d;
   const total = members.length;
   const lines = [`📊 [${c.title}] 집계 · ${kstDate()}`, `교육생 ${total}명`];
   if (c.useAttend && meetings.length) {
@@ -229,6 +235,10 @@ function summaryText(d) {
   if (c.useAssign && assignments.length) {
     lines.push('', '📝 과제');
     for (const a of assignments) lines.push(`• ${a.title}${a.due ? ` (~${a.due.slice(5).replace('-', '/')})` : ''}: ${a.count}/${total}명`);
+  }
+  if (exams.length) {
+    lines.push('', '📊 시험');
+    for (const e of exams) lines.push(`• ${e.date.slice(5).replace('-', '/')} ${e.subject}: ${e.count}/${total}명 · 평균 ${e.avg}`);
   }
   lines.push('', '👤 교육생별');
   for (const m of members) {
@@ -240,13 +250,47 @@ function summaryText(d) {
   return lines.join('\n');
 }
 
+export const cohortSummaryText = async (c) => summaryText(await loadDetail(c));
+
 async function cohortSendSummary(body) {
   if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
-  const text = summaryText(await loadDetail(c));
+  const text = await cohortSummaryText(c);
   await sendAttendText(text, c.tgChat);
   return { ok: true, text };
+}
+
+/** 취합 표(엑셀로도 받는다): 교육생마다 모임별 출석, 과제별 제출, 날짜·과목별 점수. */
+async function cohortSheet(body) {
+  if (!owner(body)) return DENIED;
+  const c = await findCohort(clip(body.cohortId, 40));
+  if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
+  const [members, assignments, meetings, subs, scores] = await Promise.all([
+    run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('church').order('name')),
+    run(db().from('cohort_assignments').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('id')),
+    run(db().from('attend_meetings').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제').order('date').order('start_time')),
+    run(db().from('cohort_submissions').select('*').eq('cohort_id', c.cohortId).order('id')),
+    run(db().from('cohort_scores').select('*').eq('cohort_id', c.cohortId).order('date').order('subject')),
+  ]);
+  const ids = meetings.map((m) => m.meeting_id);
+  const records = ids.length ? await loadRecords((q) => q.in('meeting_id', ids)) : [];
+  const att = new Map(records.map((r) => [r.meetingId + '|' + normId(r.memberId), r]));
+  const sub = new Map(subs.map((s) => [s.assignment_id + '|' + s.nid, s]));
+  const sc = new Map(scores.map((s) => [s.date + '|' + s.subject + '|' + s.nid, Number(s.score)]));
+  const exams = [...new Map(scores.map((s) => [s.date + '|' + s.subject, { date: s.date, subject: s.subject }])).values()];
+  return {
+    cohort: c,
+    meetings: meetings.map(toMeetingRow),
+    assignments: assignments.map(toAssignment),
+    exams,
+    rows: members.map((m) => ({
+      ...toMember(m),
+      attend: meetings.map((x) => { const r = att.get(x.meeting_id + '|' + m.nid); return r ? (/지각/.test(r.late || '') ? r.late : '출석') : ''; }),
+      submit: assignments.map((a) => { const s = sub.get(a.assignment_id + '|' + m.nid); return s ? { at: fmtTs(s.updated_at || s.submitted_at).slice(5, 16), content: s.content, source: s.source } : null; }),
+      scores: exams.map((e) => sc.get(e.date + '|' + e.subject + '|' + m.nid) ?? null),
+    })),
+  };
 }
 
 // ── 교육생 화면(나의 교실) ──
@@ -319,5 +363,5 @@ async function submitCohortAssignment(body) {
 
 export default {
   cohortList, cohortSave, cohortDetail, cohortAddMembers, cohortRemoveMember, cohortLinkMeeting, cohortCreateMeeting,
-  cohortSaveAssignment, cohortSubmissions, cohortChats, cohortSendSummary, getMyCohorts, submitCohortAssignment,
+  cohortSaveAssignment, cohortSubmissions, cohortSendSummary, cohortSheet, getMyCohorts, submitCohortAssignment,
 };

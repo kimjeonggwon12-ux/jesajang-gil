@@ -6608,7 +6608,7 @@
       // 블록 사이는 카드 테두리 대신 굵은 회색 띠(.act-divider)로 끊어 답답함을 없앤다.
       return `
         <div class="pb-6 act-pages" data-act-page="${actPage}">
-          <div data-ap="attend">${myCohortHtml()}${attCardHtml()}</div>
+          <div data-ap="attend">${attCardHtml()}</div>
           <div data-ap="targets">
             ${actHeroHtml()}
             ${encouragementBannerHtml()}
@@ -6700,7 +6700,7 @@
       const fabEl = document.getElementById('act-fab');
       if (fabEl) fabEl.onclick = renderActivityFormSheet;
     }
-    window.Sections.activity = { mount() { loadHomeDashboard(); attLoadMy(); myCohortLoad(); } };
+    window.Sections.activity = { mount() { loadHomeDashboard(); attLoadMy(); } };
 
     // ════════════════════════════════════════════════════════════════
     // ===== 2026-10-05 QR 출석 체크 (백엔드: AttendanceBackend.gs) =====
@@ -13919,15 +13919,27 @@ async function calAdmInit() {
           <div class="ra-h">설정</div>
           <label class="ra-f">교육명칭<input id="chEdTitle" value="${esc(c.title)}"></label>
           ${chk('chUseAttend', c.useAttend, '출석 기능 켜기 (QR 출석 모임 연결)')}
-          ${chk('chUseAssign', c.useAssign, '과제 제출 기능 켜기 (교육생 나의 교실에 표시)')}
+          ${chk('chUseAssign', c.useAssign, '과제 제출 기능 켜기 (텔레그램 방에 "제출")')}
           <label class="ra-f">텔레그램 방 번호 (비우면 출석 알림 기본 방)<input id="chTg" value="${esc(c.tgChat)}" placeholder="예: -1001234567890" inputmode="numeric"></label>
-          <p class="ra-note" style="margin-top:6px">출석 봇을 교육 방에 초대하고 방에 아무 글이나 쓴 뒤 [방 찾기]를 누르면 번호가 나옵니다.</p>
+          <p class="ra-note" style="margin-top:6px">① 출석 봇을 교육 방에 초대하고 <b>방 관리자로 지정</b> → ② [방 찾기]에서 방을 고르고 [설정 저장]. 봇은 처음 한 번 [봇 연결]을 눌러 두면 됩니다.</p>
           <div id="chChats"></div>
           <div class="ra-acts">
             <button type="button" class="ra-btn" onclick="cohortAdm.saveSettings()">설정 저장</button>
             <button type="button" class="ra-btn line" onclick="cohortAdm.findChats(this)">방 찾기</button>
+            <button type="button" class="ra-btn line" onclick="cohortAdm.connectBot(this)">봇 연결</button>
+          </div>
+          <div class="ra-h">텔레그램 방에서 쓰는 법</div>
+          <div class="ra-note" style="background:#f3f5f4;border-radius:10px;padding:10px 12px;line-height:1.7">
+            <b>과제</b> — 제출 홍길동 내용… <small>(처음 한 번만 이름, 다음부터 "제출 내용"만 · 사진 설명에 써도 됨)</small><br>
+            <b>시험</b> — 점수 계시록 홍길동 85 김영희 90 <small>(방 관리자만 · 날짜는 "점수 계시록 10/16 …", 없으면 오늘)</small><br>
+            <b>집계</b> — 집계 <small>(방 관리자)</small> · <b>도움말</b> · <b>방번호</b></div>
+          <div class="ra-h">취합</div>
+          <div class="ra-acts" style="margin-top:8px">
+            <button type="button" class="ra-btn" onclick="cohortAdm.sheet(this)">취합 표 보기</button>
+            <button type="button" class="ra-btn line" onclick="cohortAdm.excel(this)">엑셀 받기</button>
             <button type="button" class="ra-btn line" onclick="cohortAdm.sendSummary(this)">텔레그램으로 집계 보내기</button>
           </div>
+          ${(d.exams || []).length ? `<div class="ra-h">시험 ${d.exams.length}회</div>${d.exams.map(e => `<div class="ra-log"><b>${esc(e.subject)}</b> <small>${esc(mmdd(e.date))}</small><div class="ra-diff">입력 ${e.count}/${total}명 · 평균 ${e.avg}</div></div>`).join('')}` : ''}
           <div class="ra-h">교육생 ${total}명</div>
           <div class="ra-acts" style="margin-top:8px"><button type="button" class="ra-btn line" onclick="cohortAdm.addMembers('${esc(c.cohortId)}')">+ 교육생 추가</button></div>
           ${memberRows || '<p class="ra-note">아직 교육생이 없어요.</p>'}
@@ -13983,8 +13995,64 @@ async function calAdmInit() {
         el.innerHTML = (res.chats || []).length
           ? res.chats.map(ch => `<button type="button" class="ra-row" style="margin-top:6px" onclick="document.getElementById('chTg').value='${esc(ch.id)}'"><span style="flex:1"><b>${esc(ch.title || '(이름 없음)')}</b><div class="ra-sub">${esc(ch.id)}</div></span><span class="ra-tag">고르기</span></button>`).join('')
             + '<p class="ra-note">고른 뒤 [설정 저장]을 눌러야 연결됩니다.</p>'
-          : '<p class="ra-note">봇이 최근에 본 방이 없어요. 봇을 방에 초대하고 아무 글이나 쓴 뒤 다시 눌러 주세요.</p>';
+          : `<p class="ra-note">봇이 본 방이 아직 없어요. ${res.connected ? '봇을 방에 초대(관리자 지정)하고 아무 글이나 쓴 뒤 다시 눌러 주세요.' : '먼저 [봇 연결]을 눌러 주세요.'}</p>`;
+        if (res.lastError) el.innerHTML += `<p class="ra-note" style="color:#c0392b">텔레그램 최근 오류: ${esc(res.lastError)}</p>`;
       }
+      async function connectBot(btn) {
+        const res = await act({ action: 'cohortBotConnect' }, null, btn, null);
+        if (res) toast(`봇 연결 완료${res.bot ? ' (@' + res.bot + ')' : ''} — 이제 방에 초대하세요.`);
+      }
+
+      // ── 취합 표: 교육생 × 출석 모임 · 과제 · 시험 점수 ──
+      async function loadSheet(btn) {
+        if (btn) btn.disabled = true;
+        let res;
+        try { res = await call({ action: 'cohortSheet', cohortId: cid() }); } catch (e) { res = { error: e.message }; }
+        if (btn) btn.disabled = false;
+        if (res.error) { toast(res.error, true); return null; }
+        return res;
+      }
+      const examLabel = e => `${mmdd(e.date)} ${e.subject}`;
+      async function sheet(btn) {
+        const d = await loadSheet(btn); if (!d) return;
+        const th = 'style="position:sticky;top:0;background:#e3f6ef;padding:6px 8px;border:1px solid #d6dbd8;white-space:nowrap;font-size:12px"';
+        const td = 'style="padding:6px 8px;border:1px solid #e3e8e5;white-space:nowrap;font-size:13px;text-align:center"';
+        const head = ['교회', '이름', ...d.meetings.map(m => '출석 ' + mmdd(m.date)), ...d.assignments.map(a => '과제 ' + a.title), ...d.exams.map(examLabel)];
+        const body = d.rows.map(r => `<tr><td ${td}>${esc(r.church)}</td><td ${td}><b>${esc(r.name)}</b></td>
+          ${r.attend.map(v => `<td ${td}>${v ? (v === '출석' ? '○' : esc(v)) : '<span style="color:#c0392b">×</span>'}</td>`).join('')}
+          ${r.submit.map(v => `<td ${td} title="${esc(v ? v.content : '')}">${v ? '○ ' + esc(v.at) : '<span style="color:#c0392b">×</span>'}</td>`).join('')}
+          ${r.scores.map(v => `<td ${td}>${v == null ? '' : esc(v)}</td>`).join('')}</tr>`).join('');
+        openSheet(`${H(esc(d.cohort.title) + ' 취합')}
+          <p class="ra-note">교육생 ${d.rows.length}명 · 출석 ${d.meetings.length}회 · 과제 ${d.assignments.length}개 · 시험 ${d.exams.length}회</p>
+          <div style="overflow:auto;max-height:65vh;border:1px solid #e3e8e5;border-radius:10px">
+            <table style="border-collapse:collapse;min-width:100%"><thead><tr>${head.map(h => `<th ${th}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>
+          <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.excel(this)">엑셀 받기</button>
+            <button type="button" class="ra-btn line" onclick="cohortAdm.detail('${esc(d.cohort.cohortId)}')">‹ 과정으로</button></div>`);
+      }
+      /** 엑셀: 종합(한 장에 모두) + 과제 내용 + 점수 시트 */
+      async function excel(btn) {
+        const d = await loadSheet(btn); if (!d) return;
+        try {
+          await loadXlsx();
+          const wb = XLSX.utils.book_new();
+          const all = [['교회', '이름', '고유번호', ...d.meetings.map(m => '출석 ' + mmdd(m.date) + ' ' + m.title), ...d.assignments.map(a => '과제 ' + a.title), ...d.exams.map(examLabel), '출석 수', '과제 수'],
+            ...d.rows.map(r => [r.church, r.name, r.memberId, ...r.attend.map(v => v || '결석'), ...r.submit.map(v => v ? '제출 ' + v.at : '미제출'), ...r.scores.map(v => v == null ? '' : v),
+              r.attend.filter(Boolean).length, r.submit.filter(Boolean).length])];
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(all), '종합');
+          const subs = [['과제', '교회', '이름', '제출 시각', '경로', '내용']];
+          d.assignments.forEach((a, i) => d.rows.forEach(r => { const v = r.submit[i]; if (v) subs.push([a.title, r.church, r.name, v.at, v.source || '', v.content]); }));
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(subs), '과제 내용');
+          const sc = [['날짜', '과목', '교회', '이름', '점수']];
+          d.exams.forEach((e, i) => d.rows.forEach(r => { if (r.scores[i] != null) sc.push([e.date, e.subject, r.church, r.name, r.scores[i]]); }));
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sc), '시험 점수');
+          XLSX.writeFile(wb, `${d.cohort.title}_취합_${todayStr()}.xlsx`.replace(/[\\/:*?"<>|]/g, '_'));
+        } catch (e) { toast(e.message, true); }
+      }
+      const loadXlsx = () => window.XLSX ? Promise.resolve() : new Promise((ok, fail) => {
+        const el = document.createElement('script'); el.src = 'vendor/xlsx.full.min.js';
+        el.onload = ok; el.onerror = () => fail(new Error('엑셀 도구를 불러오지 못했어요.'));
+        document.head.appendChild(el);
+      });
       const sendSummary = btn => act({ action: 'cohortSendSummary', cohortId: cid() }, '텔레그램 방에 집계를 보냈어요.', btn, null);
       function removeMember(memberId, btn) {
         if (!sure(btn, '한 번 더')) return;
@@ -14011,55 +14079,10 @@ async function calAdmInit() {
           ${res.missing.length ? `<div class="ra-h">미제출</div><p class="ra-note">${res.missing.map(m => esc(m.name + (m.church ? '(' + m.church + ')' : ''))).join(', ')}</p>` : ''}
           <div class="ra-acts"><button type="button" class="ra-btn line" onclick="cohortAdm.detail('${esc(res.assignment.cohortId)}')">‹ 과정으로</button></div>`);
       }
-      return { open, create, addMembers, saveMembers, detail, saveSettings, setStatus, findChats, sendSummary, removeMember, link, createMeeting, addAssign, toggleAssign, submissions };
+      return { open, create, addMembers, saveMembers, detail, saveSettings, setStatus, findChats, connectBot, sheet, excel, sendSummary, removeMember, link, createMeeting, addAssign, toggleAssign, submissions };
     })();
     window.cohortAdm = cohortAdm;
 
-    // ── 교육생 화면: 나의 교실 [출석] 맨 위 '내 교육' 카드 (교육생으로 등록된 사람에게만) ──
-    const myCohort = { data: null };
-    function myCohortHtml() {
-      const list = (myCohort.data && myCohort.data.cohorts) || [];
-      if (!list.length) return '<div id="myCohortCard"></div>';
-      return `<div id="myCohortCard">${list.map(c => {
-        const done = c.meetings.filter(m => m.attended).length;
-        return `<div class="att-card">
-          <div class="att-card-h"><b>🎓 ${esc(c.title)}</b></div>
-          ${c.useAttend ? `<div class="att-muted">출석 ${done}/${c.meetings.length}회 · 출석은 모임에서 QR을 찍으면 됩니다.</div>
-            ${c.meetings.map(m => `<div class="att-li"><div class="att-li-h"><b>${esc(m.title)}</b><span class="att-st ${m.attended ? (m.late && /지각/.test(m.late) ? 'late' : '') : 'no'}">${m.attended ? (m.late && /지각/.test(m.late) ? esc(m.late) : '출석') : m.past ? '결석' : '예정'}</span></div>
-              <div class="att-li-m">${esc(String(m.date).slice(5).replace('-', '/'))} ${esc(m.start)}${m.at ? ' · ' + esc(String(m.at).slice(11, 16)) + ' 출석' : ''}</div></div>`).join('')}` : ''}
-          ${c.useAssign ? `<div class="att-card-h" style="margin-top:12px"><b>과제</b></div>
-            ${c.assignments.length ? c.assignments.map(a => `<div class="att-li"><div class="att-li-h"><b>${esc(a.title)}</b><span class="att-st ${a.mine ? '' : 'no'}">${a.mine ? '제출함' : a.status === '열림' ? '미제출' : '마감'}</span></div>
-              <div class="att-li-m">${a.due ? '기한 ' + esc(a.due.slice(5).replace('-', '/')) : '기한 없음'}${a.mine ? ' · ' + esc(String(a.mine.at).slice(5, 16)) + ' 제출' : ''}</div>
-              ${a.status === '열림' ? `<button type="button" class="att-scan-btn" style="margin-top:8px" onclick="myCohortOpen('${esc(a.assignmentId)}')">${a.mine ? '고쳐 내기' : '과제 내기'}</button>` : ''}</div>`).join('')
-              : '<div class="att-muted">아직 과제가 없어요.</div>'}` : ''}
-        </div>`;
-      }).join('')}</div>`;
-    }
-    function myCohortRender() { const el = document.getElementById('myCohortCard'); if (el) el.outerHTML = myCohortHtml(); }
-    async function myCohortLoad(afterWrite) {
-      try { await apiSWR({ action: 'getMyCohorts', memberId: App.memberId }, r => { if (r && !r.error) { myCohort.data = r; myCohortRender(); } }, afterWrite); } catch (e) {}
-    }
-    window.myCohortOpen = function (assignmentId) {
-      let a = null;
-      for (const c of (myCohort.data && myCohort.data.cohorts) || []) { a = c.assignments.find(x => x.assignmentId === assignmentId) || a; }
-      if (!a) return;
-      openSheet(`<h3 style="font-size:18px;font-weight:800">${esc(a.title)}</h3>
-        ${a.guide ? `<p class="att-muted" style="white-space:pre-wrap;margin:8px 0">${esc(a.guide)}</p>` : ''}
-        ${a.due ? `<p class="att-muted">기한 ${esc(a.due)}</p>` : ''}
-        <textarea id="myCohortText" rows="8" style="display:block;width:100%;margin-top:10px;border:1px solid #d6dbd8;border-radius:10px;padding:10px 12px;font-size:16px" placeholder="여기에 과제를 써 주세요">${esc(a.mine ? a.mine.content : '')}</textarea>
-        <button type="button" class="att-scan-btn" id="myCohortSend" style="margin-top:12px" onclick="myCohortSubmit('${esc(a.assignmentId)}')">${a.mine ? '고쳐서 내기' : '제출하기'}</button>`);
-    };
-    window.myCohortSubmit = async function (assignmentId) {
-      const btn = document.getElementById('myCohortSend'), text = (document.getElementById('myCohortText') || {}).value || '';
-      if (!text.trim()) { toast('내용을 써 주세요.', true); return; }
-      if (btn) btn.disabled = true;
-      try {
-        const res = await callApi({ action: 'submitCohortAssignment', memberId: App.memberId, name: App.name, assignmentId, content: text });
-        if (res.error) throw new Error(res.error);
-        closeSheet(); toast(res.updated ? '고쳐서 냈어요.' : '과제를 냈어요.');
-        myCohortLoad(true);
-      } catch (e) { toast(e.message, true); if (btn) btn.disabled = false; }
-    };
     window.Sections.admin = { mount() { adminSwitchSubTab('dist'); } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
 
   </script>

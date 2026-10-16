@@ -57,16 +57,13 @@ export async function sendAttendFile(bytes, fileName, caption) {
   }
 }
 
-/** 봇이 최근에 받은 메시지에서 방 목록을 뽑는다(교육 과정 방 연결용). 봇을 방에 넣고 아무 글이나 쓰면 잡힌다. */
-export async function recentAttendChats() {
-  if (!process.env.ATT_BOT_TOKEN) return { error: '출석 봇 설정이 없어요.' };
-  const r = await fetch(api('getUpdates') + '?limit=100');
-  const j = await r.json().catch(() => ({}));
-  if (!j.ok) return { error: j.description || '텔레그램에서 목록을 받지 못했어요.' };
-  const chats = new Map();
-  for (const u of j.result || []) {
-    const c = (u.message || u.my_chat_member || u.channel_post || u.edited_message || {}).chat;
-    if (c && c.type !== 'private') chats.set(String(c.id), { id: String(c.id), title: c.title || '', type: c.type });
+/** 텔레그램 API 를 부르고 JSON 결과를 돌려준다(실패하면 { ok:false, description }). */
+export async function attendBotCall(method, payload = {}) {
+  if (!process.env.ATT_BOT_TOKEN) return { ok: false, description: '출석 봇 설정이 없어요.' };
+  try {
+    const r = await fetch(api(method), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    return await r.json().catch(() => ({ ok: false, description: 'HTTP ' + r.status }));
+  } catch (e) {
+    return { ok: false, description: String(e.message || e) };
   }
-  return { chats: [...chats.values()] };
 }
