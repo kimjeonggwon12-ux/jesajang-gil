@@ -14333,7 +14333,7 @@ async function calAdmInit() {
           <label class="ra-f">점수 입력 마감(비우면 자정)<input type="time" id="chExDue"></label>
           <p class="ra-note">마감 시각이 지나면 그날 점수 순위·평균·미입력 명단이 텔레그램 방으로 갑니다.</p>
           <div class="ra-acts"><button type="button" class="ra-btn" onclick="cohortAdm.saveExam(this)">시험 루틴 저장</button></div>
-          <div class="ch-guide"><b>점수 올리기(텔레그램 방 관리자)</b><br>점수 계시록 홍길동 85 김영희 90<br>여러 줄도 됩니다: 첫 줄 "점수 계시록", 다음 줄부터 "홍길동 85"<br>지난날 점수: 점수 계시록 10/15 홍길동 85</div>
+          <div class="ch-guide"><b>점수 올리기(텔레그램 방 관리자)</b><br>점수 계시록 홍길동 85 김영희 90<br>여러 줄도 됩니다: 첫 줄 "점수 계시록", 다음 줄부터 "홍길동 85"<br>지난날 점수: 점수 계시록 10/15 홍길동 85<br><b>여러 날을 표로</b>: 첫 줄 "점수 과목", 둘째 줄 날짜 "10.12 / 14/15/16", 다음 줄부터 "1. 홍길동 80/ 90/ 미/ 100" (미 = 미응시 · 과목 루틴이 하나면 과목은 빼도 됨)</div>
           <div class="ra-h">최근 시험 결과</div>
           ${d.exams.slice().reverse().slice(0, 15).map(e => `<div class="ra-log"><b>${esc(mmdd(e.date))} ${esc(e.subject)}</b><div class="ra-diff">입력 ${e.count}/${d.total}명 · 평균 ${e.avg}</div></div>`).join('') || '<p class="ra-note">아직 올라온 점수가 없어요.</p>'}`;
       }

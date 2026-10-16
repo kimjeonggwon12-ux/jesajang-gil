@@ -27,6 +27,10 @@ const HELP = [
   '• 시험 점수(방 관리자): 점수 계시록 홍길동 85 김영희 90',
   '  날짜를 넣으려면: 점수 계시록 10/16 홍길동 85  (없으면 오늘)',
   '  여러 줄로 써도 됩니다(첫 줄 "점수 과목", 다음 줄부터 "이름 점수").',
+  '• 여러 날 점수를 표로(방 관리자):',
+  '  점수 계시록',
+  '  10.12 / 14/15/16',
+  '  1. 홍길동 80/ 90/ 미/ 100   (미 = 미응시)',
   '• 집계: 지금까지 출석·과제·점수 정리 (방 관리자)',
   '• 방번호: 이 방 번호 보기',
 ].join('\n');
@@ -172,11 +176,104 @@ function readDate(tok) {
   return '';
 }
 
+// ── 날짜별 점수 표 ── (2026-10-16 사용자가 실제로 올린 모양)
+//   점수 [과목]
+//   10.12 / 14/15/16          ← 날짜 줄(첫 날짜에 월, 나머지는 일만 / "10/12, 10/14" / "10/12/14/15/16"도 됨)
+//   1. 전용완 0/ 40/ 20/ 60    ← 이름 + 날짜 순서대로 점수, "미"·"-"·"x" = 미응시
+const SKIP_WORDS = /날짜별|시험\s*결과|결과|성적|점수표|점수/g;
+
+/** 날짜 줄 → ['yyyy-MM-dd', …] (날짜 줄이 아니면 []) */
+export function parseDateList(line, today) {
+  const t = String(line).trim();
+  if (!/\d/.test(t) || !/^[\d\s./,，·\-월일()화수목금토]+$/.test(t)) return [];
+  const year = today.slice(0, 4);
+  const ok = (m, d) => m >= 1 && m <= 12 && d >= 1 && d <= 31;
+  const fmt = (m, d) => `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const out = [];
+  if (/[.월]/.test(t)) {
+    let month = 0;
+    for (const tok of t.match(/\d{1,2}\s*[.월]\s*\d{1,2}|\d{1,2}/g) || []) {
+      const md = /^(\d{1,2})\s*[.월]\s*(\d{1,2})$/.exec(tok);
+      if (md) { month = +md[1]; if (ok(month, +md[2])) out.push(fmt(month, +md[2])); } else if (month && ok(month, +tok)) out.push(fmt(month, +tok));
+    }
+  } else if (/[,，]/.test(t)) {
+    let month = 0;
+    for (const part of t.split(/[,，]/)) {
+      const md = /(\d{1,2})\s*\/\s*(\d{1,2})/.exec(part), d = /(\d{1,2})/.exec(part);
+      if (md) { month = +md[1]; if (ok(month, +md[2])) out.push(fmt(month, +md[2])); } else if (d && month && ok(month, +d[1])) out.push(fmt(month, +d[1]));
+    }
+  } else {
+    const nums = (t.match(/\d{1,2}/g) || []).map(Number);   // "10/12/14/15/16" = 10월 12·14·15·16일
+    if (nums.length >= 2 && nums[0] <= 12) for (const d of nums.slice(1)) if (ok(nums[0], d)) out.push(fmt(nums[0], d));
+  }
+  return [...new Set(out)];
+}
+
+/** 표 모양이면 { dates, rows:[{name, values}], rest } (아니면 null). values 의 null = 미응시 */
+export function parseScoreTable(body, today) {
+  const lines = String(body).split('\n');
+  let dates = [], dateLine = -1;
+  lines.forEach((l, i) => { if (dateLine < 0) { const d = parseDateList(l, today); if (d.length) { dates = d; dateLine = i; } } });
+  const rows = [], rest = [];
+  lines.forEach((l, i) => {
+    if (i === dateLine) return;
+    const m = /^\s*(?:\d+\s*[.)]\s*)?([가-힣A-Za-z]{2,10})\s*[:：]?\s+([\d미xX\-–./\s점]+)$/.exec(l);
+    if (m && /[/]/.test(m[2])) {
+      const values = m[2].split('/').map((v) => v.replace(/점/g, '').trim()).filter((v, k, arr) => v !== '' || k < arr.length - 1)
+        .map((v) => (/^\d{1,3}(?:\.\d{1,2})?$/.test(v) ? Number(v) : null));
+      rows.push({ name: m[1], values });
+    } else rest.push(l);
+  });
+  if (!rows.length) return null;
+  return { dates, rows, rest: rest.join(' ') };
+}
+
+async function onScoreTable(msg, c, members, byName, table) {
+  const { dates, rows } = table;
+  const width = Math.max(...rows.map((r) => r.values.length));
+  if (!dates.length) return reply(msg, `날짜 줄을 찾지 못했어요. 이름 아래 점수가 ${width}개면 날짜도 ${width}개 적어 주세요.\n예:\n점수 계시록\n10.12 / 14/15/16\n1. 홍길동 80/ 90/ 미/ 100`);
+  if (width > dates.length) return reply(msg, `날짜는 ${dates.length}개(${dates.map((d) => d.slice(5).replace('-', '/')).join('·')})인데 점수가 ${width}개인 줄이 있어요. 날짜 줄을 확인해 주세요.`);
+  // 과목: 남은 글에서 교육생 이름·'날짜별 시험 결과' 같은 말을 뺀 것 → 시험 루틴 과목에 맞춤, 없으면 루틴이 하나뿐일 때 그 과목
+  const routines = (await run(db().from('cohort_exams').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제'))).map(toExam);
+  const leftover = table.rest.replace(SKIP_WORDS, ' ').split(/\s+/).filter((w) => w && !byName.has(nameKey(w)) && nameKey(w) !== nameKey(tgName(msg.from))).join(' ').trim();   // 교육생 이름·올린 사람 이름은 과목이 아님
+  let subject = '';
+  if (leftover) {
+    const hit = routines.find((e) => nameKey(e.subject) === nameKey(leftover)) || routines.find((e) => nameKey(e.subject).includes(nameKey(leftover)) || nameKey(leftover).includes(nameKey(e.subject)));
+    subject = hit ? hit.subject : clip(leftover, 40);
+  } else if (routines.filter((e) => e.status === '열림').length === 1) subject = routines.find((e) => e.status === '열림').subject;
+  else if (routines.length === 1) subject = routines[0].subject;
+  if (!subject) return reply(msg, `어느 과목 점수인지 알려 주세요. 첫 줄에 과목을 써 주시면 됩니다.\n예: 점수 ${routines[0]?.subject || '계시록'}\n(시험 루틴: ${routines.map((e) => e.subject).join(', ') || '없음'})`);
+
+  const now = kstDateTime(), by = tgName(msg.from);
+  const save = [], unknown = [], dup = [], absent = [];
+  for (const r of rows) {
+    const m = byName.get(nameKey(r.name));
+    if (!m) { unknown.push(r.name); continue; }
+    if (m === 'dup') { dup.push(r.name); continue; }
+    r.values.forEach((v, k) => {
+      if (v == null || v > 1000) { absent.push(`${m.name} ${dates[k].slice(5).replace('-', '/')}`); return; }
+      save.push({ cohort_id: c.cohortId, date: dates[k], subject, member_id: m.member_id, name: m.name, score: v, by_name: by, at: now });
+    });
+  }
+  if (save.length) await run(db().from('cohort_scores').upsert(save, { onConflict: 'cohort_id,date,subject,nid' }));
+  const perDate = dates.map((d) => `${d.slice(5).replace('-', '/')} ${save.filter((s) => s.date === d).length}명`);
+  const lines = [`📊 ${subject} 날짜별 점수 ${save.length}개 기록 (교육생 ${members.length}명)`, perDate.join(' · ')];
+  if (absent.length) lines.push('🔸 미응시: ' + absent.join(', '));
+  const listed = new Set(rows.map((r) => nameKey(r.name)));
+  const notListed = members.filter((m) => !listed.has(nameKey(m.name)));
+  if (notListed.length) lines.push('❔ 표에 없는 교육생: ' + notListed.map((m) => m.name).join(', '));
+  if (unknown.length) lines.push('❓ 명단에 없는 이름: ' + unknown.join(', '));
+  if (dup.length) lines.push('⚠️ 같은 이름이 둘 이상이라 못 넣음: ' + dup.join(', '));
+  return reply(msg, lines.join('\n'));
+}
+
 async function onScore(msg, c, body) {
   if (!(await isChatAdmin(msg.chat.id, msg.from.id))) return reply(msg, '점수는 방 관리자만 올릴 수 있어요.');
   const members = await loadMembers(c.cohortId);
   const byName = new Map();
   for (const m of members) { const k = nameKey(m.name); byName.set(k, byName.has(k) ? 'dup' : m); }
+  const table = parseScoreTable(body, kstDate());
+  if (table) return onScoreTable(msg, c, members, byName, table);
 
   // 교육생 이름+점수 짝을 뽑아 첫 줄에서 지우고, 첫 줄에 남은 낱말 = 과목(+날짜)
   const pairRe = /([가-힣A-Za-z]{2,10})\s*[:：]?\s*(\d{1,3}(?:\.\d{1,2})?)(?![\d/.])\s*점?/g;

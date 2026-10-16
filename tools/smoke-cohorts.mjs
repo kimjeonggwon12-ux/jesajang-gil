@@ -77,6 +77,12 @@ try {
   ok(ex.ok, '시험 루틴');
   r = await say(TG_ADMIN, '점수 계 시 록 ZZTEST하나 85 ZZTEST둘 92');
   ok(/계시록.*2명 기록/.test(r), '점수(띄어쓰기 달라도 루틴 과목으로) (' + r.split('\n')[0] + ')');
+  // 날짜별 표(사용자가 실제로 올린 모양): 과목 없이 + 첫 줄에 관리자 이름 + "미" = 미응시
+  const dm = (n) => shift(n).slice(5).replace('-', '.');
+  r = await say(TG_ADMIN, `점수 tg777\n날짜별 시험 결과\n${dm(-3)} / ${shift(-2).slice(8)}/${shift(-1).slice(8)}\n\n1. ZZTEST하나 0/ 40/ 미\n2. ZZTEST둘 25/ 60/ 70\n3. 없는사람 10/ 10/ 10`);
+  ok(/계시록 날짜별 점수 5개 기록/.test(r) && /미응시: ZZTEST하나/.test(r) && /명단에 없는 이름: 없는사람/.test(r), '점수 날짜별 표 (' + r.replace(/\n/g, ' / ') + ')');
+  const scB = await run(db().from('cohort_scores').select('date, score').eq('cohort_id', cohortId).eq('name', 'ZZTEST둘').order('date'));
+  ok(scB.length >= 3 && scB.find((x) => x.date === shift(-2) && Number(x.score) === 60), '표 점수가 날짜마다 들어감');
 
   // 불규칙 날짜(과제·시험)
   const a3 = await call('cohortSaveAssignment', { cohortId, assignment: { title: '성도의 참 신앙', repeat: '날짜', dates: [shift(3), today].join(',') } });
@@ -120,14 +126,14 @@ try {
   const todayMt = d.todayMeetings[0].meetingId;
   await run(db().from('attend_meetings').update({ end_time: '00:00' }).eq('meeting_id', todayMt));
   sent.length = 0;
-  const done = await cohortTick();
+  const done = await cohortTick(cohortId);
   const all = sent.join('\n---\n');
   if (process.env.DEBUG) console.log(all, done);
   ok(/출석 마감/.test(all) && /출석 1\/2명/.test(all) && /결석 1명: ZZTEST둘/.test(all), '자동 서머리: 출석 결과·결석 명단');
   ok(/과제 마감 — 천국 가는 항해자/.test(all) && /미제출 1명: ZZTEST둘/.test(all), '자동 서머리: 과제 제출·미제출');
   ok(/시험 결과 — 계시록/.test(all) && /1\. ZZTEST둘 92/.test(all), '자동 서머리: 시험 순위');
   sent.length = 0;
-  await cohortTick();
+  await cohortTick(cohortId);
   ok(!sent.some((t) => /\[ZZTEST 교육\]/.test(t)), '같은 서머리는 한 번만 (' + done.filter((x) => x.startsWith('ZZTEST')).length + '건 보냄)');
 
   // 취합

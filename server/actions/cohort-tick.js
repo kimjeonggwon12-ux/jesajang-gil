@@ -29,15 +29,23 @@ async function claim(cohortId, kind, refId, date) {
   return !error;
 }
 
-export async function cohortTick() {
+/** only: 이 과정만(점검 도구가 실제 과정을 건드리지 않게). 한 과정에서 오류가 나도 다른 과정은 계속. */
+export async function cohortTick(only = '') {
   const today = kstDate();
   const hm = kstDateTime().slice(11, 16);
   const sent = [];
-  const cohorts = (await run(db().from('cohorts').select('*').eq('status', '진행'))).map(toCohort);
+  const cohorts = (await run(db().from('cohorts').select('*').eq('status', '진행'))).map(toCohort).filter((x) => !only || x.cohortId === only);
   for (const c of cohorts) {
-    if (!c.tgChat) continue;   // 방이 연결된 과정만
+    try { await tickOne(c, today, hm, sent); } catch (e) { console.log(`교육 과정 서머리 오류(${c.title}): ${e && e.message ? e.message : e}`); }
+  }
+  return sent;
+}
+
+async function tickOne(c, today, hm, sent) {
+  {
+    if (!c.tgChat) return;   // 방이 연결된 과정만
     const members = await run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('church').order('name'));
-    if (!members.length) continue;
+    if (!members.length) return;
     const total = members.length;
     const title = `[${c.title}] ${mmdd(today)}(${weekdayOf(today)})`;
 
