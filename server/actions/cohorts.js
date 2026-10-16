@@ -6,7 +6,7 @@ import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { clip, newId, isDate } from '../lib/input.js';
 import { runLater } from '../lib/background.js';
 import { sendAttendText } from '../lib/attend-bot.js';
-import { toCohort, findCohort, WEEK, weekdayOf, isClassDay, assignmentOn } from '../lib/cohort.js';
+import { toCohort, findCohort, WEEK, weekdayOf, isClassDay, assignmentOn, cleanDates } from '../lib/cohort.js';
 import { isOwner, memberInfo } from './roster.js';
 import { loadRecords } from './attendance.js';
 
@@ -15,25 +15,26 @@ const owner = (body) => isOwner(clip(body.memberId, 40));
 const hm = (v) => (/^\d{1,2}:\d{2}$/.test(clip(v, 5)) ? clip(v, 5).padStart(5, '0') : '');
 const cleanDays = (v) => [...WEEK].filter((d) => String(v || '').includes(d)).join('');
 const mmdd = (d) => String(d).slice(5).replace('-', '/');
-const REPEATS = ['한번', '매일', '요일'];
+const REPEATS = ['한번', '매일', '요일', '날짜'];
+const datesText = (list) => list.map((d) => mmdd(d)).join('·');
 
 const toMember = (r) => ({ memberId: r.member_id, name: r.name, church: r.church, addedAt: fmtTs(r.added_at) });
 export const toAssignment = (r) => ({
   assignmentId: r.assignment_id, cohortId: r.cohort_id, title: r.title, guide: r.guide, due: r.due, status: r.status,
-  repeat: r.repeat || '한번', days: r.days || '', dueTime: r.due_time || '', createdAt: fmtTs(r.created_at).slice(0, 10),
+  repeat: r.repeat || '한번', days: r.days || '', dates: r.dates || '', dueTime: r.due_time || '', createdAt: fmtTs(r.created_at).slice(0, 10),
 });
 const toSubmission = (r) => ({
   assignmentId: r.assignment_id, memberId: r.member_id, name: r.name, content: r.content, workDate: r.work_date || '',
   late: !!r.late, source: r.source || '', at: fmtTs(r.updated_at || r.submitted_at),
 });
-export const toExam = (r) => ({ examId: r.exam_id, cohortId: r.cohort_id, subject: r.subject, days: r.days || '', date: r.date || '', dueTime: r.due_time || '', status: r.status });
-/** 시험이 그날 있나: 요일 루틴이면 요일, 한번 시험이면 그 날짜. */
-export const examOn = (e, date) => e.status === '열림' && (e.days ? e.days.includes(weekdayOf(date)) : e.date === date);
-const examText = (e) => (e.days ? (e.days.length === 7 ? '매일' : e.days) : (e.date ? mmdd(e.date) : '')) + ` · ${e.dueTime || '자정'}까지 점수`;
+export const toExam = (r) => ({ examId: r.exam_id, cohortId: r.cohort_id, subject: r.subject, days: r.days || '', dates: r.dates || '', date: r.date || '', dueTime: r.due_time || '', status: r.status });
+/** 시험이 그날 있나: 날짜를 골랐으면 그 날짜들, 요일 루틴이면 요일, 한번 시험이면 그 날짜. */
+export const examOn = (e, date) => e.status === '열림' && (e.dates ? cleanDates(e.dates).includes(date) : e.days ? e.days.includes(weekdayOf(date)) : e.date === date);
+const examText = (e) => (e.dates ? datesText(cleanDates(e.dates)) : e.days ? (e.days.length === 7 ? '매일' : e.days) : (e.date ? mmdd(e.date) : '')) + ` · ${e.dueTime || '자정'}까지 점수`;
 const toMeetingRow = (r) => ({ meetingId: r.meeting_id, title: r.title, date: r.date, start: String(r.start_time || '').slice(0, 5), end: String(r.end_time || '').slice(0, 5), status: r.status });
 
 /** 반복 설명: "매일 · 21:00까지", "월수금 · 자정까지", "~10/20" */
-export const repeatText = (a) => (a.repeat === '매일' ? '매일' : a.repeat === '요일' ? `${a.days || '요일'}` : (a.due ? `~${mmdd(a.due)}` : '한 번'))
+export const repeatText = (a) => (a.repeat === '매일' ? '매일' : a.repeat === '요일' ? `${a.days || '요일'}` : a.repeat === '날짜' ? datesText(cleanDates(a.dates)) : (a.due ? `~${mmdd(a.due)}` : '한 번'))
   + (a.repeat !== '한번' || a.due ? ` · ${a.dueTime || '자정'}까지` : '');
 
 /** 날짜 목록 from~to(포함) */
@@ -48,6 +49,7 @@ function dateRange(from, to, max = 400) {
 /** 그 과제를 오늘까지 내야 했던 날들(한번 과제는 ['']). 시작 = 과정 시작일과 과제 만든 날 중 늦은 날. */
 function dueDates(c, a, today) {
   if (a.repeat === '한번') return [''];
+  if (a.repeat === '날짜') { const to = c.endDate && c.endDate < today ? c.endDate : today; return cleanDates(a.dates).filter((d) => d <= to); }
   const from = [c.startDate, a.createdAt].filter(Boolean).sort().at(-1) || today;
   const to = c.endDate && c.endDate < today ? c.endDate : today;
   if (from > to) return [];
@@ -153,8 +155,8 @@ function crunch(c, all) {
     exams.set(key, e);
   }
   const routines = (all.examRoutines || []).map((e) => {
-    const k = String(e.subject).replace(/s/g, '');
-    const todayScores = scores.filter((s) => s.date === today && nids.has(s.nid) && String(s.subject).replace(/s/g, '') === k);
+    const k = String(e.subject).replace(/\s/g, '');
+    const todayScores = scores.filter((s) => s.date === today && nids.has(s.nid) && String(s.subject).replace(/\s/g, '') === k);
     return { ...e, examText: examText(e), onToday: examOn(e, today), doneToday: todayScores.length };
   });
   const todayMeetings = meetings.filter((m) => m.date === today).map((m) => ({ ...toMeetingRow(m), count: perMeeting[m.meeting_id] || 0 }));
@@ -301,10 +303,12 @@ async function cohortSaveAssignment(body) {
   const repeat = REPEATS.includes(String(a.repeat)) ? String(a.repeat) : '한번';
   const days = repeat === '요일' ? cleanDays(a.days) : '';
   if (repeat === '요일' && !days) return { error: '과제 요일을 하나 이상 골라 주세요.' };
+  const dates = repeat === '날짜' ? cleanDates(a.dates).join(',') : '';
+  if (repeat === '날짜' && !dates) return { error: '과제 날짜를 하나 이상 골라 주세요.' };
   const due = repeat === '한번' ? clip(a.due, 10) : '';
   if (due && !isDate(due)) return { error: '기한 날짜를 다시 골라 주세요.' };
   const fields = {
-    title, guide: clip(a.guide, 1000), due, repeat, days, due_time: hm(a.dueTime),
+    title, guide: clip(a.guide, 1000), due, repeat, days, dates, due_time: hm(a.dueTime),
     status: ['열림', '닫힘', '삭제'].includes(String(a.status)) ? String(a.status) : '열림',
   };
   const id = clip(a.assignmentId, 40);
@@ -343,13 +347,14 @@ async function cohortSaveExam(body) {
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const e = body.exam || {};
-  const subject = clip(e.subject, 40).replace(/s+/g, ' ');
+  const subject = clip(e.subject, 40).replace(/\s+/g, ' ');
   if (!subject) return { error: '시험 과목을 넣어 주세요.' };
-  if (/d/.test(subject.split(' ')[0])) return { error: '과목 이름은 글자로 시작해 주세요(예: 계시록).' };
-  const days = cleanDays(e.days);
-  const date = days ? '' : clip(e.date, 10);
-  if (!days && !isDate(date)) return { error: '요일을 고르거나(정기 시험), 한 번 보는 시험이면 날짜를 골라 주세요.' };
-  const fields = { subject, days, date, due_time: hm(e.dueTime), status: ['열림', '닫힘', '삭제'].includes(String(e.status)) ? String(e.status) : '열림' };
+  if (/^\d/.test(subject.split(' ')[0])) return { error: '과목 이름은 글자로 시작해 주세요(예: 계시록).' };
+  const dates = cleanDates(e.dates).join(',');
+  const days = dates ? '' : cleanDays(e.days);
+  const date = days || dates ? '' : clip(e.date, 10);
+  if (!days && !dates && !isDate(date)) return { error: '시험 날짜(또는 요일)를 골라 주세요.' };
+  const fields = { subject, days, dates, date, due_time: hm(e.dueTime), status: ['열림', '닫힘', '삭제'].includes(String(e.status)) ? String(e.status) : '열림' };
   const id = clip(e.examId, 40);
   if (id) {
     await run(db().from('cohort_exams').update(fields).eq('exam_id', id).eq('cohort_id', c.cohortId));

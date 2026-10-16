@@ -20,6 +20,7 @@ import attendanceClosing from './actions/attendance-closing.js';
 import bot from './actions/bot.js';
 import cohorts from './actions/cohorts.js';
 import cohortBot from './actions/cohort-bot.js';
+import cohortSchedule from './actions/cohort-schedule.js';
 
 export const actions = {
   ...roster,
@@ -43,4 +44,5 @@ export const actions = {
   ...bot,
   ...cohorts,
   ...cohortBot,
+  ...cohortSchedule,
 };

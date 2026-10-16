@@ -78,6 +78,23 @@ try {
   r = await say(TG_ADMIN, '점수 계 시 록 ZZTEST하나 85 ZZTEST둘 92');
   ok(/계시록.*2명 기록/.test(r), '점수(띄어쓰기 달라도 루틴 과목으로) (' + r.split('\n')[0] + ')');
 
+  // 불규칙 날짜(과제·시험)
+  const a3 = await call('cohortSaveAssignment', { cohortId, assignment: { title: '성도의 참 신앙', repeat: '날짜', dates: [shift(3), today].join(',') } });
+  const ex2 = await call('cohortSaveExam', { cohortId, exam: { subject: '어록', dates: shift(2) } });
+  ok(a3.ok && ex2.ok, '날짜 고르기 과제·시험 저장');
+  r = await say(TG_STUDENT, '제출 신앙 참 신앙 기록');
+  ok(/성도의 참 신앙.*제출 기록/.test(r), '"제출 신앙 …" → 날짜 과제 (' + r.split('\n')[0] + ')');
+
+  // 일정표
+  const imp = await call('cohortImportTimetable', { cohortId, text: `${today.slice(5).replace('-', '/')}\n08:45 입실, 교육 준비 #기타\n09:00~10:00 성구 시험 / 말씀 시청 시험①\n13:00~14:00 [사명 정신 교육①] | 신명근 교육부장\n이번 주 과제 안내 #주간메모\n${shift(1).slice(5).replace('-', '/')}(${WD[new Date(shift(1) + 'T00:00:00Z').getUTCDay()]})\n10:00~12:00 단계향상 피드백 및 발표` });
+  ok(imp.ok && imp.added === 5, `일정표 여러 줄 등록 (${imp.added}개)`);
+  const tt = await call('cohortTimetable', { cohortId });
+  ok(tt.items.find((x) => x.title.startsWith('성구 시험')).kind === '시험' && tt.items.find((x) => x.sub === '신명근 교육부장'), '일정 종류 자동(시험)·강사');
+  const cp = await call('cohortCopyDay', { cohortId, from: today, to: [shift(2), shift(3)] });
+  ok(cp.ok && cp.added === 8, '하루 복사(2일 × 4개)');
+  const one = tt.items[0];
+  ok((await call('cohortSaveItem', { cohortId, item: { ...one, title: '입실' } })).ok && (await call('cohortDeleteItem', { cohortId, itemId: one.itemId })).ok, '일정 고치기·지우기');
+
   // 상세 숫자
   const d = await call('cohortDetail', { cohortId });
   const h = d.assignments.find((x) => x.title === '천국 가는 항해자');
@@ -104,7 +121,7 @@ try {
   const rowA = sh.rows.find((x) => x.name === 'ZZTEST하나');
   const ti = sh.dates.indexOf(today);
   ok(rowA.daily[ti].includes('항해자') && rowA.daily[ti].includes('정리') && /출석|지각/.test(rowA.attend[ti]), '취합 표: 오늘 출석·과제 칸 (' + rowA.daily[ti] + ')');
-  ok(sh.submissions.length === 3, '과제 내용 목록 3건');
+  ok(sh.submissions.length === 4, '과제 내용 목록 4건');
   const sum = await call('cohortSendSummary', { cohortId });
   ok(/오늘/.test(sum.text) && /시험 계시록/.test(sum.text), '집계 글');
   console.log(sum.text);
@@ -113,7 +130,7 @@ try {
   if (cohortId) {
     const meetings = await run(db().from('attend_meetings').select('meeting_id').eq('cohort_id', cohortId));
     for (const m of meetings) await run(db().from('attend_records').delete().eq('meeting_id', m.meeting_id));
-    for (const t of ['attend_meetings', 'cohort_submissions', 'cohort_assignments', 'cohort_members', 'cohort_scores', 'cohort_tg_links', 'cohort_exams', 'cohort_summary_log', 'cohorts']) {
+    for (const t of ['attend_meetings', 'cohort_submissions', 'cohort_assignments', 'cohort_members', 'cohort_scores', 'cohort_tg_links', 'cohort_exams', 'cohort_summary_log', 'cohort_schedule', 'cohorts']) {
       await run(db().from(t).delete().eq('cohort_id', cohortId));
     }
   }

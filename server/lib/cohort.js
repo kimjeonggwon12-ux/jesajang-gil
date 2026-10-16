@@ -12,6 +12,9 @@ export const toCohort = (r) => ({
   startDate: r.start_date || '', endDate: r.end_date || '', days: r.days || '', startTime: r.start_time || '', endTime: r.end_time || '',
 });
 
+/** 'a,b,c' → 날짜 목록(올바른 날짜만, 순서대로, 중복 없이) */
+export const cleanDates = (v) => [...new Set(String(Array.isArray(v) ? v.join(',') : v || '').split(',').map((x) => x.trim()).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x)))].sort();
+
 /** 'yyyy-MM-dd' → '월'…'일' */
 export const weekdayOf = (date) => '일월화수목금토'[new Date(date + 'T00:00:00Z').getUTCDay()];
 
@@ -26,15 +29,17 @@ export function isClassDay(c, date) {
 export function assignmentOn(a, date) {
   if (a.repeat === '매일') return true;
   if (a.repeat === '요일') return String(a.days || '').includes(weekdayOf(date));
+  if (a.repeat === '날짜') return String(a.dates || '').split(',').includes(date);
   return true;
 }
 
 /** 과제 제출이 늦었나. 반복 과제는 그날 마감 시각(비면 자정), 한번 과제는 기한 날짜(+마감 시각). */
 export function isLate(a, nowDateTime) {
   const day = nowDateTime.slice(0, 10), hm = nowDateTime.slice(11, 16);
-  if (a.repeat === '매일' || a.repeat === '요일') return !!a.due_time && hm > a.due_time;
+  const dueTime = a.dueTime ?? a.due_time;
+  if (a.repeat && a.repeat !== '한번') return !!dueTime && hm > dueTime;
   if (!a.due) return false;
-  return day > a.due || (day === a.due && !!a.due_time && hm > a.due_time);
+  return day > a.due || (day === a.due && !!dueTime && hm > dueTime);
 }
 
 export async function findCohort(cohortId) {
