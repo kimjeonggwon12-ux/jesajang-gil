@@ -636,6 +636,18 @@ async function cohortSendBoard(body) {
   return sent.length ? { ok: true, sent } : { error: '보낼 표가 없어요(아직 기록이 없음).' };
 }
 
+/** 과정 방에 글 한 편 보내기(7777 — 교육생에게 안내·피드백) */
+async function cohortSendText(body) {
+  if (!owner(body)) return DENIED;
+  const c = await findCohort(clip(body.cohortId, 40));
+  if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
+  if (!c.tgChat) return { error: '이 과정에 연결된 텔레그램 방이 없어요.' };
+  const text = clip(body.text, 3900);
+  if (!text) return { error: '보낼 글이 없어요.' };
+  await sendAttendText(text, c.tgChat);
+  return { ok: true };
+}
+
 /** 점수 하나 고치기(앱 시험 결과표 칸): score 가 비면 지움(미응시) */
 async function cohortSetScore(body) {
   if (!owner(body)) return DENIED;
@@ -744,5 +756,5 @@ function buildSheet(c, all, d, withSubs) {
 
 export default {
   cohortList, cohortSave, cohortDetail, cohortAddMembers, cohortRemoveMember, cohortMakeSchedule, cohortLinkMeeting, cohortCreateMeeting,
-  cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet, cohortSetAttendance, cohortSendBoard, cohortSetScore, cohortBoardImage, cohortSetOrder, cohortDayWork,
+  cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet, cohortSetAttendance, cohortSendBoard, cohortSendText, cohortSetScore, cohortBoardImage, cohortSetOrder, cohortDayWork,
 };
