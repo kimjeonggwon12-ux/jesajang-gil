@@ -13855,6 +13855,19 @@ async function calAdmInit() {
           .ch-onair i{width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 6px #fff;animation:chOnair 1.4s ease-in-out infinite}
           @keyframes chOnair{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
           @media (prefers-reduced-motion:reduce){.ch-onair i{animation:none}}
+          .ch-list{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+          .ch-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid #e3e8e5;border-left:5px solid var(--chc,#9aa5a0);border-radius:14px;padding:14px 14px 14px 12px;box-shadow:0 1px 3px rgba(0,0,0,.04);cursor:pointer;transition:box-shadow .15s,transform .15s}
+          .ch-item:hover{box-shadow:0 4px 14px rgba(0,0,0,.08);transform:translateY(-1px)}
+          .ch-item.live{--chc:#e11d48;background:linear-gradient(90deg,#fff1f3,#fff 60%)}
+          .ch-item.soon{--chc:#00AE82}
+          .ch-item.done{opacity:.75}
+          .ch-ico{flex:none;width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;background:color-mix(in srgb,var(--chc,#9aa5a0) 14%,#fff)}
+          .ch-item-body{flex:1;min-width:0}
+          .ch-item-title{font-size:17px;font-weight:800;color:#1f2a25;line-height:1.3;word-break:keep-all}
+          .ch-item-title small{display:inline-block;margin-right:6px;font-size:12px;font-weight:800;color:var(--chc,#6b7772)}
+          .ch-meta{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:5px;font-size:13px;color:#5b6661}
+          .ch-meta span{white-space:nowrap}
+          .ch-item .ch-onair,.ch-item .ra-tag{flex:none}
           .ch-tabs{display:flex;gap:6px;margin:14px 0 4px;overflow-x:auto;border-bottom:1px solid #e3e8e5}
           .ch-tabs button{flex:none;padding:10px 14px;font-size:15px;font-weight:800;color:#6b7772;border-bottom:3px solid transparent;background:none}
           .ch-tabs button.on{color:#00875f;border-bottom-color:#00AE82}
@@ -13933,12 +13946,18 @@ async function calAdmInit() {
         r.innerHTML = `
           <p class="ra-note">과정을 누르면 일정표·출석·과제·시험 점수를 관리합니다. 교육생은 과정 안 [교육생] 탭에서 넣습니다.</p>
           <div class="ra-h" style="margin-top:14px">교육 과정 ${st.list.length}개</div>
-          <div class="ra-list">${st.list.length ? st.list.map(c => `
-            <button type="button" class="ra-row" onclick="cohortAdm.detail('${esc(c.cohortId)}')">
-              <span style="flex:1;min-width:0"><b>${esc(c.title)}</b>
-                <div class="ra-sub">교육생 ${c.memberCount}명${c.startDate ? ` · ${mmdd(c.startDate)}~${mmdd(c.endDate)}` : ''}${c.days ? ' · ' + daysText(c.days) : ''}${c.startTime ? ' ' + c.startTime : ''}${c.tgChat ? ' · 텔레그램 연결' : ''}</div>${c.hostDept || c.managerName ? `<div class="ra-sub">주관 ${esc(c.hostDept || '-')} · 담당 ${esc(c.managerName || '-')} ${esc(c.managerPhone || '')}</div>` : ''}</span>
+          <div class="ch-list">${st.list.length ? st.list.map(c => {
+            const ph = phaseOf(c), look = { live: 'live', soon: 'soon', done: 'done' }[ph] || '';
+            return `
+            <button type="button" class="ch-item ${look}" onclick="cohortAdm.detail('${esc(c.cohortId)}')">
+              <span class="ch-ico">🎓</span>
+              <span class="ch-item-body">
+                <div class="ch-item-title"><small>교육 과정</small>${esc(c.title)}</div>
+                <div class="ch-meta"><span>👥 교육생 ${c.memberCount}명</span>${c.startDate ? `<span>📅 ${mmdd(c.startDate)}~${mmdd(c.endDate)}</span>` : ''}${c.days || c.startTime ? `<span>🕘 ${c.days ? daysText(c.days) : ''}${c.startTime ? ' ' + c.startTime : ''}</span>` : ''}<span>${c.tgChat ? '✈️ 텔레그램 연결' : '⚠️ 텔레그램 미연결'}</span></div>
+                ${c.hostDept || c.managerName ? `<div class="ch-meta"><span>🏢 ${esc(c.hostDept || '-')}</span><span>👤 ${esc(c.managerName || '-')} ${esc(c.managerPhone || '')}</span></div>` : ''}
+              </span>
               ${phaseTag(c)}
-            </button>`).join('') : '<p class="ra-note">아직 교육 과정이 없어요.</p>'}</div>
+            </button>`; }).join('') : '<p class="ra-note">아직 교육 과정이 없어요.</p>'}</div>
           <div class="ra-h">새 교육 과정 만들기</div>
           <label class="ra-f">교육명칭<input id="chNewTitle" placeholder="예: 2026 가을 교관 양성반" autocomplete="off"></label>
           <label class="ra-f">운영 주관 부서<input id="chNewDept" placeholder="예: 도마지파 교육부" autocomplete="off"></label>
@@ -14180,6 +14199,10 @@ async function calAdmInit() {
           : `<b>${who}</b>`}</div>`;
       }
       /** 과정 뱃지: 시작일~종료일 사이면 "진행 중", 시작 전 "시작 전", 끝나면 "종료"(직접 종료한 과정도 "종료") */
+      function phaseOf(c) {
+        const t = todayStr();
+        return c.status && c.status !== '진행' ? 'done' : !c.startDate ? 'prep' : t < c.startDate ? 'soon' : c.endDate && t > c.endDate ? 'done' : 'live';
+      }
       function phaseTag(c) {
         const t = todayStr();
         const [label, look] = c.status && c.status !== '진행' ? [c.status, 'out']
@@ -14196,7 +14219,7 @@ async function calAdmInit() {
         const body = { timetable: timetableTab, attend: attendTab, assign: assignTab, exam: examTab, members: membersTab, settings: settingsTab }[st.tab] || timetableTab;
         r.innerHTML = `
           <div class="ch-top"><button type="button" class="ra-btn line" style="${SMALL}" onclick="cohortAdm.open()">‹ 목록</button>
-            <h3>${esc(c.title)}</h3>${phaseTag(c)}</div>
+            <h3><span style="margin-right:6px">🎓</span>${esc(c.title)}</h3>${phaseTag(c)}</div>
           <div class="ra-sub" style="margin-top:6px">교육생 ${d.total}명${c.startDate ? ` · ${mmdd(c.startDate)}~${mmdd(c.endDate)}` : ' · 기간 미정'}${c.days ? ' · ' + daysText(c.days) : ''}${c.startTime ? ` ${c.startTime}~${c.endTime}` : ''}${c.tgChat ? ' · ✈️ 텔레그램 연결' : ' · ⚠️ 텔레그램 방 미연결'}</div>
           ${mgrLine(c)}
           <div class="ra-acts" style="margin-top:10px">
