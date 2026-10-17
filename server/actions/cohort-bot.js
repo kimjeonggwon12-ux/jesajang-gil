@@ -29,8 +29,8 @@ const HELP = [
   '📘 교육 방 사용법',
   '• 과제 제출: 제출 홍길동 내용…  (처음 한 번만 이름, 다음부터는 "제출 내용"만)',
   '  사진·파일을 올릴 때 설명에 "제출 홍길동"이라고 써도 됩니다.',
-  '  이름·과제·날짜는 순서 상관없이 대충 쓰면 됩니다(과제 이름은 일부만): 제출 홍길동 성도 13일 19일',
-  '  여러 과제 한 번에: 제출 홍길동 천국 15,16일 성도 13일  /  지난날: 어제·그제·10/15·15일',
+  '  권하는 꼴(날짜 → 과제, 과제 이름은 일부만): 제출 13일 천국  /  제출 12,13,14일 천국 13일 성도',
+  '  지난날: 어제·그제·10/15·15일·월요일  ("제출"을 빼거나 여러 줄로 써도 과제 이름과 날짜가 있으면 기록돼요)',
   '• 시험 점수(방 관리자): 점수 계시록 홍길동 85 김영희 90',
   '  날짜를 넣으려면: 점수 계시록 10/16 홍길동 85  (없으면 오늘)',
   '  여러 줄로 써도 됩니다(첫 줄 "점수 과목", 다음 줄부터 "이름 점수").',
@@ -90,6 +90,12 @@ export function datesIn(text, today) {
   take(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/g, (m) => ymd(+m[1], +m[2]));
   take(/(?<![\d.])(\d{1,2})[/.](\d{1,2})(?![\d.])/g, (m) => ymd(+m[1], +m[2]));
   take(/((?:\d{1,2}\s*일?\s*[,·、]\s*)*\d{1,2})\s*일/g, (m) => m[1].split(/\D+/).filter(Boolean).map((d) => ymd(+today.slice(5, 7), +d)));
+  t = t.replace(/\(\s*[월화수목금토일]\s*\)/g, ' ');   // 날짜 뒤 "(월)"은 이미 날짜로 읽음
+  // 요일: 월요일 · 월,화,수요일 · 월화수요일 → 오늘 또는 지난 그 요일(가장 가까운 날)
+  take(/((?:[월화수목금토일]\s*[,·、/~]?\s*)+)요일/g, (m) => [...m[1].replace(/[^월화수목금토일]/g, '')].map((w) => {
+    const back = (new Date(today + 'T00:00:00Z').getUTCDay() - '일월화수목금토'.indexOf(w) + 7) % 7;
+    return addDay(today, -back);
+  }));
   return [...new Set(out)].sort();
 }
 
@@ -123,12 +129,15 @@ function dueDates(a, c, today) {
   return out;
 }
 
-async function onSubmit(msg, c, body) {
+// 2026-10-17: "제출"로 시작하지 않아도(여러 줄·"황윤정 교육생 / 천국가는 항해자 12, 13일 제출 / 성도의 참 신앙 13일") 읽는다(loose).
+//   loose는 교육생을 알 수 있고 + 과제 이름이 나오고 + 날짜·요일 또는 "제출"이 있을 때만 기록 — 아니면 그냥 대화로 보고 조용히 넘어간다.
+//   loose로 읽었거나 날짜를 과제 뒤에 쓰면 "제출 13일 천국" 꼴로 쓰라고 답장에 덧붙인다.
+async function onSubmit(msg, c, body, loose = false) {
   const members = await loadMembers(c.cohortId);
   const uid = String(msg.from.id);
   const today = kstDate();
   const all = String(body);
-  let line = all.split('\n')[0];
+  let line = loose ? all.replace(/제출|교육생/g, ' ').replace(/\s+/g, ' ') : all.split('\n')[0];
 
   // 누구인가: 첫 줄의 이름(앞 우선, 없으면 어디든) → 연결된 텔레그램 계정 → 텔레그램 이름
   let member = null;
@@ -150,16 +159,24 @@ async function onSubmit(msg, c, body) {
     if (link) member = members.find((m) => m.nid === link.nid) || null;
     if (!member) member = members.find((m) => nameKey(m.name) === nameKey(tgName(msg.from))) || null;
   }
+  if (!member && loose) return;
   if (!member) return reply(msg, '누구신지 아직 몰라요. 처음 한 번은 "제출 홍길동 항해자 내용"처럼 이름을 함께 써 주세요.\n(교육생 명단에 없는 이름이면 관리자에게 등록을 부탁하세요)');
 
   // 어떤 과제인가: 열려 있는 과제 전부에서 이름 일부로 찾는다. 과제마다 그 이름 뒤(다음 과제 이름 전까지)의 날짜·횟수를 쓴다.
   const open = (await run(db().from('cohort_assignments').select('*').eq('cohort_id', c.cohortId).eq('status', '열림').order('id'))).map(toAssignment);
   const mentioned = assignmentsIn(line, open);
+  if (loose && (!mentioned.length || !(/제출/.test(all) || datesIn(line, today).length))) return;
   const jobs = [];
+  let tip = loose;
   if (mentioned.length) {
     const pos = []; for (let i = 0; i < line.length; i++) if (!/\s/.test(line[i])) pos.push(i);   // 띄어쓰기 뺀 위치 → 원래 위치
     const orig = (k) => (k < pos.length ? pos[k] : line.length);
-    mentioned.forEach((h, i) => jobs.push({ a: h.a, seg: line.slice(i ? orig(h.at) : 0, mentioned[i + 1] ? orig(mentioned[i + 1].at) : line.length) }));
+    // 날짜가 첫 과제 이름 앞에 있으면 "제출 13일 천국 14일 성도"(날짜 → 과제), 아니면 "천국 13일 성도 14일"(과제 → 날짜)
+    const dateFirst = datesIn(line.slice(0, orig(mentioned[0].at)), today).length > 0;
+    if (!dateFirst && datesIn(line, today).length) tip = true;
+    mentioned.forEach((h, i) => jobs.push({ a: h.a, seg: dateFirst
+      ? line.slice(i ? orig(mentioned[i - 1].at + mentioned[i - 1].len) : 0, i < mentioned.length - 1 ? orig(h.at + h.len) : line.length)
+      : line.slice(i ? orig(h.at) : 0, mentioned[i + 1] ? orig(mentioned[i + 1].at) : line.length) }));
   } else {
     const dates = datesIn(line, today);
     const days = dates.length ? dates : [today];
@@ -219,6 +236,7 @@ async function onSubmit(msg, c, body) {
     const tail = [days.length === 1 ? `제출 ${day || 0}/${members.length}명` : '', repeat ? `지금까지 ${mine || 0}/${due.length}회` : ''].filter(Boolean).join(' · ');
     out.push(`📝 ${who} · ${a.title}${repeat ? ' ' + saved.join(', ') : ''} ${anyHad && days.length === 1 ? '다시 제출' : '제출'} 기록${anyLate ? ' · ⏰ 늦게 냄' : ''}\n   ${tail}${notes.length ? `\n   (${notes.join(' · ')})` : ''}`);
   }
+  if (tip) out.push('💡 다음부터는 "제출 날짜 과제" 순서로 올려 주세요.\n   예) 제출 13일 천국\n   여러 날·과제: 제출 12,13,14일 천국 13일 성도');
   return reply(msg, out.join('\n'));
 }
 
@@ -400,6 +418,7 @@ export async function handleAttendUpdate(update) {
   if ((m = /^\/?제출\s*([\s\S]*)$/.exec(text))) return onSubmit(msg, c, m[1]);
   if ((m = /^\/?점수\s*([\s\S]*)$/.exec(text))) return onScore(msg, c, m[1]);
   if (/^\/?(도움말|사용법)$/.test(text)) return reply(msg, HELP);
+  if (text && !/^\/?(점수|집계|방번호)/.test(text)) return onSubmit(msg, c, text, true);   // "제출" 없이 쓴 제출(조건 안 맞으면 조용히 넘어감)
   if (/^\/?집계$/.test(text)) {
     if (!(await isChatAdmin(chat.id, msg.from.id))) return reply(msg, '집계는 방 관리자만 볼 수 있어요.');
     const { cohortSummaryText, sendBoards } = await import('./cohorts.js');

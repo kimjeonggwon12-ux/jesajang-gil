@@ -92,6 +92,17 @@ try {
   ok(a3.ok && ex2.ok, '날짜 고르기 과제·시험 저장');
   r = await say(TG_STUDENT, '제출 신앙 참 신앙 기록');
   ok(/성도의 참 신앙.*제출 기록/.test(r), '"제출 신앙 …" → 날짜 과제 (' + r.split('\n')[0] + ')');
+  // "제출"로 시작하지 않는 여러 줄(사용자가 본 실제 모양) → 기록 + 다음엔 "제출 날짜 과제"로 쓰라는 안내
+  const TG_B = 556, dd = (n) => String(+shift(n).slice(8)), md = (n) => shift(n).slice(5).replace('-', '/');
+  r = await say(TG_B, `ZZTEST둘 교육생\n천국가는 항해자 ${dd(-1)}, ${dd(0)}일 제출\n성도의 참 신앙 ${dd(0)}일 제출`);
+  ok(new RegExp(`ZZTEST둘.*천국 가는 항해자 ${md(-1)}.*${md(0)}.*제출 기록`).test(r) && /ZZTEST둘.*성도의 참 신앙.*제출 기록/.test(r) && /다음부터는 "제출 날짜 과제"/.test(r), '"제출" 없는 여러 줄 → 두 과제 기록 + 안내 (' + r.replace(/\n/g, ' / ') + ')');
+  r = await say(TG_B, '천국 가는 항해자 어렵네요');
+  ok(r === '', '날짜·"제출" 없는 대화는 조용히 넘어감');
+  r = await say(TG_B, `제출 ${dd(0)}일 천국 ${dd(3)}일 성도`);
+  ok(new RegExp(`천국 가는 항해자 ${md(0)}.*\\n[\\s\\S]*성도의 참 신앙 ${md(3)}`).test(r) && !/다음부터는/.test(r), '"제출 날짜 과제 날짜 과제" → 날짜가 뒤 과제로 (' + r.replace(/\n/g, ' / ') + ')');
+  r = await say(TG_B, `천국 ${WD[new Date(shift(-1) + 'T00:00:00Z').getUTCDay()]}요일`);
+  ok(new RegExp(`천국 가는 항해자 ${md(-1)}`).test(r), '"제출" 없이 "천국 X요일" → 요일로 날짜 (' + r.split('\n')[0] + ')');
+  await run(db().from('cohort_submissions').delete().eq('cohort_id', cohortId).eq('name', 'ZZTEST둘'));   // 뒤 점검 숫자가 그대로 맞게
 
   // 일정표
   const imp = await call('cohortImportTimetable', { cohortId, text: `${today.slice(5).replace('-', '/')}\n08:45 입실, 교육 준비 #기타\n09:00~10:00 성구 시험 / 말씀 시청 시험①\n13:00~14:00 [사명 정신 교육①] | 신명근 교육부장\n이번 주 과제 안내 #주간메모\n${shift(1).slice(5).replace('-', '/')}(${WD[new Date(shift(1) + 'T00:00:00Z').getUTCDay()]})\n10:00~12:00 단계향상 피드백 및 발표` });
