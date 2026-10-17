@@ -13851,6 +13851,10 @@ async function calAdmInit() {
         el.textContent = `
           .ch-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
           .ch-top h3{flex:1;min-width:0;font-size:19px;font-weight:800;margin:0}
+          .ch-onair{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 8px;border-radius:999px;background:linear-gradient(135deg,#ff4d6d,#e11d48);color:#fff;font-size:12px;font-weight:800;letter-spacing:.02em;box-shadow:0 0 0 1px rgba(225,29,72,.25),0 2px 8px rgba(225,29,72,.35);white-space:nowrap}
+          .ch-onair i{width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 6px #fff;animation:chOnair 1.4s ease-in-out infinite}
+          @keyframes chOnair{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+          @media (prefers-reduced-motion:reduce){.ch-onair i{animation:none}}
           .ch-tabs{display:flex;gap:6px;margin:14px 0 4px;overflow-x:auto;border-bottom:1px solid #e3e8e5}
           .ch-tabs button{flex:none;padding:10px 14px;font-size:15px;font-weight:800;color:#6b7772;border-bottom:3px solid transparent;background:none}
           .ch-tabs button.on{color:#00875f;border-bottom-color:#00AE82}
@@ -14182,8 +14186,9 @@ async function calAdmInit() {
           : !c.startDate ? ['준비 중', 'out']
           : t < c.startDate ? ['시작 전', 'out']
           : c.endDate && t > c.endDate ? ['종료', 'out']
-          : ['● 진행 중', ''];
-        return `<span class="ra-tag ${look}" style="${look ? '' : 'background:#00AE82;color:#fff;font-weight:800'}">${esc(label)}</span>`;
+          : ['진행 중', ''];
+        if (!look) return `<span class="ch-onair"><i></i>${esc(label)}</span>`;
+        return `<span class="ra-tag ${look}">${esc(label)}</span>`;
       }
       function setTab(t) { st.tab = t; saveView(); draw(); }
       function draw() {
