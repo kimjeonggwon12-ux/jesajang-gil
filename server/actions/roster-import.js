@@ -7,6 +7,10 @@ import { TEACHER_TIERS, memberInfo, isApprover, forgetRoster } from './roster.js
 
 const DENIED = { error: '명단 관리는 교육부·전도부 담당만 할 수 있어요.' };
 const LIST_CAP = 300;   // 미리보기 목록은 종류마다 이만큼까지만(건수는 전부 센다)
+// 개명 등으로 엑셀(행정 명단)과 상관없이 늘 이 이름으로 둘 사람: nid → 이름
+const FIXED_NAMES = {
+  '22082400021': '정다감',   // 00220824-00021 옛 이름 정민경, 개명(2026-10-18 요청)
+};
 
 /** 화면에서 받은 엑셀 줄을 다듬는다. */
 function cleanRows(rows) {
@@ -57,18 +61,20 @@ async function plan(excel, options) {
     };
     if (!t) {
       added.push({ ...who(r), tier: r.tier });
-      upserts.push({ ...base, name: r.name, position: '', tier: r.tier, tier_changed_at: null });
+      upserts.push({ ...base, name: FIXED_NAMES[r.nid] || r.name, position: '', tier: r.tier, tier_changed_at: null });
       return;
     }
     if (t.dept !== r.dept || t.region !== r.region) moved.push({ ...who(r), name: t.name, from: `${t.dept} ${t.region}`.trim(), to: `${r.dept} ${r.region}`.trim() });
     // 이름이 다르면: 고른 사람만 엑셀 이름으로, 나머지는 앱에서 쓰던 이름을 지킨다(앱에서 먼저 고친 개명일 수 있다).
-    const takeName = t.name !== r.name && rename.has(r.nid);
-    if (t.name !== r.name) renamed.push({ ...who(t), excelName: r.name, apply: takeName });
+    // FIXED_NAMES에 있는 사람은 고를 것 없이 늘 그 이름.
+    const fixedName = FIXED_NAMES[r.nid];
+    const takeName = !fixedName && t.name !== r.name && rename.has(r.nid);
+    if (!fixedName && t.name !== r.name) renamed.push({ ...who(t), excelName: r.name, apply: takeName });
     const currentTier = t.tier || '활동교사';
     const takeTier = options.applyTiers && currentTier !== r.tier;
     if (currentTier !== r.tier) tierChanges.push({ ...who(t), from: currentTier, to: r.tier });
     upserts.push({
-      ...base, name: takeName ? r.name : t.name, position: t.position,
+      ...base, name: fixedName || (takeName ? r.name : t.name), position: t.position,
       tier: takeTier ? r.tier : t.tier, tier_changed_at: takeTier ? today : t.tier_changed_at,
       _history: takeTier ? { name: t.name, from: currentTier, to: r.tier } : null,
     });
