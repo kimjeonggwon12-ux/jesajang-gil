@@ -21,6 +21,7 @@ const toEvent = (e) => ({
   category: CATEGORIES.includes(e.category) ? e.category : '공식',
   region: e.region, repeatDays: e.repeat_days, repeatUntil: e.repeat_until,
   hostDept: e.host_dept || '', contactName: e.contact_name || '', contactPhone: e.contact_phone || '',
+  highlight: !!e.highlight && (CATEGORIES.includes(e.category) ? e.category : '공식') === '공식',
 });
 
 /** 모든 행사(시작일 순). */
@@ -50,8 +51,8 @@ async function getCalendarEvents(body) {
   const me = clip(body.memberId, 40);
   const seeAll = me ? await isAdmin(me) : false;
   const viewer = me && !seeAll ? (await findTeacher(me)) || {} : null;
-  const [events, staff, attendees, cheers] = await Promise.all([
-    allEvents(), countByEvent('event_staff'), countByEvent('event_attendees'), cheerCounts(),
+  const [events, staff, attendees, cheers, weeks] = await Promise.all([
+    allEvents(), countByEvent('event_staff'), countByEvent('event_attendees'), cheerCounts(), allWeeks(),
   ]);
   const rows = events.filter((e) => {
     if (e.category === '내일정') return !!me && sameId(e.createdBy, me);
@@ -60,7 +61,30 @@ async function getCalendarEvents(body) {
   }).map((e) => ({
     ...e, staffCount: staff.get(e.eventId) || 0, attendeeCount: attendees.get(e.eventId) || 0, cheerCount: cheers.get(e.eventId) || 0,
   }));
-  return { rows };
+  return { rows, weeks };
+}
+
+// ── 주간 서머리 (2026-10-19) ── 달력 한 줄(일~토)마다 '주간:' 이름과 메모. 보기는 누구나, 쓰기는 관리자(전도부).
+
+async function allWeeks() {
+  let rows = [];
+  try { rows = await selectAll(() => db().from('calendar_weeks').select('*').order('week_start')); } catch (e) { return []; }   // 표가 아직 없으면(0021 적용 전) 달력은 그대로
+  return rows.map((w) => ({ weekStart: String(w.week_start).slice(0, 10), theme: w.theme, memo: w.memo, updatedBy: w.updated_by, updatedAt: fmtTs(w.updated_at) }));
+}
+
+async function saveCalendarWeek(body) {
+  const mid = clip(body.memberId, 40);
+  if (!mid || !(await isAdmin(mid))) return { error: '주간 서머리는 관리자(전도부)만 쓸 수 있어요.' };
+  const weekStart = clip(body.weekStart, 10);
+  if (!isDate(weekStart) || new Date(weekStart + 'T00:00:00Z').getUTCDay() !== 0) return { error: '주 시작(일요일) 날짜가 올바르지 않아요.' };
+  const theme = clip(body.theme, 40), memo = clip(body.memo, 1000);
+  if (!theme && !memo) {   // 둘 다 비우면 지운다
+    await run(db().from('calendar_weeks').delete().eq('week_start', weekStart));
+    return { ok: true, removed: true };
+  }
+  const who = (await findTeacher(mid))?.name || clip(body.name, 20) || mid;
+  await run(db().from('calendar_weeks').upsert({ week_start: weekStart, theme, memo, updated_by: who, updated_at: kstDateTime() }, { onConflict: 'week_start' }));
+  return { ok: true };
 }
 
 async function saveCalendarEvent(body) {
@@ -99,6 +123,8 @@ async function saveCalendarEvent(body) {
   if ('hostDept' in ev) fields.host_dept = clip(ev.hostDept, 30);
   if ('contactName' in ev) fields.contact_name = clip(ev.contactName, 20);
   if ('contactPhone' in ev) fields.contact_phone = clip(String(ev.contactPhone || '').replace(/[^0-9-]/g, ''), 20);
+  // 2026-10-19: 강조(빨간 불빛 점)는 공식 일정만. 보내는 화면에서만 고친다.
+  if ('highlight' in ev) fields.highlight = category === '공식' && !!ev.highlight;
   const mid = clip(body.memberId, 40);
   // 앱 화면(memberId 를 보냄)에서 공식 일정은 관리자만 — 일반 교사에게는 관리자 페이지 안내.
   if (mid && category === '공식' && !(await isAdmin(mid))) return { error: '공식 일정은 관리자 페이지에서 등록·수정해요.' };
@@ -422,7 +448,7 @@ async function answerAdQuestion(body) {
 }
 
 export default {
-  getCalendarEvents, saveCalendarEvent, deleteCalendarEvent, getEventCheers, saveEventCheer, deleteEventCheer,
+  getCalendarEvents, saveCalendarEvent, deleteCalendarEvent, saveCalendarWeek, getEventCheers, saveEventCheer, deleteEventCheer,
   applyEventStaff, cancelEventStaff, applyEventAttendee, deleteEventAttendee, getMyEventSignups, getCalendarReport,
   getCalendarAds, saveCalendarAd, deleteCalendarAd,
   getAdQuestions, saveAdQuestion, deleteAdQuestion, answerAdQuestion,

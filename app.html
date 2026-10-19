@@ -595,6 +595,25 @@
     .cal-chip.dept { background:#2D9B6F; }
     .cal-chip.mine { background:#E8590C; }
     .cal-more { font-size:10px; color:var(--color-text-sub); padding-left:3px; }
+    /* 2026-10-19: 공식 일정 강조 — 칸 오른쪽 위 끄트머리에 빨간 불빛 점(깜빡임) */
+    .cal-chip.hl, .pz-wk-ev.hl { position:relative; padding-right:11px; }
+    .cal-chip.hl::after, .pz-wk-ev.hl::after, .cal-hl-dot { content:''; position:absolute; top:2px; right:2px; width:7px; height:7px; border-radius:50%; background:#FF2D2D;
+      box-shadow:0 0 0 1.5px #fff, 0 0 6px 2px rgba(255,45,45,.9); animation:calGlow 1.3s ease-in-out infinite; }
+    .pz-wk-ev.hl::after { top:5px; right:5px; width:7px; height:7px; }
+    .cal-hl-dot { position:static; display:inline-block; vertical-align:middle; margin:0 4px; }
+    @keyframes calGlow { 0%, 100% { opacity:1; transform:scale(1); } 50% { opacity:.5; transform:scale(.75); } }
+    .cal-hl-opt { display:flex; align-items:center; gap:8px; margin-top:14px; padding:10px 12px; border:1.5px solid #FBD5D5; border-radius:12px; background:#FFF5F5; font-size:14px; font-weight:700; color:#B42318; cursor:pointer; }
+    .cal-hl-opt input { width:18px; height:18px; accent-color:#E5322D; }
+    .cal-hl-opt small { font-weight:400; color:#6B7280; font-size:12px; }
+    /* 2026-10-19: 주간 서머리 — 달력 한 줄(일~토) 아래 '주간:' 이름 + 메모(전도부가 씀) */
+    .cal-wk { grid-column:1 / -1; position:relative; margin:3px 0 8px; padding:7px 28px 7px 10px; border-radius:10px; background:#FFF7E6; border:1px solid #FBDCA8; font-size:12.5px; line-height:1.5; cursor:pointer; }
+    .cal-wk-t { font-weight:800; color:#7A4B00; }
+    .cal-wk-t b { color:#E8590C; margin-right:4px; }
+    .cal-wk-m { margin-top:2px; color:#4B5563; white-space:pre-wrap; word-break:break-word; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+    .cal-wk-ed { position:absolute; top:6px; right:9px; font-style:normal; color:#B45309; font-size:13px; }
+    .cal-wk.empty { margin:2px 0 6px; padding:2px 10px; background:none; border:1px dashed #D6D9DE; color:#9CA3AF; font-size:11.5px; text-align:center; }
+    .cal-wk.cur { margin:0 0 10px; cursor:default; }
+    .cal-wk.cur .cal-wk-m { -webkit-line-clamp:unset; display:block; }
     .cal-legend { display:flex; gap:14px; font-size:12px; color:var(--color-text-sub); margin-top:8px; }
     .cal-legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
     .cal-ad-title { font-size:15px; font-weight:800; color:var(--color-primary); margin-bottom:8px; }
@@ -1710,6 +1729,12 @@
     #plazaDot, #storyDot, #joinDot { display:none; position:absolute; top:-2px; right:-4px; width:9px; height:9px; border-radius:50%; background:#E5322D; border:1.5px solid #fff; }
     /* 2026-10-19: 쪽 탭(전도부 게시판·교사 이야기·교사 마당)은 하단 탭(일정·광고 / 사례 / 참여)으로 옮김 — 다른 화면에 끼워 넣은 embed=plaza만 위 쪽 탭을 씀 */
     html:not(.embed-plaza) #sec-calendar #pzPills { display:none !important; }
+    /* 2026-10-19: [+ 일정 추가]가 잘 안 보여서 — 초록 꽉 찬 단추 */
+    #sec-calendar #calAddBtn { flex-shrink:0; height:38px; padding:0 18px; border:none; border-radius:999px; background:var(--ws-g, #00AE82); color:#fff; font-size:15px; font-weight:800; box-shadow:0 4px 12px rgba(0,174,130,.35); }
+    #sec-calendar #calAddBtn:active { transform:scale(.97); }
+    #sec-calendar #pzCalTitle { flex-wrap:wrap; row-gap:8px; }
+    #sec-calendar #pzCalTitle .pz-sec-txt { white-space:nowrap; flex:1 0 auto; }
+    html:not(.pz-dk) #sec-calendar #pzCalCtc { order:3; flex-basis:100%; }   /* 폰: 1줄 = 제목 + [일정 추가], 2줄 = 문의 */
     /* 모둠 제목: 아이콘 타일 없이 크고 굵은 검은 글씨 + 오른쪽 회색 글자 버튼 */
     #sec-calendar .pz-wrap { padding:0 16px 110px; }
     #sec-calendar .pz-sec-title { margin:34px 2px 14px; }
@@ -2392,7 +2417,7 @@
           <div class="pz-evs" id="pzHero"></div>
           <!-- 2026-10-01(3차) 모둠 구조: 위 알약 = 각 모둠으로 이동. 모둠마다 3개씩 보이고 [더보기]로 펼친다.
                글쓰기는 오른쪽 아래 버튼 하나(사례·질문·불편신고 중 골라 쓰기). -->
-          <div class="pz-sec-title c-cal" id="pzCalTitle"><span class="pz-sec-ic">📅</span><span class="pz-sec-txt">전도 일정</span><span id="pzCalCtc"></span><button type="button" class="pz-sec-act" id="calAddBtn">+ 일정 추가</button></div>
+          <div class="pz-sec-title c-cal" id="pzCalTitle"><span class="pz-sec-ic">📅</span><span class="pz-sec-txt">전도 일정</span><span id="pzCalCtc"></span><button type="button" class="pz-sec-act" id="calAddBtn">＋ 일정 추가</button></div>
           <!-- 2026-10-04: 달력은 항상 보이게(예전엔 [더보기·달력 보기]를 눌러야 열림). 옆(PC)/아래(폰)에 '이번 주 일정' 칸,
                달력 아래에 '다가오는 전도 일정' 목록(처음엔 접힘). 세 칸 모두 머리를 누르면 접고 펼친다(상태는 이 기기에 기억). -->
           <div class="pz-box c-cal pz-cal-box" id="pzCalBox">
@@ -2408,7 +2433,7 @@
               <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="cal-today-btn" id="calTodayBtn">오늘</button></div>
               <div class="cal-grid" id="calDow"></div>
               <div class="cal-grid" id="calDays"></div>
-              <div class="cal-legend"><span><i style="background:#2F6FDE"></i>공식</span><span><i style="background:#2D9B6F"></i>부서</span><span><i style="background:#E8590C"></i>내 일정(비공개)</span></div>
+              <div class="cal-legend"><span><i style="background:#2F6FDE"></i>공식</span><span><i style="background:#2D9B6F"></i>부서</span><span><i style="background:#E8590C"></i>내 일정(비공개)</span><span><span class="cal-hl-dot" style="margin-left:0"></span>강조</span></div>
             </div>
             <button type="button" class="pz-fold-h sub" data-pz-fold="up"><span>📋 다가오는 전도 일정 <small id="calUpCount"></small></span><i>︿</i></button>
             <div class="pz-fold-b" data-pz-fold-b="up">
@@ -3835,7 +3860,7 @@
       return `<button type="button" class="pz-more" data-pz-more="${key}">${PZX[key] ? '접기 ︿' : (label || `더보기 (${total - 3}개 더) ›`)}</button>`;
     }
     const calDOW = ['일', '월', '화', '수', '목', '금', '토'];
-    const calSt = { y: 0, m: 0, events: [], ads: null, adErr: '' };
+    const calSt = { y: 0, m: 0, events: [], weeks: {}, ads: null, adErr: '' };   // weeks: 주 시작(일요일) → { theme, memo }
     const calP2 = n => String(n).padStart(2, '0');
     const calYmd = (y, m, d) => `${y}-${calP2(m + 1)}-${calP2(d)}`;
     const calTodayDate = new Date();
@@ -3902,14 +3927,60 @@
         const dow = d.getDay();
         cells.push(`<div class="cal-day ${d.getMonth() !== calSt.m ? 'out' : ''} ${date === CAL_TODAY ? 'today' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}" data-date="${date}">
           <span class="cal-num">${d.getDate()}</span>
-          ${evs.slice(0, CAL_CHIPS).map(e => `<span class="cal-chip ${calEvClass(e)}">${calIsRepeat(e) ? '↻' : ''}${calPrefix(e) ? `<b class="cal-pfx">${esc(calPrefix(e))}</b>` : ''}${esc(e.title)}</span>`).join('')}
+          ${evs.slice(0, CAL_CHIPS).map(e => `<span class="cal-chip ${calEvClass(e)}${e.highlight ? ' hl' : ''}">${calIsRepeat(e) ? '↻' : ''}${calPrefix(e) ? `<b class="cal-pfx">${esc(calPrefix(e))}</b>` : ''}${esc(e.title)}</span>`).join('')}
           ${evs.length > CAL_CHIPS ? `<span class="cal-more">+${evs.length - CAL_CHIPS}</span>` : ''}
         </div>`);
+        if (i % 7 === 6) { const ws = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 6); cells.push(calWeekRowHtml(calYmd(ws.getFullYear(), ws.getMonth(), ws.getDate()))); }   // 2026-10-19: 주간 서머리 줄
         if (i === 34 && new Date(calSt.y, calSt.m, 1 - startOffset + 35).getMonth() !== calSt.m) break;
       }
       document.getElementById('calDays').innerHTML = cells.join('');
     }
+    // 2026-10-19 주간 서머리 — 달력 한 줄(일~토) 아래. 전도부(관리자)가 '주간:'(예: 섭외 집중 주간)과 메모를 쓰고, 교사는 읽기만.
+    const calWkRange = ws => { const [y, m, d] = ws.split('-').map(Number); const e = new Date(y, m - 1, d + 6); return `${m}/${d} ~ ${e.getMonth() + 1}/${e.getDate()}`; };
+    function calWeekBodyHtml(w) {
+      return `<div class="cal-wk-t"><b>주간:</b>${esc(w.theme || '')}</div>${w.memo ? `<div class="cal-wk-m">${esc(w.memo)}</div>` : ''}`;
+    }
+    function calWeekRowHtml(ws) {
+      const w = calSt.weeks[ws];
+      if (w) return `<div class="cal-wk" data-wk="${ws}">${calWeekBodyHtml(w)}${isAdmin() ? '<i class="cal-wk-ed">✎</i>' : ''}</div>`;
+      return isAdmin() ? `<div class="cal-wk empty" data-wk="${ws}">+ 주간 서머리 쓰기</div>` : '';
+    }
+    function calOpenWeek(ws) {
+      const w = calSt.weeks[ws];
+      if (!isAdmin()) {
+        if (!w) return;
+        openSheet(`<div style="font-size:19px;font-weight:800">주간 서머리</div><div class="cal-hint" style="margin-bottom:12px">${calWkRange(ws)}</div>
+          <div class="cal-wk cur">${calWeekBodyHtml(w)}</div>`);
+        return;
+      }
+      const f = w || { theme: '', memo: '' };
+      openSheet(`<div style="font-size:19px;font-weight:800">주간 서머리</div><div class="cal-hint">${calWkRange(ws)} · 달력의 이 주 아래에 모두에게 보여요</div>
+        <label class="cal-lbl">주간:</label><input class="cal-inp" id="calWkTheme" maxlength="40" placeholder="예: 섭외 집중 주간, 복음방 집중 주간" value="${esc(f.theme)}">
+        <label class="cal-lbl">메모</label><textarea class="cal-inp" id="calWkMemo" maxlength="1000" style="min-height:120px" placeholder="이번 주 전도 방향, 요일별 활동, 전달 사항 등">${esc(f.memo)}</textarea>
+        ${w && w.updatedBy ? `<div class="cal-hint">마지막 수정: ${esc(w.updatedBy)} · ${esc(String(w.updatedAt || '').slice(0, 16))}</div>` : ''}
+        <div style="display:flex;gap:10px;margin-top:18px">
+          ${w ? '<button class="kko-btn-outline" style="flex:1" id="calWkDel">지우기</button>' : '<button class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button>'}
+          <button class="kko-btn-main" style="flex:2" id="calWkSave">저장</button>
+        </div>`);
+      const save = async (theme, memo) => {
+        document.querySelectorAll('#calWkSave, #calWkDel').forEach(b => { b.disabled = true; });
+        try {
+          const res = await callApi({ action: 'saveCalendarWeek', memberId: MEMBER_ID, name: MY_NAME, weekStart: ws, theme, memo });
+          if (res && res.error) throw new Error(res.error);
+          if (theme || memo) calSt.weeks[ws] = { weekStart: ws, theme, memo, updatedBy: MY_NAME, updatedAt: '' }; else delete calSt.weeks[ws];
+          toast(theme || memo ? '주간 서머리를 저장했어요.' : '주간 서머리를 지웠어요.'); closeSheet();
+          calDrawCalendar(); calRenderWeek(); calLoadAll(true);
+        } catch (e) { toast(e.message, true); document.querySelectorAll('#calWkSave, #calWkDel').forEach(b => { b.disabled = false; }); }
+      };
+      document.getElementById('calWkSave').onclick = () => {
+        const theme = document.getElementById('calWkTheme').value.trim(), memo = document.getElementById('calWkMemo').value.trim();
+        if (!theme && !memo) return toast('주간 이름이나 메모를 적어 주세요.', true);
+        save(theme, memo);
+      };
+      const del = document.getElementById('calWkDel'); if (del) del.onclick = () => save('', '');
+    }
     document.getElementById('calDays').onclick = e => {
+      const wk = e.target.closest('.cal-wk'); if (wk) { calOpenWeek(wk.dataset.wk); return; }
       const c = e.target.closest('.cal-day'); if (!c) return;
       const evs = calEventsOn(c.dataset.date);
       if (evs.length === 1) calOpenEvent(evs[0]);
@@ -3921,7 +3992,7 @@
 
     function calOpenDayList(date, evs) {
       openSheet(`<div style="font-size:18px;font-weight:800;margin-bottom:12px">${date}</div>
-        ${evs.map((e, i) => `<div class="cal-ev-row" data-i="${i}"><span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category)}</span><div style="flex:1"><b>${esc(calTitleWithPrefix(e))}</b><div class="cal-hint">${esc(calRangeText(e))}${e.place ? ' · ' + esc(e.place) : ''}</div></div>›</div>`).join('')}`);
+        ${evs.map((e, i) => `<div class="cal-ev-row" data-i="${i}"><span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category)}</span><div style="flex:1"><b>${esc(calTitleWithPrefix(e))}</b>${e.highlight ? '<span class="cal-hl-dot"></span>' : ''}<div class="cal-hint">${esc(calRangeText(e))}${e.place ? ' · ' + esc(e.place) : ''}</div></div>›</div>`).join('')}`);
       document.querySelectorAll('.cal-ev-row').forEach(r => { r.onclick = () => calOpenEvent(evs[Number(r.dataset.i)]); });
     }
 
@@ -4217,7 +4288,7 @@
       // 2026-10-05 속도 개선: 일정·공지는 지난번 받은 것을 먼저 그리고(apiSWR), 서버 결과가 오면 다시 그린다.
       await Promise.all([
         apiSWR({ action: 'getCalendarEvents', memberId: MEMBER_ID }, r => {
-          if (r && !r.error) calSt.events = r.rows || [];
+          if (r && !r.error) { calSt.events = r.rows || []; calSt.weeks = Object.fromEntries((r.weeks || []).map(w => [w.weekStart, w])); }
           calDrawCalendar(); calRenderUpcoming(); pzRenderEvents(); if (window.pzNew) pzNew.board();
           // 2026-10-05: 일정 로드 후 이번 주 일정 알림 자동 예약
           if (Notification.permission === 'granted') pushNoti.scheduleWeekEvents();
@@ -4267,14 +4338,15 @@
       const picked = [];
       // 2026-10-05: 참석 의사 뱃지 포함 렌더링
       const intentIcon = { yes: '✅', maybe: '🤔', no: '❌' };
-      host.innerHTML = days.map(d => {
+      const curWk = calSt.weeks[calYmd(days[0].getFullYear(), days[0].getMonth(), days[0].getDate())];   // 2026-10-19
+      host.innerHTML = (curWk ? `<div class="cal-wk cur">${calWeekBodyHtml(curWk)}</div>` : '') + days.map(d => {
         const date = calYmd(d.getFullYear(), d.getMonth(), d.getDate()), evs = calEventsOn(date), dow = d.getDay();
         return `<div class="pz-wk-day ${date === CAL_TODAY ? 'today' : ''} ${date < CAL_TODAY ? 'past' : ''} ${evs.length ? '' : 'empty'}">
           <div class="pz-wk-d ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}"><b>${calDOW[dow]}</b><span>${md(d)}</span></div>
           <div class="pz-wk-evs">${evs.length ? evs.map(e => {
             const intent = calGetAttIntent(e);
             picked.push(e);
-            return `<button type="button" class="pz-wk-ev" data-cal-wk="${picked.length - 1}"><i style="background:${calCatColor(e.category)}"></i><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(calTitleWithPrefix(e))}</span>${intent ? `<span style="font-size:11px;flex-shrink:0;margin-left:2px">${intentIcon[intent]||''}</span>` : ''}</button>`;
+            return `<button type="button" class="pz-wk-ev${e.highlight ? ' hl' : ''}" data-cal-wk="${picked.length - 1}"><i style="background:${calCatColor(e.category)}"></i><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(calTitleWithPrefix(e))}</span>${intent ? `<span style="font-size:11px;flex-shrink:0;margin-left:2px">${intentIcon[intent]||''}</span>` : ''}</button>`;
           }).join('') : '<span class="pz-wk-none">일정 없음</span>'}</div>
         </div>`;
       }).join('');
@@ -4440,7 +4512,7 @@
     function calOpenAddForm(category, ex) {
       const f = ex
         ? { eventId: ex.eventId, category, type: ex.type, title: ex.title || '', startDate: ex.startDate, endDate: ex.endDate && ex.endDate !== ex.startDate ? ex.endDate : '', dept: ex.dept || '', region: ex.region || '', place: ex.place || '', desc: ex.desc || '',
-            hostDept: ex.hostDept || '', contactName: ex.contactName || '', contactPhone: ex.contactPhone || '' }
+            hostDept: ex.hostDept || '', contactName: ex.contactName || '', contactPhone: ex.contactPhone || '', highlight: !!ex.highlight }
         : { category, type: category === '공식' ? '행사' : category, title: '', startDate: todayStr(), endDate: '', dept: '', region: '', place: '', desc: '',
             hostDept: '', contactName: MY_NAME || '', contactPhone: '' };
       const withHost = category !== '내일정';   // 2026-10-15: 공식·부서 일정은 주관 부서와 문의처를 적는다
@@ -4464,6 +4536,7 @@
         <label class="cal-lbl">지역 <small>(선택 — 비우면 부서 전체 일정)</small></label>
         ${calSegHtml('calNewRegion', CAL_REGION_OPTS, f.region)}
         <div class="cal-hint">달력에는 "부-1) 제목"처럼 부서·지역이 앞에 붙어요.</div>` : ''}
+        ${category === '공식' ? `<label class="cal-hl-opt"><input type="checkbox" id="calNewHl" ${f.highlight ? 'checked' : ''}><span class="cal-hl-dot" style="margin:0"></span>강조 표시 <small>달력 일정 오른쪽 위에 빨간 불빛 점</small></label>` : ''}
         ${category === '공식' ? `<label class="cal-lbl">장소</label><input class="cal-inp" id="calNewPlace" maxlength="60" value="${esc(f.place)}">` : ''}
         ${withHost ? `<label class="cal-lbl">주관 부서 <span class="cal-req">*</span></label>
         <input class="cal-inp" id="calNewHost" maxlength="30" placeholder="예: 전도부, 부녀회 3지역, 청년회 문화부" value="${esc(f.hostDept)}">
@@ -4514,7 +4587,7 @@
           f.endDate = f.startDate;
         }
         f.desc = document.getElementById('calNewDesc').value.trim();
-        if (category === '공식') f.place = document.getElementById('calNewPlace').value.trim();
+        if (category === '공식') { f.place = document.getElementById('calNewPlace').value.trim(); f.highlight = document.getElementById('calNewHl').checked; }
         if (!f.title) return toast('제목을 입력해주세요.', true);
         if (!f.startDate) return toast('시작일을 선택해주세요.', true);
         if (category === '부서' && !f.dept) return toast('부서를 선택해주세요.', true);
@@ -13216,6 +13289,7 @@ function calAdmEventFormHtml(ev) {
       <select class="inp" id="efType"><option value="개강" ${e.type==='개강'?'selected':''}>개강일</option><option value="행사" ${e.type==='행사'?'selected':''}>행사일</option></select>
       <label class="lbl">제목 *</label><input class="inp" id="efTitle" value="${esc(e.title)}" maxlength="80">
       <div style="display:flex;gap:8px"><div style="flex:1"><label class="lbl">시작일 *</label><input type="date" class="inp" id="efStart" value="${esc(e.startDate)}"></div><div style="flex:1"><label class="lbl">종료일</label><input type="date" class="inp" id="efEnd" value="${esc(e.endDate)}"></div></div>
+      ${!ev || ev.category === '공식' ? `<label class="cal-hl-opt"><input type="checkbox" id="efHl" ${e.highlight ? 'checked' : ''}><span class="cal-hl-dot" style="margin:0"></span>강조 표시 <small>달력 일정 오른쪽 위에 빨간 불빛 점</small></label>` : ''}
       <label class="lbl">장소</label><input class="inp" id="efPlace" value="${esc(e.place)}" maxlength="60">
       <label class="lbl">주관 부서</label><input class="inp" id="efDept" value="${esc(e.hostDept || e.dept)}" maxlength="30" placeholder="예: 전도부, 부녀회 3지역">
       <label class="lbl">문의 <small>(일정 팝업에 "문의) 이름 전화"로 보여요)</small></label>
@@ -13264,6 +13338,7 @@ function calAdmBindEventForm(ev) {
       category: ev ? ev.category : '공식', region: ev ? ev.region : '', repeatDays: ev ? ev.repeatDays : [], repeatUntil: ev ? ev.repeatUntil : '',
       hostDept: document.getElementById('efDept').value.trim(), contactName: document.getElementById('efCName').value.trim(), contactPhone: document.getElementById('efCPhone').value.trim()
     };
+    const hl = document.getElementById('efHl'); if (hl) body.highlight = hl.checked;   // 2026-10-19: 공식 일정 강조
     const btn = document.getElementById('efSave'); btn.disabled = true;
     try {
       const res = await callApi({ action: 'saveCalendarEvent', event: body, by: MY_NAME });
