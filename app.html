@@ -184,7 +184,7 @@
     #bottomTabBar .tab .tab-icon { width: 100%; max-width: 52px; height: 36px; align-items: center; justify-content: center; border-radius: 999px; transition: background .15s ease; }
     #bottomTabBar .tab .tab-icon svg { width: 26px; height: 26px; }
     #bottomTabBar .tab.tab-active .tab-icon { background: #E3F6EF; }
-    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #connectDot { top: 3px !important; right: 9px !important; }
+    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #storyDot, #bottomTabBar .tab .tab-icon #joinDot, #bottomTabBar .tab .tab-icon #connectDot { top: 3px !important; right: 9px !important; }
     #appSections { padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
     /* 2026-10-10(사용자 요청): 하단 메인 탭 — 표지에서 '창' 하나만 가져옴(린넨·금박 전체는 과해서 뺌).
        흰 바탕 + 표지 린넨색(#2E483D) 아이콘, 지금 탭 = 표지에 뚫린 창(살구색 첫 장 #F2B995가 비치는 오목한 칸). */
@@ -200,8 +200,10 @@
     #bottomTabBar .tab.tab-active .tab-icon svg rect[fill="currentColor"] { stroke: var(--bk-page); }   /* 교재·영상: 화면 테두리·재생 삼각형 = 창 색 */
     #bottomTabBar .tab.tab-active .tab-icon svg path[fill="#fff"] { fill: var(--bk-page); }
     #bottomTabBar .tab:active .tab-icon { opacity: 1; }
-    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #connectDot { top: 3px !important; right: 6px !important; }
+    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #storyDot, #bottomTabBar .tab .tab-icon #joinDot, #bottomTabBar .tab .tab-icon #connectDot { top: 3px !important; right: 6px !important; }
     @media (max-width: 359px) { #bottomTabBar .tab .tab-icon { width: 46px; max-width: 46px; } }
+    /* 2026-10-19: 하단 탭이 8칸(일정·광고·사례·참여 추가)이라 좁은 폰에선 칸 폭에 맞춰 줄어들게 */
+    #bottomTabBar .tab .tab-icon { width: min(54px, calc(100% - 4px)); }
     /* 좌상단 방 이름표는 가볍게 — 초록 칸 + 흰 아이콘, 고딕 글자 그대로(2026-10-10 사용자 요청으로 린넨·금박 되돌림) */
     /* 방 이름표: 탭을 누르면 좌상단에 [초록 네모 방 아이콘 + 굵은 방 이름] — 하단 아이콘과 같은 그림이라 어느 방인지 바로 앎 */
     .room-ic { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:30px; height:30px; border-radius:9px; background:var(--color-primary, #00AE82); color:#fff; margin-right:8px; vertical-align:middle; }
@@ -1705,7 +1707,9 @@
     #sec-calendar .pz-wr-m b { font-size:14.5px; font-weight:800; }
     #sec-calendar .pz-wr-m small { font-size:12.5px; color:var(--dg-text-sub); }
     #sec-calendar .pz-wr-c { flex-shrink:0; font-size:13px; font-weight:800; color:var(--dg-text-sub); }   /* 교사 마당 안 탭(이달의 교사·이름 공모·질문하기·불편신고) */
-    #plazaDot { display:none; position:absolute; top:-2px; right:-4px; width:9px; height:9px; border-radius:50%; background:#E5322D; border:1.5px solid #fff; }
+    #plazaDot, #storyDot, #joinDot { display:none; position:absolute; top:-2px; right:-4px; width:9px; height:9px; border-radius:50%; background:#E5322D; border:1.5px solid #fff; }
+    /* 2026-10-19: 쪽 탭(전도부 게시판·교사 이야기·교사 마당)은 하단 탭(일정·광고 / 사례 / 참여)으로 옮김 — 다른 화면에 끼워 넣은 embed=plaza만 위 쪽 탭을 씀 */
+    html:not(.embed-plaza) #sec-calendar #pzPills { display:none !important; }
     /* 모둠 제목: 아이콘 타일 없이 크고 굵은 검은 글씨 + 오른쪽 회색 글자 버튼 */
     #sec-calendar .pz-wrap { padding:0 16px 110px; }
     #sec-calendar .pz-sec-title { margin:34px 2px 14px; }
@@ -2369,7 +2373,7 @@
       <section id="sec-calendar" class="app-section">
         <div class="pz-appbar">
           <div class="pz-appbar-row">
-            <div class="pz-logo"><i>✦</i>교사광장</div>
+            <div class="pz-logo"><i>✦</i><span id="pzLogoTxt">일정·광고</span></div>
             <label class="pz-search">
               <input id="pzSearch" type="search" placeholder="검색" autocomplete="off">
               <svg class="lucide-i" style="width:18px;height:18px;color:#868B94" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -2426,7 +2430,7 @@
           <div id="pzTom"></div>
           <div class="pz-sec-title c-tom" id="pzContestTitle"><span class="pz-sec-ic">🏷️</span><span class="pz-sec-txt">앱 이름 공모</span><span id="pzContestCtc"></span></div>
           <div id="pzContest"></div>
-          <div class="pz-sec-title c-hot" id="pzHotTitle"><span class="pz-sec-ic">🔥</span><span class="pz-sec-txt" id="pzHotLabel">지금 뜨는 교사 이야기</span><small class="pz-cup-chip">☕ 커피 쿠폰</small></div>
+          <div class="pz-sec-title c-hot" id="pzHotTitle"><span class="pz-sec-ic">🔥</span><span class="pz-sec-txt" id="pzHotLabel">지금 뜨는 사례</span><small class="pz-cup-chip">☕ 커피 쿠폰</small></div>
           <div id="pzHot"></div>
           <div class="pz-sec-title c-all" id="pzFeedTitle"><span class="pz-sec-ic" id="pzFeedIc">📌</span><span class="pz-sec-txt" id="pzFeedLabel">교사 광장</span><small id="pzFeedCount"></small><span id="pzFeedCtc"></span></div>
           <div class="pz-ftabs" id="pzFeedTabs"></div>
@@ -2532,9 +2536,13 @@
       <!-- 2026-09-22: SPA 통합 — 해시 라우팅(#calendar/#activity/#connect/#ai/#textbook/#admin).
            관리자 탭은 isAdmin()이 true일 때만 노출(현재는 라이브 코드와 동일하게 임시 전체 개방 —
            복구 지점은 isAdmin() 함수 주석 참고). -->
-      <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="교사광장" aria-label="교사광장">
-        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-13: 광장 = 달력(일정) + 세 사람(교사들이 모이는 곳) --><path d="M8.2 19.5H4a2.5 2.5 0 0 1-2.5-2.5V6.5A2.5 2.5 0 0 1 4 4h11a2.5 2.5 0 0 1 2.5 2.5v1.3"/><path d="M6 2v4M13 2v4M1.5 9.5h10.4"/><g stroke-width="1.7"><circle cx="17.3" cy="12.7" r="2"/><path d="M13.6 21.7v-1a3.7 3.7 0 0 1 7.4 0v1"/><circle cx="11.6" cy="14.9" r="1.45"/><path d="M9.3 21.7v-.5a2.5 2.5 0 0 1 2.3-2.5"/><circle cx="22" cy="14.9" r="1.45"/><path d="M23.3 20.9a2.5 2.5 0 0 0-1.3-2"/></g></svg><span id="plazaDot"></span></span>
-        <span class="tab-label">광장</span>
+      <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="일정·광고" aria-label="일정·광고">
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 일정·광고 = 달력 + 확성기 --><path d="M8.2 19.5H4a2.5 2.5 0 0 1-2.5-2.5V6.5A2.5 2.5 0 0 1 4 4h11a2.5 2.5 0 0 1 2.5 2.5v1.3"/><path d="M6 2v4M13 2v4M1.5 9.5h10.4"/><g stroke-width="1.7"><path d="M11.5 15.2l9.6-3.2v9.2l-9.6-3.2z"/><path d="M14.2 18.9a1.9 1.9 0 0 1-3.6 1"/></g></svg><span id="plazaDot"></span></span>
+        <span class="tab-label">일정·광고</span>
+      </button>
+      <button role="tab" class="tab" data-tab="story" onclick="switchTab('story')" title="사례" aria-label="사례">
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 사례 = 말풍선 안 하트(전도 사례 나눔) --><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 13.2c-1.6-1.2-3.2-2.5-3.2-4.2a1.75 1.75 0 0 1 3.2-1 1.75 1.75 0 0 1 3.2 1c0 1.7-1.6 3-3.2 4.2z" fill="currentColor" stroke="none"/></svg><span id="storyDot"></span></span>
+        <span class="tab-label">사례</span>
       </button>
       <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="나의교실" aria-label="나의교실">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-13: 나의교실 = 연필(기록) + 막대 그래프(쌓이는 활동) --><g transform="translate(10.6 -0.2) scale(.58)" stroke-width="3.1"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></g><g fill="currentColor" stroke="none"><rect x="2.4" y="17.6" width="3.6" height="4" rx=".9" /><rect x="8" y="15.4" width="3.6" height="6.2" rx=".9" /><rect x="13.6" y="13.2" width="3.6" height="8.4" rx=".9" /><rect x="19.2" y="11" width="3.6" height="10.6" rx=".9" /></g></svg></span>
@@ -2551,6 +2559,10 @@
       <button role="tab" class="tab" data-tab="textbook" onclick="switchTab('textbook')" title="교재와 영상" aria-label="교재와 영상">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(-0.6 -1.6) scale(.78)" stroke-width="2.4"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></g><rect x="10.6" y="11.6" width="13" height="9.8" rx="3" fill="currentColor" stroke="#fff" stroke-width="1.6" /><path d="M15.6 14.4v4.2l3.6-2.1z" fill="#fff" stroke="none" /></svg></span>
         <span class="tab-label">교재·영상</span>
+      </button>
+      <button role="tab" class="tab" data-tab="join" onclick="switchTab('join')" title="참여" aria-label="참여">
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 참여 = 든 손(질문·불편신고·이름 공모) --><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg><span id="joinDot"></span></span>
+        <span class="tab-label">참여</span>
       </button>
       <button role="tab" class="tab" data-tab="admin" id="adminTabBtn" onclick="switchTab('admin')" title="관리자" aria-label="관리자">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9" /><path d="M14 17H5" /><circle cx="17" cy="17" r="3" /><circle cx="7" cy="7" r="3" /></svg></span>
@@ -2923,7 +2935,7 @@
       const eb = document.getElementById('pdEnterBtn'); if (eb) eb.style.display = 'none';
       if (lt && msg) lt.textContent = msg;
       setTimeout(() => {
-        if (lt) lt.textContent = '광장으로 이동합니다!';
+        if (lt) lt.textContent = '입장합니다!';
         setTimeout(() => pdEnter(id, nm), 350);
       }, 550);
     }
@@ -3558,10 +3570,14 @@
     // 대체하는 지점 — mount()는 App.memberId/App.name을 그대로 참조하면 됨).
     // ════════════════════════════════════════════════════════════════
     window.Sections = {};
-    const TAB_IDS = ['calendar', 'activity', 'connect', 'ai', 'textbook', 'admin'];
+    const TAB_IDS = ['calendar', 'story', 'activity', 'connect', 'ai', 'textbook', 'join', 'admin'];
+    // 2026-10-19(사용자 요청): 광장을 하단 탭 3개로 나눔 — 일정·광고(#calendar) / 사례(#story) / 참여(#join).
+    // 세 탭 모두 같은 화면(#sec-calendar)을 쓰고, 탭마다 그 안의 쪽(board·story·etc)만 바꿔 보여 준다.
+    const PZ_TAB_PAGE = { calendar: 'board', story: 'story', join: 'etc' };
+    const PZ_PAGE_TAB = { board: 'calendar', story: 'story', etc: 'join' };
     // 섹션의 자체 헤더가 이미 있어서(관리자류) 공용 헤더를 숨겨야 하는 탭.
     // (2026-09-22: 인사말 바 자체를 없애서 TAB_GREET/greetTail 로직도 함께 제거)
-    const OWN_HEADER_TABS = ['activity', 'ai', 'textbook', 'admin', 'calendar'];   // 2026-09-29 교사광장 자체 앱바
+    const OWN_HEADER_TABS = ['activity', 'ai', 'textbook', 'admin', 'calendar', 'story', 'join'];   // 2026-09-29 교사광장 자체 앱바
 
     // 2026-10-04: 교사광장 PC 홈페이지 배치. 1024px 이상이면 모둠들을 [대문 배너 / 바로가기 / 왼쪽(일정·인기글)+오른쪽(광고·이름 공모) /
     // 이달의 교사 / 교사 이야기] 순서로 옮기고, 앱바에 상단 메뉴(하단 탭바와 같은 탭)를 붙인다. 모바일 폭이 되면 원래 순서로 되돌린다.
@@ -3572,14 +3588,18 @@
     // 글 목록(pzFeedTitle·pzFeed)은 교사 이야기(사례)와 교사 마당(질문하기·불편신고·검색 결과)이 같이 쓰므로 pzOnPage가 쪽마다 다시 정함.
     const PZ_PAGE_OF = { pzHero: 'board', pzCalTitle: 'board', pzCalBox: 'board', pzAdTitle: 'board', calAds: 'board', pzFreeTitle: 'board', pzFree: 'board',
       pzHotTitle: 'none', pzHot: 'story', pzFeedTitle: 'story', pzFeedTabs: 'none', pzFeed: 'story',
-      pzEtcTabs: 'etc', pzTom: 'etc', pzContestTitle: 'etc', pzContest: 'etc', pzWriters: 'etc' };
+      pzEtcTabs: 'etc', pzTom: 'none', pzContestTitle: 'etc', pzContest: 'etc', pzWriters: 'etc' };
     // 2026-10-13(사용자 요청): 교사 이야기 = 사례만, 사례가 아닌 글은 모두 교사 마당. 두 쪽 모두 새 글이 먼저 보이고
     // '지금 뜨는 사례'·'이달의 교사'는 맨 위 한 줄 띠로 접어 둔다(누르면 펼침). 9월·10월 달 고르기는 없앰(지금 달만).
-    const PZ_PAGES = [['board', '📢', '전도부 게시판', '일정 및 광고'], ['story', '📖', '교사 이야기(사례)', '전도 사례 나눔'], ['etc', '🌿', '교사 마당', '새 글 · 질문 · 이달의 교사']];
+    const PZ_PAGES = [['board', '📢', '일정·광고', '전도 일정 · 광고 · 공지'], ['story', '📖', '사례', '전도 사례 나눔'], ['etc', '🙋', '참여', '질문하기 · 불편신고 · 이름 공모']];
     let pzPage = (() => { try { const v = localStorage.getItem('pz_page'); return PZ_PAGES.some(p => p[0] === v) ? v : 'board'; } catch (e) { return 'board'; } })();
     function pzSetPage(page, keepScroll) {
       if (!PZ_PAGES.some(p => p[0] === page)) page = 'board';
+      // 2026-10-19: 쪽마다 하단 탭이 따로 있으므로 다른 쪽으로 가면 그 탭으로 옮긴다(탭이 다시 이 함수를 부름)
+      if (!EMBED_PLAZA && App.currentTab && PZ_PAGE_TAB[page] !== App.currentTab) { pzPage = page; switchTab(PZ_PAGE_TAB[page]); return; }
       pzPage = page; try { localStorage.setItem('pz_page', page); } catch (e) {}
+      { const lg = document.getElementById('pzLogoTxt'); if (lg) lg.textContent = (PZ_PAGES.find(p => p[0] === page) || [])[2] || ''; }
+      { const sb = document.querySelector('#sec-calendar .pz-search'); if (sb) sb.style.visibility = page === 'board' ? 'hidden' : ''; }   // 일정·광고엔 찾을 글 목록이 없음
       const wrap = document.querySelector('#sec-calendar .pz-wrap'); if (!wrap) return;
       Object.entries(PZ_PAGE_OF).forEach(([id, pg]) => { const n = document.getElementById(id); if (n) n.dataset.pzPg = pg; });
       wrap.dataset.page = page;
@@ -3622,7 +3642,7 @@
     PZ_DK_MQ.addEventListener('change', pzLayout);
 
     // 2026-10-10: 하단 탭 글자를 없앤 대신, 방에 들어가면 좌상단 제목 앞에 그 탭 아이콘을 초록 네모로 붙여 방 이름을 또렷하게.
-    const ROOM_TITLE_SEL = { calendar: '#sec-calendar .pz-logo', activity: '#sec-activity .act-appbar-title', connect: '#appHeaderTitle',
+    const ROOM_TITLE_SEL = { calendar: '#sec-calendar .pz-logo', story: '#sec-calendar .pz-logo', join: '#sec-calendar .pz-logo', activity: '#sec-activity .act-appbar-title', connect: '#appHeaderTitle',
       ai: '#sec-ai .kko-header .kko-title', textbook: '#sec-textbook .kko-header .kko-title', admin: '#sec-admin .adm-top-t' };
     function roomTitle(tab) {
       const el = document.querySelector(ROOM_TITLE_SEL[tab] || '_none'); if (!el) return;
@@ -3650,11 +3670,13 @@
     }
     function renderTab(tab) {
       App.currentTab = tab;
-      document.documentElement.dataset.tab = tab;   // 2026-10-04: PC 교사광장 전체폭 레이아웃용(CSS html[data-tab=calendar])
+      const secTab = PZ_TAB_PAGE[tab] ? 'calendar' : tab;   // 2026-10-19: 일정·광고·사례·참여는 같은 화면
+      if (PZ_TAB_PAGE[tab]) pzPage = PZ_TAB_PAGE[tab];
+      document.documentElement.dataset.tab = secTab;   // 2026-10-04: PC 교사광장 전체폭 레이아웃용(CSS html[data-tab=calendar])
       if (window.pzLayout) pzLayout();   // 2026-10-04(2차): 모든 탭이 PC 공용 헤더를 쓰므로 탭마다 메뉴 표시를 다시 그린다
       document.querySelectorAll('#bottomTabBar .tab').forEach(b => b.classList.toggle('tab-active', b.dataset.tab === tab));
       document.querySelectorAll('.app-section').forEach(s => s.classList.remove('active'));
-      const sec = document.getElementById('sec-' + tab);
+      const sec = document.getElementById('sec-' + secTab);
       if (sec) { sec.classList.remove('kko-fade-in'); void sec.offsetWidth; sec.classList.add('active', 'kko-fade-in'); }
 
       const ownHeader = OWN_HEADER_TABS.includes(tab);
@@ -3666,12 +3688,13 @@
       if (tab === 'connect') { const d = document.getElementById('connectDot'); if (d) d.style.display = 'none'; }
       else if (window.refreshConnectDot) refreshConnectDot();
 
-      if (!App.mounted[tab] && window.Sections[tab] && typeof window.Sections[tab].mount === 'function') {
-        App.mounted[tab] = true;
-        window.Sections[tab].mount();
-      } else if (window.Sections[tab] && typeof window.Sections[tab].onShow === 'function') {
-        window.Sections[tab].onShow();
+      if (!App.mounted[secTab] && window.Sections[secTab] && typeof window.Sections[secTab].mount === 'function') {
+        App.mounted[secTab] = true;
+        window.Sections[secTab].mount();
+      } else if (window.Sections[secTab] && typeof window.Sections[secTab].onShow === 'function') {
+        window.Sections[secTab].onShow();
       }
+      if (PZ_TAB_PAGE[tab]) pzSetPage(PZ_TAB_PAGE[tab]);
     }
     function enterFromHash() {
       const h = (location.hash || '').replace('#', '');
@@ -3736,21 +3759,20 @@
       const save = () => { try { localStorage.setItem(KEY, JSON.stringify(seen)); } catch (e) {} };
       const cnt = { board: 0, story: 0, etc: 0, free: 0 }, openedAt = {};   // free = 전도부 자유 게시판 새 글(전도부 게시판 쪽에 더해 보임)   // openedAt: 그 쪽을 열기 직전의 '마지막 본 때' — NEW 표시 기준
       let stories = [], lastNotified = { board: 0, story: 0, etc: 0 };
-      const pageOfPost = p => ['사례', '성공사례', '실패사례'].includes(p.category) ? 'story' : p.category === '전도부' ? 'board' : 'etc';   // 사례 = 교사 이야기, 전도부 = 전도부 게시판, 나머지 = 교사 마당
+      const pageOfPost = p => ['사례', '성공사례', '실패사례'].includes(p.category) ? 'story' : p.category === '전도부' ? 'board' : 'etc';   // 사례 = 사례, 전도부 = 일정·광고, 나머지 = 참여
       const tot = pg => pg === 'board' ? cnt.board + cnt.free : cnt[pg];
       function isNew(page, at) { const s = load(); const base = openedAt[page] || s[page]; return !!at && String(at) > String(base); }
       function count(page) { return tot(page) || 0; }
       function paint(fromPoll) {
-        const all = tot('board') + tot('story') + tot('etc');
-        const dot = document.getElementById('plazaDot'); if (dot) dot.style.display = all ? 'block' : 'none';
+        [['board', 'plazaDot'], ['story', 'storyDot'], ['etc', 'joinDot']].forEach(([pg, id]) => { const d = document.getElementById(id); if (d) d.style.display = tot(pg) ? 'block' : 'none'; });
         if (window.pzRenderPills) pzRenderPills();
         ['board', 'story', 'etc'].forEach(pg => {
           const n = tot(pg);
-          if (n > lastNotified[pg] && (fromPoll || lastNotified[pg] === 0) && !(App.currentTab === 'calendar' && pzPage === pg)) {
+          if (n > lastNotified[pg] && (fromPoll || lastNotified[pg] === 0) && !(PZ_TAB_PAGE[App.currentTab] && pzPage === pg)) {
             const label = (PZ_PAGES.find(x => x[0] === pg) || [])[2] || '';
             bar(`🔔 ${label}에 새 글 ${n}개`, pg);
             if (document.hidden && 'Notification' in window && Notification.permission === 'granted' && pushNoti.sw && pushNoti.sw.active)
-              pushNoti.sw.active.postMessage({ type: 'SCHEDULE_NOTIFICATION', delayMs: 0, title: `🔔 ${label} 새 글 ${n}개`, body: '교사광장에서 확인해 보세요.', url: './app.html#calendar', tag: 'pz-new-' + pg });
+              pushNoti.sw.active.postMessage({ type: 'SCHEDULE_NOTIFICATION', delayMs: 0, title: `🔔 ${label} 새 글 ${n}개`, body: '교사광장에서 확인해 보세요.', url: './app.html#' + PZ_PAGE_TAB[pg], tag: 'pz-new-' + pg });
           }
           lastNotified[pg] = n;
         });
@@ -3758,7 +3780,7 @@
       function bar(text, pg) {
         document.querySelector('.pz-newbar')?.remove();
         const b = document.createElement('div'); b.className = 'pz-newbar'; b.textContent = text + ' ›';
-        b.onclick = () => { b.remove(); switchTab('calendar'); pzSetPage(pg); };
+        b.onclick = () => { b.remove(); switchTab(PZ_PAGE_TAB[pg]); };
         document.body.appendChild(b); setTimeout(() => b.remove(), 7000);
       }
       function board() {
@@ -3767,7 +3789,7 @@
         const offi = (calSt.events || []).filter(e => e.category === '공식' && e.eventId && !evSeen.has(e.eventId));
         if (!s.ev || !s.ev.length) { s.ev = (calSt.events || []).filter(e => e.category === '공식' && e.eventId).map(e => e.eventId); save(); cnt.board = ads; }   // 처음엔 지금 있는 일정은 본 것으로
         else cnt.board = ads + offi.length;
-        if (App.currentTab === 'calendar' && pzPage === 'board') { opened('board'); return; }
+        if (PZ_TAB_PAGE[App.currentTab] && pzPage === 'board') { opened('board'); return; }
         paint(false);
       }
       async function checkStories(fromPoll) {
@@ -3776,7 +3798,7 @@
           if (!r || r.error) return;
           stories = r.rows || [];
           ['story', 'etc', 'board'].forEach(pg => { cnt[pg === 'board' ? 'free' : pg] = stories.filter(p => !p.isMine && pageOfPost(p) === pg && isNew(pg, p.createdAt)).length; });
-          if (App.currentTab === 'calendar') { opened(pzPage); return; }
+          if (PZ_TAB_PAGE[App.currentTab]) { opened(pzPage); return; }
           paint(fromPoll);
         } catch (e) {}
       }
@@ -4644,8 +4666,8 @@
       window.pzLoadFree = loadFree;
       // 2026-10-09(2차) 교사 마당 안 탭 — 이달의 교사·이름 공모는 그 모둠만, 질문하기·불편신고는 글 목록을 그 주제로
       // 2026-10-13: 맨 앞 = 새 글(사례·전도부가 아닌 모든 글, 최신순). 이달의 교사는 탭이 아니라 맨 위 띠(누르면 펼침).
-      const ETC_TABS = [['마당', '새 글'], ['질문', '질문하기'], ['불편신고', '불편신고'], ['contest', '이름 공모']];   // 'search' = 검색 결과(탭 없음)
-      let pzEtc = (() => { try { const v = localStorage.getItem('pz_etc'); return ETC_TABS.some(t => t[0] === v) ? v : '마당'; } catch (e) { return '마당'; } })();
+      const ETC_TABS = [['질문', '질문하기'], ['불편신고', '불편신고'], ['contest', '이름 공모']];   // 2026-10-19: '새 글' 탭 뺌(사용자 요청)   // 'search' = 검색 결과(탭 없음)
+      let pzEtc = (() => { try { const v = localStorage.getItem('pz_etc'); return ETC_TABS.some(t => t[0] === v) ? v : '질문'; } catch (e) { return '질문'; } })();
       const etcIsFeed = () => pzEtc !== 'contest';
       function renderEtcTabs() {
         const el = $('pzEtcTabs'); if (!el) return;
@@ -4653,6 +4675,7 @@
       }
       window.pzOnPage = function (page) {
         const show = (ids, on) => ids.forEach(id => { const n = $(id); if (n) n.dataset.pzPg = on ? page : 'none'; });
+        if (P.kw && P.kwPage && page !== P.kwPage) { P.kw = ''; P.cat = null; const sb = $('pzSearch'); if (sb) sb.value = ''; if (pzEtc === 'search') pzEtc = '질문'; }   // 2026-10-19: 다른 탭으로 가면 검색을 지움
         if (page === 'etc') {
           show(['pzContestTitle', 'pzContest'], pzEtc === 'contest'); show(['pzFeedTitle', 'pzFeed'], etcIsFeed()); show(['pzWriters'], pzEtc === '마당');
           renderEtcTabs();
@@ -4702,7 +4725,7 @@
           : ts.length ? `${faces}부서별 ${ts.length}명이 뽑혔어요. 누구일까요? 👀` : '아직 후보를 모으는 중이에요. 활동을 기록하면 후보가 돼요!';
         $('pzTom').innerHTML = teaseHtml('tom', 'c-tom', '🏅', '이달의 교사', tomSub) + (!PZT.tom ? '' : `
           <div class="pz-box c-tom">
-            <div class="pz-guide c-tom"><span class="pz-guide-ic">💬</span><span>광장 글이 아니라 <b>나의교실 활동 기록</b>으로 뽑아요. 교·자·장·부·청 부서마다 이번 달 활동이 가장 알찬 교사 한 분씩이에요.</span></div>
+            <div class="pz-guide c-tom"><span class="pz-guide-ic">💬</span><span>게시글이 아니라 <b>나의교실 활동 기록</b>으로 뽑아요. 교·자·장·부·청 부서마다 이번 달 활동이 가장 알찬 교사 한 분씩이에요.</span></div>
             ${wait || (ts.length ? `<div class="pzm-tom">${ts.map(t => `<div class="pzm-t">
                 <div class="pzm-photo">${t.photo ? `<img src="${esc(t.photo)}" alt="">` : `<span>${esc(String(t.name || '?').slice(0, 1))}</span>`}<i>${esc(DEPT_SHORT[t.dept] || '')}</i></div>
                 <div class="pzm-main"><div class="pzm-name"><b>${esc(t.name)}</b><span>${esc([t.dept, t.region].filter(Boolean).join(' · '))}</span></div>
@@ -5148,7 +5171,7 @@
         const draw = () => {
           ovShow(`<div class="pz-ov-bar"><button type="button" data-pz-back>닫기</button><div class="t">${f.postId ? '글 수정' : '교사광장 글쓰기'}</div><button type="button" id="pzSave" style="color:var(--color-primary)">${saving ? '올리는 중...' : '완료'}</button></div>
             <div class="pz-ov-body">
-              ${f.postId ? '' : '<div class="pz-f-hint" style="margin-top:4px">공감을 많이 받으면 🔥 지금 뜨는 교사 이야기에 오르고, 매달 공감 TOP 3는 ☕ 커피 쿠폰을 받아요.</div>'}
+              ${f.postId ? '' : '<div class="pz-f-hint" style="margin-top:4px">공감을 많이 받으면 🔥 지금 뜨는 사례에 오르고, 매달 공감 TOP 3는 ☕ 커피 쿠폰을 받아요.</div>'}
               <div class="pz-f-lbl" style="margin-top:4px">주제 <small style="font-weight:600;color:var(--dg-text-sub)">(${writeCats().map(catLabel).join('·')} 중 하나)</small></div>
               <div class="pz-f-cats">${writeCats().map(c => `<button type="button" data-pz-cat="${esc(c)}" class="${PZ_CAT_CLS[c]}${f.category === c ? ' on' : ''}"><b>${catIc(c)} ${esc(catLabel(c))}</b><span>${esc(PZ_META[c].g)}</span></button>`).join('')}</div>
               <div class="pz-f-lbl">제목</div>
@@ -5329,7 +5352,7 @@
               <textarea class="pz-f-input" id="pzcMeaning" maxlength="500" style="min-height:120px;line-height:1.6" placeholder="이 이름에 어떤 마음을 담았는지 적어 주세요.">${esc(f.meaning)}</textarea>
               <div class="pz-f-lbl">제안한 사람</div>
               <div class="pz-f-input" style="background:#F6F7F9;color:var(--dg-text-sub)">${esc(MY_NAME || '내 이름')} <small>(자동으로 들어가요)</small></div>
-              <div class="pzc-note">제안은 광장 <b>'나눔'</b>에 <b>[이름 공모]</b> 글로 올라가요. 다른 교사들이 공감·댓글로 응원할 수 있어요.</div>
+              <div class="pzc-note">제안은 <b>참여</b>의 <b>[이름 공모]</b> 글로 올라가요. 다른 교사들이 공감·댓글로 응원할 수 있어요.</div>
             </div>`);
           $('pzcName').oninput = e => { f.name = e.target.value; };
           $('pzcMeaning').oninput = e => { f.meaning = e.target.value; };
@@ -5395,7 +5418,7 @@
 
       window.pzMount = function () {
         if (P.mounted) return; P.mounted = true;
-        if (pzEtc === 'search') pzEtc = '마당';
+        if (pzEtc === 'search') pzEtc = '질문';
         if (pzPage === 'etc' && etcIsFeed()) P.cat = pzEtc;   // 첫 목록을 지금 쪽에 맞게
         renderPills(); renderEtcTabs(); pzSetPage(pzPage, true); pzNew.start();
         $('pzFab').onclick = () => openWrite(null, pzPage === 'story' ? '사례' : pzPage === 'board' ? '전도부' : ['질문', '불편신고'].includes(pzEtc) ? pzEtc : '');
@@ -5403,7 +5426,8 @@
         loadFree();
         const s = $('pzSearch');
         const run = () => { const v = s.value.trim(); if (v === P.kw) return;
-          if (v) { pzEtc = 'search'; P.cat = ''; P.kw = v; pzSetPage('etc', true); } else { P.kw = ''; if (pzEtc === 'search') pzEtc = '마당'; pzOnPage(pzPage); }   // 2026-10-09: 검색 결과는 교사 마당에(모든 글)
+          if (v) { P.kw = v; P.kwPage = pzPage; if (pzPage === 'story') P.cat = '사례'; else { pzEtc = 'search'; P.cat = ''; P.kwPage = 'etc'; pzSetPage('etc', true); } }   // 2026-10-19: 사례 탭은 사례 안에서, 참여 탭은 모든 글
+          else { P.kw = ''; if (pzEtc === 'search') pzEtc = '질문'; pzOnPage(pzPage); }
           load(true); scrollToEl('pzFeedTitle'); };
         s.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); s.blur(); run(); } };
         s.onsearch = run;
@@ -5767,8 +5791,8 @@
       {
         key: 'time', label: '시간을 내기 어려워요',
         tip: '가능한 날짜만 골라 등록해두면, 그 날짜에 맞는 요청만 연결됩니다.',
-        dos: ['교사광장의 도마 전도 일정에서 가능한 날 확인하고 일정 등록', '명함에 요일·시간대만 지정해 올리기'],
-        go: [['교사광장 열기', 'calendar'], ['연결 탭 열기', 'connect']]
+        dos: ['일정·광고의 전도 일정에서 가능한 날 확인하고 일정 등록', '명함에 요일·시간대만 지정해 올리기'],
+        go: [['일정·광고 열기', 'calendar'], ['연결 탭 열기', 'connect']]
       }
     ];
 
@@ -6608,7 +6632,7 @@
       const evCard = todayEv || nextEv;
       const evLabel = todayEv ? '📅 오늘 일정' : '📅 이번 주 일정';
       const evMain = evCard ? esc(calTitleWithPrefix(evCard)) : '이번 주 전도 일정 없음';
-      const evSub = evCard ? esc(calRangeText(evCard)) + (evCard.place ? ' · ' + esc(evCard.place) : '') : '광장에서 일정을 추가해 보세요';
+      const evSub = evCard ? esc(calRangeText(evCard)) + (evCard.place ? ' · ' + esc(evCard.place) : '') : '일정·광고에서 일정을 추가해 보세요';
       return `
         <div class="tc-wrap">
           <button type="button" class="tc-card" onclick="switchTab('calendar')">
