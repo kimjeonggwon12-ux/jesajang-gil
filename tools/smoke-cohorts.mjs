@@ -85,6 +85,12 @@ try {
   ok(/계시록 날짜별 점수 5개 기록/.test(r) && /미응시: ZZTEST하나/.test(r) && /명단에 없는 이름: 없는사람/.test(r), '점수 날짜별 표 (' + r.replace(/\n/g, ' / ') + ')');
   const scB = await run(db().from('cohort_scores').select('date, score').eq('cohort_id', cohortId).eq('name', 'ZZTEST둘').order('date'));
   ok(scB.length >= 3 && scB.find((x) => x.date === shift(-2) && Number(x.score) === 60), '표 점수가 날짜마다 들어감');
+  // "점수" 없이(2026-10-20 사용자가 올린 모양): "10월 19일 시험 결과" + "이름 N점" 줄, 과목 없으면 열린 시험 루틴
+  const d4 = shift(-4);
+  r = await say(TG_ADMIN, `${+d4.slice(5, 7)}월 ${+d4.slice(8)}일 시험 결과 \nZZTEST하나 60점\nZZTEST둘 40점0`);
+  ok(new RegExp(`계시록 \\(${d4.slice(5).replace('-', '/')}\\) 점수 2명 기록`).test(r), '"점수" 없이 올린 시험 결과 (' + r.split('\n')[0] + ')');
+  const scC = await run(db().from('cohort_scores').select('score').eq('cohort_id', cohortId).eq('date', d4).eq('name', 'ZZTEST둘'));
+  ok(scC.length === 1 && Number(scC[0].score) === 40, '그 날짜에 40점으로 저장');
 
   // 불규칙 날짜(과제·시험)
   const a3 = await call('cohortSaveAssignment', { cohortId, assignment: { title: '성도의 참 신앙', repeat: '날짜', dates: [shift(3), today].join(',') } });

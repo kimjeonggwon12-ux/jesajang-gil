@@ -1,6 +1,7 @@
 // 교육 과정 텔레그램 방(출석 봇 웹훅): 방에 쓴 글로 과제 제출·시험 점수를 기록한다.
 //   제출 [이름] [과제이름] 내용     → 과제 제출(처음 한 번 이름을 쓰면 그 텔레그램 계정이 교육생과 연결됨, 사진·파일 설명에 써도 됨)
 //   점수 과목 [날짜] 이름 점수 …    → 그날 그 과목 점수(방 관리자만). 한 줄에 여럿 또는 여러 줄.
+//   "점수" 없이 "10월 19일 시험 결과 / 송영라 60점 / 김순자 60점 …"도 점수로 본다(looksLikeScores).
 //   집계 · 방번호 · 도움말
 // ⚠️ 봇이 '제출'·'점수' 같은 일반 글을 받으려면 봇을 그 방의 관리자로 지정해야 한다(텔레그램 개인정보 모드).
 import crypto from 'node:crypto';
@@ -34,6 +35,8 @@ const HELP = [
   '• 시험 점수(방 관리자): 점수 계시록 홍길동 85 김영희 90',
   '  날짜를 넣으려면: 점수 계시록 10/16 홍길동 85  (없으면 오늘)',
   '  여러 줄로 써도 됩니다(첫 줄 "점수 과목", 다음 줄부터 "이름 점수").',
+  '  "점수" 없이도 됩니다: 10월 19일 시험 결과 (다음 줄부터) 홍길동 60점 / 김영희 80점',
+  '  날짜는 10월 19일·10/19·10.19·19일·어제·월요일 모두 됨, 과목을 안 쓰면 시험 루틴 과목',
   '• 여러 날 점수를 표로(방 관리자):',
   '  점수 계시록',
   '  10.12 / 14/15/16',
@@ -97,6 +100,12 @@ export function datesIn(text, today) {
     return addDay(today, -back);
   }));
   return [...new Set(out)].sort();
+}
+
+/** 날짜 조각(10월 19일·10/19·19일·어제·(월)·월요일)을 지운 나머지 — 과목 이름에 날짜가 섞이지 않게 */
+export function stripDates(text) {
+  return String(text).replace(/(오늘|어제|그저께|그제)/g, ' ').replace(/\d{1,2}\s*월\s*\d{1,2}\s*일/g, ' ').replace(/(?<![\d.])\d{1,2}[/.]\d{1,2}(?![\d.])/g, ' ')
+    .replace(/\d{1,2}\s*일/g, ' ').replace(/\(\s*[월화수목금토일]\s*\)/g, ' ').replace(/[월화수목금토일]요일/g, ' ');
 }
 
 /** 두 글(띄어쓰기 뺀) 사이 가장 긴 같은 부분의 길이와, 글 쪽 시작 위치 */
@@ -345,6 +354,13 @@ async function onScoreTable(msg, c, members, byName, table) {
   return sendRanking(c, subject);   // 점수가 들어올 때마다 순위표(이미지)
 }
 
+// 2026-10-20: "점수"로 시작하지 않아도 "이름 N점" 줄이 둘 이상이거나, 시험·점수·성적 낱말 + "이름 N점" 줄이 있으면 점수 글로 본다.
+const SCORE_LINE = /^\s*(?:\d+\s*[.)]\s*)?[가-힣A-Za-z]{2,10}\s*[:：]?\s*\d{1,3}(?:\.\d{1,2})?\s*점/;
+export function looksLikeScores(text) {
+  const n = String(text).split('\n').filter((l) => SCORE_LINE.test(l)).length;
+  return n >= 2 || (n >= 1 && /시험|점수|성적/.test(text));
+}
+
 async function onScore(msg, c, body) {
   if (!(await isChatAdmin(msg.chat.id, msg.from.id))) return reply(msg, '점수는 방 관리자만 올릴 수 있어요.');
   const members = await loadMembers(c.cohortId);
@@ -356,25 +372,34 @@ async function onScore(msg, c, body) {
   // 교육생 이름+점수 짝을 뽑아 첫 줄에서 지우고, 첫 줄에 남은 낱말 = 과목(+날짜)
   const pairRe = /([가-힣A-Za-z]{2,10})\s*[:：]?\s*(\d{1,3}(?:\.\d{1,2})?)(?![\d/.])\s*점?/g;
   const good = [], others = [];
-  let head = body.split('\n')[0];
+  let head = body.split('\n')[0], rest = body;
   for (const m of body.matchAll(pairRe)) {
+    rest = rest.replace(m[0], ' ');
     if (byName.has(nameKey(m[1]))) { good.push({ name: m[1], score: Number(m[2]) }); head = head.replace(m[0], ' '); continue; }
     // 명단에 없는 "이름 점수"도 첫 줄에서 뺀다 — 단, 첫 줄 맨 앞(과목 자리, 예: "계시록 10.16")은 그대로 둔다
     if (!head.trimStart().startsWith(m[0].trim()) || head.trim().split(/\s+/)[0] !== m[1]) { head = head.replace(m[0], ' '); others.push(m[1]); }
   }
   let date = '';
+  const today = kstDate();
   const words = head.split(/\s+/).filter(Boolean).filter((w) => { const d = readDate(w); if (d && !date) { date = d; return false; } return true; });
-  let subject = clip(words.join(' '), 40);
+  if (!date) date = datesIn(rest, today).filter((d) => d <= today).pop() || '';   // 10월 19일 · 19일 · 어제 · 월요일 (여러 개면 가장 최근, 미래 날짜는 안 씀)
+  let subject = clip(stripDates(words.join(' ')).replace(SKIP_WORDS, ' ').replace(/\s+/g, ' ').trim(), 40);
+  if (nameKey(subject) === '시험') subject = '';   // '어제 시험'처럼 '시험'만 남으면 과목을 안 쓴 것
   // 시험 루틴 과목과 같거나(띄어쓰기 무시) 한쪽이 다른 쪽을 품으면 루틴 과목 이름으로 맞춘다 — 서머리가 같은 과목으로 모이게
+  const routines = (await run(db().from('cohort_exams').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제'))).map(toExam);
   if (subject) {
-    const routines = (await run(db().from('cohort_exams').select('*').eq('cohort_id', c.cohortId).neq('status', '삭제'))).map(toExam);
     const hit = routines.find((e) => nameKey(e.subject) === nameKey(subject)) || routines.find((e) => nameKey(e.subject).includes(nameKey(subject)) || nameKey(subject).includes(nameKey(e.subject)));
     if (hit) subject = hit.subject;
+  } else if (routines.filter((e) => e.status === '열림').length === 1) subject = routines.find((e) => e.status === '열림').subject;
+  else if (routines.length === 1) subject = routines[0].subject;
+  else {   // 루틴으로 못 정하면 이 과정에 가장 최근 올린 과목
+    const last = await run(db().from('cohort_scores').select('subject').eq('cohort_id', c.cohortId).order('at', { ascending: false }).limit(1));
+    subject = last[0]?.subject || '';
   }
   const unknown = others.filter((n) => !words.includes(n)).map((name) => ({ name }));
   if (!subject) return reply(msg, '과목을 알 수 없어요. 예: 점수 계시록 홍길동 85 김영희 90');
   if (!good.length) return reply(msg, `${subject}: 교육생 이름과 점수를 찾지 못했어요.${unknown.length ? '\n명단에 없는 이름: ' + unknown.map((p) => p.name).join(', ') : ''}\n예: 점수 ${subject} 홍길동 85 김영희 90`);
-  date = date || kstDate();
+  date = date || today;
 
   const saved = [], dup = [];
   const rows = [];
@@ -418,6 +443,7 @@ export async function handleAttendUpdate(update) {
   if ((m = /^\/?제출\s*([\s\S]*)$/.exec(text))) return onSubmit(msg, c, m[1]);
   if ((m = /^\/?점수\s*([\s\S]*)$/.exec(text))) return onScore(msg, c, m[1]);
   if (/^\/?(도움말|사용법)$/.test(text)) return reply(msg, HELP);
+  if (text && !/^\/?(점수|집계|방번호)/.test(text) && looksLikeScores(text)) return onScore(msg, c, text);   // "점수" 없이 올린 시험 결과
   if (text && !/^\/?(점수|집계|방번호)/.test(text)) return onSubmit(msg, c, text, true);   // "제출" 없이 쓴 제출(조건 안 맞으면 조용히 넘어감)
   if (/^\/?집계$/.test(text)) {
     if (!(await isChatAdmin(chat.id, msg.from.id))) return reply(msg, '집계는 방 관리자만 볼 수 있어요.');
