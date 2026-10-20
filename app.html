@@ -1027,6 +1027,8 @@
     #sec-textbook .reqedu-row:last-child { border-bottom:none; }
     /* ===== 2026-10-06 교재와 영상 — 교재/영상 전환 + 영상 모둠(말씀광장풍) ===== */
     .tb-mode { padding:10px 16px 0; background:var(--color-bg); }
+    .tb-mode > button { line-height:1.15; }
+    .tb-mode .tb-sub { display:block; margin:1px 0 0; font-size:10.5px; }   /* 2026-10-20: 교사교육 아래 작게 (인터넷강의) */
     /* 2026-10-07 교재·영상 통합 검색 */
     .tb-search { position:relative; padding:10px 16px 0; background:var(--color-bg); }
     .tb-search input { width:100%; height:44px; padding:0 40px; border:1.5px solid #E5E7EB; border-radius:12px; background:#fff; font-size:15px; color:#111; outline:none; -webkit-appearance:none; appearance:none; }
@@ -9740,7 +9742,7 @@ function tbRender() {
       <span class="kko-title">교재와 영상</span>
       ${meBtnHtml()}
     </div>
-    <div class="l2 fit tb-mode">${[['book', '교재'], ['video', '영상'], ['lecture', '🎓 인강']].concat(vdCanRequest() ? [['request', '교재·영상 신청']] : []).map(([k, l]) => { const n = k === 'request' && vdIsApprover() ? (vdState.reqs || []).concat(vdState.wishes || []).filter(r => r.status === '신청').length : 0;
+    <div class="l2 fit tb-mode">${[['book', '교재'], ['video', '영상'], ['lecture', '🎓 교사교육<small class="tb-sub">(인터넷강의)</small>']].concat(vdCanRequest() ? [['request', '교재·영상 신청']] : []).map(([k, l]) => { const n = k === 'request' && vdIsApprover() ? (vdState.reqs || []).concat(vdState.wishes || []).filter(r => r.status === '신청').length : 0;
       return `<button type="button" class="${tbState.mode === k ? 'on' : ''}" data-tb-mode="${k}">${l}${n ? `<b class="l2-badge">${n}</b>` : ''}</button>`; }).join('')}</div>
     <div class="tb-search">
       <svg class="tb-s-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -10387,7 +10389,7 @@ function tbSearchRender() {
       const chips = `<div class="l3 vd-chips lc-chips">${[['', '전체']].concat(LC_PARTS.map(p => [p, p === '우수복음방교육' ? '⭐ 우수복음방교육' : p])).map(([k, t]) =>
         `<button type="button" class="${lcState.part === k ? 'on' : ''}${k === '우수복음방교육' ? ' lc-best-chip' : ''}" data-lc-part="${esc(k)}">${esc(t)}</button>`).join('')}</div>`;
       body.innerHTML = `${chips}
-        <div class="lc-hero"><b>🎓 인강 — 우수 강의를 차례대로</b><span>교사·교관님들의 좋은 강의를 강좌로 묶었어요. 한 강을 <b>90% 이상</b> 보면 이수되고, 모든 강을 마치면 <b>나의교실 › 이수 교육</b>에 남아요. 강마다 요약·녹취·교안·퀴즈도 함께 볼 수 있어요.</span></div>
+        <div class="lc-hero"><b>🎓 교사교육(인터넷강의) — 우수 강의를 차례대로</b><span>교사·교관님들의 좋은 강의를 강좌로 묶었어요. 한 강을 <b>90% 이상</b> 보면 이수되고, 모든 강을 마치면 <b>나의교실 › 이수 교육</b>에 남아요. 강마다 요약·녹취·교안·퀴즈도 함께 볼 수 있어요.</span></div>
         ${going.length && !lcState.part ? `<div class="vd-sub">▶ 이어서 듣기</div><div class="lc-grid">${going.map(lcCardHtml).join('')}</div>` : ''}
         <div class="vd-head"><div><b>강좌 ${list.length}개</b><span>${lcState.part ? esc(lcState.part) + ' 강좌' : '우수 강의가 먼저 보여요'}</span></div>${adm ? '<button type="button" class="vd-add" data-lc-new="1">+ 강좌 만들기</button>' : ''}</div>
         ${list.length ? `<div class="lc-grid">${list.map(lcCardHtml).join('')}</div>`
@@ -10585,12 +10587,12 @@ function tbSearchRender() {
     // 나의교실 › 이수 교육 위쪽 — 인강 이수·수강 중 강좌
     async function lcEduCardFill() {
       const el = document.getElementById('lcEduCard'); if (!el) return;
-      if (!lcState.list) { el.innerHTML = '<div class="lc-edu"><div class="lc-edu-h">🎓 인강 이수</div><div class="cal-hint">불러오는 중...</div></div>'; await lcLoad(); }
+      if (!lcState.list) { el.innerHTML = '<div class="lc-edu"><div class="lc-edu-h">🎓 교사교육(인터넷강의) 이수</div><div class="cal-hint">불러오는 중...</div></div>'; await lcLoad(); }
       const box = document.getElementById('lcEduCard'); if (!box) return;
       const list = lcState.list || [], done = list.filter(l => l.completed), going = list.filter(l => l.started && !l.completed);
-      box.innerHTML = `<div class="lc-edu"><div class="lc-edu-h">🎓 인강 이수 <span>이수 ${done.length} · 수강 중 ${going.length}</span></div>
-        ${done.concat(going).map(l => `<div class="lc-edu-row"><b>${esc(l.title)}</b><span class="${l.completed ? 'ok' : ''}">${l.completed ? '✅ 이수' : `${l.doneCount}/${l.lessons.length}강`}</span></div>`).join('') || '<div class="cal-hint">아직 들은 인강이 없어요.</div>'}
-        <button type="button" class="lc-edu-go" onclick="tbGoLecture()">🎓 인강 보러 가기 ›</button></div>`;
+      box.innerHTML = `<div class="lc-edu"><div class="lc-edu-h">🎓 교사교육(인터넷강의) 이수 <span>이수 ${done.length} · 수강 중 ${going.length}</span></div>
+        ${done.concat(going).map(l => `<div class="lc-edu-row"><b>${esc(l.title)}</b><span class="${l.completed ? 'ok' : ''}">${l.completed ? '✅ 이수' : `${l.doneCount}/${l.lessons.length}강`}</span></div>`).join('') || '<div class="cal-hint">아직 들은 교사교육(인터넷강의)이 없어요.</div>'}
+        <button type="button" class="lc-edu-go" onclick="tbGoLecture()">🎓 교사교육(인터넷강의) 보러 가기 ›</button></div>`;
     }
     window.tbGoLecture = function () { switchTab('textbook'); setTimeout(() => { tbState.mode = 'lecture'; tbState.q = ''; tbRender(); if (!lcState.list) lcLoad(); }, 50); };
 
