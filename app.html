@@ -616,6 +616,17 @@
     .cal-wk.cur .cal-wk-m { -webkit-line-clamp:unset; display:block; }
     /* 2026-10-20: 개강별 줄(위아래로) + 따로 쓰는 메모 */
     .cal-wk-i + .cal-wk-i { margin-top:5px; padding-top:5px; border-top:1px dashed #F5C98A; }
+    /* 2026-10-20: 개강 3칸 옆으로 — 칸마다 개강 머리(주황 띠) */
+    .cal-wk-cols { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; }
+    .cal-wk-c { min-width:0; border-radius:8px; background:#fff; border:1px solid #FBDCA8; overflow:hidden; }
+    .cal-wk-h { padding:2px 6px; background:#E8590C; color:#fff; font-weight:800; font-size:12px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cal-wk-b { padding:4px 6px 5px; }
+    .cal-wk-c .cal-wk-t { font-size:12px; word-break:keep-all; overflow-wrap:anywhere; }
+    .cal-wk-c .cal-wk-t b { margin-right:2px; }
+    .cal-wk-c .cal-wk-m { font-size:12px; }
+    .cal-wk-0 { color:#C4C8CE; text-align:center; }
+    .cal-wk-cols + .cal-wk-i { margin-top:6px; padding-top:5px; border-top:1px dashed #F5C98A; }
+    @media (max-width:420px) { .cal-wk-cols { gap:4px; } .cal-wk-h, .cal-wk-c .cal-wk-t, .cal-wk-c .cal-wk-m { font-size:11px; } .cal-wk-b { padding:3px 4px 4px; } }
     .cal-wk-t em { display:inline-block; margin-right:6px; padding:0 7px; border-radius:999px; background:#E8590C; color:#fff; font-style:normal; font-size:11.5px; line-height:18px; vertical-align:1px; }
     .cal-wk-n { color:#4B5563; white-space:pre-wrap; word-break:break-word; }
     .cal-wk:not(.cur) .cal-wk-n { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -4022,17 +4033,19 @@
     }
     // 2026-10-19 주간 서머리 — 달력 한 줄(일~토) 아래. 전도부(관리자)가 '주간:'(예: 섭외 집중 주간)과 메모를 쓰고, 교사는 읽기만.
     const calWkRange = ws => { const [y, m, d] = ws.split('-').map(Number); const e = new Date(y, m - 1, d + 6); return `${m}/${d} ~ ${e.getMonth() + 1}/${e.getDate()}`; };
-    // 2026-10-20: 개강 3개를 위아래로(10월 개강 · 주간: ○○ 주간 + 메모 / 11월 … / 12월 …) + 따로 쓰는 메모 여러 칸
-    function calWeekBodyHtml(w) {
-      const items = (w.items || []).map(it => `<div class="cal-wk-i"><div class="cal-wk-t">${it.cohort ? `<em>${esc(it.cohort)}</em>` : ''}${it.theme ? `<b>주간:</b>${esc(it.theme)}` : ''}</div>${it.memo ? `<div class="cal-wk-m">${esc(it.memo)}</div>` : ''}</div>`);
+    // 2026-10-20: 개강 3개를 옆으로 3칸(칸마다 개강 머리 + 주간: ○○ 주간 + 메모) — 위아래로 쌓으면 달력이 너무 길어져서. 따로 쓰는 메모는 그 아래 한 줄씩
+    function calWeekBodyHtml(w, ws) {
+      const items = (w.items || []).slice();
+      if (ws) for (const c of calWkCohorts(ws)) if (items.length < 3 && !items.some(it => it.cohort === c)) items.push({ cohort: c, theme: '', memo: '' });
+      const cols = items.map(it => `<div class="cal-wk-c"><div class="cal-wk-h">${esc(it.cohort || '주간')}</div><div class="cal-wk-b">${it.theme ? `<div class="cal-wk-t"><b>주간:</b>${esc(it.theme)}</div>` : ''}${it.memo ? `<div class="cal-wk-m">${esc(it.memo)}</div>` : ''}${!it.theme && !it.memo ? '<div class="cal-wk-0">—</div>' : ''}</div></div>`);
       const notes = (w.notes || []).map(n => `<div class="cal-wk-i cal-wk-n">📝 ${esc(n)}</div>`);
-      return items.concat(notes).join('');
+      return (cols.length ? `<div class="cal-wk-cols">${cols.join('')}</div>` : '') + notes.join('');
     }
     // 이 주(수요일 기준) 달부터 개강 3개: 10월 주면 10월·11월·12월 개강
     const calWkCohorts = ws => { const [y, m, d] = ws.split('-').map(Number); const mid = new Date(y, m - 1, d + 3).getMonth(); return [0, 1, 2].map(k => `${(mid + k) % 12 + 1}월 개강`); };
     function calWeekRowHtml(ws) {
       const w = calSt.weeks[ws];
-      if (w) return `<div class="cal-wk" data-wk="${ws}">${calWeekBodyHtml(w)}${isAdmin() ? '<i class="cal-wk-ed">✎</i>' : ''}</div>`;
+      if (w) return `<div class="cal-wk" data-wk="${ws}">${calWeekBodyHtml(w, ws)}${isAdmin() ? '<i class="cal-wk-ed">✎</i>' : ''}</div>`;
       return isAdmin() ? `<div class="cal-wk empty" data-wk="${ws}">+ 주간 서머리 쓰기</div>` : '';
     }
     function calOpenWeek(ws) {
@@ -4040,7 +4053,7 @@
       if (!isAdmin()) {
         if (!w) return;
         openSheet(`<div style="font-size:19px;font-weight:800">주간 서머리</div><div class="cal-hint" style="margin-bottom:12px">${calWkRange(ws)}</div>
-          <div class="cal-wk cur">${calWeekBodyHtml(w)}</div>`);
+          <div class="cal-wk cur">${calWeekBodyHtml(w, ws)}</div>`);
         return;
       }
       // 쓰는 칸: 개강 줄(기본 3개, 빈 줄은 저장 안 됨) + 메모 칸(＋ 메모 추가로 늘림)
@@ -4451,8 +4464,8 @@
       const picked = [];
       // 2026-10-05: 참석 의사 뱃지 포함 렌더링
       const intentIcon = { yes: '✅', maybe: '🤔', no: '❌' };
-      const curWk = calSt.weeks[calYmd(days[0].getFullYear(), days[0].getMonth(), days[0].getDate())];   // 2026-10-19
-      host.innerHTML = (curWk ? `<div class="cal-wk cur">${calWeekBodyHtml(curWk)}</div>` : '') + days.map(d => {
+      const curWs = calYmd(days[0].getFullYear(), days[0].getMonth(), days[0].getDate()), curWk = calSt.weeks[curWs];   // 2026-10-19
+      host.innerHTML = (curWk ? `<div class="cal-wk cur">${calWeekBodyHtml(curWk, curWs)}</div>` : '') + days.map(d => {
         const date = calYmd(d.getFullYear(), d.getMonth(), d.getDate()), evs = calEventsOn(date), dow = d.getDay();
         return `<div class="pz-wk-day ${date === CAL_TODAY ? 'today' : ''} ${date < CAL_TODAY ? 'past' : ''} ${evs.length ? '' : 'empty'}">
           <div class="pz-wk-d ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}"><b>${calDOW[dow]}</b><span>${md(d)}</span></div>
