@@ -47,3 +47,20 @@ export async function askAi(prompt) {
   const result = await callAi({ contents: [{ role: 'user', parts: [{ text: prompt }] }] });
   return textOf(result) ?? FALLBACK;
 }
+
+/**
+ * 모델을 차례로 써 본다 — 붐빔(503)·하루 한도(429)면 다음 모델로. 다 안 되면 안내 문구.
+ * 2026-10-20: 무료 등급 gemini-3-flash-preview(AI상담 기본)는 하루 20회라, 다른 기능은 다른 모델을 앞에 둔다.
+ */
+export async function askAiModels(prompt, models) {
+  let result;
+  for (const model of models) {
+    result = await callWithRetry({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }, model);
+    const text = textOf(result);
+    if (typeof text === 'string') return text;
+    const code = result?.error?.code;
+    if (code !== 429 && code !== 503 && code !== 404) break;
+  }
+  if (result?.error?.code === 429) return '⚠️ 오늘 AI 사용 한도를 다 썼어요. 내일 다시 시도해 주세요.';
+  return friendlyError(result);
+}

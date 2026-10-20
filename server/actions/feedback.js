@@ -1,8 +1,9 @@
 // AI 상담 · 피드백 이력 · 교관 요청/답변
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, str, isoTs } from '../lib/util.js';
-import { callAi, askAi, textOf } from '../lib/gemini.js';
+import { callAi, askAi, askAiModels, textOf } from '../lib/gemini.js';
 import { findTeacher } from './roster.js';
+import { addTargetAiNote, ownedTarget } from './targets.js';
 
 const SOURCE = { ai: 'AI셀프코칭', escalation: '사람에스컬레이션', coach: '교관요청' };
 const COACH_VISIBLE = [SOURCE.coach, SOURCE.escalation];
@@ -11,14 +12,22 @@ const COACH_VISIBLE = [SOURCE.coach, SOURCE.escalation];
 
 const generateContent = (body) => callAi(body.payload, body.model);
 
-/** 전도 대상자 한 명에 대한 다음 단계 전략·대화 멘트. */
+/** 전도 대상자 한 명에 대한 다음 단계 전략·대화 멘트.
+ * 2026-10-20: 대상자(targetId)를 주면 답을 그 사람 기록(target_ai_notes)에 쌓아 개강 인도 계획 때 다시 읽힌다.
+ * 하루 20회인 AI상담 모델 대신 개강 인도 계획과 같은 모델을 쓴다. */
 async function getActivityFeedback(body) {
   const prompt = `대상자: ${String(body.targetName || '대상자')} / 단계: ${String(body.stage || '미상')}` +
     ` / 오늘 한 일: ${String(body.todayWork || '기록 없음')} / 다음 할 일: ${String(body.nextWork || '기록 없음')}\n\n` +
     '위 전도 대상자를 현재 단계에서 다음 단계로 발전시키기 위한 구체적인 전략과 대화 멘트를 제시해주세요.\n\n' +
     '한국어로 간결하고 실천 가능하게 답변하되, 반드시 아래 2개 마크다운 제목을 정확히 그대로 사용하고 ' +
     '다른 제목은 추가하지 마세요:\n## 🎯 다음 단계 전략\n## 💬 추천 대화 멘트';
-  return { text: await askAi(prompt) };
+  const text = await askAiModels(prompt, ['gemini-3.5-flash', 'gemini-3.8-flash']);
+  const target = !text.startsWith('⚠️') && await ownedTarget(body.memberId, body.targetId);
+  if (target) {
+    await addTargetAiNote(target.target_id, String(body.memberId), '활동 AI 피드백',
+      `단계: ${String(body.stage || '')} / 한 일: ${String(body.todayWork || '')} / 다음: ${String(body.nextWork || '')}`, text);
+  }
+  return { text };
 }
 
 /** 부서별 교사 관리 화면의 "AI 분석". */

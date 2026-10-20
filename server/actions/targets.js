@@ -5,7 +5,7 @@ import { normId, str, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { notifyActivityChannel } from '../lib/telegram.js';
 import { onStageReached } from '../lib/events.js';
 import { findTeacher, findCoaches } from './roster.js';
-import { askAi } from '../lib/gemini.js';
+import { askAiModels } from '../lib/gemini.js';
 
 export const TARGET_STAGES = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
 
@@ -127,7 +127,7 @@ const toTarget = (t) => ({
   createdAt: fmtTs(t.created_at), updatedAt: fmtTs(t.updated_at),
   completed: t.completed, gender: t.gender, ageGroup: t.age_group,
   leaderId: t.leader_id, helperId: t.helper_id, teacherChangeLog: t.teacher_change_log,
-  goalCohort: t.goal_cohort || '', goalPlan: t.goal_plan || '', goalPlanAt: fmtTs(t.goal_plan_at),
+  goalCohort: t.goal_cohort || '', goalPlan: t.goal_plan || '', goalPlanAt: fmtTs(t.goal_plan_at), goalPlanBasis: t.goal_plan_basis || '',
 });
 
 const toHistory = (h) => ({ changedAt: fmtTs(h.changed_at), fromStage: h.from_stage, toStage: h.to_stage, memo: h.memo });
@@ -174,7 +174,7 @@ async function updateTarget(body) {
   if (body.goalCohort !== undefined) {
     const goal = GOAL_RE.test(str(body.goalCohort)) ? str(body.goalCohort) : '';
     patch.goal_cohort = goal;
-    if (goal !== (target.goal_cohort || '')) { patch.goal_plan = ''; patch.goal_plan_at = null; }
+    if (goal !== (target.goal_cohort || '')) { patch.goal_plan = ''; patch.goal_plan_at = null; patch.goal_plan_basis = ''; }   // 지난 계획은 target_ai_notes에 남아 다음 설계 때 읽힌다
   }
   await run(db().from('targets').update(patch).eq('id', target.id));
 
@@ -239,32 +239,109 @@ async function planCohortLead(body) {
   const today = kstDate();
   const [gy, gm] = goal.split('-').map(Number);
   const weeks = Math.max(0, Math.round((Date.UTC(gy, gm - 1, 1) - Date.parse(today + 'T00:00:00Z')) / (7 * 864e5)));
-  const recent = (await activitiesAbout(target))
-    .sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? 1 : -1)).slice(0, 6)
-    .map((a) => [`- ${fmtTs(a.submitted_at).slice(0, 10)} ${a.activities.join(', ')}`, a.target_stage && `(${a.target_stage})`,
-      a.today_work && `/ 한 일: ${a.today_work}`, a.next_work && `/ 다음: ${a.next_work}`].filter(Boolean).join(' '));
+  const d = await targetDossier(target, mid);
 
   const prompt = [
     `당신은 교회 전도 교사를 돕는 전도 코치입니다. 아래 대상자를 ${gm}월 개강 때 센터(아카데미)에 인도하도록 '흐름' 위주의 인도 계획을 설계하세요.`,
     '',
     `- 오늘: ${today} / 목표: ${gy}년 ${gm}월 개강(개강일은 그 달 초로 보고, 남은 기간 약 ${weeks}주)`,
-    `- 대상자: ${[target.gender, target.age_group].filter(Boolean).join(' ') || '정보 없음'} / 지금 단계: ${target.stage || '섭외'}`,
+    `- 대상자: ${[target.gender, target.age_group].filter(Boolean).join(' ') || '정보 없음'} / 지금 단계: ${target.stage || '섭외'} / 처음 등록: ${fmtTs(target.created_at).slice(0, 10) || '모름'}`,
+    target.memo ? `- 대상자 메모: ${cut(target.memo, 1000)}` : '',
     `- 단계 순서: ${FLOW}`,
-    '- 최근 기록:', ...(recent.length ? recent : ['- 아직 기록 없음']),
+    '',
+    '[지금까지의 기록 전부 — 오래된 것부터]',
+    '■ 활동 기록', ...d.acts,
+    '■ 단계 변경 이력', ...d.history,
+    '■ AI 상담·교관 답변', ...d.coaching,
+    '■ 이전에 받은 AI 계획·피드백', ...d.notes,
     '',
     '규칙:',
-    '1. 지금 단계부터 센터(아카데미) 인도까지 단계마다 "언제까지(날짜 또는 몇째 주)", "이 단계의 목표", "흐름 한두 줄"을 짧게 쓰세요. 이미 지난 단계는 쓰지 마세요.',
-    '2. 구체적인 대화 멘트나 세부 전술은 쓰지 마세요(그건 따로 상담합니다). 전체 흐름과 시기 배분에 집중하세요.',
-    '3. 남은 기간이 빠듯하면 솔직하게 말하고, 다음 개강으로 미루는 선택지도 한 줄로 알려 주세요.',
-    '4. 한국어, 900자 안팎. 반드시 아래 3개 마크다운 제목만 정확히 그대로 쓰세요:',
+    '1. 위 기록을 처음부터 끝까지 모두 종합하세요. 이 사람이 어떤 반응을 보였고 어디서 막혔는지, 교관·AI가 앞서 한 조언을 반영해 계획을 세우세요. 이전 계획이 있으면 무엇이 달라졌는지 "전체 흐름"에 한 줄로 쓰세요.',
+    '2. 지금 단계부터 센터(아카데미) 인도까지 단계마다 "언제까지(날짜 또는 몇째 주)", "이 단계의 목표", "흐름 한두 줄"을 짧게 쓰세요. 이미 지난 단계는 쓰지 마세요.',
+    '3. 구체적인 대화 멘트나 세부 전술은 쓰지 마세요(그건 따로 상담합니다). 전체 흐름과 시기 배분에 집중하세요.',
+    '4. 남은 기간이 빠듯하면 솔직하게 말하고, 다음 개강으로 미루는 선택지도 한 줄로 알려 주세요.',
+    '5. 한국어, 1000자 안팎. 반드시 아래 3개 마크다운 제목만 정확히 그대로 쓰세요:',
     '## 🗺️ 전체 흐름', '## 📅 단계별 계획', '## ⚠️ 놓치기 쉬운 점',
     '"단계별 계획" 안에서는 단계마다 "### 친분 — ~10/26" 처럼 소제목을 달고 그 아래 "- " 줄로 쓰세요.',
-  ].join('\n');
+  ].filter((l) => l !== '').join('\n');
 
-  const text = await askAi(prompt);
+  const text = await askAiModels(prompt, PLAN_MODELS);
   const at = kstDateTime();
-  if (!text.startsWith('⚠️')) await run(db().from('targets').update({ goal_plan: text, goal_plan_at: at }).eq('id', target.id));
-  return { text, goalPlanAt: at };
+  if (!text.startsWith('⚠️')) {
+    await run(db().from('targets').update({ goal_plan: text, goal_plan_at: at, goal_plan_basis: d.basis }).eq('id', target.id));
+    await addTargetAiNote(target.target_id, mid, '개강 인도 계획', `${gm}월 개강 목표 · ${target.stage || '섭외'} 단계 · ${d.basis}`, text);
+  }
+  return { text, goalPlanAt: at, basis: d.basis };
+}
+
+// ── 대상자 한 사람의 누적 기록 (2026-10-20) ──
+// 사용자: "최근 한 건 말고, 지금까지 그 사람에 대한 기록을 총합하여 — 과거 AI 코칭 기록 등을 누적 또 누적하여".
+// 활동 기록 전부 + 단계 이력 + 그 사람 이야기가 든 AI 상담·교관 답 + 이전 AI 계획·활동 AI 피드백(target_ai_notes).
+
+// 무료 등급 gemini-3-flash-preview(AI상담 기본 모델)는 하루 20회라 여기서는 쓰지 않는다(AI상담 한도를 지키려고).
+const PLAN_MODELS = ['gemini-3.5-flash', 'gemini-3.8-flash'];
+const cut = (s, n) => { const t = String(s == null ? '' : s).trim(); return t.length > n ? t.slice(0, n) + '…' : t; };
+const maskName = (s) => { const t = String(s || '').trim(); return t.length <= 1 ? t : t.length === 2 ? t[0] + '*' : t[0] + '*'.repeat(t.length - 2) + t.at(-1); };
+const day = (v) => fmtTs(v).slice(0, 10);
+
+/** 새것부터 budget 글자까지만 남기고(넘치면 오래된 것을 줄인다) 다시 오래된 순으로. */
+function keepNewest(lines, budget) {
+  const out = [];
+  let used = 0;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    used += lines[i].length;
+    if (used > budget) { out.unshift(`- (그 전 기록 ${i + 1}건은 길어서 생략)`); break; }
+    out.unshift(lines[i]);
+  }
+  return out.length ? out : ['- 없음'];
+}
+
+export async function addTargetAiNote(targetId, memberId, kind, input, text) {
+  try {
+    await run(db().from('target_ai_notes').insert({ target_id: targetId, member_id: memberId, kind, input: cut(input, 2000), text, created_at: kstDateTime() }));
+  } catch { /* 기록 실패가 AI 답을 막지는 않는다 */ }
+}
+
+/** 이 교사가 담당하는 대상자인지 확인한 뒤의 대상자 행(아니면 null). */
+export async function ownedTarget(memberId, targetId) {
+  if (!str(memberId) || !str(targetId)) return null;
+  const t = await findTarget(str(targetId));
+  return t && owns(t, normId(memberId)) ? t : null;
+}
+
+async function targetDossier(target, mid) {
+  const name = target.target_name.trim();
+  const owners = [...new Set([target.creator_id, target.leader_id, target.helper_id, mid].filter((id) => str(id)).map(normId))];
+  const [acts, history, notes, mine, feedbacks] = await Promise.all([
+    activitiesAbout(target),
+    run(db().from('target_history').select('*').eq('target_id', target.target_id).order('id')),
+    run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).order('id')).catch(() => []),
+    run(db().from('targets').select('target_name').or(ownedBy(normId(mid)))),
+    selectAll(() => db().from('feedbacks').select('*').in('nid', owners).order('id')),
+  ]);
+  // AI상담·교관 요청의 '상황'에는 보통 "대상자: 홍*동"처럼 가린 이름이 들어간다 — 내 대상자 중 가린 이름이 겹치면 실명으로만 찾는다.
+  const m = maskName(name);
+  const maskUnique = mine.filter((t) => maskName(t.target_name) === m).length <= 1;
+  const about = (s) => !!name && (s.includes(name) || (maskUnique && m.length > 1 && s.includes(m)));
+
+  const actLines = acts.sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1)).map((a) => '- ' + [
+    day(a.submitted_at), a.roles.length && `[${a.roles.join('·')}]`, a.activities.join(', '), a.target_stage && `(단계: ${a.target_stage})`,
+    a.consult_title && `상담 제목: ${a.consult_title}`, a.gospel_subject && `과목: ${a.gospel_subject}`,
+    a.reaction && `반응: ${a.reaction}${a.reaction_note ? ` — ${a.reaction_note}` : ''}`,
+    a.today_work && `한 일: ${cut(a.today_work, 600)}`, a.next_work && `다음: ${cut(a.next_work, 300)}`, a.special_note && `특이사항: ${cut(a.special_note, 300)}`,
+  ].filter(Boolean).join(' / '));
+  const histLines = history.map((h) => `- ${day(h.changed_at)} ${h.from_stage || '(처음)'} → ${h.to_stage}${h.memo ? ` (${cut(h.memo, 200)})` : ''}`);
+  const coach = feedbacks.filter((f) => about(String(f.situation || '')))
+    .sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1));
+  const coachLines = coach.map((f) => [`- ${day(f.submitted_at)} [${f.source}] 상황: ${cut(f.situation, 400)}`,
+    f.ai_coach_text && `  AI 답: ${cut(f.ai_coach_text, 1500)}`, f.handler_answer && `  교관 답(${f.handler || '교관'}): ${cut(f.handler_answer, 1200)}`].filter(Boolean).join('\n'));
+  const noteLines = notes.map((n) => `- ${day(n.created_at)} [${n.kind}] ${cut(n.input, 300)}\n  ${cut(n.text, 2500).replace(/\n/g, '\n  ')}`);
+
+  return {
+    acts: keepNewest(actLines, 30000), history: keepNewest(histLines, 4000),
+    coaching: keepNewest(coachLines, 15000), notes: keepNewest(noteLines, 12000),
+    basis: `활동 ${acts.length}건 · 단계 이력 ${history.length}건 · AI상담·교관 ${coach.length}건 · 이전 AI 기록 ${notes.length}건 종합`,
+  };
 }
 
 /** 대상자를 영구 삭제한다 — 단계 이력과 그 대상자에 대한 담당자들의 활동 기록까지. */
