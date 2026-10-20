@@ -1733,6 +1733,7 @@
     .pz-cb-t span { color:#C2410C; }
     .pz-cb-s { margin-top:8px; font-size:14px; line-height:1.55; color:#5B4A1F; padding-right:20px; }
     .pz-cb-s b { color:#C2410C; }
+    .tb-ev-banner { margin:4px 16px 14px; }
     .cn-cb-chk { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
     .cn-cb-chk span { padding:4px 10px; border-radius:999px; background:#fff; border:1px solid #F5C451; font-size:12.5px; font-weight:800; color:#7A4B00; }
     #cnView .kko-card { scroll-margin-top:110px; }
@@ -9642,6 +9643,20 @@ ${bodyHtml}
 
 const TAB_DEFS = [...COURSE_TABS];   // 2026-10-10: '이수교육'은 나의 교실 [이수한 교육] 탭으로 옮김
 
+// 2026-10-20(사용자): "좋은 교재·영상을 추천해 게시를 요청하면 커피 쿠폰" 이벤트 배너 — 사례·내 명함 배너와 같은 틀
+function tbEventBannerHtml() {
+  const can = vdCanRequest();
+  return `<div class="pz-case-banner tb-ev-banner">
+      <div class="pz-cb-main">
+      <div class="pz-cb-eye"><b>EVENT</b>교재·영상 추천하면 커피 쿠폰!</div>
+      <div class="pz-cb-t">좋은 교재·영상,<br><span>함께 보면</span> 더 좋아요</div>
+      <div class="pz-cb-s">도움이 된 교재나 영상을 추천해 <b>게시를 요청</b>해 주세요. 교육부·전도부가 확인해 올리고, 추천해 주신 분께 <b>☕ 커피 쿠폰</b>을 드려요.</div>
+      ${can && tbState.mode !== 'request' ? '<button type="button" class="pz-cb-btn" onclick="tbGoRequest()">📚 추천하고 쿠폰 받기</button>' : ''}
+      <span class="pz-cb-art" aria-hidden="true"><i>☕</i><b>COUPON</b><small>추천 감사</small></span>
+      </div>
+    </div>`;
+}
+window.tbGoRequest = function () { tbState.mode = 'request'; tbState.q = ''; tbRender(); vdLoadReqs(); };
 function tbRender() {
   const root = document.getElementById('tbRoot');
   // 검색어 입력 중 서버 응답으로 다시 그려져도 입력창 포커스·커서를 그대로 유지
@@ -9662,6 +9677,7 @@ function tbRender() {
     </div>
     <p class="tb-s-hint">제목을 몰라도 돼요. <b>교재 본문</b>과 <b>영상 속 내용</b>에 들어 있는 낱말까지 찾아 줘요.</p>
     <div class="ctc-bar">${ctcChip("edu")}</div>
+    ${tbState.q.trim() ? '' : tbEventBannerHtml()}
     <div id="tbCats" class="l3" style="${tbState.mode !== 'book' || tbState.q.trim() ? 'display:none;' : ''}">
       ${TAB_DEFS.map(t => `<button type="button" class="study-tab-btn${tbState.tab === t.key ? ' on' : ''}" data-tab="${t.key}">${esc(t.label)}</button>`).join('')}
     </div>
