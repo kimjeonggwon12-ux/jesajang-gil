@@ -22,6 +22,7 @@ const toEvent = (e) => ({
   region: e.region, repeatDays: e.repeat_days, repeatUntil: e.repeat_until,
   hostDept: e.host_dept || '', contactName: e.contact_name || '', contactPhone: e.contact_phone || '',
   highlight: !!e.highlight && (CATEGORIES.includes(e.category) ? e.category : '공식') === '공식',
+  audience: e.audience || '', method: e.method || '', purpose: e.purpose || '',   // 2026-10-20: 대상자·어떻게·목적
 });
 
 /** 모든 행사(시작일 순). */
@@ -136,6 +137,10 @@ async function saveCalendarEvent(body) {
   if ('contactPhone' in ev) fields.contact_phone = clip(String(ev.contactPhone || '').replace(/[^0-9-]/g, ''), 20);
   // 2026-10-19: 강조(빨간 불빛 점)는 공식 일정만. 보내는 화면에서만 고친다.
   if ('highlight' in ev) fields.highlight = category === '공식' && !!ev.highlight;
+  // 2026-10-20: 육하원칙 — 대상자·어떻게·목적. 보내는 화면에서만 고친다.
+  if ('audience' in ev) fields.audience = clip(ev.audience, 100);
+  if ('method' in ev) fields.method = clip(ev.method, 300);
+  if ('purpose' in ev) fields.purpose = clip(ev.purpose, 300);
   const mid = clip(body.memberId, 40);
   // 앱 화면(memberId 를 보냄)에서 공식 일정은 관리자만 — 일반 교사에게는 관리자 페이지 안내.
   if (mid && category === '공식' && !(await isAdmin(mid))) return { error: '공식 일정은 관리자 페이지에서 등록·수정해요.' };
@@ -359,11 +364,28 @@ async function getCalendarReport(body) {
 
 // ── 전도부 공지 ──
 
-async function getCalendarAds() {
+// 2026-10-20: 게시 끝나는 날이 지나면 앱에서 내려간다(관리자 화면은 all:true 로 다 받아 '내려감' 표시).
+// 끝나는 날을 안 적었으면 제목의 'M월 D일'(예: 10월 17일(토) 가을 소리마켓)을 끝나는 날로 본다.
+function adEndDate(a) {
+  if (a.end_date) return String(a.end_date).slice(0, 10);
+  const m = String(a.title || '').match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  if (!m) return '';
+  const base = fmtTs(a.updated_at).slice(0, 10) || kstDate();
+  let y = Number(base.slice(0, 4));
+  const md = `-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+  if (!isDate(y + md)) return '';
+  if (y + md < base && Number(base.slice(5, 7)) - Number(m[1]) > 6) y += 1;   // 12월에 올린 '1월 5일' = 다음 해
+  return y + md;
+}
+
+async function getCalendarAds(body = {}) {
   const data = await selectAll(() => db().from('calendar_ads').select('*').order('id'));
-  const rows = data.map((a) => ({ adId: a.ad_id, title: a.title, body: a.body, sort: Number(a.sort_no), updatedAt: fmtTs(a.updated_at) }))
-    .sort((a, b) => a.sort - b.sort);
-  return { rows };
+  const today = kstDate();
+  const rows = data.map((a) => {
+    const endDate = adEndDate(a);
+    return { adId: a.ad_id, title: a.title, body: a.body, sort: Number(a.sort_no), updatedAt: fmtTs(a.updated_at), endDate, endSet: !!a.end_date, expired: !!endDate && endDate < today };
+  }).sort((a, b) => a.sort - b.sort);
+  return { rows: body.all ? rows : rows.filter((a) => !a.expired) };
 }
 
 async function saveCalendarAd(body) {
@@ -373,18 +395,19 @@ async function saveCalendarAd(body) {
   const text = clip(ad.body, 600);
   const sort = Number(ad.sort || 0) || 0;
   const now = kstDateTime();
+  const endDate = isDate(clip(ad.endDate, 10)) ? clip(ad.endDate, 10) : null;   // 2026-10-20: 게시 끝나는 날(비우면 제목 날짜)
   const adId = clip(ad.adId, 40);
   if (adId) {
     const [row] = await run(db().from('calendar_ads').select('id, sort_no').eq('ad_id', adId).limit(1));
     if (row) {
-      await run(db().from('calendar_ads').update({ title, body: text, sort_no: sort || Number(row.sort_no), updated_at: now }).eq('id', row.id));
+      await run(db().from('calendar_ads').update({ title, body: text, sort_no: sort || Number(row.sort_no), updated_at: now, ...('endDate' in ad ? { end_date: endDate } : {}) }).eq('id', row.id));
       return { ok: true, adId };
     }
   }
   // 정렬 값을 안 주면 맨 뒤에 붙인다.
   const { count } = await db().from('calendar_ads').select('*', { count: 'exact', head: true });
   const fresh = newId('AD');
-  await run(db().from('calendar_ads').insert({ ad_id: fresh, title, body: text, sort_no: sort || (count || 0) + 1, updated_at: now }));
+  await run(db().from('calendar_ads').insert({ ad_id: fresh, title, body: text, sort_no: sort || (count || 0) + 1, updated_at: now, end_date: endDate }));
   return { ok: true, adId: fresh };
 }
 
