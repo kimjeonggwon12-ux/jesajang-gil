@@ -1167,6 +1167,7 @@
       #sec-admin .table th, #sec-admin .table td { padding-left: 6px; padding-right: 6px; }
     }
     #sec-admin .tl-act b { color: var(--color-primary); font-weight: 800; }
+    #sec-admin .tl-visit b { color: #2F6BFF; font-weight: 800; }   /* 2026-10-20 접속 횟수 */
 
     /* ── 2026-09-23 부서별 교사 현황: 막대그래프 → 표 ── */
     #sec-admin .dept-table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -3147,11 +3148,18 @@
       // 2026-10-08: 출석 QR(#attend=)로 들어온 첫 화면 = '출석 전용' — 서버 요청을 출석 2번(모임 정보·제출)만.
       // 400명이 한꺼번에 찍으면 1인당 13번(나의교실·명단·알림…)씩 5,000번이 몰려 구글 동시 실행 한도(약 30)에 걸려 'Failed'.
       // 나머지는 출석 창을 닫을 때(attLeaveQrOnly) 불러옴.
-      if (/^#attend=/.test(location.hash || '')) { App.qrOnly = true; enterFromHash(); return; }
+      if (/^#attend=/.test(location.hash || '')) { App.qrOnly = true; logVisitOnce(id, nm); enterFromHash(); return; }
       loadMyRosterRow();   // 명단에서 내 직책·부서를 확인해 관리자 탭 노출 결정
+      logVisitOnce(id, nm);
       enterFromHash();
       showInstallToastIfNeeded();
       setTimeout(pdWelcomeGuide, 900);   // 첫 화면이 그려진 뒤에
+    }
+    // 2026-10-20: 앱 접속 횟수 — 이 창(탭)에서 처음 입장할 때 한 번만 센다(새로 고침은 안 셈). 관리자 테스트 링크는 안 셈.
+    function logVisitOnce(id, nm) {
+      if (window.TEST_MEMBER_ID) return;
+      try { if (sessionStorage.getItem('pd_visit') === '1') return; sessionStorage.setItem('pd_visit', '1'); } catch (e) {}
+      callApi({ action: 'logVisit', memberId: id, name: nm }).catch(() => {});
     }
     function attLeaveQrOnly() {
       if (!App.qrOnly) return;
@@ -12396,7 +12404,7 @@ function mergeTeacherReport() {
     const r = byId[String(t.memberId)];
     if (!r) return;
     t.monthlyCount = r.monthlyCount; t.lastActivityDate = r.lastActivityDate; t.conditionText = r.conditionText;
-    t.actTotal = r.actTotal || 0; t.actTypes = r.actTypes || {}; t.leads1y = r.leads1y || 0; t.suggestion = r.suggestion; t.apply = r.apply; t.affilSel = r.affil; t.genderSel = r.gender; t._rep = true;
+    t.actTotal = r.actTotal || 0; t.actTypes = r.actTypes || {}; t.leads1y = r.leads1y || 0; t.suggestion = r.suggestion; t.apply = r.apply; t.affilSel = r.affil; t.genderSel = r.gender; t.visits = r.visits || 0; t.lastVisit = r.lastVisit || ''; t._rep = true;
   });
 }
 // 앱에서 기록한 활동 요약 — "상담1 3 · 만남1 2" 형태(많은 순, 상위 3개 + 나머지 개수).
@@ -12672,6 +12680,7 @@ function teacherSheetHtml(t, extra) {
       <div class="tls-grid">
         ${tlKV('누적 기록', loaded ? esc(t.actTotal || 0) + '건' : wait)}
         ${tlKV('마지막 활동일', loaded ? esc(t.lastActivityDate || '-') : wait)}
+        ${tlKV('앱 접속', loaded ? (t.visits ? esc(t.visits) + '번' + (t.lastVisit ? ' · 마지막 ' + esc(t.lastVisit.slice(0, 10)) : '') : '0번') : wait)}
         ${loaded && t.actTotal > 0 ? tlKV('기록한 활동', esc(actSummaryText(t, 20))) : ''}
         ${tlKV('승급·강등 조건', loaded ? esc(t.conditionText || '-') : wait)}
         ${loaded && t.suggestion ? tlKV('제안 사유', esc(t.suggestion.reason || '-')) : ''}
@@ -12802,6 +12811,7 @@ function teacherListSectionHtml() {
             <th><input type="checkbox" id="tl-check-head" class="checkbox checkbox-xs" ${allChecked ? 'checked' : ''}></th>
             <th>이름</th><th>지역</th><th>등급</th>
             <th title="이번 달 활동 건수">활동</th>
+            <th title="앱에 들어온 횟수(10/20 이전은 앱에 기록을 남긴 날 수)">접속</th>
             <th class="tl-more">등급 제안</th><th class="tl-more">직책</th>
             <th class="tl-more" title="최근 1년 센터 등록">센등</th>
             <th class="tl-more">활동 신청</th>
@@ -12814,6 +12824,7 @@ function teacherListSectionHtml() {
                 <td>${esc(t.region || '-')}</td>
                 <td><span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'} badge-sm">${esc(t.tier || '-')}</span></td>
                 <td class="text-center tl-act">${!t._rep ? '…' : (t.monthlyCount > 0 ? `<b>${esc(t.monthlyCount)}</b>건` : '<span class="text-base-content/30">0</span>')}</td>
+                <td class="text-center tl-visit" title="${t.lastVisit ? '마지막 ' + esc(t.lastVisit.slice(0, 16)) : ''}">${!t._rep ? '…' : (t.visits > 0 ? `<b>${esc(t.visits)}</b>번` : '<span class="text-base-content/30">0</span>')}</td>
                 <td class="tl-more">${!t._rep ? '…' : (t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'} badge-sm">→ ${esc(t.suggestion.suggestedTier)}</span>` : '<span class="text-base-content/30">-</span>')}</td>
                 <td class="tl-more">${t.position ? `<span class="badge badge-outline badge-sm">${esc(t.position)}</span>` : ''}</td>
                 <!-- 2026-09-23: 센등은 이제 교사명단(getRoster)의 '센터등록' 열에서 바로 옴.
@@ -12822,7 +12833,7 @@ function teacherListSectionHtml() {
                 <td class="tl-more text-center font-bold" style="color:#00AE82">${t.regLeads != null ? esc(t.regLeads) : (t._rep ? esc(t.leads1y || 0) : '…')}</td>
                 <td class="tl-more">${!t._rep ? '…' : (t.apply ? `<span class="font-medium" style="color:#00AE82">${esc(applyText(t.apply))}</span>` : '<span class="text-base-content/40">없음</span>')}</td>
               </tr>`).join('')}
-            ${rows.length === 0 ? `<tr><td colspan="9" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
+            ${rows.length === 0 ? `<tr><td colspan="10" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
           </tbody>
         </table>
       </div>

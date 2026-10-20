@@ -610,11 +610,13 @@ async function getTeacherListReport() {
   const bounds = monthBounds(now);
   const today = kstDate(now);
   const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-  const [data, profiles] = await Promise.all([
+  const [data, profiles, visits] = await Promise.all([
     loadTierData(),
     selectAll(() => db().from('teacher_profiles').select('*').order('id')),
+    selectAll(() => db().from('app_visits').select('nid, visits, last_at').order('nid')),
   ]);
   const profileOf = new Map(profiles.map((p) => [p.nid, p]));
+  const visitOf = new Map(visits.map((v) => [v.nid, v]));   // 2026-10-20 앱 접속 횟수
 
   const rows = data.roster.map((person) => {
     const r = review(person, data, now);
@@ -631,6 +633,7 @@ async function getTeacherListReport() {
         days: p.avail_days, times: p.avail_times, hours: p.avail_hours,
       } : null,
       affil: p ? p.affil : '', gender: p ? p.gender : '',
+      visits: visitOf.get(r.nid)?.visits || 0, lastVisit: fmtTs(visitOf.get(r.nid)?.last_at),
     };
   });
   return { rows };

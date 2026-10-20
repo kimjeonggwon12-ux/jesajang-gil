@@ -15,6 +15,7 @@ import calendar from './actions/calendar.js';
 import connect from './actions/connect.js';
 import videos from './actions/videos.js';
 import lectures from './actions/lectures.js';
+import visits from './actions/visits.js';
 import transcripts from './actions/transcripts.js';
 import attendance from './actions/attendance.js';
 import attendanceClosing from './actions/attendance-closing.js';
@@ -40,6 +41,7 @@ export const actions = {
   ...connect,
   ...videos,
   ...lectures,
+  ...visits,
   ...transcripts,
   ...attendance,
   ...attendanceClosing,
