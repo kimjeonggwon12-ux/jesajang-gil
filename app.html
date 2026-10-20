@@ -2175,6 +2175,8 @@
     #actTabs > button.hot::after { content:''; position:absolute; top:5px; right:6px; width:8px; height:8px; border-radius:50%; background:#FF1F1F; border:1.5px solid #fff; animation:glPulse 1.4s ease-in-out infinite; }
     @keyframes glPulse { 0%,100% { box-shadow:0 0 0 0 rgba(255,31,31,.75); } 50% { box-shadow:0 0 0 5px rgba(255,31,31,0); } }
     .gl-wrap { padding:14px 16px 90px; display:flex; flex-direction:column; gap:14px; }
+    .act-edu-prep { margin:16px 16px 0; padding:16px; border-radius:14px; background:#FFF7E6; border:1px dashed #F5C451; font-size:14px; line-height:1.6; color:#7A4B00; text-align:center; }
+    .act-edu-prep b { color:#B45309; }
     .gl-banner { position:relative; overflow:hidden; padding:20px 18px 18px; border-radius:20px; background:linear-gradient(125deg, #FFF1E8 0%, #FFD9C0 60%, #FFBE94 100%); border:1px solid #FFB283; box-shadow:0 10px 24px -16px rgba(232,89,12,.8); }
     .gl-banner.link { margin:14px 16px 4px; cursor:pointer; text-decoration:none !important; }   /* 2026-10-20: 누르는 칸이라 붙던 밑줄 지움 */
     .gl-bn-eye { display:inline-block; padding:2px 10px; border-radius:999px; background:#C2410C; color:#fff; font-size:12px; font-weight:800; }
@@ -6956,7 +6958,7 @@
             ${targetsSectionHtml()}
           </div>
           <div data-ap="history">${activityHistorySectionHtml()}</div>
-          <div data-ap="edu"><div id="actEduBody" class="p-4"></div></div>
+          <div data-ap="edu"><div class="act-edu-prep">🚧 <b>이수 교육 내용은 준비 중이에요.</b><br>교육 과정과 이수 기록을 정리해서 곧 보여 드릴게요.</div><div id="actEduBody" class="p-4"></div></div>
         </div>
         <button type="button" id="act-fab" class="act-fab" title="활동 기록 남기기" aria-label="활동 기록 남기기">
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -7109,8 +7111,8 @@
 
     // 2026-10-10: 나의 교실도 광장처럼 2단계 탭으로 나눔(한 화면에 길게 늘어놓지 않음)
     // 2026-10-10(2차): 출석(QR·출석 현황) / 내 활동(등급·인교섬협 요약·전도 대상자) / 활동 기록
-    // 2026-10-20: '🎯 개강 인도'(개강 인도 계획)를 두 번째에 — 주황 칸으로 늘 눈에 띄게(.hot)
-    const ACT_PAGES = [['attend', '출석'], ['goal', '🎯 개강 인도'], ['targets', '내 활동'], ['history', '활동 기록'], ['edu', '이수 교육']];   // 이수 교육 = 예전 교재 탭의 '이수교육'
+    // 2026-10-20: '🎯 개강 인도'(개강 인도 계획)— 주황 칸으로 늘 눈에 띄게(.hot)
+    const ACT_PAGES = [['attend', '출석'], ['targets', '내 활동'], ['history', '활동 기록'], ['goal', '🎯 개강 인도'], ['edu', '이수 교육']];   // 2026-10-20(사용자) 순서: 출석·내 활동·활동 기록·개강 인도·이수 교육   // 이수 교육 = 예전 교재 탭의 '이수교육'
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
