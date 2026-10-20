@@ -2175,6 +2175,73 @@
     #actTabs > button.hot::after { content:''; position:absolute; top:5px; right:6px; width:8px; height:8px; border-radius:50%; background:#FF1F1F; border:1.5px solid #fff; animation:glPulse 1.4s ease-in-out infinite; }
     @keyframes glPulse { 0%,100% { box-shadow:0 0 0 0 rgba(255,31,31,.75); } 50% { box-shadow:0 0 0 5px rgba(255,31,31,0); } }
     .gl-wrap { padding:14px 16px 90px; display:flex; flex-direction:column; gap:14px; }
+    /* 2026-10-20 영상 인강 */
+    .lc-hero { margin:4px 0 16px; padding:14px 16px; border-radius:14px; background:#EEF4FF; border:1px solid #D6E2FB; font-size:13.5px; line-height:1.6; color:#33415C; }
+    .lc-hero > b { display:block; margin-bottom:4px; font-size:16px; font-weight:900; color:#1D3B8B; }
+    .lc-hero span b { color:#2F5BD3; }
+    .lc-grid { display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:18px; }
+    @media (min-width: 640px) { .lc-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+    @media (min-width: 1024px) { .lc-grid { grid-template-columns:repeat(3, minmax(0, 1fr)); } }
+    .lc-card { display:flex; flex-direction:column; text-align:left; padding:0; border-radius:14px; overflow:hidden; background:#fff; border:1px solid #E5E7EB; box-shadow:0 4px 14px -10px rgba(0,0,0,.35); cursor:pointer; }
+    .lc-thumb { position:relative; aspect-ratio:16/9; background:#111; }
+    .lc-thumb img { width:100%; height:100%; object-fit:cover; opacity:.92; }
+    .lc-cnt { position:absolute; right:8px; bottom:8px; padding:2px 8px; border-radius:6px; background:rgba(0,0,0,.75); color:#fff; font-size:12px; font-weight:800; }
+    .lc-best { position:absolute; left:8px; top:8px; padding:3px 9px; border-radius:999px; background:linear-gradient(135deg, #FFD36B, #F5A623); color:#5B3A00; font-size:12px; font-weight:900; box-shadow:0 3px 8px -3px rgba(0,0,0,.4); }
+    .lc-best.in { position:static; display:inline-block; margin-bottom:6px; }
+    .lc-info { padding:12px 14px 14px; display:flex; flex-direction:column; gap:6px; }
+    .lc-t { font-size:16px; font-weight:900; letter-spacing:-0.03em; color:#111; line-height:1.35; }
+    .lc-hid { padding:1px 6px; border-radius:6px; background:#F3F4F6; color:#6B7280; font-size:11px; font-weight:800; }
+    .lc-m { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12.5px; color:#6B7280; font-weight:600; }
+    .lc-prog { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:800; color:#2F5BD3; }
+    .lc-prog i { flex:1; height:6px; border-radius:999px; background:#E8EEFB; overflow:hidden; }
+    .lc-prog em { display:block; height:100%; border-radius:999px; background:#2F6BFF; }
+    .lc-prog.done { color:#00936E; } .lc-prog.done em { background:#00AE82; }
+    .lc-prog.big { margin-top:10px; font-size:13.5px; } .lc-prog.big i { height:8px; }
+    .lc-back { margin-bottom:10px; background:none; border:none; padding:0; font-size:14px; font-weight:700; color:#6B7280; cursor:pointer; }
+    .lc-d-head { padding:16px; border-radius:16px; background:#fff; border:1px solid #E5E7EB; }
+    .lc-d-t { font-size:21px; font-weight:900; letter-spacing:-0.04em; line-height:1.3; margin-bottom:6px; }
+    .lc-d-desc { margin-top:8px; font-size:14px; line-height:1.6; color:#374151; white-space:pre-wrap; }
+    .lc-go { width:100%; min-height:48px; margin-top:12px; border-radius:12px; border:none; background:#2F6BFF; color:#fff; font-size:16px; font-weight:900; cursor:pointer; }
+    .lc-lessons { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+    .lc-ls { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:12px; background:#fff; border:1px solid #EDEDED; text-align:left; cursor:pointer; }
+    .lc-ls img { width:84px; aspect-ratio:16/9; border-radius:8px; object-fit:cover; flex-shrink:0; background:#111; }
+    .lc-no { flex-shrink:0; width:26px; height:26px; border-radius:50%; background:#EEF4FF; color:#2F5BD3; font-size:13px; font-weight:900; display:flex; align-items:center; justify-content:center; }
+    .lc-ls.done .lc-no { background:#00AE82; color:#fff; }
+    .lc-ls-b { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+    .lc-ls-b b { font-size:14.5px; font-weight:800; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .lc-ls-b small { font-size:12px; color:#6B7280; font-weight:600; }
+    .lc-ls.done .lc-ls-b small { color:#00936E; }
+    .lc-adm { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
+    .lc-adm button { height:36px; padding:0 12px; border-radius:10px; border:1px solid #D1D5DB; background:#fff; font-size:13px; font-weight:800; color:#374151; cursor:pointer; }
+    .lc-stats { margin-top:10px; padding:12px; border-radius:12px; background:#F7F8FA; font-size:13px; }
+    .lc-stats-h { font-weight:900; margin-bottom:6px; }
+    .lc-st-row { display:flex; align-items:center; gap:8px; padding:5px 0; border-top:1px solid #ECECEC; }
+    .lc-st-row b { flex:1; } .lc-st-row small { color:#9CA3AF; }
+    .lc-pl-prog { display:flex; align-items:center; gap:10px; margin:10px 0 2px; font-size:13px; font-weight:800; color:#BFD3FF; }
+    .lc-pl-prog i { flex:1; height:8px; border-radius:999px; background:rgba(255,255,255,.15); overflow:hidden; }
+    .lc-pl-prog em { display:block; height:100%; background:#4C8DFF; border-radius:999px; transition:width .4s; }
+    .lc-pl-nav { display:flex; gap:8px; margin:10px 0; }
+    .lc-pl-nav button { flex:1; height:42px; border-radius:10px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); color:#fff; font-size:14px; font-weight:800; cursor:pointer; }
+    .lc-pl-nav button:disabled { opacity:.35; }
+    .vd-ov-hint a { color:#9CC0FF; text-decoration:underline; }
+    .lc-f-list { display:flex; flex-direction:column; gap:6px; }
+    .lc-f-row { display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:10px; background:#EEF4FF; font-size:13.5px; }
+    .lc-f-row b { flex-shrink:0; color:#2F5BD3; } .lc-f-row span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .lc-f-row button { flex-shrink:0; width:30px; height:30px; border-radius:8px; border:1px solid #D6E2FB; background:#fff; font-weight:900; cursor:pointer; }
+    .lc-f-row button:disabled { opacity:.3; }
+    .lc-f-picks { display:flex; flex-direction:column; gap:6px; max-height:300px; overflow-y:auto; margin-top:8px; }
+    .lc-f-picks button { display:flex; align-items:center; gap:8px; padding:6px; border-radius:10px; border:1px solid #EDEDED; background:#fff; text-align:left; cursor:pointer; }
+    .lc-f-picks img { width:72px; aspect-ratio:16/9; object-fit:cover; border-radius:6px; flex-shrink:0; }
+    .lc-f-picks span { flex:1; min-width:0; font-size:13.5px; font-weight:700; line-height:1.35; }
+    .lc-f-picks small { display:block; font-size:11.5px; color:#9CA3AF; font-weight:600; }
+    .lc-f-picks b { flex-shrink:0; width:30px; height:30px; border-radius:50%; background:#2F6BFF; color:#fff; display:flex; align-items:center; justify-content:center; }
+    .lc-edu { margin:16px 16px 0; padding:16px; border-radius:14px; background:#fff; border:1.5px solid #D6E2FB; }
+    .lc-edu-h { display:flex; align-items:center; justify-content:space-between; font-size:16px; font-weight:900; color:#1D3B8B; margin-bottom:6px; }
+    .lc-edu-h span { font-size:12.5px; color:#6B7280; font-weight:700; }
+    .lc-edu-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid #F0F0F0; font-size:14px; }
+    .lc-edu-row b { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .lc-edu-row span { font-size:12.5px; font-weight:800; color:#2F5BD3; } .lc-edu-row span.ok { color:#00936E; }
+    .lc-edu-go { width:100%; height:42px; margin-top:10px; border-radius:10px; border:none; background:#2F6BFF; color:#fff; font-size:14.5px; font-weight:900; cursor:pointer; }
     .act-edu-prep { margin:16px 16px 0; padding:16px; border-radius:14px; background:#FFF7E6; border:1px dashed #F5C451; font-size:14px; line-height:1.6; color:#7A4B00; text-align:center; }
     .act-edu-prep b { color:#B45309; }
     .gl-banner { position:relative; overflow:hidden; padding:20px 18px 18px; border-radius:20px; background:linear-gradient(125deg, #FFF1E8 0%, #FFD9C0 60%, #FFBE94 100%); border:1px solid #FFB283; box-shadow:0 10px 24px -16px rgba(232,89,12,.8); }
@@ -6958,7 +7025,7 @@
             ${targetsSectionHtml()}
           </div>
           <div data-ap="history">${activityHistorySectionHtml()}</div>
-          <div data-ap="edu"><div class="act-edu-prep">🚧 <b>이수 교육 내용은 준비 중이에요.</b><br>교육 과정과 이수 기록을 정리해서 곧 보여 드릴게요.</div><div id="actEduBody" class="p-4"></div></div>
+          <div data-ap="edu"><div id="lcEduCard"></div><div class="act-edu-prep">🚧 <b>아래 교육 이수 내용은 준비 중이에요.</b><br>교육 과정과 이수 기록을 정리해서 곧 보여 드릴게요.</div><div id="actEduBody" class="p-4"></div></div>
         </div>
         <button type="button" id="act-fab" class="act-fab" title="활동 기록 남기기" aria-label="활동 기록 남기기">
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -7149,7 +7216,7 @@
         return;
       }
       root.innerHTML = dashboardViewHtml();
-      if (actPage === 'edu') { actEduRender(); if (!actEduSt.done) actEduLoad(); }
+      if (actPage === 'edu') { actEduRender(); if (!actEduSt.done) actEduLoad(); lcEduCardFill(); }
       updateTierBadge();
       renderTargetsChart();
       wireHistoryAndCards();
@@ -9670,7 +9737,7 @@ function tbRender() {
       <span class="kko-title">교재와 영상</span>
       ${meBtnHtml()}
     </div>
-    <div class="l2 fit tb-mode">${[['book', '교재'], ['video', '영상']].concat(vdCanRequest() ? [['request', '교재·영상 신청']] : []).map(([k, l]) => { const n = k === 'request' && vdIsApprover() ? (vdState.reqs || []).concat(vdState.wishes || []).filter(r => r.status === '신청').length : 0;
+    <div class="l2 fit tb-mode">${[['book', '교재'], ['video', '영상'], ['lecture', '🎓 인강']].concat(vdCanRequest() ? [['request', '교재·영상 신청']] : []).map(([k, l]) => { const n = k === 'request' && vdIsApprover() ? (vdState.reqs || []).concat(vdState.wishes || []).filter(r => r.status === '신청').length : 0;
       return `<button type="button" class="${tbState.mode === k ? 'on' : ''}" data-tb-mode="${k}">${l}${n ? `<b class="l2-badge">${n}</b>` : ''}</button>`; }).join('')}</div>
     <div class="tb-search">
       <svg class="tb-s-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -9679,7 +9746,7 @@ function tbRender() {
     </div>
     <p class="tb-s-hint">제목을 몰라도 돼요. <b>교재 본문</b>과 <b>영상 속 내용</b>에 들어 있는 낱말까지 찾아 줘요.</p>
     <div class="ctc-bar">${ctcChip("edu")}</div>
-    ${tbState.q.trim() ? '' : tbEventBannerHtml()}
+    ${tbState.q.trim() || tbState.mode === 'lecture' ? '' : tbEventBannerHtml()}
     <div id="tbCats" class="l3" style="${tbState.mode !== 'book' || tbState.q.trim() ? 'display:none;' : ''}">
       ${TAB_DEFS.map(t => `<button type="button" class="study-tab-btn${tbState.tab === t.key ? ' on' : ''}" data-tab="${t.key}">${esc(t.label)}</button>`).join('')}
     </div>
@@ -9689,7 +9756,7 @@ function tbRender() {
     btn.onclick = () => { tbState.tab = btn.dataset.tab; tbRender(); };
   });
   document.querySelectorAll('[data-tb-mode]').forEach(btn => {
-    btn.onclick = () => { tbState.mode = btn.dataset.tbMode; tbState.q = ''; tbRender(); if (tbState.mode === 'video' && !vdState.videos) vdLoad(); if (tbState.mode === 'request') vdLoadReqs(); };
+    btn.onclick = () => { tbState.mode = btn.dataset.tbMode; tbState.q = ''; tbRender(); if (tbState.mode === 'video' && !vdState.videos) vdLoad(); if (tbState.mode === 'request') vdLoadReqs(); if (tbState.mode === 'lecture') lcLoad(); };
   });
   const inp = document.getElementById('tbSearchInp');
   inp.oninput = () => {
@@ -9708,6 +9775,7 @@ function tbRender() {
   if (tbState.mode === 'request' && !vdCanRequest()) tbState.mode = 'book';
   if (tbState.mode === 'video') { vdRender(); return; }
   if (tbState.mode === 'request') { vdReqRender(); return; }
+  if (tbState.mode === 'lecture') { lcRender(); if (!lcState.list) lcLoad(); return; }   // 2026-10-20 영상 인강
 
   // 2026-09-22: 원래 id가 'body'라 AI 섹션의 같은 id와 충돌했다(위 aiBody 주석 참고).
   const body = document.getElementById('tbBody');
@@ -10267,6 +10335,258 @@ function tbSearchRender() {
       });
       vtMount(v, ov.querySelector('.vt-box'), ifr);
     }
+
+
+    // ════════════════════════════════════════════════════════════════
+    // 2026-10-20 영상 인강 — 등록된 영상을 강좌로 묶어 차례대로 듣고(진도·이어 보기), 끝까지 보면 이수.
+    //   서버 lectures.js. 진도 = 유튜브 플레이어가 알려 주는 재생 위치로 실제 재생된 10초 칸만 센다
+    //   (앞으로 건너뛴 부분은 안 셈). 영상 길이의 90% 이상이면 그 강 이수, 모든 강 이수 = 강좌 이수 → 나의교실 이수 교육에 표시.
+    //   강좌 만들기·고치기·수강 현황은 교육부·전도부(vdIsApprover). 강 아래에는 영상 탭과 같은 요약·녹취·교안·퀴즈(vtMount).
+    // ════════════════════════════════════════════════════════════════
+    const LC_BUCKET = 10;
+    const lcState = { list: null, err: '', part: '', open: '', stats: {}, del: '' };
+    const lcFind = id => (lcState.list || []).find(l => l.lectureId === id);
+    const lcPct = l => l.lessons.length ? Math.round(l.lessons.reduce((a, x) => a + (x.completed ? 100 : x.pct), 0) / l.lessons.length) : 0;
+    const lcNext = l => l.lessons.findIndex(x => !x.completed);
+    const lcMin = s => s > 0 ? `${Math.max(1, Math.round(s / 60))}분` : '';
+    async function lcLoad(skipCache) {
+      const apply = r => { if (r && !r.error) { lcState.list = r.lectures || []; lcState.err = ''; lcRender(); } else if (r && r.error && !lcState.list) { lcState.err = r.error; lcRender(); } };
+      try { await apiSWR({ action: 'getLectures', memberId: App.memberId }, apply, skipCache); }
+      catch (e) { if (!lcState.list) { lcState.err = e.message; lcRender(); } }
+    }
+    function lcCardHtml(l) {
+      const first = l.lessons[0], pct = lcPct(l);
+      return `<button type="button" class="lc-card" data-lc-open="${esc(l.lectureId)}">
+          <div class="lc-thumb">${first ? `<img src="${vdThumb(first.videoId)}" alt="" loading="lazy">` : ''}<span class="lc-cnt">${l.lessons.length}강</span>${l.featured ? '<span class="lc-best">🏅 우수 강의</span>' : ''}</div>
+          <div class="lc-info">
+            <div class="lc-t">${esc(l.title)}${l.hidden ? ' <small class="lc-hid">숨김</small>' : ''}</div>
+            <div class="lc-m">${l.part ? `<span class="vd-tag">${esc(l.part)}</span>` : ''}${l.instructor ? esc(l.instructor) + ' 강사' : ''}</div>
+            <div class="lc-prog ${l.completed ? 'done' : ''}"><i><em style="width:${l.completed ? 100 : pct}%"></em></i><span>${l.completed ? '✅ 이수' : l.started ? `${l.doneCount}/${l.lessons.length}강 · ${pct}%` : '아직 안 들었어요'}</span></div>
+          </div>
+        </button>`;
+    }
+    function lcRender() {
+      const body = document.getElementById('tbBody');
+      if (!body || tbState.mode !== 'lecture' || tbState.q.trim()) return;
+      const adm = vdIsApprover();
+      if (!lcState.list) {
+        body.innerHTML = lcState.err ? `<div class="vd-empty">${esc(lcState.err)}<br><button type="button" class="vd-btn" onclick="lcLoad(true)">다시 불러오기</button></div>`
+          : '<div class="text-center py-16"><span class="loading loading-spinner"></span></div>';
+        return;
+      }
+      const l = lcState.open && lcFind(lcState.open);
+      if (l) { body.innerHTML = lcDetailHtml(l, adm); lcWire(body); return; }
+      lcState.open = '';
+      const all = lcState.list, list = all.filter(x => !lcState.part || x.part === lcState.part);
+      const going = all.filter(x => x.started && !x.completed);
+      const chips = `<div class="l3 vd-chips">${[['', '전체']].concat(VIDEO_PARTS.map(([p]) => [p, p])).map(([k, t]) =>
+        `<button type="button" class="${lcState.part === k ? 'on' : ''}" data-lc-part="${esc(k)}">${esc(t)}</button>`).join('')}</div>`;
+      body.innerHTML = `${chips}
+        <div class="lc-hero"><b>🎓 인강 — 우수 강의를 차례대로</b><span>교사·교관님들의 좋은 강의를 강좌로 묶었어요. 한 강을 <b>90% 이상</b> 보면 이수되고, 모든 강을 마치면 <b>나의교실 › 이수 교육</b>에 남아요. 강마다 요약·녹취·교안·퀴즈도 함께 볼 수 있어요.</span></div>
+        ${going.length && !lcState.part ? `<div class="vd-sub">▶ 이어서 듣기</div><div class="lc-grid">${going.map(lcCardHtml).join('')}</div>` : ''}
+        <div class="vd-head"><div><b>강좌 ${list.length}개</b><span>${lcState.part ? esc(lcState.part) + ' 강좌' : '우수 강의가 먼저 보여요'}</span></div>${adm ? '<button type="button" class="vd-add" data-lc-new="1">+ 강좌 만들기</button>' : ''}</div>
+        ${list.length ? `<div class="lc-grid">${list.map(lcCardHtml).join('')}</div>`
+          : `<div class="vd-empty">아직 만들어진 강좌가 없어요.${adm ? '<br>[+ 강좌 만들기]로 영상 탭의 영상을 골라 강좌를 만들어 보세요.' : '<br>좋은 강의 영상은 [교재·영상 신청]으로 추천해 주세요.'}</div>`}`;
+      lcWire(body);
+    }
+    function lcDetailHtml(l, adm) {
+      const pct = lcPct(l), ni = lcNext(l), st = lcState.stats[l.lectureId];
+      return `<button type="button" class="lc-back" data-lc-back="1">‹ 강좌 목록</button>
+        <div class="lc-d-head">
+          ${l.featured ? '<span class="lc-best in">🏅 우수 강의</span>' : ''}
+          <div class="lc-d-t">${esc(l.title)}</div>
+          <div class="lc-m">${l.part ? `<span class="vd-tag">${esc(l.part)}</span>` : ''}${l.instructor ? esc(l.instructor) + ' 강사 · ' : ''}${l.lessons.length}강</div>
+          ${l.description ? `<div class="lc-d-desc">${esc(l.description)}</div>` : ''}
+          <div class="lc-prog big ${l.completed ? 'done' : ''}"><i><em style="width:${l.completed ? 100 : pct}%"></em></i><span>${l.completed ? '✅ 이 강좌를 이수했어요' : `${l.doneCount}/${l.lessons.length}강 이수 · ${pct}%`}</span></div>
+          ${l.lessons.length ? `<button type="button" class="lc-go" data-lc-play="${ni >= 0 ? ni : 0}">${l.completed ? '처음부터 다시 보기' : l.started ? `▶ 이어 보기 · ${ni + 1}강` : '▶ 1강부터 듣기'}</button>` : ''}
+        </div>
+        <div class="lc-lessons">${l.lessons.map((x, i) => `<button type="button" class="lc-ls ${x.completed ? 'done' : ''}" data-lc-play="${i}">
+            <span class="lc-no">${x.completed ? '✓' : i + 1}</span>
+            <img src="${vdThumb(x.videoId)}" alt="" loading="lazy">
+            <span class="lc-ls-b"><b>${esc(x.title)}</b><small>${x.completed ? '이수' : x.pct ? `${x.pct}% 봤어요` : '아직 안 봤어요'}${x.duration ? ' · ' + lcMin(x.duration) : ''}${x.docs ? ' · 요약·교안' : ''}</small></span>
+          </button>`).join('')}</div>
+        ${adm ? `<div class="lc-adm">
+            <button type="button" data-lc-edit="${esc(l.lectureId)}">강좌 고치기</button>
+            <button type="button" data-lc-stats="${esc(l.lectureId)}">수강 현황</button>
+            <button type="button" class="vd-del" data-lc-del="${esc(l.lectureId)}">${lcState.del === l.lectureId ? '한 번 더 누르면 삭제' : '강좌 삭제'}</button>
+          </div>
+          ${st ? `<div class="lc-stats">${st.error ? esc(st.error) : st.loading ? '불러오는 중...' : !st.people.length ? '아직 들은 교사가 없어요.'
+            : `<div class="lc-stats-h">수강 ${st.people.length}명 · 이수 ${st.people.filter(p => p.completed).length}명</div>${st.people.map(p => `<div class="lc-st-row"><b>${esc(p.name)}</b><span>${p.completed ? '✅ 이수' : `${p.done}/${st.total}강`}</span><small>${esc(String(p.last).slice(5, 16))}</small></div>`).join('')}`}</div>` : ''}` : ''}`;
+    }
+    function lcWire(body) {
+      body.querySelectorAll('[data-lc-part]').forEach(b => { b.onclick = () => { lcState.part = b.dataset.lcPart; lcRender(); }; });
+      body.querySelectorAll('[data-lc-open]').forEach(b => { b.onclick = () => { lcState.open = b.dataset.lcOpen; lcState.del = ''; lcRender(); document.getElementById('appSections').scrollTop = 0; }; });
+      body.querySelectorAll('[data-lc-back]').forEach(b => { b.onclick = () => { lcState.open = ''; lcRender(); }; });
+      body.querySelectorAll('[data-lc-play]').forEach(b => { b.onclick = () => lcPlay(lcFind(lcState.open), Number(b.dataset.lcPlay)); });
+      body.querySelectorAll('[data-lc-new]').forEach(b => { b.onclick = () => lcEdit(null); });
+      body.querySelectorAll('[data-lc-edit]').forEach(b => { b.onclick = () => lcEdit(lcFind(b.dataset.lcEdit)); });
+      body.querySelectorAll('[data-lc-stats]').forEach(b => { b.onclick = async () => {
+        const id = b.dataset.lcStats; lcState.stats[id] = { loading: true }; lcRender();
+        try { const r = await callApi({ action: 'getLectureStats', memberId: App.memberId, lectureId: id }); lcState.stats[id] = r && !r.error ? r : { error: (r && r.error) || '불러오지 못했어요.' }; }
+        catch (e) { lcState.stats[id] = { error: e.message }; }
+        lcRender();
+      }; });
+      body.querySelectorAll('[data-lc-del]').forEach(b => { b.onclick = async () => {
+        const id = b.dataset.lcDel;
+        if (lcState.del !== id) { lcState.del = id; lcRender(); return; }
+        try {
+          const r = await callApi({ action: 'deleteLecture', memberId: App.memberId, lectureId: id });
+          if (r && r.error) throw new Error(r.error);
+          lcState.list = lcState.list.filter(x => x.lectureId !== id); lcState.open = ''; lcState.del = ''; lcRender(); toast('강좌를 삭제했어요.');
+        } catch (e) { toast(e.message, true); }
+      }; });
+    }
+
+    // ── 강 재생: 영상 탭과 같은 검은 판 + 진도 줄 + 이전·다음 강 + 요약·녹취·교안·퀴즈 ──
+    const lcPlaying = { ov: null, l: null, i: 0, x: null, buckets: new Set(), sent: 0, lastT: null, state: -1, dur: 0, pos: 0, timer: 0 };
+    window.addEventListener('message', e => {
+      const P = lcPlaying;
+      if (!P.ov || !/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(e.origin)) return;
+      let d; try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (err) { return; }
+      const info = d && d.info; if (!info) return;
+      if (info.duration > 0) P.dur = Math.round(info.duration);
+      if (typeof info.playerState === 'number') { P.state = info.playerState; if (P.state !== 1) P.lastT = null; if (P.state === 0) lcSave(); }
+      if (typeof info.currentTime !== 'number') return;
+      const t = info.currentTime;
+      // 실제로 재생된 구간만 센다 — 직전 위치에서 0~3초 사이로 나아간 경우(앞으로 건너뛰면 안 셈)
+      if (P.state === 1 && P.lastT != null && t > P.lastT && t - P.lastT <= 3) {
+        for (let b = Math.floor(P.lastT / LC_BUCKET); b <= Math.floor(t / LC_BUCKET); b++) P.buckets.add(b);
+      }
+      P.lastT = P.state === 1 ? t : null; P.pos = t;
+      lcProgUi();
+    });
+    function lcCurPct() {
+      const P = lcPlaying, x = P.x; if (!x) return 0;
+      const dur = P.dur || x.duration; if (!dur) return x.pct || 0;
+      return x.completed ? 100 : Math.min(100, Math.round(Math.min(dur, P.buckets.size * LC_BUCKET) / dur * 100));
+    }
+    function lcProgUi() {
+      const P = lcPlaying, el = P.ov && P.ov.querySelector('.lc-pl-prog'); if (!el) return;
+      const pct = lcCurPct();
+      el.innerHTML = `<i><em style="width:${pct}%"></em></i><span>${P.x.completed ? '✅ 이수한 강의예요' : pct >= 90 ? '✅ 90% 넘었어요 — 이수!' : `${pct}% 봤어요 · 90% 넘으면 이수`}</span>`;
+    }
+    async function lcSave() {
+      const P = lcPlaying; if (!P.l || !P.x) return;
+      const buckets = [...P.buckets];
+      if (buckets.length === P.sent && !P.dur) return;
+      P.sent = buckets.length;
+      const l = P.l, x = P.x;
+      try {
+        const r = await callApi({ action: 'saveLectureProgress', memberId: App.memberId, name: App.name, lectureId: l.lectureId, videoKey: x.id, buckets, duration: P.dur || x.duration || 0, lastPos: Math.floor(P.pos || 0) });
+        if (!r || r.error) return;
+        x.pct = r.pct; x.duration = P.dur || x.duration; x.lastPos = Math.floor(P.pos || 0);
+        if (r.completed && !x.completed) { x.completed = true; toast(`✅ ${l.lessons.indexOf(x) + 1}강을 이수했어요!`); }
+        l.doneCount = l.lessons.filter(y => y.completed).length; l.started = true;
+        const was = l.completed; l.completed = l.doneCount === l.lessons.length;
+        if (l.completed && !was) toast(`🎓 「${l.title}」 강좌를 모두 이수했어요!`);
+        lcProgUi();
+      } catch (e) {}
+    }
+    function lcPlay(l, i) {
+      if (!l || !l.lessons[i]) return;
+      lcClose(true);
+      const x = l.lessons[i], P = lcPlaying;
+      Object.assign(P, { l, i, x, buckets: new Set(), sent: 0, lastT: null, state: -1, dur: x.duration || 0, pos: x.lastPos || 0 });
+      const start = !x.completed && x.lastPos > 5 && (!x.duration || x.lastPos < x.duration - 15) ? Math.floor(x.lastPos) : 0;
+      const ov = document.createElement('div'); ov.className = 'vd-ov'; P.ov = ov;
+      ov.innerHTML = `<div class="vd-ov-bar"><button type="button" class="vd-ov-x" aria-label="닫기">‹ 닫기</button><span>${esc(l.title)} · ${i + 1}/${l.lessons.length}강</span></div>
+        <div class="vd-ov-in">
+          <div class="vd-frame"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(x.videoId)}?autoplay=1&rel=0&playsinline=1&enablejsapi=1${start ? '&start=' + start : ''}&origin=${encodeURIComponent(location.origin)}" title="${esc(x.title)}"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+          <div class="lc-pl-prog"></div>
+          <div class="vd-ov-t">${i + 1}강. ${esc(x.title)}</div>
+          ${start ? `<div class="vd-ov-m">지난번 본 곳(${Math.floor(start / 60)}분 ${start % 60}초)부터 이어서 재생해요.</div>` : ''}
+          <div class="lc-pl-nav">
+            <button type="button" data-lc-step="-1" ${i ? '' : 'disabled'}>‹ 이전 강</button>
+            <button type="button" data-lc-step="1" ${i < l.lessons.length - 1 ? '' : 'disabled'}>다음 강 ›</button>
+          </div>
+          <div class="vd-ov-hint">앞으로 건너뛴 부분은 진도에 들어가지 않아요. 영상이 재생되지 않으면 <a href="https://www.youtube.com/watch?v=${encodeURIComponent(x.videoId)}" target="_blank" rel="noopener">유튜브에서 열기 ↗</a> (유튜브에서 본 것은 진도에 안 남아요)</div>
+          <div class="vt-box"></div>
+        </div>`;
+      document.body.appendChild(ov);
+      const hide = () => lcClose(false);
+      Back.open('lc', hide);
+      ov.querySelector('.vd-ov-x').onclick = () => { Back.closed('lc'); hide(); };
+      ov.querySelectorAll('[data-lc-step]').forEach(b => { b.onclick = () => { const j = i + Number(b.dataset.lcStep); Back.closed('lc'); lcClose(false); lcPlay(l, j); }; });
+      const ifr = ov.querySelector('iframe');
+      ifr.addEventListener('load', () => {
+        const ping = () => { try { ifr.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'); } catch (e) {} };
+        ping(); setTimeout(ping, 1500); setTimeout(ping, 4000);
+      });
+      P.timer = setInterval(lcSave, 20000);
+      lcProgUi();
+      vtState.curVid = x.videoId;
+      vtMount({ id: x.id, videoId: x.videoId, title: x.title, part: x.part, uploadDate: x.uploadDate, description: x.description }, ov.querySelector('.vt-box'), ifr);
+    }
+    function lcClose(silent) {
+      const P = lcPlaying; if (!P.ov) return;
+      clearInterval(P.timer); lcSave();
+      P.ov.remove(); P.ov = null;
+      if (!silent && tbState.mode === 'lecture') lcRender();
+    }
+
+    // ── 강좌 만들기·고치기(교육부·전도부): 영상 탭에 등록된 영상을 골라 순서대로 ──
+    async function lcEdit(l) {
+      if (!vdState.videos) { openSheet('<div style="text-align:center;padding:40px 0"><span class="loading loading-spinner"></span></div>'); await vdLoad(); }
+      const vids = vdState.videos || [];
+      const f = l ? { lectureId: l.lectureId, title: l.title, part: l.part, instructor: l.instructor, description: l.description, featured: l.featured, hidden: l.hidden, lessons: l.lessons.map(x => x.id) }
+        : { lectureId: '', title: '', part: '', instructor: '', description: '', featured: false, hidden: false, lessons: [] };
+      let q = '';
+      const vOf = id => vids.find(v => v.id === id) || (l && l.lessons.find(x => x.id === id));
+      const read = () => {
+        const g = id => document.getElementById(id);
+        if (!g('lcFTitle')) return;
+        f.title = g('lcFTitle').value; f.instructor = g('lcFInst').value; f.description = g('lcFDesc').value; f.part = g('lcFPart').value;
+        f.featured = g('lcFBest').checked; f.hidden = g('lcFHide').checked; q = g('lcFQ').value;
+      };
+      const draw = () => {
+        const picks = vids.filter(v => !f.lessons.includes(v.id) && (!q.trim() || vdNorm(v.title).includes(vdNorm(q)))).slice(0, 30);
+        openSheet(`<div class="vd-form"><div class="att-title">${l ? '강좌 고치기' : '강좌 만들기'}</div>
+          <label class="cal-lbl">강좌 이름 *</label><input class="cal-inp" id="lcFTitle" maxlength="80" placeholder="예: 상담 기초 5강" value="${esc(f.title)}">
+          <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">분류</label><select class="cal-inp" id="lcFPart"><option value="">선택 안 함</option>${VIDEO_PARTS.map(([p]) => `<option ${f.part === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+            <div style="flex:1"><label class="cal-lbl">강사</label><input class="cal-inp" id="lcFInst" maxlength="40" placeholder="예: 김OO 교관" value="${esc(f.instructor)}"></div></div>
+          <label class="cal-lbl">소개</label><textarea class="cal-inp" id="lcFDesc" maxlength="1000" style="min-height:64px" placeholder="이 강좌에서 배우는 것">${esc(f.description)}</textarea>
+          <label class="cal-hl-opt" style="margin-top:10px"><input type="checkbox" id="lcFBest" ${f.featured ? 'checked' : ''}>🏅 우수 강의 <small>목록 맨 앞에 표시</small></label>
+          <label class="cal-hl-opt" style="margin-top:6px;background:#F7F8FA;border-color:#E5E7EB;color:#374151"><input type="checkbox" id="lcFHide" ${f.hidden ? 'checked' : ''}>숨기기 <small>교육부·전도부만 보임(준비 중일 때)</small></label>
+          <label class="cal-lbl">강의 순서 (${f.lessons.length}강)</label>
+          <div class="lc-f-list">${f.lessons.length ? f.lessons.map((id, i) => { const v = vOf(id); return `<div class="lc-f-row"><b>${i + 1}강</b><span>${esc(v ? v.title : '(지워진 영상)')}</span>
+              <button type="button" data-lc-mv="${i}|-1" ${i ? '' : 'disabled'}>↑</button><button type="button" data-lc-mv="${i}|1" ${i < f.lessons.length - 1 ? '' : 'disabled'}>↓</button><button type="button" data-lc-rm="${i}">✕</button></div>`; }).join('')
+            : '<div class="cal-hint">아래에서 영상을 눌러 강의를 넣어 주세요.</div>'}</div>
+          <label class="cal-lbl">영상 넣기 <small style="font-weight:400">— 영상 탭에 등록된 영상에서 골라요</small></label>
+          <input class="cal-inp" id="lcFQ" placeholder="영상 제목으로 찾기" value="${esc(q)}">
+          <div class="lc-f-picks">${picks.length ? picks.map(v => `<button type="button" data-lc-add="${esc(v.id)}"><img src="${vdThumb(v.videoId)}" alt=""><span>${esc(v.title)}<small>${esc(vdParts(v).join('·'))}</small></span><b>＋</b></button>`).join('') : '<div class="cal-hint">맞는 영상이 없어요. 새 영상은 영상 탭에서 먼저 등록해 주세요.</div>'}</div>
+          <div style="display:flex;gap:10px;margin-top:18px"><button class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button><button class="kko-btn-main" style="flex:2" id="lcFSave">${l ? '저장' : '강좌 만들기'}</button></div></div>`);
+        const qi = document.getElementById('lcFQ');
+        qi.oninput = () => { const pos = qi.selectionStart; read(); draw(); const n = document.getElementById('lcFQ'); n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} };
+        document.querySelectorAll('[data-lc-add]').forEach(b => { b.onclick = () => { read(); f.lessons.push(b.dataset.lcAdd); draw(); }; });
+        document.querySelectorAll('[data-lc-rm]').forEach(b => { b.onclick = () => { read(); f.lessons.splice(Number(b.dataset.lcRm), 1); draw(); }; });
+        document.querySelectorAll('[data-lc-mv]').forEach(b => { b.onclick = () => { read(); const [i, d] = b.dataset.lcMv.split('|').map(Number); const t = f.lessons[i]; f.lessons[i] = f.lessons[i + d]; f.lessons[i + d] = t; draw(); }; });
+        document.getElementById('lcFSave').onclick = async () => {
+          read();
+          if (!f.title.trim()) return toast('강좌 이름을 적어 주세요.', true);
+          if (!f.lessons.length) return toast('강의 영상을 하나 이상 넣어 주세요.', true);
+          const btn = document.getElementById('lcFSave'); btn.disabled = true;
+          try {
+            const r = await callApi({ action: 'saveLecture', memberId: App.memberId, name: App.name, lecture: f });
+            if (r && r.error) throw new Error(r.error);
+            closeSheet(); toast(l ? '강좌를 고쳤어요.' : '강좌를 만들었어요!');
+            lcState.open = r.lectureId; await lcLoad(true); lcRender();
+          } catch (e) { toast(e.message, true); btn.disabled = false; }
+        };
+      };
+      draw();
+    }
+    // 나의교실 › 이수 교육 위쪽 — 인강 이수·수강 중 강좌
+    async function lcEduCardFill() {
+      const el = document.getElementById('lcEduCard'); if (!el) return;
+      if (!lcState.list) { el.innerHTML = '<div class="lc-edu"><div class="lc-edu-h">🎓 인강 이수</div><div class="cal-hint">불러오는 중...</div></div>'; await lcLoad(); }
+      const box = document.getElementById('lcEduCard'); if (!box) return;
+      const list = lcState.list || [], done = list.filter(l => l.completed), going = list.filter(l => l.started && !l.completed);
+      box.innerHTML = `<div class="lc-edu"><div class="lc-edu-h">🎓 인강 이수 <span>이수 ${done.length} · 수강 중 ${going.length}</span></div>
+        ${done.concat(going).map(l => `<div class="lc-edu-row"><b>${esc(l.title)}</b><span class="${l.completed ? 'ok' : ''}">${l.completed ? '✅ 이수' : `${l.doneCount}/${l.lessons.length}강`}</span></div>`).join('') || '<div class="cal-hint">아직 들은 인강이 없어요.</div>'}
+        <button type="button" class="lc-edu-go" onclick="tbGoLecture()">🎓 인강 보러 가기 ›</button></div>`;
+    }
+    window.tbGoLecture = function () { switchTab('textbook'); setTimeout(() => { tbState.mode = 'lecture'; tbState.q = ''; tbRender(); if (!lcState.list) lcLoad(); }, 50); };
 
     // ════════════════════════════════════════════════════════════════
     // 2026-10-07 영상 녹취·서머리 — 재생 화면 아래 [요약 | 녹취 전문] + 워드/텍스트 받기·복사.
