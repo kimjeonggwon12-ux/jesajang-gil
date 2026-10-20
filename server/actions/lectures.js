@@ -9,6 +9,8 @@ import { videoRows, VIDEO_PARTS } from './videos.js';
 
 const BUCKET = 10;          // 초
 const DONE_RATIO = 0.9;     // 이만큼 보면 이수
+// 강좌 분류 = 영상 5개 코너 + 우수복음방교육(2026-10-20 사용자: 복음방 오른쪽에)
+const LECTURE_PARTS = [...VIDEO_PARTS, '우수복음방교육'];
 
 const canWatch = async (memberId) => (await isAdmin(memberId)) || !!(await findTeacher(memberId));
 const covered = (buckets, duration) => Math.min(duration, buckets.length * BUCKET);
@@ -56,7 +58,7 @@ async function getLectures(body) {
   });
   // 우수 강의 먼저, 그다음 최근 고친 순
   lectures.sort((a, b) => (a.featured !== b.featured ? (a.featured ? -1 : 1) : a.updatedAt < b.updatedAt ? 1 : -1));
-  return { lectures, parts: VIDEO_PARTS, approver };
+  return { lectures, parts: LECTURE_PARTS, approver };
 }
 
 /** 강좌 만들기·고치기(교육부·전도부). lessons = 등록된 영상 key 순서. */
@@ -70,7 +72,7 @@ async function saveLecture(body) {
   const lessons = [...new Set((Array.isArray(l.lessons) ? l.lessons : []).map((k) => clip(k, 40)))].filter((k) => valid.has(k)).slice(0, 50);
   if (!lessons.length) return { error: '강의 영상을 하나 이상 넣어 주세요.' };
   const fields = {
-    title, lessons, part: VIDEO_PARTS.includes(l.part) ? l.part : '', instructor: clip(l.instructor, 40), description: clip(l.description, 1000),
+    title, lessons, part: LECTURE_PARTS.includes(l.part) ? l.part : '', instructor: clip(l.instructor, 40), description: clip(l.description, 1000),
     featured: !!l.featured, status: l.hidden ? '숨김' : '', updated_at: kstDateTime(),
   };
   const id = clip(l.lectureId, 40);

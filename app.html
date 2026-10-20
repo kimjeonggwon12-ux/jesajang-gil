@@ -2176,6 +2176,9 @@
     @keyframes glPulse { 0%,100% { box-shadow:0 0 0 0 rgba(255,31,31,.75); } 50% { box-shadow:0 0 0 5px rgba(255,31,31,0); } }
     .gl-wrap { padding:14px 16px 90px; display:flex; flex-direction:column; gap:14px; }
     /* 2026-10-20 영상 인강 */
+    .lc-chips { flex-wrap:wrap; column-gap:16px; row-gap:0; overflow:visible; }   /* 분류 7개 — 좁은 폰에서 우수복음방교육이 잘리지 않게 두 줄로 */
+    .vd-chips > button.lc-best-chip { color:#B45309; }
+    .vd-chips > button.lc-best-chip.on { color:#B45309; border-bottom-color:#E8590C; }
     .lc-hero { margin:4px 0 16px; padding:14px 16px; border-radius:14px; background:#EEF4FF; border:1px solid #D6E2FB; font-size:13.5px; line-height:1.6; color:#33415C; }
     .lc-hero > b { display:block; margin-bottom:4px; font-size:16px; font-weight:900; color:#1D3B8B; }
     .lc-hero span b { color:#2F5BD3; }
@@ -10344,6 +10347,8 @@ function tbSearchRender() {
     //   강좌 만들기·고치기·수강 현황은 교육부·전도부(vdIsApprover). 강 아래에는 영상 탭과 같은 요약·녹취·교안·퀴즈(vtMount).
     // ════════════════════════════════════════════════════════════════
     const LC_BUCKET = 10;
+    // 강좌 분류 — 영상 5개 코너 + 우수복음방교육(2026-10-20 사용자: 복음방 오른쪽에). 서버 LECTURE_PARTS와 같게.
+    const LC_PARTS = VIDEO_PARTS.map(([p]) => p).concat(['우수복음방교육']);
     const lcState = { list: null, err: '', part: '', open: '', stats: {}, del: '' };
     const lcFind = id => (lcState.list || []).find(l => l.lectureId === id);
     const lcPct = l => l.lessons.length ? Math.round(l.lessons.reduce((a, x) => a + (x.completed ? 100 : x.pct), 0) / l.lessons.length) : 0;
@@ -10379,13 +10384,14 @@ function tbSearchRender() {
       lcState.open = '';
       const all = lcState.list, list = all.filter(x => !lcState.part || x.part === lcState.part);
       const going = all.filter(x => x.started && !x.completed);
-      const chips = `<div class="l3 vd-chips">${[['', '전체']].concat(VIDEO_PARTS.map(([p]) => [p, p])).map(([k, t]) =>
-        `<button type="button" class="${lcState.part === k ? 'on' : ''}" data-lc-part="${esc(k)}">${esc(t)}</button>`).join('')}</div>`;
+      const chips = `<div class="l3 vd-chips lc-chips">${[['', '전체']].concat(LC_PARTS.map(p => [p, p === '우수복음방교육' ? '⭐ 우수복음방교육' : p])).map(([k, t]) =>
+        `<button type="button" class="${lcState.part === k ? 'on' : ''}${k === '우수복음방교육' ? ' lc-best-chip' : ''}" data-lc-part="${esc(k)}">${esc(t)}</button>`).join('')}</div>`;
       body.innerHTML = `${chips}
         <div class="lc-hero"><b>🎓 인강 — 우수 강의를 차례대로</b><span>교사·교관님들의 좋은 강의를 강좌로 묶었어요. 한 강을 <b>90% 이상</b> 보면 이수되고, 모든 강을 마치면 <b>나의교실 › 이수 교육</b>에 남아요. 강마다 요약·녹취·교안·퀴즈도 함께 볼 수 있어요.</span></div>
         ${going.length && !lcState.part ? `<div class="vd-sub">▶ 이어서 듣기</div><div class="lc-grid">${going.map(lcCardHtml).join('')}</div>` : ''}
         <div class="vd-head"><div><b>강좌 ${list.length}개</b><span>${lcState.part ? esc(lcState.part) + ' 강좌' : '우수 강의가 먼저 보여요'}</span></div>${adm ? '<button type="button" class="vd-add" data-lc-new="1">+ 강좌 만들기</button>' : ''}</div>
         ${list.length ? `<div class="lc-grid">${list.map(lcCardHtml).join('')}</div>`
+          : lcState.part === '우수복음방교육' ? `<div class="vd-empty">⭐ 우수복음방교육 강좌를 준비하고 있어요.<br>복음방을 잘 운영한 교사들의 교육을 모아 곧 올려 드릴게요.${adm ? '<br>[+ 강좌 만들기]에서 분류를 우수복음방교육으로 고르면 여기에 나와요.' : ''}</div>`
           : `<div class="vd-empty">아직 만들어진 강좌가 없어요.${adm ? '<br>[+ 강좌 만들기]로 영상 탭의 영상을 골라 강좌를 만들어 보세요.' : '<br>좋은 강의 영상은 [교재·영상 신청]으로 추천해 주세요.'}</div>`}`;
       lcWire(body);
     }
@@ -10543,7 +10549,7 @@ function tbSearchRender() {
         const picks = vids.filter(v => !f.lessons.includes(v.id) && (!q.trim() || vdNorm(v.title).includes(vdNorm(q)))).slice(0, 30);
         openSheet(`<div class="vd-form"><div class="att-title">${l ? '강좌 고치기' : '강좌 만들기'}</div>
           <label class="cal-lbl">강좌 이름 *</label><input class="cal-inp" id="lcFTitle" maxlength="80" placeholder="예: 상담 기초 5강" value="${esc(f.title)}">
-          <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">분류</label><select class="cal-inp" id="lcFPart"><option value="">선택 안 함</option>${VIDEO_PARTS.map(([p]) => `<option ${f.part === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+          <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">분류</label><select class="cal-inp" id="lcFPart"><option value="">선택 안 함</option>${LC_PARTS.map(p => `<option ${f.part === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
             <div style="flex:1"><label class="cal-lbl">강사</label><input class="cal-inp" id="lcFInst" maxlength="40" placeholder="예: 김OO 교관" value="${esc(f.instructor)}"></div></div>
           <label class="cal-lbl">소개</label><textarea class="cal-inp" id="lcFDesc" maxlength="1000" style="min-height:64px" placeholder="이 강좌에서 배우는 것">${esc(f.description)}</textarea>
           <label class="cal-hl-opt" style="margin-top:10px"><input type="checkbox" id="lcFBest" ${f.featured ? 'checked' : ''}>🏅 우수 강의 <small>목록 맨 앞에 표시</small></label>
