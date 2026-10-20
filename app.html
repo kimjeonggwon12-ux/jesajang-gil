@@ -606,29 +606,25 @@
     .cal-hl-opt input { width:18px; height:18px; accent-color:#E5322D; }
     .cal-hl-opt small { font-weight:400; color:#6B7280; font-size:12px; }
     /* 2026-10-19: 주간 서머리 — 달력 한 줄(일~토) 아래 '주간:' 이름 + 메모(전도부가 씀) */
-    .cal-wk { grid-column:1 / -1; position:relative; margin:3px 0 8px; padding:7px 28px 7px 10px; border-radius:10px; background:#FFF7E6; border:1px solid #FBDCA8; font-size:12.5px; line-height:1.5; cursor:pointer; }
-    .cal-wk-t { font-weight:800; color:#7A4B00; }
-    .cal-wk-t b { color:#E8590C; margin-right:4px; }
-    .cal-wk-m { margin-top:2px; color:#4B5563; white-space:pre-wrap; word-break:break-word; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-    .cal-wk-ed { position:absolute; top:6px; right:9px; font-style:normal; color:#B45309; font-size:13px; }
+    .cal-wk { grid-column:1 / -1; position:relative; margin:2px 0 8px; padding:5px 24px 5px 4px; border-radius:6px; background:#F9FAFB; border:1px solid var(--color-border); font-size:12px; line-height:1.45; cursor:pointer; }
+    .cal-wk-t { font-weight:700; color:#374151; }
+    .cal-wk-t b { color:var(--color-text-sub); font-weight:600; margin-right:3px; }
+    .cal-wk-m { margin-top:1px; color:var(--color-text-sub); white-space:pre-wrap; word-break:break-word; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+    .cal-wk-ed { position:absolute; top:4px; right:7px; font-style:normal; color:#9CA3AF; font-size:12px; }
     .cal-wk.empty { margin:2px 0 6px; padding:2px 10px; background:none; border:1px dashed #D6D9DE; color:#9CA3AF; font-size:11.5px; text-align:center; }
     .cal-wk.cur { margin:0 0 10px; cursor:default; }
     .cal-wk.cur .cal-wk-m { -webkit-line-clamp:unset; display:block; }
-    /* 2026-10-20: 개강별 줄(위아래로) + 따로 쓰는 메모 */
-    .cal-wk-i + .cal-wk-i { margin-top:5px; padding-top:5px; border-top:1px dashed #F5C98A; }
-    /* 2026-10-20: 개강 3칸 옆으로 — 칸마다 개강 머리(주황 띠) */
-    .cal-wk-cols { display:grid; grid-template-columns:auto repeat(3, minmax(0, 1fr)); gap:6px; }
-    .cal-wk-cols > .cal-wk-c:nth-child(3n+5) { grid-column-start:2; }   /* 개강이 4개 이상이면 둘째 줄도 제목 옆부터 */
-    .cal-wk-ttl { display:flex; align-items:center; justify-content:center; padding:6px 3px; border-radius:8px; background:#7A4B00; color:#fff; font-weight:800; font-size:12px; letter-spacing:2px; writing-mode:vertical-rl; text-orientation:upright; white-space:nowrap; }
-    .cal-wk-c { min-width:0; border-radius:8px; background:#fff; border:1px solid #FBDCA8; overflow:hidden; }
-    .cal-wk-h { padding:2px 6px; background:#E8590C; color:#fff; font-weight:800; font-size:12px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .cal-wk-b { padding:4px 6px 5px; }
-    .cal-wk-c .cal-wk-t { font-size:12px; word-break:keep-all; overflow-wrap:anywhere; }
-    .cal-wk-c .cal-wk-t b { margin-right:2px; }
-    .cal-wk-c .cal-wk-m { font-size:12px; }
-    .cal-wk-0 { color:#C4C8CE; text-align:center; }
-    .cal-wk-cols + .cal-wk-i { margin-top:6px; padding-top:5px; border-top:1px dashed #F5C98A; }
-    @media (max-width:420px) { .cal-wk-cols { gap:4px; } .cal-wk-h, .cal-wk-c .cal-wk-t, .cal-wk-c .cal-wk-m { font-size:11px; } .cal-wk-b { padding:3px 4px 4px; } }
+    /* 2026-10-20: 개강별 줄 + 따로 쓰는 메모 */
+    .cal-wk-i + .cal-wk-i { margin-top:5px; padding-top:5px; border-top:1px dashed var(--color-border); }
+    /* 2026-10-20: 개강 3칸 옆으로 — 달력처럼 얇은 세로줄로만 나누고, 칸 머리는 작은 글씨 */
+    .cal-wk-cols { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); row-gap:6px; }
+    .cal-wk-c { min-width:0; padding:0 6px; border-left:1px solid var(--color-border); }
+    .cal-wk-c:nth-child(3n+1) { border-left:none; }
+    .cal-wk-h { font-weight:700; font-size:11px; color:var(--color-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .cal-wk-c .cal-wk-t { word-break:keep-all; overflow-wrap:anywhere; }
+    .cal-wk-0 { color:#D1D5DB; }
+    .cal-wk-cols + .cal-wk-i { margin-top:5px; padding-top:5px; border-top:1px dashed var(--color-border); }
+    @media (max-width:420px) { .cal-wk { font-size:11px; } .cal-wk-h { font-size:10.5px; } .cal-wk-c { padding:0 4px; } }
     .cal-wk-t em { display:inline-block; margin-right:6px; padding:0 7px; border-radius:999px; background:#E8590C; color:#fff; font-style:normal; font-size:11.5px; line-height:18px; vertical-align:1px; }
     .cal-wk-n { color:#4B5563; white-space:pre-wrap; word-break:break-word; }
     .cal-wk:not(.cur) .cal-wk-n { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -4035,13 +4031,13 @@
     }
     // 2026-10-19 주간 서머리 — 달력 한 줄(일~토) 아래. 전도부(관리자)가 '주간:'(예: 섭외 집중 주간)과 메모를 쓰고, 교사는 읽기만.
     const calWkRange = ws => { const [y, m, d] = ws.split('-').map(Number); const e = new Date(y, m - 1, d + 6); return `${m}/${d} ~ ${e.getMonth() + 1}/${e.getDate()}`; };
-    // 2026-10-20: 개강 3개를 옆으로 3칸(칸마다 개강 머리 + 주간: ○○ 주간 + 메모) — 위아래로 쌓으면 달력이 너무 길어져서. 따로 쓰는 메모는 그 아래 한 줄씩
+    // 2026-10-20: 개강 3개를 옆으로 3칸(칸마다 개강 이름 + 주간: ○○ 주간 + 메모) — 위아래로 쌓으면 달력이 너무 길어져서. 따로 쓰는 메모는 그 아래 한 줄씩
     function calWeekBodyHtml(w, ws) {
       const items = (w.items || []).slice();
       if (ws) for (const c of calWkCohorts(ws)) if (items.length < 3 && !items.some(it => it.cohort === c)) items.push({ cohort: c, theme: '', memo: '' });
       const cols = items.map(it => `<div class="cal-wk-c"><div class="cal-wk-h">${esc(it.cohort || '주간')}</div><div class="cal-wk-b">${it.theme ? `<div class="cal-wk-t"><b>주간:</b>${esc(it.theme)}</div>` : ''}${it.memo ? `<div class="cal-wk-m">${esc(it.memo)}</div>` : ''}${!it.theme && !it.memo ? '<div class="cal-wk-0">—</div>' : ''}</div></div>`);
       const notes = (w.notes || []).map(n => `<div class="cal-wk-i cal-wk-n">📝 ${esc(n)}</div>`);
-      return (cols.length ? `<div class="cal-wk-cols"><div class="cal-wk-ttl" style="grid-row:1 / span ${Math.ceil(cols.length / 3)}">개강 소식</div>${cols.join('')}</div>` : '') + notes.join('');
+      return (cols.length ? `<div class="cal-wk-cols">${cols.join('')}</div>` : '') + notes.join('');
     }
     // 이 주(수요일 기준) 달부터 개강 3개: 10월 주면 10월·11월·12월 개강
     const calWkCohorts = ws => { const [y, m, d] = ws.split('-').map(Number); const mid = new Date(y, m - 1, d + 3).getMonth(); return [0, 1, 2].map(k => `${(mid + k) % 12 + 1}월 개강`); };
