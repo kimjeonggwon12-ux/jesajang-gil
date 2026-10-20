@@ -91,6 +91,11 @@ try {
   ok(new RegExp(`계시록 \\(${d4.slice(5).replace('-', '/')}\\) 점수 2명 기록`).test(r), '"점수" 없이 올린 시험 결과 (' + r.split('\n')[0] + ')');
   const scC = await run(db().from('cohort_scores').select('score').eq('cohort_id', cohortId).eq('date', d4).eq('name', 'ZZTEST둘'));
   ok(scC.length === 1 && Number(scC[0].score) === 40, '그 날짜에 40점으로 저장');
+  // 한 글에 두 날짜 → 날짜마다 따로
+  const d5 = shift(-5), d6 = shift(-6), kmd = (d) => `${+d.slice(5, 7)}월 ${+d.slice(8)}일`;
+  r = await say(TG_ADMIN, `${kmd(d6)} 시험 결과\nZZTEST하나 10점\nZZTEST둘 20점\n\n${kmd(d5)} 시험 결과\nZZTEST하나 30점\nZZTEST둘 50점`);
+  const scD = await run(db().from('cohort_scores').select('date, score').eq('cohort_id', cohortId).eq('name', 'ZZTEST둘').in('date', [d5, d6]).order('date'));
+  ok(scD.length === 2 && Number(scD[0].score) === 20 && Number(scD[1].score) === 50, '두 날짜 한 글 → 날짜마다 (' + scD.map((x) => x.date.slice(5) + ' ' + x.score).join(', ') + ')');
 
   // 불규칙 날짜(과제·시험)
   const a3 = await call('cohortSaveAssignment', { cohortId, assignment: { title: '성도의 참 신앙', repeat: '날짜', dates: [shift(3), today].join(',') } });

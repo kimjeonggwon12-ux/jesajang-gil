@@ -361,8 +361,22 @@ export function looksLikeScores(text) {
   return n >= 2 || (n >= 1 && /시험|점수|성적/.test(text));
 }
 
+/** 한 글에 "10월 19일 시험 결과 … 10월 20일 시험 결과 …"처럼 날짜 줄이 여럿이면 날짜마다 나눈다(날짜 줄 앞의 글은 덩어리마다 붙임) */
+export function splitScoreBlocks(body, today) {
+  const lines = String(body).split('\n'), prefix = [], blocks = [];
+  for (const l of lines) {
+    if (!SCORE_LINE.test(l) && !/\//.test(l) && datesIn(l, today).length) blocks.push([l]);
+    else if (blocks.length) blocks[blocks.length - 1].push(l);
+    else prefix.push(l);
+  }
+  const full = blocks.filter((b) => b.some((l) => SCORE_LINE.test(l)));
+  return full.length > 1 ? full.map((b) => [...prefix, ...b].join('\n')) : [String(body)];
+}
+
 async function onScore(msg, c, body) {
   if (!(await isChatAdmin(msg.chat.id, msg.from.id))) return reply(msg, '점수는 방 관리자만 올릴 수 있어요.');
+  const blocks = splitScoreBlocks(body, kstDate());
+  if (blocks.length > 1) { for (const b of blocks) await onScore(msg, c, b); return; }
   const members = await loadMembers(c.cohortId);
   const byName = new Map();
   for (const m of members) { const k = nameKey(m.name); byName.set(k, byName.has(k) ? 'dup' : m); }
