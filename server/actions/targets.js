@@ -5,6 +5,7 @@ import { normId, str, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { notifyActivityChannel } from '../lib/telegram.js';
 import { onStageReached } from '../lib/events.js';
 import { findTeacher, findCoaches } from './roster.js';
+import { askAi } from '../lib/gemini.js';
 
 export const TARGET_STAGES = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
 
@@ -126,6 +127,7 @@ const toTarget = (t) => ({
   createdAt: fmtTs(t.created_at), updatedAt: fmtTs(t.updated_at),
   completed: t.completed, gender: t.gender, ageGroup: t.age_group,
   leaderId: t.leader_id, helperId: t.helper_id, teacherChangeLog: t.teacher_change_log,
+  goalCohort: t.goal_cohort || '', goalPlan: t.goal_plan || '', goalPlanAt: fmtTs(t.goal_plan_at),
 });
 
 const toHistory = (h) => ({ changedAt: fmtTs(h.changed_at), fromStage: h.from_stage, toStage: h.to_stage, memo: h.memo });
@@ -168,6 +170,12 @@ async function updateTarget(body) {
   if (body.nextMeetingDate !== undefined) patch.next_meeting_date = String(body.nextMeetingDate);
   if (body.memo !== undefined) patch.memo = String(body.memo);
   if (body.completed !== undefined) patch.completed = !!body.completed;
+  // 2026-10-20: '○월 개강 인도 목표'('2026-11', 빈 값 = 목표 없음). 목표 달이 바뀌면 예전 AI 계획은 지운다.
+  if (body.goalCohort !== undefined) {
+    const goal = GOAL_RE.test(str(body.goalCohort)) ? str(body.goalCohort) : '';
+    patch.goal_cohort = goal;
+    if (goal !== (target.goal_cohort || '')) { patch.goal_plan = ''; patch.goal_plan_at = null; }
+  }
   await run(db().from('targets').update(patch).eq('id', target.id));
 
   if (newStage) {
@@ -210,6 +218,53 @@ async function getTargetJournal(body) {
     journal,
     stages: TARGET_STAGES,
   };
+}
+
+// ── 개강 인도 계획 (2026-10-20) ── 목표 개강 달까지 친분 → … → 센터(아카데미) 인도를 단계별 '흐름'으로.
+// 구체적인 대화·상황 피드백은 AI 상담 코너, 최종 계획은 담당 교관과 상의하도록 화면이 안내한다.
+
+const GOAL_RE = /^\d{4}-\d{2}$/;
+const FLOW = '친분 → 만남(1·2) → 상담(1·2) → 복음방 → 센터 소개 → 센터(아카데미) 인도';
+
+async function planCohortLead(body) {
+  const mid = str(body.memberId);
+  const targetId = str(body.targetId);
+  if (!mid || !targetId) return { error: 'memberId, targetId 가 필요합니다.' };
+  const target = await findTarget(targetId);
+  if (!target) return { error: '해당 대상자를 찾을 수 없습니다.' };
+  if (!owns(target, normId(mid))) return { error: '본인 담당의 전도 대상자가 아닙니다.' };
+  const goal = str(target.goal_cohort);
+  if (!GOAL_RE.test(goal)) return { error: '먼저 몇 월 개강으로 인도할지 체크해 주세요.' };
+
+  const today = kstDate();
+  const [gy, gm] = goal.split('-').map(Number);
+  const weeks = Math.max(0, Math.round((Date.UTC(gy, gm - 1, 1) - Date.parse(today + 'T00:00:00Z')) / (7 * 864e5)));
+  const recent = (await activitiesAbout(target))
+    .sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? 1 : -1)).slice(0, 6)
+    .map((a) => [`- ${fmtTs(a.submitted_at).slice(0, 10)} ${a.activities.join(', ')}`, a.target_stage && `(${a.target_stage})`,
+      a.today_work && `/ 한 일: ${a.today_work}`, a.next_work && `/ 다음: ${a.next_work}`].filter(Boolean).join(' '));
+
+  const prompt = [
+    `당신은 교회 전도 교사를 돕는 전도 코치입니다. 아래 대상자를 ${gm}월 개강 때 센터(아카데미)에 인도하도록 '흐름' 위주의 인도 계획을 설계하세요.`,
+    '',
+    `- 오늘: ${today} / 목표: ${gy}년 ${gm}월 개강(개강일은 그 달 초로 보고, 남은 기간 약 ${weeks}주)`,
+    `- 대상자: ${[target.gender, target.age_group].filter(Boolean).join(' ') || '정보 없음'} / 지금 단계: ${target.stage || '섭외'}`,
+    `- 단계 순서: ${FLOW}`,
+    '- 최근 기록:', ...(recent.length ? recent : ['- 아직 기록 없음']),
+    '',
+    '규칙:',
+    '1. 지금 단계부터 센터(아카데미) 인도까지 단계마다 "언제까지(날짜 또는 몇째 주)", "이 단계의 목표", "흐름 한두 줄"을 짧게 쓰세요. 이미 지난 단계는 쓰지 마세요.',
+    '2. 구체적인 대화 멘트나 세부 전술은 쓰지 마세요(그건 따로 상담합니다). 전체 흐름과 시기 배분에 집중하세요.',
+    '3. 남은 기간이 빠듯하면 솔직하게 말하고, 다음 개강으로 미루는 선택지도 한 줄로 알려 주세요.',
+    '4. 한국어, 900자 안팎. 반드시 아래 3개 마크다운 제목만 정확히 그대로 쓰세요:',
+    '## 🗺️ 전체 흐름', '## 📅 단계별 계획', '## ⚠️ 놓치기 쉬운 점',
+    '"단계별 계획" 안에서는 단계마다 "### 친분 — ~10/26" 처럼 소제목을 달고 그 아래 "- " 줄로 쓰세요.',
+  ].join('\n');
+
+  const text = await askAi(prompt);
+  const at = kstDateTime();
+  if (!text.startsWith('⚠️')) await run(db().from('targets').update({ goal_plan: text, goal_plan_at: at }).eq('id', target.id));
+  return { text, goalPlanAt: at };
 }
 
 /** 대상자를 영구 삭제한다 — 단계 이력과 그 대상자에 대한 담당자들의 활동 기록까지. */
@@ -299,5 +354,5 @@ async function getKeyStageCount() {
 export default {
   getTargetStageDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
-  getTargetJournal, deleteTarget,
+  getTargetJournal, deleteTarget, planCohortLead,
 };

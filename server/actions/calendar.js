@@ -65,11 +65,22 @@ async function getCalendarEvents(body) {
 }
 
 // ── 주간 서머리 (2026-10-19) ── 달력 한 줄(일~토)마다 '주간:' 이름과 메모. 보기는 누구나, 쓰기는 관리자(전도부).
+// 2026-10-20: 개강별 줄(items: 10월 개강 ○○ 주간 + 메모, 11월 …, 12월 …)과 따로 쓰는 메모 여러 칸(notes).
+//             예전 한 줄(theme·memo)만 있는 주는 개강 이름 없는 줄 하나로 보여 준다.
+
+const toItems = (v) => (Array.isArray(v) ? v : []).slice(0, 6)
+  .map((it) => ({ cohort: clip(it?.cohort, 20), theme: clip(it?.theme, 40), memo: clip(it?.memo, 1000) }))
+  .filter((it) => it.theme || it.memo);
+const toNotes = (v) => (Array.isArray(v) ? v : []).slice(0, 10).map((n) => clip(n, 1000)).filter(Boolean);
 
 async function allWeeks() {
   let rows = [];
   try { rows = await selectAll(() => db().from('calendar_weeks').select('*').order('week_start')); } catch (e) { return []; }   // 표가 아직 없으면(0021 적용 전) 달력은 그대로
-  return rows.map((w) => ({ weekStart: String(w.week_start).slice(0, 10), theme: w.theme, memo: w.memo, updatedBy: w.updated_by, updatedAt: fmtTs(w.updated_at) }));
+  return rows.map((w) => {
+    let items = toItems(w.items);
+    if (!items.length && (w.theme || w.memo)) items = [{ cohort: '', theme: w.theme, memo: w.memo }];
+    return { weekStart: String(w.week_start).slice(0, 10), items, notes: toNotes(w.notes), updatedBy: w.updated_by, updatedAt: fmtTs(w.updated_at) };
+  });
 }
 
 async function saveCalendarWeek(body) {
@@ -77,13 +88,13 @@ async function saveCalendarWeek(body) {
   if (!mid || !(await isAdmin(mid))) return { error: '주간 서머리는 관리자(전도부)만 쓸 수 있어요.' };
   const weekStart = clip(body.weekStart, 10);
   if (!isDate(weekStart) || new Date(weekStart + 'T00:00:00Z').getUTCDay() !== 0) return { error: '주 시작(일요일) 날짜가 올바르지 않아요.' };
-  const theme = clip(body.theme, 40), memo = clip(body.memo, 1000);
-  if (!theme && !memo) {   // 둘 다 비우면 지운다
+  const items = toItems(body.items), notes = toNotes(body.notes);
+  if (!items.length && !notes.length) {   // 다 비우면 지운다
     await run(db().from('calendar_weeks').delete().eq('week_start', weekStart));
     return { ok: true, removed: true };
   }
   const who = (await findTeacher(mid))?.name || clip(body.name, 20) || mid;
-  await run(db().from('calendar_weeks').upsert({ week_start: weekStart, theme, memo, updated_by: who, updated_at: kstDateTime() }, { onConflict: 'week_start' }));
+  await run(db().from('calendar_weeks').upsert({ week_start: weekStart, theme: '', memo: '', items, notes, updated_by: who, updated_at: kstDateTime() }, { onConflict: 'week_start' }));
   return { ok: true };
 }
 
