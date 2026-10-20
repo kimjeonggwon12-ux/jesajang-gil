@@ -617,7 +617,9 @@
     /* 2026-10-20: 개강별 줄(위아래로) + 따로 쓰는 메모 */
     .cal-wk-i + .cal-wk-i { margin-top:5px; padding-top:5px; border-top:1px dashed #F5C98A; }
     /* 2026-10-20: 개강 3칸 옆으로 — 칸마다 개강 머리(주황 띠) */
-    .cal-wk-cols { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; }
+    .cal-wk-cols { display:grid; grid-template-columns:auto repeat(3, minmax(0, 1fr)); gap:6px; }
+    .cal-wk-cols > .cal-wk-c:nth-child(3n+5) { grid-column-start:2; }   /* 개강이 4개 이상이면 둘째 줄도 제목 옆부터 */
+    .cal-wk-ttl { display:flex; align-items:center; justify-content:center; padding:6px 3px; border-radius:8px; background:#7A4B00; color:#fff; font-weight:800; font-size:12px; letter-spacing:2px; writing-mode:vertical-rl; text-orientation:upright; white-space:nowrap; }
     .cal-wk-c { min-width:0; border-radius:8px; background:#fff; border:1px solid #FBDCA8; overflow:hidden; }
     .cal-wk-h { padding:2px 6px; background:#E8590C; color:#fff; font-weight:800; font-size:12px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .cal-wk-b { padding:4px 6px 5px; }
@@ -4039,7 +4041,7 @@
       if (ws) for (const c of calWkCohorts(ws)) if (items.length < 3 && !items.some(it => it.cohort === c)) items.push({ cohort: c, theme: '', memo: '' });
       const cols = items.map(it => `<div class="cal-wk-c"><div class="cal-wk-h">${esc(it.cohort || '주간')}</div><div class="cal-wk-b">${it.theme ? `<div class="cal-wk-t"><b>주간:</b>${esc(it.theme)}</div>` : ''}${it.memo ? `<div class="cal-wk-m">${esc(it.memo)}</div>` : ''}${!it.theme && !it.memo ? '<div class="cal-wk-0">—</div>' : ''}</div></div>`);
       const notes = (w.notes || []).map(n => `<div class="cal-wk-i cal-wk-n">📝 ${esc(n)}</div>`);
-      return (cols.length ? `<div class="cal-wk-cols">${cols.join('')}</div>` : '') + notes.join('');
+      return (cols.length ? `<div class="cal-wk-cols"><div class="cal-wk-ttl" style="grid-row:1 / span ${Math.ceil(cols.length / 3)}">개강 소식</div>${cols.join('')}</div>` : '') + notes.join('');
     }
     // 이 주(수요일 기준) 달부터 개강 3개: 10월 주면 10월·11월·12월 개강
     const calWkCohorts = ws => { const [y, m, d] = ws.split('-').map(Number); const mid = new Date(y, m - 1, d + 3).getMonth(); return [0, 1, 2].map(k => `${(mid + k) % 12 + 1}월 개강`); };
