@@ -7299,24 +7299,22 @@
       const sec = (Number(p[0]) * 3600 + Number(p[1]) * 60 + Number(p[2] || 0)) - (Number(q[0]) * 3600 + Number(q[1]) * 60);
       return sec > 0 ? Math.max(1, Math.floor(sec / 60)) + '분 지각' : '';
     }
-    // 나의 교실 [출석] 탭 전체 — QR 출석 버튼, 출석·지각·결석 요약, 지난 모임 전부(예전엔 3개만 + [전체 보기])
+    // 나의 교실 [출석] 탭 전체 — QR 출석 버튼, 출석·지각 요약, 출석한 모임 전부
+    // 2026-10-22: 결석은 안 띄움 — 안 간 모임(대상 아닌 교육·동시에 열린 교육)은 목록에서 뺀다
     function attCardHtml() {
       const d = attSt.my;
       const byM = {}; if (d) d.records.forEach(r => { byM[r.meetingId] = r; });
-      const past = d ? d.meetings : [];
-      const rows = past.map(m => { const r = byM[m.meetingId]; return { m, r, late: attLateOf(m, r) }; });
-      const cnt = rows.filter(x => x.r).length, lateN = rows.filter(x => x.late).length;
-      const rate = past.length ? Math.round(cnt / past.length * 100) : 0;
+      const rows = (d ? d.meetings : []).filter(m => byM[m.meetingId]).map(m => { const r = byM[m.meetingId]; return { m, r, late: attLateOf(m, r) }; });
+      const cnt = rows.length, lateN = rows.filter(x => x.late).length;
       return `<div id="attCard" class="att-card">
           <div class="att-card-h"><b>모임 출석</b></div>
           <button type="button" class="att-scan-btn" onclick="attOpenScanner()">QR로 출석하기</button>
           ${!d ? '<div class="att-muted">불러오는 중...</div>'
-            : !past.length ? '<div class="att-muted">아직 출석 체크한 모임이 없어요. 모임에서 QR을 찍어 보세요.</div>'
-            : `<div class="att-sum"><div><b>${cnt - lateN}</b>정상 출석</div><div class="late"><b>${lateN}</b>지각</div><div class="no"><b>${past.length - cnt}</b>결석</div></div>
-               <div class="att-rate">모임 ${past.length}회 중 <b>${cnt}</b>회 출석 <span>(${rate}%)</span><i><em style="width:${rate}%"></em></i></div>
+            : !cnt ? '<div class="att-muted">아직 출석 체크한 모임이 없어요. 모임에서 QR을 찍어 보세요.</div>'
+            : `<div class="att-sum"><div><b>${cnt}</b>출석</div><div><b>${cnt - lateN}</b>정상 출석</div><div class="late"><b>${lateN}</b>지각</div></div>
                ${rows.map(({ m, r, late }) => `<div class="att-li">
-                 <div class="att-li-h"><b>${esc(m.title)}</b><span class="att-st ${!r ? 'no' : late ? 'late' : ''}">${!r ? '결석' : late ? esc(late) : '정상 출석'}</span></div>
-                 <div class="att-li-m">${esc(attWhen(m))}${attMeetLabel(m) ? ' · ' + esc(attMeetLabel(m)) : ''}${r ? ` · ${esc(r.at.slice(11, 16))} 출석${attPickText(r) ? ' · ' + esc(attPickText(r)) : ''}${(m.questions || []).filter(q => attAnsText(q, r.answers[q.id])).map(q => ` · ${esc(q.label)}: ${esc(attAnsText(q, r.answers[q.id]))}`).join('')}` : ''}</div>
+                 <div class="att-li-h"><b>${esc(m.title)}</b><span class="att-st ${late ? 'late' : ''}">${late ? esc(late) : '정상 출석'}</span></div>
+                 <div class="att-li-m">${esc(attWhen(m))}${attMeetLabel(m) ? ' · ' + esc(attMeetLabel(m)) : ''} · ${esc(r.at.slice(11, 16))} 출석${attPickText(r) ? ' · ' + esc(attPickText(r)) : ''}${(m.questions || []).filter(q => attAnsText(q, r.answers[q.id])).map(q => ` · ${esc(q.label)}: ${esc(attAnsText(q, r.answers[q.id]))}`).join('')}</div>
                </div>`).join('')}`}
         </div>`;
     }
@@ -7325,9 +7323,9 @@
       const d = attSt.my; if (!d) return;
       const byM = {}; d.records.forEach(r => { byM[r.meetingId] = r; });
       openSheet(`<div class="att-sheet"><div class="att-title">📋 내 모임 출석</div>
-        ${d.meetings.map(m => { const r = byM[m.meetingId]; return `<div class="att-item">
-          <div class="att-row" style="padding:0"><span class="att-dot ${r ? 'on' : ''}">${r ? '✓' : '–'}</span><span class="att-row-t"><b>${esc(m.title)}</b> ${attOrgTag(m)}</span><time>${esc(attWhen(m))}</time></div>
-          ${r ? `<div class="att-muted" style="margin:4px 0 0 30px">${esc(r.at.slice(5, 16).replace('-', '/'))} 출석${attPickText(r) ? ' · ' + esc(attPickText(r)) : ''}${(m.questions || []).filter(q => attAnsText(q, r.answers[q.id])).map(q => ` · ${esc(q.label)}: ${esc(attAnsText(q, r.answers[q.id]))}`).join('')}</div>` : '<div class="att-muted" style="margin:4px 0 0 30px">결석</div>'}
+        ${d.meetings.filter(m => byM[m.meetingId]).map(m => { const r = byM[m.meetingId]; return `<div class="att-item">
+          <div class="att-row" style="padding:0"><span class="att-dot on">✓</span><span class="att-row-t"><b>${esc(m.title)}</b> ${attOrgTag(m)}</span><time>${esc(attWhen(m))}</time></div>
+          <div class="att-muted" style="margin:4px 0 0 30px">${esc(r.at.slice(5, 16).replace('-', '/'))} 출석${attPickText(r) ? ' · ' + esc(attPickText(r)) : ''}${(m.questions || []).filter(q => attAnsText(q, r.answers[q.id])).map(q => ` · ${esc(q.label)}: ${esc(attAnsText(q, r.answers[q.id]))}`).join('')}</div>
         </div>`; }).join('')}</div>`);
     }
 

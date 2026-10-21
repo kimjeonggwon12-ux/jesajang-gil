@@ -401,7 +401,9 @@ async function getMyAttendance(body) {
   const nid = normId(body.memberId);
   const today = kstDate();
   const [meetings, records] = await Promise.all([loadMeetings(), loadRecords((q) => q.eq('nid', nid))]);
-  return { meetings: meetings.filter((m) => m.date <= today).map(toPublic), records };
+  // 2026-10-22: 개인 화면엔 출석한 모임만 — 안 간 모임을 '결석'으로 띄우지 않는다(대상 아닌 교육·동시에 열리는 교육이 많음)
+  const came = new Set(records.map((r) => r.meetingId));
+  return { meetings: meetings.filter((m) => m.date <= today && came.has(m.meetingId)).map(toPublic), records };
 }
 
 /** 설문 질문 다듬기: 20개까지, 선택형은 보기가 있어야 한다. */
