@@ -1399,6 +1399,8 @@
        유틸리티 의존을 줄여 나중에 손대기 쉽게).
        ════════════════════════════════════════════════════════════════════ */
     #loginPanel { position: fixed; inset: 0; z-index: 100; overflow: hidden; background: #fff; }
+    #loginPanel.pd-leave { opacity: 0; transition: opacity .42s ease; pointer-events: none; }   /* 2026-10-22: 앱 위에서 표지만 걷힘 */
+    #loginPanel.pd-leave .bk-stage { transform: scale(1.12); transition: transform .45s cubic-bezier(.55,0,.75,.3); }
     .pd-screen { position: absolute; inset: 0; display: flex; flex-direction: column; transition: opacity .6s ease-in-out; }
     .pd-screen.pd-hide { opacity: 0; pointer-events: none; z-index: -1; }
 
@@ -1424,11 +1426,11 @@
     .bk-bloom { position: absolute; left: 50%; top: calc(var(--bh) * .615); width: calc(var(--bw) * 1.6); height: calc(var(--bw) * 1.6); translate: -50% -50%;
       border-radius: 50%; pointer-events: none; z-index: 6; opacity: 0; scale: .3; mix-blend-mode: screen;
       background: radial-gradient(circle, rgba(255,246,225,.95) 0%, rgba(255,214,150,.55) 22%, rgba(255,200,130,0) 60%); }
-    .bk-gather .bk-bloom { animation: bkBloom 2.4s linear 1.4s forwards; }
+    .bk-gather .bk-bloom { animation: bkBloom 2s linear .95s forwards; }
     @keyframes bkBloom { 0% { opacity: 0; scale: .35; } 25% { opacity: 1; scale: .95; } 100% { opacity: 0; scale: 1.35; } }
 
     .bk-book { position: relative; width: var(--bw); height: var(--bh); opacity: 0; scale: .94; filter: blur(5px) brightness(1.25);
-      transition: opacity 1.1s ease .45s, scale 1.4s cubic-bezier(.22,1,.36,1) .45s, filter 1.3s ease .45s; }
+      transition: opacity .9s ease .3s, scale 1.15s cubic-bezier(.22,1,.36,1) .3s, filter 1.05s ease .3s; }
     .bk-gather .bk-book { opacity: 1; scale: 1; filter: none; }
     /* 책상에 드리운 그림자(오른쪽 면 아래). 왼쪽 면 그림자는 표지 안쪽(.bk-endpaper)이 스스로 가짐 — 책은 좌우로 움직이지 않음 */
     .bk-shadow { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 4px;
@@ -1443,7 +1445,7 @@
     .bk-cover { z-index: 5; } .bk-base { z-index: 1; }
     /* 표지: 살짝 들렸다(0.5s) 머뭇거린 뒤 천천히 넘어감 */
     /* 한 곡선으로 — 서서히 출발해 흐르듯 넘어가고 끝에서 부드럽게 내려앉음(구간을 나누면 구간마다 멈칫함) */
-    .bk-open .bk-cover { animation: bkCoverOpen 3.2s cubic-bezier(.5,0,.3,1) forwards; }
+    .bk-open .bk-cover { animation: bkCoverOpen 2.6s cubic-bezier(.5,0,.3,1) forwards; }
     /* 2026-10-08: 출석 QR로 처음 온 사람 — 움직임 없이 마지막 모습(펼친 책 + 입장 카드) 바로 */
     #pdSplash.bk-instant, #pdSplash.bk-instant * , #pdSplash.bk-instant *::before, #pdSplash.bk-instant *::after { transition: none !important; animation: none !important; }
     #pdSplash.bk-instant .bk-cover { transform: perspective(2200px) rotateY(-180deg); }
@@ -1466,8 +1468,8 @@
       background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,.05) 60%, rgba(255,255,255,.08) 75%, rgba(0,0,0,0)); }
     /* 넘어가는 동안 표지 앞은 점점 어두워지고(빛에서 멀어짐), 안쪽 면지는 어두웠다 밝아짐 */
     .bk-cover .bk-front::after, .bk-cover .bk-back::after { content: ''; position: absolute; inset: 0; background: #1A120A; opacity: 0; pointer-events: none; z-index: 4; }
-    .bk-open .bk-cover .bk-front::after { animation: bkShadeF 3.2s cubic-bezier(.5,0,.3,1) forwards; }
-    .bk-open .bk-cover .bk-back::after { animation: bkShadeB 3.2s cubic-bezier(.5,0,.3,1) forwards; }
+    .bk-open .bk-cover .bk-front::after { animation: bkShadeF 2.6s cubic-bezier(.5,0,.3,1) forwards; }
+    .bk-open .bk-cover .bk-back::after { animation: bkShadeB 2.6s cubic-bezier(.5,0,.3,1) forwards; }
     @keyframes bkShadeF { 0% { opacity: 0; } 100% { opacity: .6; } }
     @keyframes bkShadeB { 0% { opacity: .5; } 100% { opacity: 0; } }
     .bk-ctitle { position: absolute; left: 13%; top: 10%; z-index: 2; font-family: 'Noto Serif KR', serif; font-size: calc(var(--bw) * .062); font-weight: 600;
@@ -1485,14 +1487,14 @@
     .bk-r { border-radius: 1px 5px 5px 1px; box-shadow: inset 16px 0 20px -14px rgba(90,45,20,.35); }
     .bk-quote { position: absolute; left: 10%; right: 10%; top: 15%; margin: 0; font-size: calc(var(--bw) * .047); font-weight: 400; line-height: 1.95; letter-spacing: -.01em; color: #3A302A; }
     .bk-win-txt { position: absolute; left: 9%; right: 9%; top: 56%; height: 11%; display: flex; align-items: center; justify-content: center; }
-    .bk-win-txt::before { content: ''; position: absolute; inset: 0; box-shadow: inset 3px 4px 6px rgba(40,20,5,.32); transition: opacity 1.4s ease .2s; }
+    .bk-win-txt::before { content: ''; position: absolute; inset: 0; box-shadow: inset 3px 4px 6px rgba(40,20,5,.32); transition: opacity 1.1s ease .15s; }
     .bk-open .bk-win-txt::before { opacity: 0; }
     .bk-win-txt span { font-family: 'Noto Serif KR', serif; font-size: calc(var(--bw) * .052); font-weight: 600; line-height: 1.2; letter-spacing: .02em; color: #2E2722; white-space: nowrap; text-align: center; }
     .bk-sign { position: absolute; left: 0; right: 0; top: 29%; font-family: 'Liu Jian Mao Cao', 'Noto Serif KR', serif; font-size: calc(var(--bw) * .18); line-height: 1;
       color: #241E1A; rotate: -7deg; opacity: .92; }
     /* 표지가 넘어갈 때 첫 장 위를 스치는 그림자 */
     .bk-cast { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(90deg, rgba(50,25,10,.4), rgba(50,25,10,0) 75%); }
-    .bk-open .bk-cast { animation: bkCast 3.2s cubic-bezier(.5,0,.3,1) forwards; }
+    .bk-open .bk-cast { animation: bkCast 2.6s cubic-bezier(.5,0,.3,1) forwards; }
     @keyframes bkCast { 0% { opacity: .85; } 100% { opacity: 0; } }
     /* 표지 안쪽(왼쪽 면) — 살구색 면지 + 창 구멍(책상이 보임) */
     .bk-endpaper { -webkit-mask: linear-gradient(#000 0 0) 0 0 / 100% 100% no-repeat, linear-gradient(#000 0 0) 50% 62.92% / 82% 11% no-repeat;
@@ -1501,7 +1503,7 @@
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' stitchTiles='stitch' baseFrequency='1.1' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .4 0 0 0 0 .2 0 0 0 0 .1 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E"); }
     .bk-back-shadow { border-radius: 5px 1px 1px 5px; box-shadow: -6px 18px 30px rgba(70,52,32,.22); }   /* 펼친 왼쪽 면이 책상에 드리우는 그림자 */
 
-    .pd-brand { position: relative; z-index: 1; text-align: center; margin-top: 18px; opacity: 0; translate: 0 8px; transition: opacity 1.2s ease, translate 1.2s cubic-bezier(.22,1,.36,1); }
+    .pd-brand { position: relative; z-index: 1; text-align: center; margin-top: 18px; opacity: 0; translate: 0 8px; transition: opacity 1s ease, translate 1s cubic-bezier(.22,1,.36,1); }
     .bk-title .pd-brand { opacity: 1; translate: 0 0; }
     #pdSplash .pd-title { font-size: 24px; font-weight: 800; color: #2B2622; letter-spacing: -0.04em; margin: 0; white-space: nowrap; }
     #pdSplash .pd-tagline { margin: 6px 0 0; font-size: 13px; font-weight: 500; color: #7A6F63; letter-spacing: -0.01em; }
@@ -2493,7 +2495,7 @@
     .cn-ftg.on, .cn-ftg.has { border-color:#00AE82; color:#00936E; }
     .cn-ftg em { font-style:normal; display:inline-flex; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#00AE82; color:#fff; font-size:11px; align-items:center; justify-content:center; }
     .cn-fbox { margin-top:8px; padding:10px; border:1px solid #EDEDED; border-radius:12px; background:#FAFAFA; }
-    /* 2026-10-14: 코너별 운영 담당 문의 칩(회색 작은 알약) + 내 부서 담당 고정 표시 — CTC_PARTS / ctcChip / renderDeptCtc */
+    /* 2026-10-14: 코너별 운영 담당 문의 칩(회색 작은 알약) — CTC_PARTS / ctcChip (10/22 부서 담당 고정 표시는 뺌) */
     /* 2026-10-15: 더 잘 보이게(초록 테두리·진한 글자·전화 아이콘) + 누르면 전화·문자·텔레그램 고르기(ctcOpen) */
     .ctc { display:inline-flex; align-items:center; gap:5px; flex-shrink:0; height:30px; padding:0 12px; border-radius:999px; background:#E6F7F1; border:1.5px solid #00AE82; color:#00775A; font-size:13px; font-weight:600; line-height:1; white-space:nowrap; text-decoration:none; cursor:pointer; font-family:inherit; }
     .ctc i { font-style:normal; font-weight:800; color:#00936E; }
@@ -2502,10 +2504,6 @@
     button.ctc:active { background:#CCEFE3; }
     .ctc-bar { display:flex; justify-content:flex-end; padding:8px 16px 0; }
     .ctc-bar:empty { display:none; }
-    #deptCtc { position:fixed; left:12px; bottom:calc(72px + env(safe-area-inset-bottom, 0px)); z-index:25; display:none; align-items:center; gap:6px; max-width:calc(100% - 24px); height:34px; padding:0 13px; border-radius:999px; background:#fff; border:1.5px solid #00AE82; box-shadow:0 3px 10px rgba(0,0,0,.14); color:#00775A; font-size:13px; font-weight:600; white-space:nowrap; cursor:pointer; font-family:inherit; }
-    #deptCtc.on { display:inline-flex; }
-    #deptCtc b { color:#064E3B; font-weight:800; }
-    #deptCtc svg { width:14px; height:14px; flex-shrink:0; }
     #ctcMenu { position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.4); display:flex; align-items:flex-end; justify-content:center; }
     /* 2026-10-15: 번호 옆 전화·문자·텔레그램 단추(telActsHtml) — 작은 알약, 명함 상세(.tel-big)에서는 큰 단추 3개 */
     .tel-acts { display:inline-flex; flex-wrap:wrap; gap:5px; vertical-align:middle; }
@@ -2525,8 +2523,6 @@
     .pz-cmt-name[data-pz-who] { cursor:pointer; }
     .pz-cmt-name[data-pz-who]::after { content:' ✈️'; font-size:11px; }
     #ctcMenu .ctc-close { width:100%; margin-top:10px; height:44px; border:0; border-radius:12px; background:#fff; color:#888; font-size:15px; font-weight:700; font-family:inherit; }
-    html.pz-dk #deptCtc { bottom:16px; }
-    body:has(#pzOverlayHost > *) #deptCtc, body:has(.pz-mz) #deptCtc { display:none; }
   </style>
   <!-- 2026-10-07 속도 개선: 미리 만든 Tailwind CSS(v3.4.17). 예전 CDN이 head 맨 끝에 스타일을 넣던 것과 같은 자리라 우선순위 동일. 새 Tailwind class를 쓰면 tw.css를 다시 만들어야 함(만드는 법은 tw.css 첫 줄) -->
   <link rel="stylesheet" href="tw.css?v=1">
@@ -2983,10 +2979,9 @@
     function warmFirstScreen(memberId) {
       const list = [{ action: 'getCalendarAds' }, { action: 'getAdQuestions' }];
       if (memberId) {
-        list.push({ action: 'checkAdmin', memberId }, { action: 'getCalendarEvents', memberId });
-        let page = 'board';
-        try { page = localStorage.getItem('pz_page') || 'board'; } catch (e) {}
-        if (page === 'board') list.push({ action: 'listPlazaPosts', memberId, category: '전도부', keyword: '', offset: 0, limit: 50 });
+        // 2026-10-22: 첫 화면 = 나의교실 › 내 활동 — loadHome()이 부르는 6가지와 같은 요청
+        list.push({ action: 'checkAdmin', memberId });
+        ['getMyTierStatus', 'getMyActivities', 'getMyGospelLeads', 'getMyCenterLeads', 'getMyTargets', 'getMyEncouragements'].forEach(action => list.push({ action, memberId }));
       }
       try { warmUp(list); } catch (e) {}
     }
@@ -3199,11 +3194,11 @@
     }
 
     /** 실제 입장 — 세션 변수 4개를 채우고 앱 화면으로 전환한다(기존 로직 그대로). */
-    function pdEnter(id, nm) {
+    function pdEnter(id, nm, keepCover) {   // keepCover: 표지를 바로 숨기지 않음(부른 쪽이 걷어 냄)
       try { document.querySelector('meta[name="theme-color"]').content = '#00AE82'; } catch (e) {}   // 표지(책상 색) → 앱(초록)
       App.memberId = id; App.name = nm;
       MEMBER_ID = id; MY_NAME = nm; memberId = id; name = nm;
-      document.getElementById('loginPanel').style.display = 'none';
+      if (!keepCover) document.getElementById('loginPanel').style.display = 'none';
       document.getElementById('appPanel').style.display = 'flex';
       try { sessionStorage.setItem('pd_in', '1'); } catch (e) {}   // 이 창에서 이미 들어와 있음 → 새로 고침하면 표지 없이 보던 탭으로
       Back.enter();
@@ -3286,7 +3281,7 @@
       const tx = bk.left - st.left + bk.width / 2, ty = bk.top - st.top + bk.height * .615;
       const ps = Array.from({ length: 64 }, () => {
         const a = Math.random() * Math.PI * 2, r = 210 + Math.random() * 280;
-        return { a, r, s: 1.2 + Math.random() * 2.6, d: Math.random() * 380, t: 1350 + Math.random() * 500, tw: (Math.random() < .5 ? -1 : 1) * (0.9 + Math.random() * 0.8) };
+        return { a, r, s: 1.2 + Math.random() * 2.6, d: Math.random() * 300, t: 1100 + Math.random() * 400, tw: (Math.random() < .5 ? -1 : 1) * (0.9 + Math.random() * 0.8) };
       });
       const t0 = performance.now();
       const frame = now => {
@@ -3315,7 +3310,7 @@
       sp.classList.remove('bk-gather', 'bk-open', 'bk-title', 'bk-enter');
       void sp.offsetWidth;
       pdBookDone = done || null;
-      const steps = [['bk-gather', 30], ['bk-open', 1750], ['bk-title', 3300]];
+      const steps = [['bk-gather', 30], ['bk-open', 1050], ['bk-title', 2350]];   // 2026-10-22: 빛 모임과 책 열림을 겹치고 약 1.2배 빠르게
       if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
         steps.forEach(([c]) => sp.classList.add(c));
         if (done) PD_BOOK_TIMERS.push(setTimeout(pdFinishBook, 900));
@@ -3323,7 +3318,7 @@
       }
       if (!sp.classList.contains('bk-instant')) pdSparks(sp);
       steps.forEach(([c, ms]) => PD_BOOK_TIMERS.push(setTimeout(() => sp.classList.add(c), ms)));
-      if (done) PD_BOOK_TIMERS.push(setTimeout(pdFinishBook, doneAt || 4200));
+      if (done) PD_BOOK_TIMERS.push(setTimeout(pdFinishBook, doneAt || 3100));
     }
     function pdFinishBook() {
       PD_BOOK_TIMERS.splice(0).forEach(clearTimeout);
@@ -3462,11 +3457,14 @@
         warmFirstScreen(saved.memberId);   // 표지가 도는 동안 첫 화면 자료를 미리 받는다
         const splash = document.getElementById('pdSplash');
         splash.onclick = () => { splash.onclick = null; pdFinishBook(); };
+        // 2026-10-22: 크림색으로 덮었다가(빈 화면) 앱을 띄우던 것을 → 앱을 먼저 깔고 표지만 걷어 냄(바로 첫 화면)
         pdPlayBook(() => {
           splash.onclick = null;
-          splash.classList.add('bk-enter');
-          setTimeout(() => pdEnter(saved.memberId, saved.name), 700);
-        }, 4700);
+          pdEnter(saved.memberId, saved.name, true);
+          const panel = document.getElementById('loginPanel');
+          panel.classList.add('pd-leave');
+          setTimeout(() => { panel.style.display = 'none'; panel.classList.remove('pd-leave'); }, 450);
+        }, 3300);
         return;
       }
       if (qrAttend) document.getElementById('pdSplash').classList.add('bk-instant');
@@ -3491,7 +3489,7 @@
         }
         // PC에서만 바로 입력칸에 커서(휴대폰은 키보드가 표지를 가려서 누를 때 뜨게)
         if (window.innerWidth >= 1024 && !preview) setTimeout(() => { const el = document.getElementById('name'); if (el) el.focus(); }, 300);
-      }, 4100);
+      }, 3050);
       if (qrAttend) pdFinishBook();   // 출석 QR로 처음 온 사람: 표지를 펼친 모습으로 바로 두고 입장 카드부터
     }
 
@@ -3750,11 +3748,6 @@
       edu:     { name: '모현아', phone: '010-9229-2035' },   // ⑧ 교육 자료
       dev:     { name: '김정권', phone: '010-8212-0329' },   // ① 개발·시스템
     };
-    // 부서 담당 — 내 소속 부서면 왼쪽 아래에 늘 보임
-    const CTC_DEPTS = [
-      ['교역자', '박정민 지파전도부장', '010-7417-1234'], ['자문회', '곽운신 전도부장', '010-9330-1470'], ['장년회', '전미정 전도부장', '010-8435-7091'],
-      ['부녀회', '서숙영 전도부장', '010-2429-3196'], ['청년회', '권희령 전도부장', '010-8428-9044'],
-    ];
     const CTC_PHONE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
     const ctcAttr = (s) => esc(s).replace(/'/g, '&#39;');
     function ctcChip(key) {
@@ -3802,16 +3795,6 @@
       if (onCard) onCard();
     }
     function ctcSet(id, key) { const el = document.getElementById(id); if (el) el.innerHTML = key ? ctcChip(key) : ''; }
-    function renderDeptCtc(dept) {
-      const d = String(dept || '');
-      const hit = CTC_DEPTS.find(([k]) => d.includes(k) || (k === '자문회' && d.includes('자문')) || (k === '교역자' && d.includes('교역')));
-      let el = document.getElementById('deptCtc');
-      if (!hit) { if (el) el.classList.remove('on'); return; }
-      if (!el) { el = document.createElement('button'); el.type = 'button'; el.id = 'deptCtc'; document.body.appendChild(el); }
-      el.innerHTML = `${CTC_PHONE_SVG}${esc(hit[0])} 담당 <b>${esc(hit[1])}</b> ${esc(hit[2])}`;
-      el.onclick = () => ctcOpen(hit[1], hit[2]);
-      el.classList.add('on');
-    }
     // 고정 자리(교사광장 '전도 일정'·'앱 이름 공모' 머리, 연결 탭) — 바뀌는 자리는 pzOnPage·renderHome에서
     ctcSet('pzCalCtc', 'cal'); ctcSet('pzContestCtc', 'story'); ctcSet('cnCtc', 'connect');
     function renderMeChips() {
@@ -3829,7 +3812,6 @@
         chip.innerHTML = html;
         chip.style.display = html ? '' : 'none';
       });
-      if (!EMBED_PLAZA) renderDeptCtc(r.dept || a.dept);   // 교사명단 소속 부서 우선(관리자 명단 부서는 맡은 부서일 수 있음)
     }
 
     function isAdmin() {
@@ -4012,7 +3994,8 @@
       if (App.resume) { App.resume = false; if (TAB_IDS.includes(h)) { switchTab(h, true); return; } }
       // 2026-10-06(사용자 요청): 들어가면 항상 광장. 주소의 #탭은 지난번에 보던 화면이 남은 것이라 무시하고,
       // 옛 관리자 페이지가 보내는 #admin 링크만 그대로 따른다.
-      switchTab(h === 'admin' ? 'admin' : 'calendar', true);
+      // 2026-10-22(사용자 요청): 첫 화면 = 나의교실 › 내 활동(활동 기록을 늘 먼저 보게)
+      switchTab(h === 'admin' ? 'admin' : 'activity', true);
       const sc = document.getElementById('appSections'); if (sc) sc.scrollTop = 0;
     }
     // 2026-09-22: 섹션 간 인계 — 예전엔 iframe 에 ?chatWith=/?heartsStage= 같은 URL 파라미터를
@@ -7093,8 +7076,8 @@
           <div data-ap="attend">${attCardHtml()}</div>
           <div data-ap="goal">${goalPageHtml()}</div>
           <div data-ap="targets">
-            ${glBannerHtml(true)}
             ${actHeroHtml()}
+            ${glBannerHtml(true)}
             ${encouragementBannerHtml()}
             ${coachReplyBannerHtml()}
             ${myActivityViewHtml()}
@@ -7491,7 +7474,7 @@
     // 2026-10-10: 나의 교실도 광장처럼 2단계 탭으로 나눔(한 화면에 길게 늘어놓지 않음)
     // 2026-10-10(2차): 출석(QR·출석 현황) / 내 활동(등급·인교섬협 요약·전도 대상자) / 활동 기록
     // 2026-10-20: '🎯 개강 인도'(개강 인도 계획)— 주황 칸으로 늘 눈에 띄게(.hot)
-    const ACT_PAGES = [['attend', '출석'], ['targets', '내 활동'], ['history', '활동 기록'], ['goal', '🎯 개강 인도'], ['edu', '이수 교육']];   // 2026-10-20(사용자) 순서: 출석·내 활동·활동 기록·개강 인도·이수 교육   // 이수 교육 = 예전 교재 탭의 '이수교육'
+    const ACT_PAGES = [['attend', '출석'], ['targets', '내 활동'], ['history', '기록 보기'], ['goal', '🎯 개강 인도'], ['edu', '이수 교육']];   // 2026-10-20(사용자) 순서: 출석·내 활동·활동 기록·개강 인도·이수 교육   // 이수 교육 = 예전 교재 탭의 '이수교육'
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
@@ -7505,7 +7488,7 @@
       try { await apiSWR({ action: 'getRequiredEducation', memberId: App.memberId }, r => { if (r && !r.error) { tbState.reqEdu = r; actEduSt.done = true; actEduRender(); } }); } catch (e) {}
       actEduSt.done = true; actEduSt.busy = false; actEduRender();
     }
-    let actPage = 'attend';
+    let actPage = 'targets';   // 2026-10-22: 들어오면 내 활동부터
     function renderActTabs() {
       const el = document.getElementById('actTabs'); if (!el) return;
       el.innerHTML = ACT_PAGES.map(([k, l]) => `<button type="button" class="${k === actPage ? 'on' : ''}${k === 'goal' ? ' hot' : ''}" onclick="actSetPage('${k}')">${l}</button>`).join('');
