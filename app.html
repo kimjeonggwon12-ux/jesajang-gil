@@ -2297,6 +2297,63 @@
     .gl-pick { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 12px; border-radius:12px; background:#fff; border:1px solid #EDEDED; }
     .gl-pick-n { flex:1 0 auto; font-size:15px; font-weight:800; }
     .gl-pick-n i { margin-left:4px; font-style:normal; font-size:12px; font-weight:700; color:#00A37A; }
+    /* 2026-10-22 SWOT 분석(나의교실 › 활동 기록 › 📊 SWOT 분석) */
+    .sw-sub { padding:0 16px; }
+    .sw-intro { padding:12px 14px; border-radius:12px; background:#F0F7FF; border:1px solid #D3E5FB; font-size:13.5px; line-height:1.6; color:#33475B; }
+    .sw-intro b { color:#1D4ED8; }
+    .sw-intro span { font-weight:800; color:#111; }
+    .sw-who { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+    .sw-who::-webkit-scrollbar { display:none; }
+    .sw-who button { flex-shrink:0; height:34px; padding:0 12px; border-radius:999px; border:1.5px solid #E5E7EB; background:#fff; color:#4B5563; font-size:14px; font-weight:800; white-space:nowrap; }
+    .sw-who button.on { background:#1D4ED8; border-color:#1D4ED8; color:#fff; }
+    .sw-who i { font-style:normal; font-size:12px; color:#00A37A; }
+    .sw-who i.d { color:#E8590C; }
+    .sw-who button.on i { color:#fff; }
+    .sw-card { padding:14px; border-radius:14px; background:#fff; border:1.5px solid #D3E5FB; display:flex; flex-direction:column; gap:10px; }
+    .sw-at { margin-left:auto; font-size:11.5px; color:#9CA3AF; white-space:nowrap; }
+    .sw-step { margin-top:4px; font-size:15px; font-weight:900; color:#111; }
+    .sw-step small { margin-left:6px; font-size:12px; font-weight:600; color:#9CA3AF; }
+    .sw-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .sw-f, .sw-c { display:flex; flex-direction:column; gap:4px; min-width:0; padding:9px; border-radius:12px; border:1px solid #E5E7EB; background:#F8FAFC; }
+    .sw-f-h { display:flex; align-items:baseline; gap:6px; }
+    .sw-f-h b { font-size:14.5px; font-weight:900; color:#374151; }
+    .sw-f-h em { font-style:normal; font-size:11.5px; font-weight:800; opacity:.75; }
+    .sw-hint { font-size:11.5px; line-height:1.4; color:#6B7280; }
+    .sw-f textarea, .sw-c textarea { width:100%; min-height:76px; padding:7px 8px; border-radius:8px; border:1px solid rgba(0,0,0,.12); background:#fff; font-size:14px; line-height:1.45; resize:vertical; }
+    .sw-f-s { background:#E9F8F2; border-color:#BFE9D9; } .sw-f-s .sw-f-h b, .sw-f-s em { color:#00A37A; }
+    .sw-f-w { background:#FFF4EC; border-color:#FFD2B3; } .sw-f-w .sw-f-h b, .sw-f-w em { color:#D9480F; }
+    .sw-f-o { background:#EEF5FF; border-color:#C9DCFA; } .sw-f-o .sw-f-h b, .sw-f-o em { color:#1D4ED8; }
+    .sw-f-t { background:#FFF0F0; border-color:#F9C9C9; } .sw-f-t .sw-f-h b, .sw-f-t em { color:#C92A2A; }
+    @media (max-width:479px) { .sw-grid.sw-strat { grid-template-columns:1fr; } }
+    .sw-c.rec { border:2px solid #1D4ED8; background:#F0F7FF; padding:8px; }
+    .sw-c.rec .sw-f-h::after { content:'추천'; margin-left:auto; padding:1px 7px; border-radius:999px; background:#1D4ED8; color:#fff; font-size:11px; font-weight:800; }
+    .sw-pairs { display:flex; flex-wrap:wrap; gap:4px; }
+    .sw-pairs:empty { display:none; }
+    .sw-pairs button { max-width:100%; padding:4px 8px; line-height:1.3; text-align:left; word-break:keep-all; border-radius:8px; border:1px dashed #93B4E8; background:#fff; color:#1D4ED8; font-size:11.5px; font-weight:700; }
+    .sw-res { padding:14px; border-radius:12px; background:#F0F7FF; border:1px solid #C9DCFA; font-size:13.5px; line-height:1.55; color:#1F2937; }
+    .sw-res-empty { color:#6B7280; text-align:center; }
+    .sw-res-h { font-size:12px; font-weight:800; color:#1D4ED8; }
+    .sw-res-h i { font-style:normal; color:#9CA3AF; }
+    .sw-res-p { margin-top:4px; display:flex; align-items:center; gap:8px; }
+    .sw-res-p b { font-size:18px; font-weight:900; color:#111; }
+    .sw-tag { padding:2px 8px; border-radius:6px; background:#1D4ED8; color:#fff; font-size:12px; font-weight:800; white-space:nowrap; }
+    .sw-res-s { margin-top:6px; }
+    .sw-bal { margin-top:8px; display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12.5px; color:#4B5563; }
+    .sw-bal b { color:#111; }
+    .sw-res-q { margin-top:10px; padding:10px; border-radius:10px; background:#fff; border:1px solid #DCE7F7; }
+    .sw-res-q div { margin-bottom:2px; font-size:12px; font-weight:800; color:#1D4ED8; }
+    .sw-res-tip { margin-top:10px; padding:8px 10px; border-radius:10px; background:#FFF7E6; color:#7C4A03; font-size:13px; }
+    .sw-todo { margin:10px 0 0; padding-left:18px; list-style:disc; color:#B45309; font-size:12.5px; }
+    .sw-ok { margin-top:10px; color:#00A37A; font-weight:800; font-size:13px; }
+    .sw-next { padding:12px; border-radius:12px; background:#F8FAFC; border:1px solid #E5E7EB; display:flex; flex-direction:column; gap:6px; }
+    .sw-next-h { font-size:14px; font-weight:900; }
+    .sw-next-r { display:flex; gap:6px; }
+    .sw-next select, .sw-next input { min-width:0; height:40px; padding:0 8px; border-radius:8px; border:1px solid #D1D5DB; background:#fff; font-size:14px; }
+    .sw-next-r > * { flex:1; }
+    .sw-btns { display:flex; gap:6px; }
+    .sw-btns button { flex:1; min-width:0; height:46px; padding:0 4px; border-radius:12px; border:1.5px solid #1D4ED8; background:#fff; color:#1D4ED8; font-size:14px; font-weight:900; white-space:nowrap; }
+    .sw-btns .sw-save { flex:1.2; background:#1D4ED8; color:#fff; }
+    .sw-btns button:disabled { opacity:.6; }
     .gl-chips { display:flex; gap:6px; }
     .gl-chips button { height:32px; padding:0 10px; border-radius:999px; border:1.5px solid #FFC9A6; background:#FFF7F2; color:#D9480F; font-size:13px; font-weight:800; }
     .gl-detail { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:52px; padding:0 16px; border-radius:14px; border:none; background:linear-gradient(135deg, #FF7A3D, #E8590C); color:#fff; font-size:15.5px; font-weight:900; text-align:left; box-shadow:0 6px 16px -8px rgba(232,89,12,.9); }
@@ -7037,7 +7094,7 @@
             <div class="act-divider"></div>
             ${targetsSectionHtml()}
           </div>
-          <div data-ap="history">${activityHistorySectionHtml()}</div>
+          <div data-ap="history">${histSubTabsHtml()}${histSub === 'swot' ? swPageHtml() : activityHistorySectionHtml()}</div>
           <div data-ap="edu"><div id="lcEduCard"></div><div class="act-edu-prep">🚧 <b>아래 교육 이수 내용은 준비 중이에요.</b><br>교육 과정과 이수 기록을 정리해서 곧 보여 드릴게요.</div><div id="actEduBody" class="p-4"></div></div>
         </div>
         <button type="button" id="act-fab" class="act-fab" title="활동 기록 남기기" aria-label="활동 기록 남기기">
@@ -7187,6 +7244,188 @@
       const t = glTarget(id);
       home.view = 'dashboard'; actPage = 'goal'; renderHome();
       glFocus(t && t.goalCohort ? id : '');
+    };
+
+    // ════════════════════════════════════════════════════════════════
+    // 2026-10-22 SWOT 분석 — 사용자: "활동 기록 칸에 하단 탭으로 SWOT 작성. 섭외자에 대한 SWOT 틀을 내부·외부,
+    //   매트릭스 셀별 전략까지 쓰게 하고, 틀에 맞게 쓰면 적당한 답이 도출되게"(1안 = AI 없이 규칙으로 정리).
+    //   섭외자 한 명당 한 장 → targets.swot(jsonb, 서버 cleanSwot). 정리 = 강점:약점·기회:위협 개수로 추천 전략 칸
+    //   + 지금 단계 도움말 + 빈칸 안내. 전략 칸 위 '짝' 단추 = 강점×기회 등 두 항목을 한 줄로 넣어 줌.
+    // ════════════════════════════════════════════════════════════════
+    let histSub = 'log';   // 활동 기록 안 탭: 'log' 기록 / 'swot' SWOT 분석
+    window.histSetSub = function (k) { histSub = k; renderHome(); };
+    function histSubTabsHtml() {
+      return `<div class="l3 sw-sub">${[['log', '📝 기록'], ['swot', '📊 SWOT 분석']].map(([k, l]) => `<button type="button" class="${k === histSub ? 'on' : ''}" onclick="histSetSub('${k}')">${l}</button>`).join('')}</div>`;
+    }
+    const SW_FACTS = [   // [키, 이름, 내부/외부, 설명, 예시]
+      ['s', '강점 S', '내부', '섭외자 본인의 좋은 점', '예) 성경에 관심 있음\n예) 나를 믿고 속마음을 말함'],
+      ['w', '약점 W', '내부', '섭외자 본인의 걸리는 점', '예) 일이 바빠 시간이 없음\n예) 의심이 많음'],
+      ['o', '기회 O', '외부', '주변 환경이 돕는 점', '예) 이직 준비로 저녁이 비어 있음\n예) 가족 중 신앙인이 있음'],
+      ['t', '위협 T', '외부', '주변 환경이 막는 점', '예) 반대하는 가족\n예) 다니는 교회 목회자의 경계'],
+    ];
+    const SW_CELLS = [   // [키, 앞 칸, 뒤 칸, 이름, 뜻]
+      ['so', 's', 'o', 'SO 전략', '강점으로 기회 잡기'],
+      ['st', 's', 't', 'ST 전략', '강점으로 위협 막기'],
+      ['wo', 'w', 'o', 'WO 전략', '기회로 약점 채우기'],
+      ['wt', 'w', 't', 'WT 전략', '약점·위협 피하거나 줄이기'],
+    ];
+    const SW_POSTURE = {
+      so: ['적극 진행', '강점과 기회가 더 많아요. 지금이 다가갈 때예요 — SO 전략을 먼저 실행하세요.'],
+      st: ['강점으로 버티며 대비', '본인의 강점은 있지만 주변 위협이 커요. 강점을 살려 위협을 미리 막는 ST 전략부터 세우세요.'],
+      wo: ['약점 보완 먼저', '기회는 열려 있지만 마음에 걸리는 점이 많아요. 기회를 이용해 약점을 채우는 WO 전략부터.'],
+      wt: ['천천히 · 관계 지키기', '약점과 위협이 겹쳐요. 서두르지 말고 관계를 지키는 WT 전략부터 — 꼭 교관님과 상의하세요.'],
+    };
+    const SW_STAGE_TIP = [
+      [['섭외', '친분'], '친분 단계예요 — 전략을 "관계 쌓기"(자주 만나기·공감 대화)에 맞추세요.'],
+      [['만남1', '만남2'], '만남 단계예요 — 강점·기회에 적은 관심사를 말씀 주제로 잇는 전략이 좋아요.'],
+      [['상담1', '상담2'], '상담 단계예요 — 약점(W)·위협(T)에 대한 대비가 특히 중요해요.'],
+      [['복음방'], '복음방 단계예요 — 위협(T)이 새로 생기면 바로 교관님과 상의하세요.'],
+      [['센터소개', '센터수강'], '센터 단계예요 — 끝까지 이어 가도록 강점(S)을 살리는 지지 전략을 세우세요.'],
+    ];
+    const SW_TEXT_KEYS = ['s', 'w', 'o', 't', 'so', 'st', 'wo', 'wt'];
+    const swSt = { id: '', drafts: {}, dirty: {}, busy: false };   // drafts: targetId → 쓰는 중인 SWOT(다른 사람으로 바꿔도 남음)
+    const swEmpty = () => ({ s: '', w: '', o: '', t: '', so: '', st: '', wo: '', wt: '', next: { cell: '', text: '', date: '' } });
+    const swItems = v => String(v || '').split('\n').map(l => l.replace(/^\s*(?:[-•·*]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+    const swShort = s => s.length > 10 ? s.slice(0, 10) + '…' : s;
+    const swCellName = k => SW_CELLS.find(c => c[0] === k)[3];
+    function swDraft(t) {
+      if (!swSt.drafts[t.targetId]) {
+        const src = t.swot || {}, d = swEmpty();
+        SW_TEXT_KEYS.forEach(k => { d[k] = String(src[k] || ''); });
+        Object.assign(d.next, src.next || {});
+        swSt.drafts[t.targetId] = d;
+      }
+      return swSt.drafts[t.targetId];
+    }
+    // 강점≥약점이면 S, 아니면 W / 기회≥위협이면 O, 아니면 T → 만나는 칸이 추천 전략
+    function swAnalyze(d) {
+      const n = { s: swItems(d.s).length, w: swItems(d.w).length, o: swItems(d.o).length, t: swItems(d.t).length };
+      return { n, cell: (n.s >= n.w ? 's' : 'w') + (n.o >= n.t ? 'o' : 't'), missing: SW_FACTS.filter(([k]) => !n[k]).map(f => f[1]) };
+    }
+    function swPairsHtml(d, k) {
+      const [, x, y] = SW_CELLS.find(c => c[0] === k);
+      const xs = swItems(d[x]).slice(0, 3), ys = swItems(d[y]).slice(0, 3), out = [];
+      xs.forEach((p, i) => ys.forEach((q, j) => out.push([i, j, p, q])));
+      return out.sort((a, b) => (a[0] + a[1]) - (b[0] + b[1])).slice(0, 4)
+        .map(([i, j, p, q]) => `<button type="button" onclick="swPair('${k}',${i},${j})">${esc(swShort(p))} × ${esc(swShort(q))}</button>`).join('');
+    }
+    function swResultHtml(t, d) {
+      const a = swAnalyze(d), [pName, pText] = SW_POSTURE[a.cell];
+      if (a.missing.length === 4) return `<div class="sw-res"><div class="sw-res-empty">위 네 칸을 채우면 여기에 추천 전략이 정리돼요.</div></div>`;
+      const tip = (SW_STAGE_TIP.find(([ss]) => ss.includes(t.stage)) || [null, ''])[1];
+      const todo = [];
+      if (a.missing.length) todo.push(`${a.missing.join(' · ')} 칸을 아직 안 썼어요. 네 칸을 다 채워야 추천이 정확해요.`);
+      SW_CELLS.forEach(([k, x, y, l]) => { if (!d[k].trim() && a.n[x] && a.n[y]) todo.push(`${l} 칸이 비어 있어요.${k === a.cell ? ' (추천 칸)' : ''}`); });
+      if (!d.next.text.trim()) todo.push('아래 "다음 행동"을 한 줄로 정해 보세요.');
+      return `<div class="sw-res">
+          <div class="sw-res-h">추천 방향${a.missing.length ? ' <i>(임시)</i>' : ''}</div>
+          <div class="sw-res-p"><span class="sw-tag">${swCellName(a.cell)}</span><b>${pName}</b></div>
+          <div class="sw-res-s">${pText}</div>
+          <div class="sw-bal"><span>내부 · 강점 <b>${a.n.s}</b> : 약점 <b>${a.n.w}</b></span><span>외부 · 기회 <b>${a.n.o}</b> : 위협 <b>${a.n.t}</b></span></div>
+          ${d[a.cell].trim() ? `<div class="sw-res-q"><div>내가 쓴 ${swCellName(a.cell)}</div>${esc(d[a.cell].trim()).replace(/\n/g, '<br>')}</div>` : ''}
+          ${tip ? `<div class="sw-res-tip">📍 ${tip}</div>` : ''}
+          ${todo.length ? `<ul class="sw-todo">${todo.map(x => `<li>${x}</li>`).join('')}</ul>` : '<div class="sw-ok">✅ 틀을 다 채웠어요. 다음 행동을 실천하고 활동 기록에 남겨 주세요.</div>'}
+        </div>`;
+    }
+    function swEditorHtml(t) {
+      const d = swDraft(t), a = swAnalyze(d), id = esc(t.targetId);
+      const ta = (k, ph) => `<textarea data-sw="${k}" rows="3" placeholder="${esc(ph)}" oninput="swInput(this)">${esc(d[k])}</textarea>`;
+      return `<div class="sw-card">
+          <div class="gl-card-h"><b>${esc(maskName(t.targetName))}</b><span class="gl-stage">지금 ${esc(t.stage || '섭외')}</span>${t.swotAt ? `<span class="sw-at">${esc(t.swotAt.slice(5, 16))} 저장</span>` : ''}</div>
+          <div class="sw-step">① 상황 적기 <small>한 줄에 하나씩</small></div>
+          <div class="sw-grid">
+            ${SW_FACTS.map(([k, l, side, sub, ph]) => `<label class="sw-f sw-f-${k}"><span class="sw-f-h"><b>${l}</b><em>${side}</em></span><span class="sw-hint">${sub}</span>${ta(k, ph)}</label>`).join('')}
+          </div>
+          <div class="sw-step">② 칸별 전략 <small>짝을 누르면 한 줄이 들어가요</small></div>
+          <div class="sw-grid sw-strat">
+            ${SW_CELLS.map(([k, , , l, sub]) => `<div class="sw-c${k === a.cell ? ' rec' : ''}" data-cell="${k}"><span class="sw-f-h"><b>${l}</b></span><span class="sw-hint">${sub}</span><div class="sw-pairs" data-pairs="${k}">${swPairsHtml(d, k)}</div>${ta(k, '어떻게 할지 적어 보세요')}</div>`).join('')}
+          </div>
+          <div class="sw-step">③ 정리</div>
+          <div id="swRes">${swResultHtml(t, d)}</div>
+          <div class="sw-next">
+            <div class="sw-next-h">다음 행동</div>
+            <div class="sw-next-r">
+              <select data-swn="cell" onchange="swNext(this)" aria-label="어느 전략">${SW_CELLS.map(([k, , , l]) => `<option value="${k}" ${(d.next.cell || a.cell) === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+              <input type="date" data-swn="date" value="${esc(d.next.date)}" onchange="swNext(this)" aria-label="언제">
+            </div>
+            <input type="text" data-swn="text" maxlength="300" value="${esc(d.next.text)}" placeholder="예) 토요일 점심 같이 먹으며 이직 고민 들어 주기" oninput="swNext(this)">
+          </div>
+          <div class="sw-btns">
+            <button type="button" class="sw-save" onclick="swSave('${id}')" ${swSt.busy ? 'disabled' : ''}>${swSt.busy ? '저장 중…' : '💾 저장'}</button>
+            <button type="button" onclick="swCopy('${id}')">📋 복사</button>
+            <button type="button" onclick="swToCoach('${id}')">교관님께</button>
+          </div>
+        </div>`;
+    }
+    function swPageHtml() {
+      const ts = home.targets.filter(x => !x.completed);
+      if (!ts.some(x => x.targetId === swSt.id)) swSt.id = ts.length ? ts[0].targetId : '';
+      const t = ts.find(x => x.targetId === swSt.id);
+      return `<div class="gl-wrap sw-wrap">
+          <div class="sw-intro"><b>SWOT 분석</b>으로 섭외자 한 명을 정리해 보세요. <span>내부</span>(본인의 강점·약점)와 <span>외부</span>(주변의 기회·위협)를 적고, 칸이 만나는 곳마다 전략을 세우면 아래에 추천 방향이 정리돼요.</div>
+          ${!t ? '<div class="gl-empty">아직 기록한 섭외자가 없어요.<br>오른쪽 아래 <b>＋</b> 버튼으로 섭외자를 기록하면 여기서 SWOT을 쓸 수 있어요.</div>' : `
+          <div class="sw-who">${ts.map(x => `<button type="button" class="${x.targetId === swSt.id ? 'on' : ''}" onclick="swPick('${esc(x.targetId)}')">${esc(maskName(x.targetName))}${swSt.dirty[x.targetId] ? ' <i class="d">●</i>' : x.swot ? ' <i>✓</i>' : ''}</button>`).join('')}</div>
+          ${swEditorHtml(t)}`}
+        </div>`;
+    }
+    function swRefresh(t) {   // 글자를 칠 때마다 전체를 다시 그리지 않고 짝·추천 칸·정리만
+      const d = swDraft(t), a = swAnalyze(d);
+      document.querySelectorAll('[data-pairs]').forEach(el => { el.innerHTML = swPairsHtml(d, el.dataset.pairs); });
+      document.querySelectorAll('.sw-c').forEach(el => el.classList.toggle('rec', el.dataset.cell === a.cell));
+      const sel = document.querySelector('select[data-swn="cell"]'); if (sel && !d.next.cell) sel.value = a.cell;
+      const r = document.getElementById('swRes'); if (r) r.innerHTML = swResultHtml(t, d);
+    }
+    window.swPick = function (id) { swSt.id = id; renderHome(); };
+    window.swInput = function (el) {
+      const t = glTarget(swSt.id); if (!t) return;
+      swDraft(t)[el.dataset.sw] = el.value; swSt.dirty[t.targetId] = true; swRefresh(t);
+    };
+    window.swNext = function (el) {
+      const t = glTarget(swSt.id); if (!t) return;
+      swDraft(t).next[el.dataset.swn] = el.value; swSt.dirty[t.targetId] = true; swRefresh(t);
+    };
+    window.swPair = function (k, i, j) {
+      const t = glTarget(swSt.id); if (!t) return;
+      const d = swDraft(t), [, x, y] = SW_CELLS.find(c => c[0] === k);
+      const line = `• ${swItems(d[x])[i]} × ${swItems(d[y])[j]} → `;
+      d[k] = d[k].trim() ? d[k].replace(/\s+$/, '') + '\n' + line : line;
+      swSt.dirty[t.targetId] = true;
+      const el = document.querySelector(`textarea[data-sw="${k}"]`);
+      if (el) { el.value = d[k]; el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      swRefresh(t);
+    };
+    window.swSave = async function (id) {
+      const t = glTarget(id); if (!t || swSt.busy) return;
+      const d = swDraft(t);
+      if (d.next.text.trim() && !d.next.cell) d.next.cell = swAnalyze(d).cell;
+      swSt.busy = true; renderHome();
+      try {
+        const res = await callApi({ action: 'updateTarget', memberId, targetId: id, swot: d });
+        if (res && res.error) throw new Error(res.error);
+        const has = SW_TEXT_KEYS.some(k => d[k].trim()) || !!d.next.text.trim();
+        t.swot = has ? JSON.parse(JSON.stringify(d)) : null;
+        t.swotAt = has ? new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 19).replace('T', ' ') : '';
+        swSt.dirty[id] = false;
+        toast(has ? 'SWOT을 저장했어요.' : 'SWOT을 비웠어요.');
+      } catch (e) { toast(e.message, true); }
+      swSt.busy = false; renderHome();
+    };
+    function swText(t) {
+      const d = swDraft(t), a = swAnalyze(d);
+      const lines = [`[SWOT 분석] ${maskName(t.targetName)} / 지금 단계: ${t.stage || '섭외'}`];
+      SW_FACTS.forEach(([k, l]) => lines.push(`■ ${l}: ${swItems(d[k]).join(' / ') || '-'}`));
+      SW_CELLS.forEach(([k, , , l]) => { if (d[k].trim()) lines.push(`■ ${l}: ${d[k].trim().replace(/\n/g, ' / ')}`); });
+      lines.push(`▶ 추천: ${swCellName(a.cell)} (${SW_POSTURE[a.cell][0]})`);
+      if (d.next.text.trim()) lines.push(`▶ 다음 행동: ${d.next.text.trim()}${d.next.date ? ` (${d.next.date})` : ''}`);
+      return lines.join('\n');
+    }
+    window.swCopy = function (id) {
+      const t = glTarget(id); if (!t) return;
+      (navigator.clipboard ? navigator.clipboard.writeText(swText(t)) : Promise.reject()).then(() => toast('SWOT을 복사했어요.'), () => toast('복사하지 못했어요.', true));
+    };
+    window.swToCoach = function (id) {
+      const t = glTarget(id); if (!t) return;
+      openCoachPickModal(swText(t));
     };
 
     // 2026-10-10: 나의 교실도 광장처럼 2단계 탭으로 나눔(한 화면에 길게 늘어놓지 않음)

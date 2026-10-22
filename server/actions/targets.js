@@ -128,6 +128,7 @@ const toTarget = (t) => ({
   completed: t.completed, gender: t.gender, ageGroup: t.age_group,
   leaderId: t.leader_id, helperId: t.helper_id, teacherChangeLog: t.teacher_change_log,
   goalCohort: t.goal_cohort || '', goalPlan: t.goal_plan || '', goalPlanAt: fmtTs(t.goal_plan_at), goalPlanBasis: t.goal_plan_basis || '',
+  swot: t.swot || null, swotAt: fmtTs(t.swot_at),
 });
 
 const toHistory = (h) => ({ changedAt: fmtTs(h.changed_at), fromStage: h.from_stage, toStage: h.to_stage, memo: h.memo });
@@ -155,6 +156,22 @@ async function getTargets(body) {
   return { rows, stages: TARGET_STAGES };
 }
 
+const SWOT_TEXT = ['s', 'w', 'o', 't', 'so', 'st', 'wo', 'wt'];
+const SWOT_CELLS = ['so', 'st', 'wo', 'wt'];
+/** 앱이 보낸 SWOT → 정해진 칸만, 길이 제한. 내용이 하나도 없으면 null. */
+function cleanSwot(v) {
+  if (!v || typeof v !== 'object') return null;
+  const o = {};
+  for (const k of SWOT_TEXT) o[k] = String(v[k] == null ? '' : v[k]).trim().slice(0, 1500);
+  const n = v.next && typeof v.next === 'object' ? v.next : {};
+  o.next = {
+    cell: SWOT_CELLS.includes(str(n.cell)) ? str(n.cell) : '',
+    text: str(n.text).slice(0, 300),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(str(n.date)) ? str(n.date) : '',
+  };
+  return SWOT_TEXT.some((k) => o[k]) || o.next.text ? o : null;
+}
+
 async function updateTarget(body) {
   const mid = str(body.memberId);
   const targetId = str(body.targetId);
@@ -175,6 +192,11 @@ async function updateTarget(body) {
     const goal = GOAL_RE.test(str(body.goalCohort)) ? str(body.goalCohort) : '';
     patch.goal_cohort = goal;
     if (goal !== (target.goal_cohort || '')) { patch.goal_plan = ''; patch.goal_plan_at = null; patch.goal_plan_basis = ''; }   // 지난 계획은 target_ai_notes에 남아 다음 설계 때 읽힌다
+  }
+  // 2026-10-22: SWOT 분석(섭외자 한 명당 한 장). 모두 비우면 지운다.
+  if (body.swot !== undefined) {
+    patch.swot = cleanSwot(body.swot);
+    patch.swot_at = patch.swot ? patch.updated_at : null;
   }
   await run(db().from('targets').update(patch).eq('id', target.id));
 
