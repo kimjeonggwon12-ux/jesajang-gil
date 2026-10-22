@@ -2165,10 +2165,9 @@
     #actTabs { position:sticky; top:56px; z-index:19; padding:6px 16px 12px; background:#fff; border-bottom:1px solid #EDEDED; }
     .act-pages[data-act-page="attend"] > [data-ap]:not([data-ap="attend"]),
     .act-pages[data-act-page="targets"] > [data-ap]:not([data-ap="targets"]),
-    .act-pages[data-act-page="history"] > [data-ap]:not([data-ap="history"]),
     .act-pages[data-act-page="edu"] > [data-ap]:not([data-ap="edu"]),
     .act-pages[data-act-page="goal"] > [data-ap]:not([data-ap="goal"]) { display:none; }
-    .act-pages > [data-ap="history"] { padding-top:8px; }
+    .act-pages > [data-ap="targets"] > .sw-sub { padding-top:4px; border-bottom:1px solid #F2F2F2; }
     #actTabs > button { flex:1 1 auto; padding:0 4px; font-size:14px; }   /* 네 칸 */
     html.pz-dk #actTabs > button { font-size:16px; }
     /* 2026-10-20: 🎯 개강 인도 탭 — 늘 주황으로 칠하고 오른쪽 위에 빨간 불빛 점(눈에 띄게). 다섯 칸이라 좁으면 옆으로 밀림 */
@@ -2300,7 +2299,7 @@
     .gl-pick { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 12px; border-radius:12px; background:#fff; border:1px solid #EDEDED; }
     .gl-pick-n { flex:1 0 auto; font-size:15px; font-weight:800; }
     .gl-pick-n i { margin-left:4px; font-style:normal; font-size:12px; font-weight:700; color:#00A37A; }
-    /* 2026-10-22 SWOT 분석(나의교실 › 활동 기록 › 📊 SWOT 분석) */
+    /* 2026-10-22 SWOT 분석(나의교실 › 내 활동 › 📊 SWOT) */
     .sw-sub { padding:0 16px; }
     .sw-intro { padding:12px 14px; border-radius:12px; background:#F0F7FF; border:1px solid #D3E5FB; font-size:13.5px; line-height:1.6; color:#33475B; }
     .sw-intro b { color:#1D4ED8; }
@@ -2370,7 +2369,7 @@
     .gl-detail span { font-size:20px; }
     .af-goal { padding:10px 12px; border-radius:12px; background:#FFF4EC; border:1px solid #FFD2B3; }
     .af-goal .act-chip-btn.on { background:#E8590C; border-color:#E8590C; color:#fff; }
-    .act-pages[data-act-page="attend"] ~ #act-fab, .act-pages[data-act-page="edu"] ~ #act-fab { display:none; }   /* + 활동 기록 버튼은 내 활동·활동 기록에서만 */
+    .act-pages[data-act-page="attend"] ~ #act-fab, .act-pages[data-act-page="edu"] ~ #act-fab { display:none; }   /* + 활동 기록 버튼은 내 활동·개강 인도 계획에서만 */
     /* 출석 탭: QR 버튼 + 출석·지각·결석 요약 + 모임 전체 목록 */
     .att-sum { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:12px 0 4px; }
     .att-sum div { padding:10px 4px; border-radius:12px; background:#F5F7F8; text-align:center; font-size:12.5px; font-weight:700; color:#666; }
@@ -7076,16 +7075,15 @@
         <div class="pb-6 act-pages" data-act-page="${actPage}">
           <div data-ap="attend">${attCardHtml()}</div>
           <div data-ap="goal">${goalPageHtml()}</div>
-          <div data-ap="targets">
+          <div data-ap="targets">${histSubTabsHtml()}${histSub === 'swot' ? swPageHtml() : histSub === 'log' ? activityHistorySectionHtml() : `
             ${actHeroHtml()}
             ${glBannerHtml(true)}
             ${encouragementBannerHtml()}
             ${coachReplyBannerHtml()}
             ${myActivityViewHtml()}
             <div class="act-divider"></div>
-            ${targetsSectionHtml()}
+            ${targetsSectionHtml()}`}
           </div>
-          <div data-ap="history">${histSubTabsHtml()}${histSub === 'swot' ? swPageHtml() : activityHistorySectionHtml()}</div>
           <div data-ap="edu"><div id="lcEduCard"></div><div class="act-edu-prep">🚧 <b>아래 교육 이수 내용은 준비 중이에요.</b><br>교육 과정과 이수 기록을 정리해서 곧 보여 드릴게요.</div><div id="actEduBody" class="p-4"></div></div>
         </div>
         <button type="button" id="act-fab" class="act-fab" title="활동 기록 남기기" aria-label="활동 기록 남기기">
@@ -7126,7 +7124,7 @@
     //   교관님과 상의하라는 안내. 이 기능이 크게 보이게 탭을 강조".
     //   목표는 targets.goal_cohort('2026-11'), AI 계획은 서버 planCohortLead가 targets.goal_plan에 남긴다.
     // ════════════════════════════════════════════════════════════════
-    const GL_FLOW = [['친분', ['섭외', '친분']], ['만남', ['만남1', '만남2']], ['상담', ['상담1', '상담2']], ['복음방', ['복음방']], ['센터 소개', ['센터소개']], ['센터(아카데미)', ['센터수강']]];
+    const GL_FLOW = [['친분', ['섭외', '친분']], ['만남', ['만남1', '만남2']], ['상담', ['상담1', '상담2']], ['복음방', ['복음방']], ['센터 소개', ['센터소개']], ['센터 인도', ['센터수강']]];
     const glSt = {};   // targetId → { busy, text(저장 안 된 안내 문구) }
     function glMonths() {   // 이번 달부터 개강 3개: '2026-10', '2026-11', '2026-12'
       const [y, m] = todayStr().split('-').map(Number);
@@ -7167,7 +7165,7 @@
       return `<div class="gl-banner${link ? ' link' : ''}"${link ? ` onclick="actSetPage('goal')"` : ''}>
           <div class="gl-bn-eye">왜 나의교실에 기록해야 할까요?</div>
           <div class="gl-bn-t">내 작은 기록 하나하나가<br><span>개강 인도 계획</span>이 됩니다</div>
-          <div class="gl-bn-s">만남·상담·반응을 짧게라도 남기면, AI가 그 사람의 <b>모든 기록과 교관 답</b>을 모아 친분부터 센터(아카데미)까지 개강에 맞춘 인도 계획을 짜 드려요. 기록이 쌓일수록 계획이 정확해져요.</div>
+          <div class="gl-bn-s">만남·상담·반응을 짧게라도 남기면, AI가 그 사람의 <b>모든 기록과 교관 답</b>을 모아 친분부터 센터 인도까지 개강에 맞춘 인도 계획을 짜 드려요. 기록이 쌓일수록 계획이 정확해져요.</div>
           ${link ? '<div class="gl-bn-go">🎯 개강 인도 계획 보러 가기 ›</div>' : ''}
           <span class="gl-bn-art" aria-hidden="true">🧭</span>
         </div>`;
@@ -7222,13 +7220,13 @@
       const t = glTarget(id); if (!t) return;
       requestAiCoaching({
         heartsStage: HEARTS_STAGE_MAP[t.stage] || '',
-        situation: `대상자: ${maskName(t.targetName)} / 단계: ${t.stage || '섭외'} / 목표: ${glLabel(t.goalCohort)} 센터(아카데미) 인도`,
+        situation: `대상자: ${maskName(t.targetName)} / 단계: ${t.stage || '섭외'} / 목표: ${glLabel(t.goalCohort)} 센터 인도`,
         targetGroup: ageGenderToOrg(t.ageGroup, t.gender) || ''
       });
     };
     window.glToCoach = function (id) {
       const t = glTarget(id); if (!t) return;
-      openCoachPickModal(`[개강 인도 계획 상의] 대상자: ${maskName(t.targetName)} / 지금 단계: ${t.stage || '섭외'} / 목표: ${glLabel(t.goalCohort)} 센터(아카데미) 인도`);
+      openCoachPickModal(`[개강 인도 계획 상의] 대상자: ${maskName(t.targetName)} / 지금 단계: ${t.stage || '섭외'} / 목표: ${glLabel(t.goalCohort)} 센터 인도`);
     };
     // 대상자 상세 → 개강 인도 탭의 그 사람 카드(목표가 없으면 '목표 정하기')
     window.glOpenFor = function (id) {
@@ -7243,10 +7241,13 @@
     //   섭외자 한 명당 한 장 → targets.swot(jsonb, 서버 cleanSwot). 정리 = 강점:약점·기회:위협 개수로 추천 전략 칸
     //   + 지금 단계 도움말 + 빈칸 안내. 전략 칸 위 '짝' 단추 = 강점×기회 등 두 항목을 한 줄로 넣어 줌.
     // ════════════════════════════════════════════════════════════════
-    let histSub = 'log';   // 활동 기록 안 탭: 'log' 기록 / 'swot' SWOT 분석
-    window.histSetSub = function (k) { histSub = k; renderHome(); };
+    // 2026-10-23(사용자): "내 활동과 내 기록은 같은 거니까 내 활동 하나로, 그 안에 서브 탭 세 개 — 활동 요약·기록 보기·SWOT.
+    //   상황이 되면 피드백 도구는 늘려 감" → 새 도구는 HIST_SUBS에 한 줄 더하고 dashboardViewHtml에서 그 키를 그리면 된다.
+    const HIST_SUBS = [['sum', '📋 활동 요약'], ['log', '📝 기록 보기'], ['swot', '📊 SWOT']];
+    let histSub = 'sum';   // 내 활동 안 탭: 'sum' 활동 요약 / 'log' 기록 보기 / 'swot' SWOT
+    window.histSetSub = function (k) { histSub = k; renderHome(); document.getElementById('appSections').scrollTop = 0; };
     function histSubTabsHtml() {
-      return `<div class="l3 sw-sub">${[['log', '📝 기록'], ['swot', '📊 SWOT 분석']].map(([k, l]) => `<button type="button" class="${k === histSub ? 'on' : ''}" onclick="histSetSub('${k}')">${l}</button>`).join('')}</div>`;
+      return `<div class="l3 sw-sub">${HIST_SUBS.map(([k, l]) => `<button type="button" class="${k === histSub ? 'on' : ''}" onclick="histSetSub('${k}')">${l}</button>`).join('')}</div>`;
     }
     const SW_FACTS = [   // [키, 이름, 내부/외부, 설명, 예시]
       ['s', '강점 S', '내부', '섭외자 본인의 좋은 점', '예) 성경에 관심 있음\n예) 나를 믿고 속마음을 말함'],
@@ -7475,7 +7476,8 @@
     // 2026-10-10: 나의 교실도 광장처럼 2단계 탭으로 나눔(한 화면에 길게 늘어놓지 않음)
     // 2026-10-10(2차): 출석(QR·출석 현황) / 내 활동(등급·인교섬협 요약·전도 대상자) / 활동 기록
     // 2026-10-20: '🎯 개강 인도'(개강 인도 계획)— 주황 칸으로 늘 눈에 띄게(.hot)
-    const ACT_PAGES = [['attend', '출석'], ['targets', '내 활동'], ['history', '기록 보기'], ['goal', '🎯 개강 인도'], ['edu', '이수 교육']];   // 2026-10-20(사용자) 순서: 출석·내 활동·활동 기록·개강 인도·이수 교육   // 이수 교육 = 예전 교재 탭의 '이수교육'
+    // 2026-10-23(사용자): '기록 보기'는 내 활동 안 서브 탭으로, '개강 인도' → '개강 인도 계획'
+    const ACT_PAGES = [['attend', '출석'], ['targets', '내 활동'], ['goal', '🎯 개강 인도 계획'], ['edu', '이수 교육']];   // 순서: 출석·내 활동·개강 인도 계획·이수 교육   // 이수 교육 = 예전 교재 탭의 '이수교육'
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
@@ -7503,7 +7505,7 @@
     function renderHome() {
       const root = document.getElementById('homeContent');
       renderActTabs();
-      ctcSet('actCtc', { attend: 'attend', goal: 'apply', targets: 'apply', history: 'apply', edu: 'edu' }[actPage]);
+      ctcSet('actCtc', { attend: 'attend', goal: 'apply', targets: 'apply', edu: 'edu' }[actPage]);
       if (home.view === 'targetDetail') {
         if (targetsChartInstance) { targetsChartInstance.destroy(); targetsChartInstance = null; }
         root.innerHTML = targetDetailViewHtml();
