@@ -15264,14 +15264,16 @@ async function calAdmInit() {
       }
 
       // ③ 시험 점수
-      /** 과목별 시험 결과표(순위·날짜별 점수·응시·평균) — 칸을 누르면 점수 고치기 */
+      /** 시험 결과표(순위·날짜별 점수·응시·평균) — 칸을 누르면 점수 고치기
+       *  2026-10-22: 과목별로 나누지 않고 모든 시험을 한 표로(과목이 바뀌면 표가 아래로 밀려 보기 어려웠음) */
       function examBoards(d) {
         if (!sheetReady()) return '<p class="ra-note">시험 결과를 불러오는 중…</p>';
         const s = st.sheetData;
         const subjects = [...new Set(s.exams.map(e => e.subject))];
         if (!subjects.length) return '<p class="ra-note">아직 올라온 점수가 없어요. 텔레그램 방에 "점수 …"로 올리면 여기에 바로 쌓입니다.</p>';
-        return subjects.map(sub => {
-          const cols = s.exams.map((e, i) => [e, i]).filter(([e]) => e.subject === sub);
+        return [subjects.join(' · ')].map(sub => {
+          const cols = s.exams.map((e, i) => [e, i]).sort(([a], [b]) => a.date.localeCompare(b.date));
+          const twoOn = e => cols.filter(([x]) => x.date === e.date).length > 1;
           const list = s.rows.map(r => {
             const vals = cols.map(([, i]) => r.scores[i]).filter(v => v != null);
             return { r, avg: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null, taken: vals.length };
@@ -15280,10 +15282,10 @@ async function calAdmInit() {
           list.forEach((x, i) => { if (x.avg == null) x.rank = '-'; else { if (x.avg !== prev) rank = i + 1; prev = x.avg; x.rank = rank; } });
           const medal = { 1: '#ffe8a3', 2: '#e6e9ec', 3: '#f3d9c6' };
           return `<div class="ra-h">🏆 ${esc(sub)} <small style="font-weight:400;color:#6b7772">시험 ${cols.length}회 · 평균 높은 순</small></div>
-            ${boardBar('score', sub)}
-            <div class="ch-tt ch-att"><table><thead><tr><th>순위</th><th style="position:sticky;left:0;z-index:2">이름</th>${cols.map(([e]) => `<th>${mmdd(e.date)}<br>${wdOf(e.date)}</th>`).join('')}<th>응시</th><th>평균</th></tr></thead><tbody>
+            ${boardBar('score', '')}
+            <div class="ch-tt ch-att"><table><thead><tr><th>순위</th><th style="position:sticky;left:0;z-index:2">이름</th>${cols.map(([e]) => `<th>${mmdd(e.date)}<br>${wdOf(e.date)}${twoOn(e) ? `<br><small style="font-weight:400">${esc(e.subject.slice(0, 4))}</small>` : ''}</th>`).join('')}<th>응시</th><th>평균</th></tr></thead><tbody>
             ${list.map(x => `<tr><td style="cursor:default;background:${medal[x.rank] || 'transparent'};font-weight:800">${x.rank}</td><td class="tm" style="text-align:left">${esc(x.r.name)}<br><small style="font-weight:400">${esc(x.r.church)}</small></td>
-              ${cols.map(([e, i]) => { const v = x.r.scores[i]; return `<td style="cursor:pointer" onclick="cohortAdm.editScore('${e.date}','${esc(sub)}','${esc(x.r.memberId)}')">${v == null ? '<span style="color:#b0b8b4">-</span>' : `<b>${esc(v)}</b>`}</td>`; }).join('')}
+              ${cols.map(([e, i]) => { const v = x.r.scores[i]; return `<td style="cursor:pointer" onclick="cohortAdm.editScore('${e.date}','${esc(e.subject)}','${esc(x.r.memberId)}')">${v == null ? '<span style="color:#b0b8b4">-</span>' : `<b>${esc(v)}</b>`}</td>`; }).join('')}
               <td style="cursor:default">${x.taken}/${cols.length}</td><td style="cursor:default;color:#00875f;font-weight:800">${x.avg == null ? '-' : x.avg.toFixed(1)}</td></tr>`).join('')}
             <tr style="background:#e3f6ef"><td></td><td class="tm" style="background:#e3f6ef">평균 <small style="font-weight:400">(당일)</small></td>${cols.map(([, i]) => { const v = s.rows.map(r => r.scores[i]).filter(x => x != null); return `<td style="cursor:default"><b>${v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : '-'}</b></td>`; }).join('')}<td style="cursor:default">${(() => { const v = cols.flatMap(([, i]) => s.rows.map(r => r.scores[i])).filter(x => x != null); return v.length + '회'; })()}</td><td style="cursor:default;color:#0b5e44;font-weight:800">${(() => { const v = cols.flatMap(([, i]) => s.rows.map(r => r.scores[i])).filter(x => x != null); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : '-'; })()}</td></tr>
             </tbody></table></div>`;
@@ -15539,14 +15541,16 @@ async function calAdmInit() {
           add([['번호', '교회', '이름', ...cls.map(([x]) => dayHead(x))], ...d.rows.map(r => [r.seq, r.church, r.name, ...cls.map(([, i]) => r.attend[i] || '결석')])], '출석부');
           add([['번호', '교회', '이름', ...d.dates.map(dayHead)], ...d.rows.map(r => [r.seq, r.church, r.name, ...r.daily])], '과제 제출 현황');
           const sc = [];
-          for (const sub of [...new Set(d.exams.map(e => e.subject))]) {
-            const cols = d.exams.map((e, i) => [e, i]).filter(([e]) => e.subject === sub);
+          // 2026-10-22: 과목 상관없이 모든 시험을 한 시트 한 표로(날짜순) + 순위·평균
+          const subs = [...new Set(d.exams.map(e => e.subject))];
+          for (const sub of subs.length ? [subs.join(' · ')] : []) {
+            const cols = d.exams.map((e, i) => [e, i]).sort(([a], [b]) => a.date.localeCompare(b.date));
             const list = d.rows.map(r => { const v = cols.map(([, i]) => r.scores[i]).filter(x => x != null); return { r, avg: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null, taken: v.length }; })
               .sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1) || (a.r.seq || 0) - (b.r.seq || 0));
             let rank = 0, prev = null;
             if (sc.length) sc.push([]);
             sc.push([`[${sub}]`]);
-            sc.push(['순위', '번호', '이름', '교회', ...cols.map(([e]) => dayHead(e.date)), '응시', '평균']);
+            sc.push(['순위', '번호', '이름', '교회', ...cols.map(([e]) => dayHead(e.date) + (cols.filter(([x]) => x.date === e.date).length > 1 ? ' ' + e.subject : '')), '응시', '평균']);
             list.forEach((x, k) => { if (x.avg != null && x.avg !== prev) { rank = k + 1; prev = x.avg; }
               sc.push([x.avg == null ? '-' : rank, x.r.seq, x.r.name, x.r.church, ...cols.map(([, i]) => x.r.scores[i] == null ? '미응시' : x.r.scores[i]), `${x.taken}/${cols.length}`, x.avg == null ? '' : Math.round(x.avg * 10) / 10]); });
             { const m = v => v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10 : ''; const all = cols.flatMap(([, i]) => d.rows.map(r => r.scores[i])).filter(v => v != null);

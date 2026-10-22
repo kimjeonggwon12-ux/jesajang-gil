@@ -13,33 +13,38 @@ const padR = (s, w) => String(s) + ' '.repeat(Math.max(0, w - width(s)));
 const padL = (s, w) => ' '.repeat(Math.max(0, w - width(s))) + String(s);
 const key = (s) => String(s || '').replace(/\s/g, '');
 
-/** 과목 하나의 순위표 — 날짜 칸(최근 maxCols) + 응시 + 평균, 평균 높은 순(같으면 같은 순위). 미응시 '-' */
+/** 순위표 — 시험 칸(최근 maxCols) + 응시 + 평균, 평균 높은 순(같으면 같은 순위). 미응시 '-'
+ *  subject 를 비우면 과목 상관없이 모든 시험을 한 표로(2026-10-22: 과목별로 나뉘어 표가 아래로 밀리던 것) */
 export function scoreBoard(all, subject, maxCols = 12, cohortTitle = '') {
   const k = key(subject);
   const nids = new Set(all.members.map((m) => m.nid));
-  const scores = all.scores.filter((s) => key(s.subject) === k && nids.has(s.nid));
-  const dates = [...new Set(scores.map((s) => s.date))].sort();
+  const scores = all.scores.filter((s) => (!k || key(s.subject) === k) && nids.has(s.nid));
+  // 시험 한 번 = 날짜(+과목). 같은 날 과목이 둘이면 칸도 둘
+  const col = (s) => (k ? s.date : s.date + '|' + key(s.subject));
+  const dates = [...new Set(scores.map(col))].sort();
   if (!dates.length) return null;
   const cols = dates.slice(-maxCols);
-  const of = new Map(scores.map((s) => [s.date + '|' + s.nid, Number(s.score)]));
+  const of = new Map(scores.map((s) => [col(s) + '|' + s.nid, Number(s.score)]));
+  const sameDay = (d) => dates.filter((x) => x.slice(0, 10) === d.slice(0, 10)).length > 1;
+  const colName = (d) => mmdd(d.slice(0, 10)) + (sameDay(d) ? ' ' + (scores.find((s) => col(s) === d)?.subject || '').slice(0, 4) : '');
   const list = all.members.map((m) => {
     const vals = dates.map((d) => of.get(d + '|' + m.nid)).filter((v) => v != null);
     return { seq: m.seq || 0, name: m.name, church: m.church, avg: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null, taken: vals.length, cells: cols.map((d) => of.get(d + '|' + m.nid)) };
   }).sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1) || a.seq - b.seq);   // 같은 점수면 교육생 번호순
   let rank = 0, prev = null;
   list.forEach((r, i) => { if (r.avg == null) r.rank = '-'; else { if (r.avg !== prev) rank = i + 1; prev = r.avg; r.rank = rank; } });
-  const missing = list.flatMap((r) => r.cells.map((v, i) => (v == null ? `${r.name} ${mmdd(cols[i])}` : null)).filter(Boolean));
-  const head = ['순위', '이름', ...cols.map(mmdd), '응시', '평균'];
+  const missing = list.flatMap((r) => r.cells.map((v, i) => (v == null ? `${r.name} ${colName(cols[i])}` : null)).filter(Boolean));
+  const head = ['순위', '이름', ...cols.map(colName), '응시', '평균'];
   const rows = list.map((r) => [r.rank, r.name, ...r.cells.map((v) => (v == null ? '-' : v)), `${r.taken}/${dates.length}`, r.avg == null ? '-' : r.avg.toFixed(1)]);
   // 맨 아래 평균 줄: 날짜 칸 = 그날(당일) 평균, 응시 칸 = 응시 인원, 평균 칸 = 과목 전체 평균
   const mean = (v) => (v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : '-');
   const taken = list.reduce((a, r) => a + r.taken, 0);
-  rows.push(['', '평균', ...cols.map((d) => mean(scores.filter((s) => s.date === d).map((s) => Number(s.score)))), `${taken}회`, mean(scores.map((s) => Number(s.score)))]);
+  rows.push(['', '평균', ...cols.map((d) => mean(scores.filter((s) => col(s) === d).map((s) => Number(s.score)))), `${taken}회`, mean(scores.map((s) => Number(s.score)))]);
   const avgRow = rows.length - 1;
   const avgCol = head.length - 1;
   return {
     title: `${cohortTitle ? cohortTitle + ' ' : ''}시험 결과 및 순위`,
-    sub: `${subject} · 시험 ${dates.length}회${dates.length > cols.length ? ` (최근 ${cols.length}회 표시)` : ''} · 평균 높은 순`,
+    sub: `${subject || scoreSubjects({ scores }).join(' · ')} · 시험 ${dates.length}회${dates.length > cols.length ? ` (최근 ${cols.length}회 표시)` : ''} · 평균 높은 순`,
     head, rows, align: ['center', 'left'],
     style: (r, c, v) => {
       if (r === avgRow) return { fill: c ? '#e3f6ef' : null, bold: true, color: '#0b5e44' };

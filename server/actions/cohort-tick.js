@@ -129,7 +129,7 @@ async function tickOne(c, today, hm, sent) {
         got.length ? got.map((x, i) => `${i + 1}. ${x.name} ${byNid.get(x.nid)}`).join('\n') : '',
         missing.length ? `❌ 점수 없음 ${missing.length}명: ${names(missing)}` : '',
       ].filter(Boolean).join('\n'), c.tgChat);
-      await sendBoards(c, { kind: 'score', subject: e.subject }).catch((x) => console.log('순위표 오류: ' + x));   // 누적 순위표 이미지
+      await sendBoards(c, { kind: 'score' }).catch((x) => console.log('순위표 오류: ' + x));   // 누적 순위표 이미지
       sent.push(`${c.title} 시험 ${e.subject}`);
     }
   }

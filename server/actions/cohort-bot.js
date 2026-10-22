@@ -13,10 +13,10 @@ import { toCohort, assignmentOn, isLate, weekdayOf } from '../lib/cohort.js';
 import { toAssignment, toExam, loadAll, sendBoard } from './cohorts.js';
 import { scoreBoard } from '../lib/cohort-tables.js';
 
-/** 과목 순위표 이미지를 방으로 */
-async function sendRanking(c, subject) {
+/** 순위표 이미지를 방으로 — 2026-10-22: 과목 상관없이 모든 시험을 한 표로 */
+async function sendRanking(c) {
   // 순위표에는 교육생·점수만 받는다
-  try { const b = scoreBoard(await loadAll(c, ['members', 'scores']), subject, 12, c.title); if (b) await sendBoard(c, b); } catch (e) { console.log('순위표 오류: ' + e); }
+  try { const b = scoreBoard(await loadAll(c, ['members', 'scores']), '', 12, c.title); if (b) await sendBoard(c, b); } catch (e) { console.log('순위표 오류: ' + e); }
 }
 import { isOwner } from './roster.js';
 

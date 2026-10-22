@@ -584,7 +584,7 @@ export async function sendBoards(c, { kind = 'all', subject = '', week = '', all
   all = all || await loadAll(c, [...new Set(kinds.flatMap((k) => NEED[k] || []))]);
   const boards = [];
   for (const k of kinds) {
-    if (k === 'score') { for (const s of subject ? [subject] : scoreSubjects(all)) { const b = makeBoard(all, c, 'score', { subject: s }); if (b) boards.push([s, b]); } continue; }
+    if (k === 'score') { const b = makeBoard(all, c, 'score', { subject: '' }); if (b) boards.push(['score', b]); continue; }   // 2026-10-22: 과목 상관없이 한 표
     const b = makeBoard(all, c, k, { week }); if (b) boards.push([k, b]);
   }
   for (const [i, [, b]] of boards.entries()) await sendBoard(c, b, i === 0 ? caption : '');
