@@ -19,13 +19,14 @@
   <link rel="icon" type="image/png" href="icon-192.png?v=book1">
   <!-- 2026-09-22: SPA 통합(app.html) — daisyUI/Tailwind/Chart.js는 문서 전체에 1회만 로드.
        이전 11개 파일이 각자 따로 로드하던 동일 CDN들을 여기 하나로 합쳤다. -->
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+  <!-- 2026-10-22: 안드로이드 시작 화면(아이콘)은 첫 그림이 나올 때까지 떠 있음 → 표지에 안 쓰는 큰 CSS·차트는 첫 그림을 막지 않게(media 바꿔 끼우기·defer). 자리(순서)는 그대로라 적용 우선순위는 같음 -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" media="print" onload="this.media='all'" />
   <!-- 2026-10-07: Tailwind CDN(브라우저에서 매번 CSS를 만들어 화면이 바뀔 때마다 버벅임) 제거 → head 끝의 tw.css -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <!-- edu-dashboard.html(관리자 1️⃣교사현황)의 부서별 교사현황 차트(stacked bar)가 사용하는 라벨 플러그인 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
   <!-- 2026-09-22: 활동 섹션 당근마켓 스타일 리디자인용 Pretendard — #sec-activity에만 스코프해서 적용(다른 섹션 폰트는 그대로). -->
-  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" media="print" onload="this.media='all'" />
   <style>
     /* ════════════════════════════════════════════════════════════════
        [SHARED] 제사장의 길 공통 디자인 시스템 — 병합 전 11개 파일이 각자
