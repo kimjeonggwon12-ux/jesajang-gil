@@ -128,7 +128,7 @@ const toTarget = (t) => ({
   completed: t.completed, gender: t.gender, ageGroup: t.age_group,
   leaderId: t.leader_id, helperId: t.helper_id, teacherChangeLog: t.teacher_change_log,
   goalCohort: t.goal_cohort || '', goalPlan: t.goal_plan || '', goalPlanAt: fmtTs(t.goal_plan_at), goalPlanBasis: t.goal_plan_basis || '',
-  swot: t.swot || null, swotAt: fmtTs(t.swot_at),
+  swot: t.swot || null, swotAt: fmtTs(t.swot_at), swotAi: t.swot_ai || '', swotAiAt: fmtTs(t.swot_ai_at),
 });
 
 const toHistory = (h) => ({ changedAt: fmtTs(h.changed_at), fromStage: h.from_stage, toStage: h.to_stage, memo: h.memo });
@@ -296,6 +296,69 @@ async function planCohortLead(body) {
   return { text, goalPlanAt: at, basis: d.basis };
 }
 
+// ── SWOT AI 전략 제안 (2026-10-22, SWOT 분석 2안) ── 교사가 쓴 SWOT(저장 안 한 것도) + 그 사람의 누적 기록 → 칸별 전략 제안.
+// 받을 때 지금 SWOT도 같이 저장한다(제안과 SWOT이 어긋나지 않게). 무료 한도를 지키려고 교사 한 명 하루 SWOT_AI_DAILY번.
+
+const SWOT_AI_DAILY = 10;
+const SWOT_AI_KIND = 'SWOT AI 제안';
+const SWOT_LABELS = { s: '강점(S, 내부)', w: '약점(W, 내부)', o: '기회(O, 외부)', t: '위협(T, 외부)', so: 'SO 전략(강점으로 기회 잡기)', st: 'ST 전략(강점으로 위협 막기)', wo: 'WO 전략(기회로 약점 채우기)', wt: 'WT 전략(약점·위협 피하거나 줄이기)' };
+const swotCount = (v) => String(v || '').split('\n').filter((l) => l.trim()).length;
+
+async function swotAdvice(body) {
+  const mid = str(body.memberId);
+  const targetId = str(body.targetId);
+  if (!mid || !targetId) return { error: 'memberId, targetId 가 필요합니다.' };
+  const target = await findTarget(targetId);
+  if (!target) return { error: '해당 대상자를 찾을 수 없습니다.' };
+  if (!owns(target, normId(mid))) return { error: '본인 담당의 전도 대상자가 아닙니다.' };
+  const sw = body.swot !== undefined ? cleanSwot(body.swot) : target.swot;
+  if (!sw || !['s', 'w', 'o', 't'].some((k) => str(sw[k]))) return { error: '먼저 강점·약점·기회·위협을 한 칸 이상 적어 주세요.' };
+
+  const today = kstDate();
+  const used = await run(db().from('target_ai_notes').select('id').eq('member_id', mid).eq('kind', SWOT_AI_KIND).gte('created_at', `${today} 00:00:00`));
+  if (used.length >= SWOT_AI_DAILY) return { error: `SWOT AI 제안은 하루 ${SWOT_AI_DAILY}번까지예요. 내일 다시 받아 보세요.` };
+
+  const n = { s: swotCount(sw.s), w: swotCount(sw.w), o: swotCount(sw.o), t: swotCount(sw.t) };
+  const rec = (n.s >= n.w ? 'S' : 'W') + (n.o >= n.t ? 'O' : 'T');
+  const d = await targetDossier(target, mid);
+  const next = sw.next || {};
+  const prompt = [
+    '당신은 교회 전도 교사를 돕는 전도 코치입니다. 교사가 섭외자(전도 대상자) 한 명에 대해 쓴 SWOT 분석을 보고, 칸별 전략을 다듬어 제안하세요.',
+    '',
+    `- 오늘: ${today} / 대상자: ${[target.gender, target.age_group].filter(Boolean).join(' ') || '정보 없음'} / 지금 단계: ${target.stage || '섭외'}`,
+    target.goal_cohort ? `- 목표: ${Number(target.goal_cohort.slice(5))}월 개강 센터(아카데미) 인도` : '',
+    `- 단계 순서: ${FLOW}`,
+    '',
+    '[교사가 쓴 SWOT]',
+    ...Object.entries(SWOT_LABELS).map(([k, l]) => `■ ${l}: ${str(sw[k]) ? cut(sw[k], 1500).replace(/\n/g, ' / ') : '(비어 있음)'}`),
+    next.text ? `■ 교사가 정한 다음 행동: ${cut(next.text, 300)}${next.date ? ` (${next.date})` : ''}` : '',
+    `■ 개수 비교로 앱이 고른 추천 칸: ${rec} (강점 ${n.s} : 약점 ${n.w}, 기회 ${n.o} : 위협 ${n.t})`,
+    '',
+    '[참고: 이 사람에 대한 지금까지의 기록 — 오래된 것부터]',
+    '■ 활동 기록', ...d.acts,
+    '■ 단계 변경 이력', ...d.history,
+    '■ AI 상담·교관 답변', ...d.coaching,
+    '■ 이전에 받은 AI 계획·피드백', ...d.notes,
+    '',
+    '규칙:',
+    '1. 교사가 쓴 SWOT과 기록을 함께 보세요. 기록에는 있는데 SWOT에 빠진 점, 서로 어긋나는 점이 있으면 "상황 진단"에서 짚으세요.',
+    '2. 네 전략 칸마다 교사의 초안을 살려 실제로 해 볼 방법을 2~3줄로 쓰세요. 초안이 비어 있으면 새로 제안하세요.',
+    '3. 가장 먼저 할 전략 하나를 고르고 이유를 쓰세요. 앱의 추천 칸과 다르게 고르면 왜 다른지 한 줄로 쓰세요.',
+    '4. 상대를 속이거나 압박하는 방법은 쓰지 마세요. 상대의 뜻과 시간을 존중하고 관계와 신뢰를 지키는 방향으로 쓰세요.',
+    '5. 한국어, 900자 안팎. 반드시 아래 4개 마크다운 제목만 정확히 그대로 쓰세요:',
+    '## 🧭 상황 진단', '## 🎯 칸별 전략', '## ⭐ 먼저 할 것', '## 👣 이번 주 할 일',
+    '"칸별 전략" 안에서는 "### SO 전략", "### ST 전략", "### WO 전략", "### WT 전략" 소제목을 이 순서대로 달고 그 아래 "- " 줄로 쓰세요. "이번 주 할 일"도 "- " 줄 2~3개로 쓰세요.',
+  ].filter((l) => l !== '').join('\n');
+
+  const text = await askAiModels(prompt, PLAN_MODELS);
+  const at = kstDateTime();
+  if (text.startsWith('⚠️')) return { text };
+  await run(db().from('targets').update({ swot: sw, swot_at: at, swot_ai: text, swot_ai_at: at, updated_at: at }).eq('id', target.id));
+  await addTargetAiNote(target.target_id, mid, SWOT_AI_KIND, `${target.stage || '섭외'} 단계 · 추천 ${rec} · ${d.basis}`, text);
+  return { text, swotAiAt: at, swotAt: at, basis: d.basis };
+}
+
+
 // ── 대상자 한 사람의 누적 기록 (2026-10-20) ──
 // 사용자: "최근 한 건 말고, 지금까지 그 사람에 대한 기록을 총합하여 — 과거 AI 코칭 기록 등을 누적 또 누적하여".
 // 활동 기록 전부 + 단계 이력 + 그 사람 이야기가 든 AI 상담·교관 답 + 이전 AI 계획·활동 AI 피드백(target_ai_notes).
@@ -453,5 +516,5 @@ async function getKeyStageCount() {
 export default {
   getTargetStageDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
-  getTargetJournal, deleteTarget, planCohortLead,
+  getTargetJournal, deleteTarget, planCohortLead, swotAdvice,
 };

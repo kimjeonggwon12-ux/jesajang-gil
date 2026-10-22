@@ -2354,6 +2354,13 @@
     .sw-btns button { flex:1; min-width:0; height:46px; padding:0 4px; border-radius:12px; border:1.5px solid #1D4ED8; background:#fff; color:#1D4ED8; font-size:14px; font-weight:900; white-space:nowrap; }
     .sw-btns .sw-save { flex:1.2; background:#1D4ED8; color:#fff; }
     .sw-btns button:disabled { opacity:.6; }
+    .sw-ai-btn { background:linear-gradient(135deg, #4F7DF0, #1D4ED8); box-shadow:0 6px 14px -8px rgba(29,78,216,.9); }
+    .sw-ai .gl-ai-note { color:#4B5563; }
+    .sw-ai .gl-ai-note b { color:#1D4ED8; }
+    .sw-ai .gl-plan { background:#F7FAFF; border-color:#D3E5FB; }
+    .sw-ai .gl-h2 { color:#1D4ED8; }
+    .sw-ai-put { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
+    .sw-ai-put button { height:34px; padding:0 12px; border-radius:999px; border:1.5px solid #1D4ED8; background:#fff; color:#1D4ED8; font-size:13px; font-weight:800; }
     .gl-chips { display:flex; gap:6px; }
     .gl-chips button { height:32px; padding:0 10px; border-radius:999px; border:1.5px solid #FFC9A6; background:#FFF7F2; color:#D9480F; font-size:13px; font-weight:800; }
     .gl-detail { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:52px; padding:0 16px; border-radius:14px; border:none; background:linear-gradient(135deg, #FF7A3D, #E8590C); color:#fff; font-size:15.5px; font-weight:900; text-align:left; box-shadow:0 6px 16px -8px rgba(232,89,12,.9); }
@@ -7283,7 +7290,7 @@
       [['센터소개', '센터수강'], '센터 단계예요 — 끝까지 이어 가도록 강점(S)을 살리는 지지 전략을 세우세요.'],
     ];
     const SW_TEXT_KEYS = ['s', 'w', 'o', 't', 'so', 'st', 'wo', 'wt'];
-    const swSt = { id: '', drafts: {}, dirty: {}, busy: false };   // drafts: targetId → 쓰는 중인 SWOT(다른 사람으로 바꿔도 남음)
+    const swSt = { id: '', drafts: {}, dirty: {}, busy: false, ai: {} };   // ai: targetId → { busy, text(저장 안 된 실패 안내) }   // drafts: targetId → 쓰는 중인 SWOT(다른 사람으로 바꿔도 남음)
     const swEmpty = () => ({ s: '', w: '', o: '', t: '', so: '', st: '', wo: '', wt: '', next: { cell: '', text: '', date: '' } });
     const swItems = v => String(v || '').split('\n').map(l => l.replace(/^\s*(?:[-•·*]|\d+[.)])\s*/, '').trim()).filter(Boolean);
     const swShort = s => s.length > 10 ? s.slice(0, 10) + '…' : s;
@@ -7342,6 +7349,7 @@
           </div>
           <div class="sw-step">③ 정리</div>
           <div id="swRes">${swResultHtml(t, d)}</div>
+          ${swAiHtml(t)}
           <div class="sw-next">
             <div class="sw-next-h">다음 행동</div>
             <div class="sw-next-r">
@@ -7409,6 +7417,58 @@
         toast(has ? 'SWOT을 저장했어요.' : 'SWOT을 비웠어요.');
       } catch (e) { toast(e.message, true); }
       swSt.busy = false; renderHome();
+    };
+    // 2026-10-22 SWOT 2안 — AI 전략 제안(서버 swotAdvice: 지금 SWOT + 그 사람의 누적 기록). 받으면 SWOT도 저장된다.
+    //   제안의 "### SO 전략" 등 칸별 줄은 [SO 칸에 넣기]로 그 전략 칸 끝에 붙인다.
+    function swAiCells(text) {   // { so: ['…', …], … }
+      const out = {}; let cur = '';
+      String(text || '').split('\n').forEach(l => {
+        const h = /^\s*###\s*(SO|ST|WO|WT)\b/i.exec(l);
+        if (h) { cur = h[1].toLowerCase(); out[cur] = []; return; }
+        if (/^\s*#/.test(l)) { cur = ''; return; }
+        const li = /^\s*[-*•]\s+(.+)/.exec(l);
+        if (cur && li) out[cur].push(li[1].replace(/\*\*/g, '').trim());
+      });
+      return out;
+    }
+    function swAiHtml(t) {
+      const st = swSt.ai[t.targetId] || {}, text = st.text || t.swotAi;
+      const cells = text && !st.busy && !String(text).startsWith('⚠️') ? swAiCells(text) : {};
+      return `<div class="sw-ai">
+          <button type="button" class="gl-ai sw-ai-btn" onclick="swAiRun('${esc(t.targetId)}')" ${st.busy ? 'disabled' : ''}>${st.busy ? '<span class="loading loading-spinner loading-xs"></span> AI가 전략을 다듬는 중…' : `🤖 AI 전략 제안 ${t.swotAi ? '다시 ' : ''}받기`}</button>
+          <div class="gl-ai-note">지금 쓴 SWOT과 이 사람의 <b>활동 기록·단계 이력·AI상담·교관 답</b>을 모아 칸별 전략을 제안해요. 받으면 SWOT도 함께 저장돼요. (하루 10번)</div>
+          ${text && !st.busy ? `<div class="gl-plan">${glMd(text)}${t.swotAiAt && !st.text ? `<div class="gl-at">${esc(t.swotAiAt.slice(0, 16))} 제안</div>` : ''}</div>` : ''}
+          ${Object.keys(cells).some(k => cells[k].length) ? `<div class="sw-ai-put">${SW_CELLS.filter(([k]) => (cells[k] || []).length).map(([k, , , l]) => `<button type="button" onclick="swAiPut('${esc(t.targetId)}','${k}')">${l.replace(' 전략', '')} 칸에 넣기</button>`).join('')}</div>` : ''}
+        </div>`;
+    }
+    window.swAiRun = async function (id) {
+      const t = glTarget(id); if (!t || (swSt.ai[id] || {}).busy) return;
+      const d = swDraft(t);
+      if (!['s', 'w', 'o', 't'].some(k => d[k].trim())) { toast('먼저 강점·약점·기회·위협을 한 칸 이상 적어 주세요.', true); return; }
+      if (d.next.text.trim() && !d.next.cell) d.next.cell = swAnalyze(d).cell;
+      swSt.ai[id] = { busy: true }; renderHome(); swAiFocus();
+      try {
+        const res = await callApi({ action: 'swotAdvice', memberId, targetId: id, swot: d });
+        if (res && res.error) throw new Error(res.error);
+        const text = String(res.text || '');
+        if (text.startsWith('⚠️')) swSt.ai[id] = { text };   // 실패 안내는 저장되지 않음
+        else {
+          t.swotAi = text; t.swotAiAt = res.swotAiAt || ''; t.swot = JSON.parse(JSON.stringify(d)); t.swotAt = res.swotAt || '';
+          swSt.dirty[id] = false; swSt.ai[id] = {};
+        }
+      } catch (e) { swSt.ai[id] = { text: '⚠️ ' + e.message }; }
+      renderHome(); swAiFocus();
+    };
+    function swAiFocus() { setTimeout(() => { const el = document.querySelector('.sw-ai'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
+    window.swAiPut = function (id, k) {
+      const t = glTarget(id); if (!t) return;
+      const lines = swAiCells(t.swotAi)[k] || []; if (!lines.length) return;
+      const d = swDraft(t);
+      d[k] = (d[k].trim() ? d[k].replace(/\s+$/, '') + '\n' : '') + lines.map(l => '• ' + l).join('\n');
+      swSt.dirty[id] = true;
+      const el = document.querySelector(`textarea[data-sw="${k}"]`); if (el) el.value = d[k];
+      swRefresh(t);
+      toast(`${swCellName(k)} 칸에 넣었어요. 고쳐 쓴 뒤 저장해 주세요.`);
     };
     function swText(t) {
       const d = swDraft(t), a = swAnalyze(d);
