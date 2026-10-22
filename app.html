@@ -7884,7 +7884,7 @@
       tab: 'card',
       prevTab: 'card', // 채팅 종료 후 돌아갈 탭(대화함 목록이 없어져서 필요)
       card: { loaded: false, loading: true, exists: false, dept: '', region: '', saving: false, f: emptyCard() },
-      find: { fOpen: true, dept: '', role: '', item: '', region: '', tag: '', schedule: '', keyword: '', rows: [], all: null, regions: [], loading: false, loaded: false, error: '' },
+      find: { fOpen: true, dept: '', role: [], item: [], region: '', tag: [], schedule: '', keyword: '', rows: [], all: null, regions: [], loading: false, loaded: false, error: '' },
       board: { role: '', item: '', region: '', schedule: '', keyword: '', dept: '', rows: [], regions: [], loading: false, loaded: false, error: '' },
       chat: { active: null, messages: [], input: '', sending: false, timer: null, lastKey: '' }
     };
@@ -8158,7 +8158,8 @@
       try {
         // 2026-10-09: 서버는 한 번에 최대 100명(기본 30명)만 준다 → total 만큼 offset 으로 이어 받는다.
         //             (예전엔 기본 30명만 받아서 요약·목록에서 오래된 신청자가 빠졌음)
-        const base = { action: 'searchConnectCards', memberId: MEMBER_ID, role: q.role, region: q.region, tag: q.tag, schedule: q.schedule, keyword: q.keyword, limit: 100 };
+        // 2026-10-22: 역할·항목·태그는 여러 개 고르기(같은 칸 안은 "하나라도", 칸끼리는 "모두") — 서버는 값 1개만 받으므로 하나일 때만 보내고 나머지는 아래에서 거른다
+        const base = { action: 'searchConnectCards', memberId: MEMBER_ID, role: q.role.length === 1 ? q.role[0] : '', region: q.region, tag: q.tag.length === 1 ? q.tag[0] : '', schedule: q.schedule, keyword: q.keyword, limit: 100 };
         const res = await callApi(Object.assign({ offset: 0 }, base));
         if (res && res.error) throw new Error(res.error);
         let rows = res.rows || [];
@@ -8168,11 +8169,13 @@
           rows = rows.concat(more.rows);
         }
         // 조건 없이 받은 목록 = 전체 활동신청자 → 배너 아래 부서별 요약에 쓴다(부서·항목 필터는 앱에서 거르므로 무관).
-        if (![q.role, q.region, q.tag, q.schedule, String(q.keyword || '').trim()].some(Boolean)) q.all = rows;
+        if (![q.role.length, q.region, q.tag.length, q.schedule, String(q.keyword || '').trim()].some(Boolean)) q.all = rows;
         // 2026-09-23: 백엔드 searchConnectCards 는 role 파라미터를 1개만 받는다.
         // 4역할은 서버에서 거르고, 11항목은 받아온 명함의 roles 배열에서 여기서 거른다
         // (명함은 역할과 항목을 같은 roles 배열에 함께 담는다 — CARD_ROLES 참고).
-        if (q.item) rows = rows.filter(r => (r.roles || []).indexOf(q.item) !== -1);
+        const anyOf = (have, want) => !want.length || want.some(x => have.includes(x));
+        rows = rows.filter(r => anyOf(r.roles || [], q.role) && anyOf(r.roles || [], q.item)
+          && anyOf([].concat(r.targets || [], r.fields || [], r.langs || [], r.roles || []), q.tag));
         q.base = rows; rows = cnDeptRows(rows);
         q.rows = rows; if (res.regions && res.regions.length) q.regions = res.regions;
       } catch (e) { q.error = e.message; }
@@ -8182,9 +8185,33 @@
     function cnSelHtml(id, label, opts, val) {
       return `<select id="${id}" class="kko-input" style="min-height:40px;padding:6px 8px;font-size:14px"><option value="">${label}</option>${opts.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
     }
+    // 2026-10-22: 여러 개 고르는 필터 칸 — 드롭다운 모양 단추, 누르면 칩 창(cnMselOpen)
+    const CN_MSEL = { role: '4역할 전체', item: '항목 전체', tag: '태그 전체' };
+    const cnTagOpts = () => [].concat(CARD_TARGETS, CARD_FIELDS, CARD_LANGS);
+    // 고른 역할들에 맞는 항목: 협력만이면 9항목, 협력 없으면 11항목, 섞이거나 없으면 전부
+    function cnItemsForRoles(roles) { return roles.length === 1 ? cnItemsForRole(roles[0]) : roles.length && !roles.includes(COOP_ROLE) ? CN_ROLE_ITEMS : CN_ALL_ITEMS; }
+    function cnMselOpts(key) { return key === 'role' ? CN_ROLE_PARTS : key === 'item' ? cnItemsForRoles(S.find.role) : cnTagOpts(); }
+    function cnMselHtml(key) {
+      const v = S.find[key];
+      return `<button type="button" class="kko-input" data-msel="${key}" style="min-height:40px;padding:6px 8px;font-size:14px;text-align:left;background:#fff;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${v.length ? 'border-color:var(--color-primary);color:var(--color-primary);font-weight:700' : ''}">${v.length ? esc(v[0]) + (v.length > 1 ? ` 외 ${v.length - 1}` : '') : CN_MSEL[key]} ▾</button>`;
+    }
+    function cnMselOpen(key) {
+      const q = S.find, pick = { [key]: q[key].slice() };
+      openSheet(`<div style="font-size:17px;font-weight:800;margin:4px 0 4px">${CN_MSEL[key].replace(' 전체', '')} <small style="font-weight:400;color:var(--color-text-sub)">(여러 개 선택)</small></div>
+        <div class="cn-hint" style="margin:0 0 10px">고른 것 중 하나라도 있는 교사를 찾아요.</div>
+        <div id="cnMselBox">${multiHtml(key, cnMselOpts(key), pick[key])}</div>
+        <div style="display:flex;gap:8px;margin-top:16px"><button type="button" class="kko-btn-main" id="cnMselClear" style="flex:1;background:#fff;color:var(--color-text-sub);border:1.5px solid var(--color-border)">전체(해제)</button><button type="button" class="kko-btn-main" id="cnMselOk" style="flex:2">적용</button></div>`);
+      const box = document.getElementById('cnMselBox'); bindMulti(box, pick);
+      const apply = vals => {
+        q[key] = vals;
+        if (key === 'role') { const ok = cnItemsForRoles(q.role); q.item = q.item.filter(x => ok.includes(x)); }
+        closeSheet(); loadFind();
+      };
+      document.getElementById('cnMselOk').onclick = () => apply(pick[key]);
+      document.getElementById('cnMselClear').onclick = () => apply([]);
+    }
     function findHtml() {
       const q = S.find;
-      const tagOpts = [].concat(CARD_TARGETS, CARD_FIELDS, CARD_LANGS);
       return `
       <!-- 2026-10-04: 제목 대신 배너(사용자 요청 문구) -->
       <div class="cn-banner"><div class="cn-banner-eye">활동신청자</div><div class="cn-banner-t">활동을 신청한 교사들 <span>- 연결을 기다립니다.</span></div><div class="cn-banner-s">역할·지역·태그·일정으로 함께할 교사를 찾아보세요.</div><span class="cn-banner-art" aria-hidden="true">🤝</span></div>
@@ -8195,14 +8222,15 @@
            역할은 서버에 보내고(후보를 줄이고) 항목은 받아온 목록에서 걸러낸다. -->
       <!-- 2026-10-07: 드롭다운 5개가 화면 위쪽 절반을 차지 → 검색칸 옆 [필터]로 접음(고른 조건 수 표시) -->
       <!-- 2026-10-10(사용자 요청): 접는 [필터]는 그대로, 펼쳤을 때 부서·지역을 맨 앞에. 2026-10-12(사용자 요청): 처음부터 펼쳐 보이게(fOpen 기본값 true) — [필터]를 누르면 접힌다 -->
-      <div class="cn-fbar"><input id="fKeyword" class="kko-input" placeholder="이름·소개·자격증 검색" value="${esc(q.keyword)}"><button type="button" id="fTgl" class="cn-ftg${q.fOpen ? ' on' : ''}${[q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' has' : ''}">필터${[q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length ? ' <em>' + [q.dept, q.role, q.item, q.region, q.tag, q.schedule].filter(Boolean).length + '</em>' : ''} ${q.fOpen ? '▴' : '▾'}</button></div>
+      ${(() => { const n = [q.dept, q.region, q.schedule].filter(Boolean).length + q.role.length + q.item.length + q.tag.length;
+        return `<div class="cn-fbar"><input id="fKeyword" class="kko-input" placeholder="이름·소개·자격증 검색" value="${esc(q.keyword)}"><button type="button" id="fTgl" class="cn-ftg${q.fOpen ? ' on' : ''}${n ? ' has' : ''}">필터${n ? ' <em>' + n + '</em>' : ''} ${q.fOpen ? '▴' : '▾'}</button></div>`; })()}
       ${q.fOpen ? `<div class="cn-fbox">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${cnSelHtml('fDept', '부서 전체', CN_SUM_DEPTS.map(x => x[0]), q.dept).replace(/>(교|자|장|부|청)</g, (m, c) => '>' + CN_SUM_DEPTS.find(x => x[0] === c)[1] + (c === '교' ? '' : '회') + '<')}
         ${cnSelHtml('fRegion', '지역 전체', q.regions, q.region)}
-        ${cnSelHtml('fRole', '4역할 전체', CN_ROLE_PARTS, q.role)}
-        ${cnSelHtml('fItem', '항목 전체', cnItemsForRole(q.role), q.item)}
-        ${cnSelHtml('fTag', '태그 전체', tagOpts, q.tag)}
+        ${cnMselHtml('role')}
+        ${cnMselHtml('item')}
+        ${cnMselHtml('tag')}
         ${cnSelHtml('fSched', '일정 전체', ['언제나', '상의', '등록'], q.schedule).replace('>언제나<', '>✨ 언제나 가능<').replace('>상의<', '>💬 상의 후 결정<').replace('>등록<', '>📅 일정 등록<')}
       </div></div>` : ''}
       <div class="cn-hint" style="margin:10px 0">${q.loading ? '검색 중...' : `${q.rows.length}명`}</div>
@@ -8240,10 +8268,10 @@
       const q = S.find, v = document.getElementById('cnView');
       const on = (id, key) => { const el = document.getElementById(id); if (el) el.onchange = e => {
         q[key] = e.target.value;
-        if (key === 'role' && q.item && !cnItemsForRole(q.role).includes(q.item)) q.item = '';
         loadFind(); }; };
       { const fd = document.getElementById('fDept'); if (fd) fd.onchange = e => cnSetDept(e.target.value); }
-      on('fRole', 'role'); on('fItem', 'item'); on('fRegion', 'region'); on('fTag', 'tag'); on('fSched', 'schedule');
+      on('fRegion', 'region'); on('fSched', 'schedule');
+      v.querySelectorAll('[data-msel]').forEach(b => { b.onclick = e => { e.stopPropagation(); cnMselOpen(b.dataset.msel); }; });
       { const tg = document.getElementById('fTgl'); if (tg) tg.onclick = () => { q.fOpen = !q.fOpen; cnRender(); }; }
       const k = document.getElementById('fKeyword');
       if (k) { k.oninput = e => { q.keyword = e.target.value; }; k.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) loadFind(); }; k.onchange = () => loadFind(); }
