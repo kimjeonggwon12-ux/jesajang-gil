@@ -846,6 +846,7 @@
     .tg-note { display:flex; align-items:flex-start; gap:10px; margin:6px 0 2px; padding:11px 13px; border-radius:12px; background:#EAF6FD; border:1px solid #BEE3F8; font-size:13px; line-height:1.5; color:#1E4E6B; }
     .tg-note b { color:#0B6FA4; }
     .tg-note.edit { background:#E3F2FD; border-color:#90CDF4; }
+    .tg-note.off { background:#F8FAFC; border-color:#E2E8F0; color:#64748B; } .tg-note.off b { color:#475569; } .tg-note.off .tg-logo { filter:grayscale(1); opacity:.6; }
     .pf-tg { display:inline-flex; align-items:center; gap:3px; font-size:10.5px; font-weight:700; color:#1C8ED0; white-space:nowrap; }
     .rp-auto { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
     .rp-auto span { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 2px; border-radius:10px; background:#fff; box-shadow:inset 0 0 0 1px #E5E7EB; font-size:12px; font-weight:700; color:#6B7280; }
@@ -6798,11 +6799,13 @@
         ${rb.plan}
         ${rb.preview}
 
-        <div class="tg-note${f.editId ? ' edit' : ''}">${TG_LOGO(22)}<span>${f.editId
-          ? '<b>고친 내용을 저장하면 텔레그램 보고방에 재보고됩니다.</b><br>처음 보고 글에 답장으로 ‘✏️ 수정본’이 올라가요.'
-          : '<b>저장하면 텔레그램 보고방에 바로 보고됩니다.</b><br>맨 위에 내 이름이 보고자로 붙어요.'}</span></div>
+        ${(room => `<div class="tg-note${f.editId ? ' edit' : ''}${room ? '' : ' off'}">${TG_LOGO(22)}<span>${!room
+          ? '<b>우리 부서 보고방은 아직 연결 전이에요.</b><br>기록은 그대로 저장되고, 보고방이 열리면 그때부터 올라가요.'
+          : f.editId
+          ? `<b>고친 내용을 저장하면 ‘${esc(room.title)}’에 재보고됩니다.</b><br>처음 보고 글에 답장으로 ‘✏️ 수정본’이 올라가요.`
+          : `<b>저장하면 ‘${esc(room.title)}’에 바로 보고됩니다.</b><br>맨 위에 내 이름이 보고자로 붙어요.`}</span></div>`)(home.monthlyActRes && home.monthlyActRes.reportRoom)}
         <div class="act-submit-row">
-          <button id="af-submit" class="act-btn-primary" ${f.loading ? 'disabled' : ''}>${f.loading ? '저장하는 중...' : f.editId ? '고친 내용 저장 · 재보고' : '보고 기록 남기기'}</button>
+          <button id="af-submit" class="act-btn-primary" ${f.loading ? 'disabled' : ''}>${f.loading ? '저장하는 중...' : f.editId ? (home.monthlyActRes && home.monthlyActRes.reportRoom ? '고친 내용 저장 · 재보고' : '고친 내용 저장') : '보고 기록 남기기'}</button>
           <button id="af-aicoach" class="act-btn-ghost">AI 코칭</button>
         </div>
       `;
