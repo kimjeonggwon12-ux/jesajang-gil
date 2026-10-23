@@ -6477,6 +6477,7 @@
     }
     // 10/23(사용자): 센터 수강생은 목표 센터명 대신 "3월 수강자"처럼 수강 기수(또는 해당 없음)
     const rpIsEnrolled = f => f.activityItem === '센터수강';
+    const rpSent = f => rpIsEnrolled(f) || f.targetStage === '센터수강';   // 이미 센터에 보낸 사람
     function rpEnrollMonths() {   // 이번 달부터 거꾸로 12달: '10', '9', … (수강 중인 기수는 지난 달들)
       const m = Number(todayStr().slice(5, 7));
       return Array.from({ length: 12 }, (_, k) => String((m - 1 - k + 12) % 12 + 1));
@@ -6533,7 +6534,8 @@
         '➡️ 다음 계획',
         li('차후 교육 주제', f.nextWork.trim()), li('다음 교육 날짜', rpSlash(r.nextDate)), li('요청사항', r.request.trim()), '',
         '📚 누적 교육 제목', ...Array.from({ length: Math.max(5, lessons.length + 1) }, (_, i) => `${i + 1}. ${lessons[i] || ''}`), '',
-        '🏁 센터보내기 플랜 (예정)', ...RP_PLAN.map(([k, l]) => li(l, rpMD((r.plan || {})[k]))),
+        // 10/23: 이미 센터에 보낸 사람(센터수강)은 결과라 '(예정)' 뺌
+        `🏁 센터보내기 플랜${rpSent(f) ? '' : ' (예정)'}`, ...RP_PLAN.map(([k, l]) => li(l, rpMD((r.plan || {})[k]))),
         '※ 위 항목 외에 필요한 사항은 섭외자에 맞게 계획 세우기', line,   // 보고자는 보고방에 올릴 때 서버가 맨 위에 굵게 붙인다(report-room.js)
       ].join('\n');
     }
@@ -6604,7 +6606,7 @@
         </div>`,
         plan: !full ? '' : `
         <div class="act-form-group">
-          <div class="act-step-label">🦋센터보내기 위한 플랜(예정)</div>
+          <div class="act-step-label">🦋센터보내기 위한 플랜${rpSent(f) ? "" : "(예정)"}</div>
           <div class="rp-team">${RP_PLAN.map(([k, l]) => `<label><span>🌱${l}</span><input type="date" class="act-input" data-rp-plan="${k}" value="${esc(r.plan[k] || '')}"></label>`).join('')}</div>
           <div class="rp-opt" style="margin-top:8px">⬆️ 위 항목 외에 필요한 사항들은 섭외자에 맞게 계획 세우기</div>
         </div>`,
