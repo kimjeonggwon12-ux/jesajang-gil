@@ -6519,8 +6519,7 @@
         li('차후 교육 주제', f.nextWork.trim()), li('다음 교육 날짜', rpSlash(r.nextDate)), li('요청사항', r.request.trim()), '',
         '📚 누적 교육 제목', ...Array.from({ length: Math.max(5, lessons.length + 1) }, (_, i) => `${i + 1}. ${lessons[i] || ''}`), '',
         '🏁 센터보내기 플랜 (예정)', ...RP_PLAN.map(([k, l]) => li(l, rpMD((r.plan || {})[k]))),
-        '※ 위 항목 외에 필요한 사항은 섭외자에 맞게 계획 세우기', line,
-        `✍️ 보고 : ${rpSelf()}`,
+        '※ 위 항목 외에 필요한 사항은 섭외자에 맞게 계획 세우기', line,   // 보고자는 보고방에 올릴 때 서버가 맨 위에 굵게 붙인다(report-room.js)
       ].join('\n');
     }
     // 서버로 보내는 보고 칸 — 이 단계에 보이는 칸만 보낸다(안 보이는 칸은 섭외자 프로필에 남은 값을 지우지 않게)
@@ -6596,7 +6595,7 @@
         </div>`,
         preview: `
         <details class="rp-preview">
-          <summary>📨 보고 문자 미리보기 <span>· ${esc(rpTitle(f.activityItem) || '')}</span></summary>
+          <summary>📨 보고 문자 미리보기 <span>· 보고방에는 맨 위에 "🙋 보고자 : ${esc(App.name || name || '내 이름')}"이 붙어요</span></summary>
           <pre id="af-rp-preview">${esc(rpReportText(f))}</pre>
           <button type="button" class="act-btn-ghost" style="height:42px;width:100%;margin-top:8px" onclick="rpCopy()">보고 문자 복사</button>
         </details>`

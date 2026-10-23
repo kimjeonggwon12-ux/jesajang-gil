@@ -2,6 +2,9 @@
 // 부서 → 방은 report_rooms 표. 고친 보고는 처음 올린 글에 답장으로 "수정본"을 다시 올린다.
 import { db, run } from './db.js';
 import { kstDateTime } from './util.js';
+import { findTeacher } from '../actions/roster.js';
+
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /**
  * 이 부서의 보고방. 부서 방이 없으면 기본 방(dept '*')으로 — 10/23 사용자: "부서를 보고 맞는 방으로, 일단은 봇을 초대한 그 방으로".
@@ -17,7 +20,7 @@ async function sendText(chatId, text, replyTo) {
   // 10/23: 보고방에는 출석 봇(@teachersquare_att_bot)이 초대돼 있어 그 봇으로 보낸다(출석 봇 웹훅은 교육 과정 방 글만 처리 — 보고방 글은 무시).
   const token = process.env.ATT_BOT_TOKEN || process.env.TEACHERSQUARE_BOT_TOKEN;
   if (!token) throw new Error('보고방 봇 설정(ATT_BOT_TOKEN)이 없습니다.');
-  const body = { chat_id: chatId, text: String(text).slice(0, 4096) };
+  const body = { chat_id: chatId, text: String(text).slice(0, 4096), parse_mode: 'HTML' };   // 보고자 이름 굵게(본문은 esc 로 이스케이프)
   if (replyTo) body.reply_parameters = { message_id: Number(replyTo), allow_sending_without_reply: true };
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -34,10 +37,18 @@ async function sendText(chatId, text, replyTo) {
 export async function postReport(row, room, kind) {
   const posts = Array.isArray(row.tg_posts) ? row.tg_posts : [];
   const first = posts.find((p) => p.kind === 'post');
-  const text = kind === 'edit'
-    ? `✏️ [수정본] ${String(row.submitted_at || '').slice(5, 10).replace('-', '/')} 보고를 고쳐 다시 올립니다\n\n${row.report_text}`
-    : row.report_text;
-  const msg = await sendText(room.chat_id, text, kind === 'edit' && first ? first.msg : null);
+  // 10/23(사용자): "보고자가 누구인지 알 수 없다" — 봇은 그 사람 프로필로 못 올리므로 맨 위에 보고자 이름(굵게)·부서·번호.
+  //   이름·부서는 교사명단 기준(앱에 이름이 비어 있어도 나옴). 본문 맨 아래 옛 '✍️ 보고 :' 줄은 겹치므로 뺀다.
+  const t = await findTeacher(row.member_id).catch(() => null);
+  const who = esc((t && t.name) || row.name || '이름 미상');
+  const dept = String((t && t.dept) || '').trim();
+  const deptLabel = !dept ? '' : /(회|부)$/.test(dept) ? dept : dept + '회';
+  const day = String(row.submitted_at || '').slice(5, 10).replace('-', '/').replace(/^0/, '');
+  const head = kind === 'edit'
+    ? `✏️ <b>[수정본]</b>  🙋 보고자 : <b>${who}</b>${deptLabel ? ` · ${esc(deptLabel)}` : ''}\n${day} 보고를 고쳐 다시 올립니다`
+    : `🙋 보고자 : <b>${who}</b>${deptLabel ? ` · ${esc(deptLabel)}` : ''}  <code>${esc(row.member_id)}</code>`;
+  const body = esc(String(row.report_text || '').replace(/\n?✍️ 보고 :[^\n]*$/, '').trim());
+  const msg = await sendText(room.chat_id, `${head}\n\n${body}`, kind === 'edit' && first ? first.msg : null);
   const next = posts.concat([{ chat: String(room.chat_id), msg, at: kstDateTime(), kind }]);
   await run(db().from('activities').update({ tg_posts: next }).eq('id', row.id));
   return next;
