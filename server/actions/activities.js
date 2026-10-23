@@ -130,6 +130,7 @@ const toActivityRow = (a) => ({
   consultTitle: a.consult_title, gospelSubject: a.gospel_subject, reaction: a.reaction, reactionNote: a.reaction_note,
   report: a.report || null, reportTitle: (a.report && a.report.title) || '', reportText: a.report_text || '',
   editedAt: fmtTs(a.edited_at), tgPosts: a.tg_posts || [],
+  aiFeedback: a.ai_feedback || '', aiFeedbackAt: fmtTs(a.ai_feedback_at),
 });
 
 /** 내 활동 기록 + 올해 역할별·항목별 건수. */

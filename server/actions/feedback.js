@@ -1,6 +1,6 @@
 // AI 상담 · 피드백 이력 · 교관 요청/답변
 import { db, run, selectAll } from '../lib/db.js';
-import { normId, str, isoTs } from '../lib/util.js';
+import { normId, str, isoTs, kstDateTime } from '../lib/util.js';
 import { callAi, askAi, askAiModels, textOf } from '../lib/gemini.js';
 import { findTeacher } from './roster.js';
 import { addTargetAiNote, ownedTarget, targetDossier, TARGET_STAGES } from './targets.js';
@@ -35,11 +35,18 @@ async function getActivityFeedback(body) {
     `## 🎯 다음 단계${next ? `(${next})` : ''}로 가려면`, '## ✅ 이번 주 할 일 (3가지, 언제까지)', '## 💬 바로 쓸 대화 멘트', '## ⚠️ 조심할 점',
   ].join('\n');
   const text = await askAiModels(prompt, ['gemini-3.5-flash', 'gemini-3.8-flash']);
-  if (target && !text.startsWith('⚠️')) {
-    await addTargetAiNote(target.target_id, String(body.memberId), 'AI 다음 단계 피드백',
+  if (text.startsWith('⚠️')) return { text };
+  if (target) {
+    await addTargetAiNote(target.target_id, String(body.memberId), 'AI 단계향상 피드백',
       `단계: ${String(body.stage || '')} / 한 일: ${String(body.todayWork || '')} / 다음: ${String(body.nextWork || '')}`, text);
   }
-  return { text };
+  // 기록 카드 관리 흐름: 그 기록(내 것일 때만)에 답을 남겨 새로고침해도 보이게
+  const at = kstDateTime();
+  if (Number(body.activityId)) {
+    await run(db().from('activities').update({ ai_feedback: text, ai_feedback_at: at })
+      .eq('id', Number(body.activityId)).eq('nid', normId(body.memberId)));
+  }
+  return { text, at };
 }
 
 /** 부서별 교사 관리 화면의 "AI 분석". */

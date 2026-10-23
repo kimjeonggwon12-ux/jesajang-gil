@@ -876,29 +876,50 @@
     .rc-sub span { font-size:12px; font-weight:700; padding:2px 8px; border-radius:6px; background:#F3F4F6; color:#4B5563; }
     .rc-sub em { font-style:normal; font-size:12px; font-weight:700; color:#7C3AED; }
     .rc-body { margin-top:10px; font-size:15px; line-height:1.6; color:#222; white-space:pre-wrap; word-break:break-word; }
-    .rc-appr { display:grid; grid-template-columns:1fr 1fr; gap:1.5px; margin-top:12px; background:#CBD5E1; border:1.5px solid #CBD5E1; border-radius:12px; overflow:hidden; }
-    .rc-cell { display:flex; flex-direction:column; min-width:0; background:#fff; }
-    .rc-cell-h { padding:6px 4px; text-align:center; font-size:12.5px; font-weight:800; color:#334155; background:#F1F5F9; border-bottom:1.5px solid #CBD5E1; }
-    .rc-plan { margin-top:10px; padding:12px 14px; border-radius:12px; background:#FFF7ED; border:1px solid #FED7AA; font-size:14px; line-height:1.6; }
-    .rc-plan > b { display:block; margin-bottom:6px; color:#C2410C; }
-    .rc-plan-acts { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-    .rc-plan-acts button { height:32px; padding:0 12px; border-radius:8px; border:1px solid #FDBA74; background:#fff; color:#C2410C; font-size:13px; font-weight:800; cursor:pointer; }
-    .rc-fb .gl-h2, .rc-fb .gl-h3 { font-weight:800; margin-top:6px; }
-    .rc-cell-b { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-height:66px; padding:8px 4px; }
-    .rc-stamp { display:inline-block; padding:3px 8px; border:2px solid #DC2626; border-radius:8px; color:#DC2626; font-size:12.5px; font-weight:900; transform:rotate(-6deg); text-align:center; line-height:1.3; }
-    .rc-cell.done .rc-cell-h { background:#FEF2F2; color:#B91C1C; }
-    .rc-btn { min-width:72px; height:32px; padding:0 10px; border-radius:8px; border:1px solid #CBD5E1; background:#fff; color:#334155; font-size:13px; font-weight:800; cursor:pointer; font-family:inherit; }
-    .rc-btn.primary { background:#2AABEE; border-color:#2AABEE; color:#fff; }
-    .rc-btn.again { height:24px; min-width:0; font-size:11.5px; font-weight:700; color:#64748B; border-color:#E2E8F0; }
-    .rc-btn:disabled { opacity:.6; }
-    .rc-off { font-size:12px; font-weight:700; color:#94A3B8; text-align:center; line-height:1.35; }
-    .rc-off i { display:block; font-style:normal; font-weight:500; font-size:11px; }
-    .rc-mini { display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
-    .rc-mini span { font-size:12px; font-weight:700; color:#94A3B8; }
-    .rc-mini span.ok { color:#B91C1C; }
-    .rc-fb { margin-top:10px; padding:12px 14px; border-radius:12px; background:#F0FDF4; border:1px solid #BBF7D0; font-size:14px; line-height:1.6; color:#14532D; }
-    .rc-fb b { display:block; margin-bottom:4px; }
-    html.pz-dk .rc-name { font-size:21px; } html.pz-dk .rc-body { font-size:17px; } html.pz-dk .rc-cell-h { font-size:14px; }
+    /* 2026-10-23(3차) 관리 흐름 스테퍼(pf-) — 이모지 대신 선 아이콘, 진행률·다음 할 일 */
+    .pf { margin-top:12px; padding:12px 12px 10px; border-radius:14px; background:linear-gradient(180deg, #F6FBF9 0%, #FFFFFF 70%); border:1px solid #DCEFE7; }
+    .pf-h { display:flex; align-items:baseline; justify-content:space-between; }
+    .pf-t { font-size:13px; font-weight:800; color:#0F5B45; letter-spacing:-0.02em; }
+    .pf-n { font-size:12px; color:#6B7C76; } .pf-n b { color:#00875F; font-size:14px; }
+    .pf-bar { height:4px; margin:7px 0 4px; border-radius:99px; background:#E3EEEA; overflow:hidden; }
+    .pf-bar span { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg, #00AE82, #2BC79A); transition:width .3s; }
+    .pf-steps { display:grid; grid-template-columns:repeat(4, 1fr); margin:8px 0 0; padding:0; list-style:none; position:relative; }
+    .pf-step { position:relative; min-width:0; }
+    .pf-step + .pf-step::before { content:''; position:absolute; top:19px; right:50%; width:100%; height:2px; background:#E2E8F0; z-index:0; }
+    .pf-step.done + .pf-step::before, .pf-step.done + .pf-step.done::before { background:#7FD8BF; }
+    .pf-step > button { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:4px; width:100%; padding:0 2px; border:none; background:none; cursor:pointer; font-family:inherit; }
+    .pf-step > button:disabled { cursor:default; }
+    .pf-dot { display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:50%; background:#fff; border:2px solid #CBD5E1; color:#64748B; transition:transform .12s; }
+    .pf-step > button:not(:disabled):active .pf-dot { transform:scale(.92); }
+    .pf-svg { display:inline-block; width:18px; height:18px; } .pf-svg.sm { width:15px; height:15px; vertical-align:-3px; }
+    .pf-step.ready .pf-dot { border-color:#00AE82; color:#00AE82; box-shadow:0 0 0 4px #E3F6EF; }
+    .pf-step.done .pf-dot { background:#00AE82; border-color:#00AE82; color:#fff; }
+    .pf-step.busy .pf-dot { border-color:#00AE82; color:#00AE82; }
+    .pf-step.off .pf-dot { border-style:dashed; color:#A0AEC0; background:#F8FAFC; }
+    .pf-step.opt.ready .pf-dot { border-color:#CBD5E1; color:#64748B; box-shadow:none; }
+    .pf-step.open .pf-dot { box-shadow:0 0 0 4px #BFEBDD; }
+    .pf-l { font-size:11.5px; font-weight:800; line-height:1.25; color:#1F2937; text-align:center; letter-spacing:-0.03em; }
+    .pf-s { font-size:11px; font-weight:600; color:#94A3B8; white-space:nowrap; }
+    .pf-step.done .pf-s { color:#00875F; } .pf-step.ready:not(.opt) .pf-s { color:#00AE82; } .pf-step.off .pf-s { color:#B0BAC5; }
+    .pf-next { display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 8px 8px 12px; border-radius:11px; background:#0F5B45; color:#fff; }
+    .pf-next > span { flex:1; min-width:0; font-size:11.5px; color:#B7E4D5; line-height:1.3; }
+    .pf-next > span b { display:block; font-size:14px; color:#fff; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pf-next > button { flex:0 0 auto; height:34px; padding:0 13px; border-radius:9px; border:none; background:#fff; color:#0F5B45; font-size:13px; font-weight:800; cursor:pointer; font-family:inherit; }
+    .pf-next.done { justify-content:center; background:#E8F8F2; color:#00875F; font-size:13px; font-weight:800; }
+    .pf-mini { display:flex; align-items:center; gap:4px; margin-top:8px; }
+    .pf-mini i { width:9px; height:9px; border-radius:50%; border:1.5px solid #CBD5E1; background:#fff; }
+    .pf-mini i.done { background:#00AE82; border-color:#00AE82; } .pf-mini i.off { border-style:dashed; }
+    .pf-mini span { margin-left:4px; font-size:12px; font-weight:700; color:#64748B; }
+    .pf-box { margin-top:10px; padding:12px 14px; border-radius:12px; font-size:14px; line-height:1.6; border:1px solid; }
+    .pf-box.fb { background:#F3FAF7; border-color:#CDEBDF; color:#14372B; }
+    .pf-box.plan { background:#FFF8F1; border-color:#FBD9B8; color:#3B2614; }
+    .pf-box-h { font-size:13.5px; font-weight:800; margin-bottom:6px; }
+    .pf-box.fb .pf-box-h { color:#00875F; } .pf-box.plan .pf-box-h { color:#C2410C; }
+    .pf-box .gl-h2, .pf-box .gl-h3 { font-weight:800; margin-top:8px; }
+    .pf-box-acts { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+    .pf-box-acts button { height:30px; padding:0 12px; border-radius:8px; border:1px solid #CBD5E1; background:#fff; color:#334155; font-size:12.5px; font-weight:800; cursor:pointer; font-family:inherit; }
+    html.pz-dk .pf-l { font-size:13px; } html.pz-dk .pf-s { font-size:12px; }
+    html.pz-dk .rc-name { font-size:21px; } html.pz-dk .rc-body { font-size:17px; }
     .rp-row-acts { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
     .rp-act { height:32px; padding:0 12px; border:none; cursor:pointer; font-weight:700; }
     .rp-act-post { background:#2AABEE; color:#fff; }
@@ -7250,9 +7271,10 @@
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const tgt = home.targets.find(t => String(t.targetName || '').trim() === String(a.targetName || '').trim());   // 2026-10-20: 답을 그 사람 누적 기록에
-          const res = await callApi({ action: 'getActivityFeedback', memberId, targetId: tgt ? tgt.targetId : '', targetName: maskName(a.targetName) || '대상자', stage: a.targetStage || '', todayWork: a.todayWork || '', nextWork: a.nextWork || '' });
+          const res = await callApi({ action: 'getActivityFeedback', memberId, activityId: a.id, targetId: tgt ? tgt.targetId : '', targetName: maskName(a.targetName) || '대상자', stage: a.targetStage || '', todayWork: a.todayWork || '', nextWork: a.nextWork || '' });
           if (res && res.error) throw new Error(res.error);
           home.aiFeedback[key] = { loading: false, text: res.text || '(응답 없음)' };
+          if (res.text && !String(res.text).startsWith('⚠️')) { a.aiFeedback = res.text; a.aiFeedbackAt = res.at || todayStr(); }
           renderHome();
           return;
         } catch (e) { lastErr = e.message || String(e); }
@@ -7272,61 +7294,88 @@
       try { localStorage.setItem(RC_FOLD_KEY, JSON.stringify([...rcFolded].slice(-300))); } catch (e) {}
       renderHome();
     };
-    // 결재란 2×2: [🤖 AI 다음 단계 피드백] [🧭 AI ○월 센터 인도 계획] / [✏️ 수정] [📤 보고방] — 칸마다 완료 도장 또는 누르는 단추
-    //   10/23(사용자): "AI 피드백은 약하니 'AI 다음 단계 피드백'으로, 옆에 센터 인도 계획과 같은 기능(같은 제목)을 이 탭에서"
-    const rcPlanOpen = {};   // 기록 id → 이 카드 안에서 센터 인도 계획을 펼쳤는지
+    // 관리 흐름(스테퍼) — 10/23(3차, 사용자): "한 사람을 이렇게 관리하고 항시 이렇게 보고가 되는구나 하게끔, 로봇 같은 아이콘은 빼고 세련되게".
+    //   기록 한 건마다 ① AI 단계향상 피드백 → ② AI ○월 센터 인도 계획 → ③ 수정 → ④ 보고방 보고 를 한 줄 진행표로.
+    //   칸을 누르면 그 일을 하고(이미 했으면 결과 펼치기), 아래 '다음 할 일' 줄이 아직 안 한 첫 칸을 큰 단추로 알려 준다.
+    //   ③ 수정은 필요할 때만이라 진행률(n/3)에는 넣지 않는다.
+    const PF_ICON = {
+      up: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+      route: '<circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H16a3.5 3.5 0 0 0 0-7H8a3.5 3.5 0 0 1 0-7h7.5"/>',
+      pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+      send: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+      check: '<path d="M20 6L9 17l-5-5"/>',
+      doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>',
+    };
+    const pfSvg = (k, cls) => `<svg class="${cls || 'pf-svg'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PF_ICON[k]}</svg>`;
+    const rcPlanOpen = {}, rcFbOpen = {};   // 기록 id → 카드 안에서 계획·피드백을 펼쳤는지
     const rcTarget = a => home.targets.find(t => String(t.targetName || '').trim() === String(a.targetName || '').trim());
+    const pfMD = s => s ? `${Number(String(s).slice(5, 7))}/${Number(String(s).slice(8, 10))}` : '';
     window.rcPlan = function (aid, tid, run) {
       const t = glTarget(tid); if (!t) return;
       rcPlanOpen[aid] = run || !rcPlanOpen[aid];
       if (run) glPlan(tid, true); else renderHome();
     };
-    function rcPlanCell(a) {
-      const t = rcTarget(a);
-      if (!t) return { ic: '🧭', t: 'AI 센터 인도 계획', off: a.targetName ? '섭외자 목록에 없음' : '섭외자 없음' };
-      const tid = esc(t.targetId), gst = glSt[t.targetId] || {};
-      if (!t.goalCohort) return { ic: '🧭', t: 'AI 센터 인도 계획', off: '개강 목표 없음', act: '목표 정하기', btn: `onclick="glOpenFor('${tid}')"` };
-      const title = `AI ${Number(t.goalCohort.slice(5))}월 센터 인도 계획`;
-      if (gst.busy) return { ic: '🧭', t: title, act: '<span class="loading loading-spinner loading-xs"></span> 설계 중', btn: 'disabled', busy: true };
-      if (t.goalPlan) return { ic: '🧭', t: title, done: true, stamp: `설계 ${t.goalPlanAt ? `${Number(t.goalPlanAt.slice(5, 7))}/${Number(t.goalPlanAt.slice(8, 10))}` : ''}`, act: rcPlanOpen[a.id] ? '접기' : '보기', btn: `onclick="rcPlan(${Number(a.id)}, '${tid}')"`, again: true };
-      return { ic: '🧭', t: title, act: '설계받기', btn: `onclick="rcPlan(${Number(a.id)}, '${tid}', true)"`, primary: true };
+    window.rcFb = function (aid, key, run) {
+      const a = rpRow(aid); if (!a) return;
+      if (run || !(a.aiFeedback || (home.aiFeedback[key] || {}).text)) { rcFbOpen[aid] = true; runActivityAiFeedback(key); return; }
+      rcFbOpen[aid] = !rcFbOpen[aid]; renderHome();
+    };
+    // 단계 4칸의 상태: st = done(했음) · ready(지금 할 수 있음) · busy · off(못 함, 이유) / go = 누르면 할 일 / sub = 아래 작은 글
+    function pfSteps(a, key) {
+      const fb = home.aiFeedback[key] || {}, fbText = fb.text || a.aiFeedback;
+      const t = rcTarget(a), gst = t ? glSt[t.targetId] || {} : {};
+      const posts = a.tgPosts || [], post = posts.find(p => p.kind === 'post'), edits = posts.filter(p => p.kind === 'edit').length;
+      const room = home.monthlyActRes && home.monthlyActRes.reportRoom;
+      const id = Number(a.id), tid = t ? esc(t.targetId) : '';
+      const planTitle = t && t.goalCohort ? `AI ${Number(t.goalCohort.slice(5))}월 센터 인도 계획` : 'AI 센터 인도 계획';
+      return [
+        { k: 'up', name: 'AI 단계향상 피드백', short: '단계향상<br>피드백',
+          st: fb.loading ? 'busy' : fbText ? 'done' : 'ready', sub: fb.loading ? '읽는 중…' : fbText ? (a.aiFeedbackAt ? pfMD(a.aiFeedbackAt) : '받음') : '받기',
+          go: `rcFb(${id}, '${esc(key)}')`, verb: '받기', open: !!(rcFbOpen[id] && fbText) },
+        !t ? { k: 'route', name: planTitle, short: '센터 인도<br>계획', st: 'off', sub: '섭외자 없음' }
+          : !t.goalCohort ? { k: 'route', name: planTitle, short: '센터 인도<br>계획', st: 'off', sub: '목표 없음', go: `glOpenFor('${tid}')`, verb: '개강 목표 정하기' }
+          : { k: 'route', name: planTitle, short: `${Number(t.goalCohort.slice(5))}월 센터<br>인도 계획`,
+              st: gst.busy ? 'busy' : t.goalPlan ? 'done' : 'ready', sub: gst.busy ? '설계 중…' : t.goalPlan ? pfMD(t.goalPlanAt) || '설계됨' : '설계받기',
+              go: `rcPlan(${id}, '${tid}', ${t.goalPlan ? 'false' : 'true'})`, verb: '설계받기', open: !!(rcPlanOpen[id] && t.goalPlan) },
+        { k: 'pen', name: '수정', short: '수정', optional: true, st: a.editedAt ? 'done' : 'ready', sub: a.editedAt ? pfMD(a.editedAt) : '필요할 때', go: `rpOpenEdit(${id})`, verb: '고치기' },
+        post ? { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'done', sub: `${pfMD(post.at)}${edits ? ` · 수정본 ${edits}` : ''}` }
+          : !a.reportText ? { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'off', sub: '보고 문자 없음', go: `rpOpenEdit(${id})`, verb: '고쳐 저장해 보고 문자 만들기' }
+          : !room ? { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'off', sub: '방 연결 전' }
+          : { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'ready', sub: '올리기', go: `rpPostRow(${id}, this)`, verb: '보고방에 올리기' },
+      ];
+    }
+    function rcApprovalHtml(a, key, mini) {
+      const steps = pfSteps(a, key), need = steps.filter(s => !s.optional);
+      const doneN = need.filter(s => s.st === 'done').length;
+      const next = need.find(s => s.st !== 'done' && s.go && s.st !== 'busy');
+      if (mini) return `<div class="pf-mini">${steps.map(s => `<i class="${s.st}" title="${esc(s.name)}"></i>`).join('')}<span>관리 ${doneN}/${need.length}${doneN === need.length ? ' · 보고 완료' : next ? ` · 다음: ${esc(next.name)}` : ''}</span></div>`;
+      return `<div class="pf">
+          <div class="pf-h"><span class="pf-t">이 섭외자 관리 흐름</span><span class="pf-n"><b>${doneN}</b> / ${need.length} 완료</span></div>
+          <div class="pf-bar"><span style="width:${Math.round(doneN / need.length * 100)}%"></span></div>
+          <ol class="pf-steps">${steps.map((s, i) => `
+            <li class="pf-step ${s.st}${s.optional ? ' opt' : ''}${s.open ? ' open' : ''}">
+              <button type="button" ${s.go ? `onclick="${s.go}"` : 'disabled'} title="${esc(s.name)}">
+                <span class="pf-dot">${s.st === 'busy' ? '<span class="loading loading-spinner loading-xs"></span>' : s.st === 'done' ? pfSvg('check') : pfSvg(s.k)}</span>
+                <span class="pf-l">${s.short}</span>
+                <span class="pf-s">${s.sub}</span>
+              </button>
+            </li>`).join('')}</ol>
+          ${doneN === need.length ? `<div class="pf-next done">${pfSvg('check', 'pf-svg sm')} 피드백 · 인도 계획 · 보고까지 마쳤어요</div>`
+            : next ? `<div class="pf-next"><span>다음 할 일<b>${esc(next.name)}</b></span><button type="button" onclick="${next.go}">${esc(next.verb)} →</button></div>` : ''}
+        </div>`;
     }
     function rcPlanBoxHtml(a) {
       const t = rcTarget(a); if (!t || !rcPlanOpen[a.id]) return '';
       const gst = glSt[t.targetId] || {}, plan = gst.text || t.goalPlan;
       if (gst.busy || !plan) return '';
-      return `<div class="rc-plan"><b>🧭 ${esc(maskName(t.targetName))} · ${glLabel(t.goalCohort)} 센터 인도 계획</b>${glMd(plan)}
-          <div class="rc-plan-acts"><button type="button" onclick="rcPlan(${Number(a.id)}, '${esc(t.targetId)}', true)">🔄 다시 설계</button><button type="button" onclick="glOpenFor('${esc(t.targetId)}')">센터 인도 계획 탭에서 보기 ›</button></div></div>`;
+      return `<div class="pf-box plan"><div class="pf-box-h">${pfSvg('route', 'pf-svg sm')} ${esc(maskName(t.targetName))} · AI ${glLabel(t.goalCohort).replace(' 개강', '')} 센터 인도 계획</div>${glMd(plan)}
+          <div class="pf-box-acts"><button type="button" onclick="rcPlan(${Number(a.id)}, '${esc(t.targetId)}', true)">다시 설계</button><button type="button" onclick="glOpenFor('${esc(t.targetId)}')">센터 인도 계획 탭에서 보기 ›</button></div></div>`;
     }
-    function rcApprovalHtml(a, key, mini) {
-      const fb = home.aiFeedback[key], posts = a.tgPosts || [];
-      const post = posts.find(p => p.kind === 'post'), edits = posts.filter(p => p.kind === 'edit').length;
-      const room = home.monthlyActRes && home.monthlyActRes.reportRoom;
-      const md = s => s ? `${Number(String(s).slice(5, 7))}/${Number(String(s).slice(8, 10))}` : '';
-      const cells = [
-        { ic: '🤖', t: 'AI 다음 단계 피드백', done: !!(fb && fb.text && !fb.loading), stamp: '받음',
-          act: fb && fb.loading ? '<span class="loading loading-spinner loading-xs"></span> 읽는 중' : '받기', ai: true, busy: fb && fb.loading },
-        rcPlanCell(a),
-        { ic: '✏️', t: '수정', done: !!a.editedAt, stamp: `수정 ${md(a.editedAt)}`, act: '고치기', btn: `onclick="rpOpenEdit(${Number(a.id)})"`, again: true },
-        post ? { ic: '📤', t: '보고방', done: true, stamp: `올림 ${md(post.at)}${edits ? `<br>수정본 ${edits}` : ''}` }
-          : !a.reportText ? { ic: '📤', t: '보고방', off: '보고 문자 없음', hint: '고쳐서 저장하면 생겨요' }
-          : !room ? { ic: '📤', t: '보고방', off: '방 연결 전' }
-          : { ic: '📤', t: '보고방', act: '올리기', btn: `onclick="rpPostRow(${Number(a.id)}, this)"`, primary: true },
-      ];
-      if (mini) return `<div class="rc-mini">${cells.map(c => `<span class="${c.done ? 'ok' : ''}">${c.ic} ${c.done ? String(c.stamp).replace('<br>', ' · ') : c.t}</span>`).join('')}</div>`;
-      return `<div class="rc-appr">${cells.map(c => {
-        const btn = c.ai ? `class="rc-btn ai-fb-btn" data-key="${esc(key)}"` : c.btn ? `${c.btn} class="rc-btn${c.primary ? ' primary' : ''}${c.done ? ' again' : ''}"` : '';
-        const label = c.done && c.again ? (c.act && c.act !== '고치기' ? c.act : '다시 고치기') : c.act;
-        const showBtn = btn && (!c.done || c.again);
-        return `<div class="rc-cell${c.done ? ' done' : ''}${c.off ? ' off' : ''}">
-            <div class="rc-cell-h">${c.ic} ${c.t}</div>
-            <div class="rc-cell-b">
-              ${c.done ? `<span class="rc-stamp">${c.stamp}</span>` : ''}
-              ${c.off ? `<span class="rc-off">${c.off}${c.hint ? `<i>${c.hint}</i>` : ''}</span>` : ''}
-              ${showBtn ? `<button type="button" ${btn} ${c.busy ? 'disabled' : ''}>${label}</button>` : ''}
-            </div>
-          </div>`;
-      }).join('')}</div>`;
+    function rcFbBoxHtml(a, key) {
+      const fb = home.aiFeedback[key] || {}, text = fb.text || a.aiFeedback;
+      if (!rcFbOpen[a.id] || fb.loading || !text) return '';
+      return `<div class="pf-box fb"><div class="pf-box-h">${pfSvg('up', 'pf-svg sm')} AI 단계향상 피드백</div>${glMd(text)}
+          <div class="pf-box-acts"><button type="button" onclick="rcFb(${Number(a.id)}, '${esc(key)}', true)">다시 받기</button></div></div>`;
     }
     function activityHistoryRowHtml(a) {
       const key = activityRowKey(a);
@@ -7350,10 +7399,10 @@
           <div class="rc-sub">${(a.roles || []).map(r => `<span>${esc(roleShortLabel(r))}</span>`).join('')}${a.reportTitle ? `<em>${esc(a.reportTitle)}</em>` : ''}</div>
           ${folded ? rcApprovalHtml(a, key, true) : `
           ${bodyLines ? `<div class="rc-body">${esc(bodyLines)}</div>` : ''}
-          ${a.reportText ? `<details class="rp-preview" style="margin-top:10px"><summary>📨 보고 문자 보기</summary><pre>${esc(a.reportText)}</pre><button type="button" class="act-btn-ghost rp-copy-row" data-key="${esc(key)}" style="height:40px;width:100%;margin-top:8px">보고 문자 복사</button></details>` : ''}
+          ${a.reportText ? `<details class="rp-preview" style="margin-top:10px"><summary>${pfSvg('doc', 'pf-svg sm')} 보고 문자 보기</summary><pre>${esc(a.reportText)}</pre><button type="button" class="act-btn-ghost rp-copy-row" data-key="${esc(key)}" style="height:40px;width:100%;margin-top:8px">보고 문자 복사</button></details>` : ''}
           ${rcApprovalHtml(a, key, false)}
-          ${rcPlanBoxHtml(a)}
-          ${fb && !fb.loading && fb.text ? `<div class="rc-fb"><b>🤖 AI 다음 단계 피드백</b>${glMd(fb.text)}</div>` : ''}`}
+          ${rcFbBoxHtml(a, key)}
+          ${rcPlanBoxHtml(a)}`}
         </div>`;
     }
     // 당근처럼 "3분 전 / 어제 / 9월 20일" 식 상대 시간 표기.
@@ -7925,7 +7974,7 @@
     // 2026-10-10(2차): 출석(QR·출석 현황) / 내 활동(등급·인교섬협 요약·전도 대상자) / 활동 기록
     // 2026-10-20: '🎯 개강 인도'(개강 인도 계획)— 주황 칸으로 늘 눈에 띄게(.hot)
     // 2026-10-23(사용자): '기록 보기'는 내 활동 안 서브 탭으로, '개강 인도' → '개강 인도 계획'
-    const ACT_PAGES = [['attend', '출석'], ['targets', '내 활동'], ['goal', '센터 인도 계획'], ['edu', '내가 이수한 교육']];   // 순서: 출석·내 활동·센터 인도 계획·내가 이수한 교육(10/23 사용자: 표적 아이콘 뺌)   // 이수 교육 = 예전 교재 탭의 '이수교육'
+    const ACT_PAGES = [['attend', '내 교육 출석'], ['targets', '내 활동'], ['goal', '센터 인도 계획'], ['edu', '내가 이수한 교육']];   // 순서: 출석·내 활동·센터 인도 계획·내가 이수한 교육(10/23 사용자: 표적 아이콘 뺌)   // 이수 교육 = 예전 교재 탭의 '이수교육'
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
