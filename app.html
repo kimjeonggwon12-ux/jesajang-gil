@@ -863,6 +863,9 @@
     /* 가로 스크롤 칩 버튼 그룹 — select 대체 */
     .act-chip-scroll { display:flex; gap:8px; overflow-x:auto; padding:2px 0; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
     .act-chip-scroll::-webkit-scrollbar { display:none; }
+    /* 2026-10-23(사용자): 기록 양식의 칩(활동·연령대·단계·수강 기수)이 옆으로 벌어져 PC에서 못 넘김 → 여러 줄로 감고 칩을 작게 */
+    .act-sheet-form .act-chip-scroll { flex-wrap:wrap; overflow:visible; gap:6px; }
+    .act-sheet-form .act-chip-scroll .act-chip-btn, .act-sheet-form .act-chip-wrap .act-chip-btn { height:36px; padding:0 13px; font-size:14px; }
     .act-chip-wrap { display:flex; flex-wrap:wrap; gap:8px; }
     .act-chip-btn {
       flex-shrink:0; height:40px; padding:0 16px; border-radius:999px; border:none; background:#fff;
@@ -6508,7 +6511,7 @@
             <datalist id="rp-faith-list">${RP_FAITH.map(x => `<option value="${x}">`).join('')}</datalist>
             <datalist id="rp-recruit-list">${RP_RECRUIT.map(x => `<option value="${x}">`).join('')}</datalist>
             ${rpIsEnrolled(f) ? `<div><div class="act-field-label">수강 기수 <span class="rp-opt">· 몇 월 수강자인가요?</span></div>
-              <div class="act-chip-scroll"><button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === 'none' ? 'on' : ''}" data-v="none">해당 없음</button>${rpEnrollMonths().map(v => `<button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === v ? 'on' : ''}" data-v="${v}">${v}월 수강자</button>`).join('')}</div></div>`
+              <div class="act-chip-scroll"><button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === 'none' ? 'on' : ''}" data-v="none">해당 없음</button>${rpEnrollMonths().map(v => `<button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === v ? 'on' : ''}" data-v="${v}">${v}월</button>`).join('')}</div></div>`
               : `<div><div class="act-field-label">목표 센터명</div>${rpIn('data-rp', 'center', r.center, '예) 덕진2 센터')}</div>`}`,
         checks: !full ? '' : `
         <div class="act-form-group">
