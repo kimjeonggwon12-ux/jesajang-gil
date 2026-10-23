@@ -6640,7 +6640,7 @@
     };
     window.rpPostRow = async function (id, btn) {
       const a = rpRow(id), room = home.monthlyActRes && home.monthlyActRes.reportRoom;
-      if (!a || !room || !confirm(`이 보고를 '${room.title}'에 올릴까요?\n올린 뒤 고치면 수정본이 그 글에 답장으로 다시 올라가요.`)) return;
+      if (!a || !room) return;
       if (btn) { btn.disabled = true; btn.textContent = '올리는 중…'; }
       try {
         const res = await callApi({ action: 'postActivityReport', memberId, id });
@@ -6684,7 +6684,7 @@
         <div class="act-sheet-head">
           <div>
             <div class="act-sheet-title">${f.editId ? '보고 기록 고치기' : '오늘 활동, 보고해볼까요?'}</div>
-            <div class="act-sheet-sub">${f.editId ? '고쳐서 저장하면, 보고방에 올린 기록은 수정본이 다시 올라가요.' : '보고방 문자 틀 그대로 기록돼요. 단계에 맞는 칸만 보여 드려요.'}</div>
+            <div class="act-sheet-sub">${f.editId ? '고쳐서 저장하면 보고방에 수정본이 바로 올라가요.' : '저장하면 보고방 문자 틀 그대로 보고방에 바로 올라가요.'}</div>
           </div>
           <button type="button" class="act-sheet-close" onclick="closeSheet()" aria-label="닫기">✕</button>
         </div>
@@ -6887,9 +6887,10 @@
           closeSheet();
           await refreshAfterSubmit();
           renderHome();
-          toast(res.reposted ? '수정했어요. 보고방에도 수정본을 다시 올렸어요 ✏️' : res.repostError ? '수정했어요. 다만 ' + res.repostError : '수정했어요 ✏️', !!res.repostError);
+          toast(res.reposted ? '수정했어요. 보고방에 수정본을 올렸어요 📤' : res.repostError ? '수정했어요. 다만 보고방에는 못 올렸어요: ' + res.repostError : '수정했어요 ✏️', !!res.repostError);
           return;
         }
+        const rpMsg = res.reported ? ' 보고방에도 올렸어요 📤' : res.reportError ? ' (보고방에는 못 올렸어요: ' + res.reportError + ')' : '';   // 10/23: 저장하면 보고방 자동 올림
         const submittedItem = f.activityItem, goal = targetNameTrimmed && !rpIsEnrolled(f) ? f.goalCohort : '';   // 수강생은 개강 목표 없음
         rpResetForm(f);
         // 당근 스타일: 등록 성공하면 바텀시트를 닫고 피드(대시보드)로 돌아가 새 기록을 바로 보여줌.
@@ -6902,11 +6903,11 @@
           try {
             await glSaveGoal(goalT, goal);
             actPage = 'goal'; renderHome(); glFocus(goalT.targetId);
-            toast(`기록을 남기고 ${glLabel(goal)} 인도 목표로 체크했어요. AI 센터 인도 계획을 받아 보세요`);
+            toast(`기록을 남기고 ${glLabel(goal)} 인도 목표로 체크했어요.${rpMsg}`);
           } catch (e) { renderHome(); toast('기록은 남겼지만 개강 목표 저장에 실패했어요: ' + e.message, true); }
         } else {
           renderHome();
-          toast('기록을 남겼어요 ✍️');
+          toast('기록을 남겼어요 ✍️' + rpMsg, !!res.reportError);
         }
         if (targetNameTrimmed && prevTarget && newStageIdx >= 0 && newStageIdx > prevStageIdx) {
           openStageUpModal(targetNameTrimmed, prevTarget.stage, newStage);
@@ -7341,7 +7342,7 @@
         post ? { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'done', sub: `${pfMD(post.at)}${edits ? ` · 수정본 ${edits}` : ''}` }
           : !a.reportText ? { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'off', sub: '보고 문자 없음', go: `rpOpenEdit(${id})`, verb: '고쳐 저장해 보고 문자 만들기' }
           : !room ? { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'off', sub: '방 연결 전' }
-          : { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'ready', sub: '올리기', go: `rpPostRow(${id}, this)`, verb: '보고방에 올리기' },
+          : { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'ready', sub: '다시 올리기', go: `rpPostRow(${id}, this)`, verb: '보고방에 다시 올리기' },   // 저장 때 자동으로 못 올라간 기록
       ];
     }
     function rcApprovalHtml(a, key, mini) {

@@ -55,7 +55,7 @@ async function submitActivity(body) {
   const name = String(body.name || '');
   const { roles, activities, target_name: targetName, target_gender: gender, target_age_group: ageGroup, target_stage: stage, special_note: note, report } = fields;
 
-  await run(db().from('activities').insert({ member_id: memberId, name, ...fields }));
+  const [row] = await run(db().from('activities').insert({ member_id: memberId, name, ...fields }).select('*'));
 
   if (targetName) {
     await upsertTargetFromActivity({ memberId, name, roles, targetName, gender, ageGroup, stage, note, report, date: fields.submitted_at.slice(0, 10) });
@@ -64,7 +64,28 @@ async function submitActivity(body) {
   const label = activities.join(', ');
   await notifyActivityChannel(`[활동등록] ${name || '이름미상'}님이 ${label}을(를) 등록했습니다${roles.length ? ` (${roles.join('/')})` : ''}`);
 
-  return afterAction('submitActivity', body, { ok: true, submittedAt: fields.submitted_at });
+  const sent = await autoReport(row, 'post');   // 10/23: 기록을 남기면 보고방에 바로 올림
+  return afterAction('submitActivity', body, { ok: true, submittedAt: fields.submitted_at, ...sent });
+}
+
+/**
+ * 2026-10-23(사용자): "보고방에 보고는 갱신할 때마다, 수정할 때마다 항시 올라가게" — 단추 없이 저장하면 자동으로 올린다.
+ *   처음 저장 = 보고 글, 고쳐 저장 = 처음 글에 답장으로 "✏️ [수정본]"(처음 글이 없으면 그냥 보고 글).
+ *   교사명단에 없는 번호(시험 계정 등)는 올리지 않는다. 올리기에 실패해도 기록 저장은 그대로 — 카드에서 [다시 올리기].
+ */
+async function autoReport(row, kind) {
+  if (!row || !row.report_text) return { reported: false };
+  try {
+    const teacher = await findTeacher(row.member_id);
+    if (!teacher) return { reported: false };
+    const room = await roomForDept(teacher.dept);
+    if (!room) return { reported: false, reportError: '부서 보고방이 아직 연결되지 않았어요.' };
+    const first = (row.tg_posts || []).some((p) => p.kind === 'post');
+    await postReport(row, room, kind === 'edit' && first ? 'edit' : 'post');
+    return { reported: true, room: room.title };
+  } catch (e) {
+    return { reported: false, reportError: e.message };
+  }
 }
 
 /** 내 보고 기록 한 줄(남의 것이면 null). */
@@ -92,18 +113,11 @@ async function updateActivity(body) {
   if (fields.target_name && fields.report) {
     await updateProfileFromEdit(mid, fields.target_name, fields.report, fields.submitted_at.slice(0, 10), old.report && old.report.lesson);
   }
-  let reposted = false, repostError = '';
-  if ((old.tg_posts || []).length && fields.report_text) {
-    try {
-      const room = await myRoom(mid);
-      if (room) { await postReport({ ...old, ...fields }, room, 'edit'); reposted = true; }
-      else repostError = '부서 보고방 연결이 없어 수정본을 올리지 못했어요.';
-    } catch (e) { repostError = e.message; }
-  }
-  return { ok: true, editedAt, reposted, repostError };
+  const sent = await autoReport({ ...old, ...fields }, 'edit');   // 고칠 때마다 보고방에 수정본
+  return { ok: true, editedAt, reposted: sent.reported, repostError: sent.reportError || '', room: sent.room };
 }
 
-/** 보고 기록을 보고방에 처음 올린다. 이미 올린 기록은 고치면 수정본이 자동으로 올라간다. */
+/** 자동 올리기가 실패했거나 예전 기록일 때 카드에서 [다시 올리기]로 부른다. 이미 올린 기록은 고치면 수정본이 자동으로 올라간다. */
 async function postActivityReport(body) {
   const mid = str(body.memberId);
   const row = mid && await myActivity(mid, body.id);
