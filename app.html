@@ -876,7 +876,9 @@
     .rc-card.is-new { border-color:#00AE82; box-shadow:0 0 0 3px #CDEFE4; }
     .rc-card.folded { padding-bottom:10px; background:#FAFAFB; }
     .rc-head { display:flex; align-items:center; gap:7px; width:100%; padding:0; border:none; background:none; text-align:left; cursor:pointer; font-family:inherit; }
-    .rc-name { font-size:19px; font-weight:800; letter-spacing:-0.03em; color:#111; }
+    /* 10/23(사용자): 이름이 "짠" 하고 쨍하게 — 첫 글자 동그라미 + 크고 굵게 + 형광 밑줄 */
+    .rc-ava { flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg, #00C48F, #00876A); color:#fff; font-size:16px; font-weight:900; box-shadow:0 4px 10px -4px rgba(0,135,106,.7); }
+    .rc-name { font-size:23px; font-weight:900; letter-spacing:-0.04em; color:#0A0A0A; line-height:1.15; padding:0 2px; background:linear-gradient(transparent 62%, #A7F3D0 62%, #A7F3D0 92%, transparent 92%); }
     .rc-stage { font-size:13px; font-weight:800; padding:3px 9px; border-radius:999px; border:1px solid #D1D5DB; background:#F3F4F6; color:#374151; white-space:nowrap; }
     .rc-item { font-size:12.5px; font-weight:700; color:#6B7280; white-space:nowrap; }
     .rc-when { margin-left:auto; font-size:12.5px; color:#8A8F98; white-space:nowrap; }
@@ -928,7 +930,7 @@
     .pf-box-acts { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
     .pf-box-acts button { height:30px; padding:0 12px; border-radius:8px; border:1px solid #CBD5E1; background:#fff; color:#334155; font-size:12.5px; font-weight:800; cursor:pointer; font-family:inherit; }
     html.pz-dk .pf-l { font-size:13px; } html.pz-dk .pf-s { font-size:12px; }
-    html.pz-dk .rc-name { font-size:21px; } html.pz-dk .rc-body { font-size:17px; }
+    html.pz-dk .rc-name { font-size:25px; } html.pz-dk .rc-ava { width:38px; height:38px; font-size:18px; } html.pz-dk .rc-body { font-size:17px; }
     .rp-row-acts { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
     .rp-act { height:32px; padding:0 12px; border:none; cursor:pointer; font-weight:700; }
     .rp-act-post { background:#2AABEE; color:#fff; }
@@ -7426,7 +7428,7 @@
       return `
         <div class="rc-card${isNew ? ' is-new' : ''}${folded ? ' folded' : ''}">
           <button type="button" class="rc-head" ${a.id ? `onclick="rcToggle(${Number(a.id)})"` : ''} aria-expanded="${!folded}">
-            <span class="rc-name">${esc(who)}</span>
+            <span class="rc-ava" aria-hidden="true">${esc(String(who).charAt(0))}</span><span class="rc-name">${esc(who)}</span>
             ${stage ? `<span class="rc-stage" ${st ? `style="background:${st.bg};color:${st.text};border-color:${st.border}"` : ''}>${esc(stage)}</span>` : ''}
             ${item && item !== stage && a.targetName ? `<span class="rc-item">${esc(item)}</span>` : ''}
             <span class="rc-when">${esc(actFeedTimeText(a.submittedAt))}</span>
