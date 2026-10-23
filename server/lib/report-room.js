@@ -1,4 +1,4 @@
-// 보고방(교자장부청 공식 보고방, 텔레그램) — 교사광장 봇이 보고 문자를 그대로 올린다(2026-10-23).
+// 보고방(교자장부청 공식 보고방, 텔레그램) — 출석 봇이 보고 문자를 그대로 올린다(2026-10-23).
 // 부서 → 방은 report_rooms 표. 고친 보고는 처음 올린 글에 답장으로 "수정본"을 다시 올린다.
 import { db, run } from './db.js';
 import { kstDateTime } from './util.js';
@@ -14,8 +14,9 @@ export async function roomForDept(dept) {
 
 /** 글 하나 보내기 → 보낸 글 번호(실패하면 Error). 4096자 넘으면 잘라서 앞부분만. */
 async function sendText(chatId, text, replyTo) {
-  const token = process.env.TEACHERSQUARE_BOT_TOKEN;
-  if (!token) throw new Error('보고방 봇 설정(TEACHERSQUARE_BOT_TOKEN)이 없습니다.');
+  // 10/23: 보고방에는 출석 봇(@teachersquare_att_bot)이 초대돼 있어 그 봇으로 보낸다(출석 봇 웹훅은 교육 과정 방 글만 처리 — 보고방 글은 무시).
+  const token = process.env.ATT_BOT_TOKEN || process.env.TEACHERSQUARE_BOT_TOKEN;
+  if (!token) throw new Error('보고방 봇 설정(ATT_BOT_TOKEN)이 없습니다.');
   const body = { chat_id: chatId, text: String(text).slice(0, 4096) };
   if (replyTo) body.reply_parameters = { message_id: Number(replyTo), allow_sending_without_reply: true };
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
