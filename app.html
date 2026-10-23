@@ -6383,10 +6383,10 @@
     const RP_RECRUIT = ['가족', '친척', '지인', '직장', '이웃', '학교', '길거리', 'SNS', '기타'];
     const RP_WEEKLY = ['주 1회', '주 2회', '주 3회'];
     // home.form 초기값에서 먼저 부르므로 함수 선언(끌어올림)으로 둔다
-    function rpEmpty() { return { center: '', age: '', phone4: '', faith: '', recruitType: '', stageMark: '', checks: {}, team: {}, time: '', eduTotal: '', eduWeekly: '', nextDate: '', request: '', plan: {}, lessons: [] }; }
+    function rpEmpty() { return { center: '', enroll: '', age: '', phone4: '', faith: '', recruitType: '', stageMark: '', checks: {}, team: {}, time: '', eduTotal: '', eduWeekly: '', nextDate: '', request: '', plan: {}, lessons: [] }; }
     function rpFromTarget(t) {
       const p = (t && t.reportProfile) || {};
-      return { ...rpEmpty(), center: p.center || '', age: p.age || '', phone4: p.phone4 || '', faith: p.faith || '', recruitType: p.recruitType || '',
+      return { ...rpEmpty(), center: p.center || '', enroll: p.enroll || '', age: p.age || '', phone4: p.phone4 || '', faith: p.faith || '', recruitType: p.recruitType || '',
         stageMark: p.stageMark || '', checks: { ...(p.checks || {}) }, team: { ...(p.team || {}) }, eduWeekly: p.eduWeekly || '',
         plan: { ...(p.plan || {}) }, lessons: Array.isArray(p.lessons) ? p.lessons.slice() : [] };
     }
@@ -6410,6 +6410,13 @@
       const x = new Date(d + 'T00:00:00');
       return `${x.getMonth() + 1}월 ${x.getDate()}일(${RP_WD[x.getDay()]}요일)${time ? ' ' + time : ''}`;
     }
+    // 10/23(사용자): 센터 수강생은 목표 센터명 대신 "3월 수강자"처럼 수강 기수(또는 해당 없음)
+    const rpIsEnrolled = f => f.activityItem === '센터수강';
+    function rpEnrollMonths() {   // 이번 달부터 거꾸로 12달: '10', '9', … (수강 중인 기수는 지난 달들)
+      const m = Number(todayStr().slice(5, 7));
+      return Array.from({ length: 12 }, (_, k) => String((m - 1 - k + 12) % 12 + 1));
+    }
+    const rpEnrollText = v => v === 'none' ? '해당 없음' : v ? `${v}월 수강자` : '';
     const rpMD = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${Number(d.slice(5, 7))}월 ${Number(d.slice(8))}일` : '';
     const rpSlash = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${Number(d.slice(5, 7))}/${Number(d.slice(8))}` : '';
     const rpDash = v => { const ls = String(v || '').split('\n').map(x => x.trim()).filter(Boolean); return ls.length ? ls.map(x => '-' + x).join('\n') : '-'; };
@@ -6426,7 +6433,8 @@
     function rpReportText(f) {
       const r = f.rp, item = f.activityItem, tier = rpTier(item);
       const gm = Number((f.goalCohort || f.date || todayStr()).slice(5, 7));
-      const L = [`🦋${rpDept()}`, `${gm}월 목표 센터명: ${r.center || ''}`, '', `[${rpTitle(item)}]`, ''];
+      const head = rpIsEnrolled(f) ? `수강 기수: ${rpEnrollText(r.enroll)}` : `${gm}월 목표 센터명: ${r.center || ''}`;
+      const L = [`🦋${rpDept()}`, head, '', `[${rpTitle(item)}]`, ''];
       if (tier === 'edu' || tier === 'center') {
         const ck = k => (r.checks || {})[k] || '';
         L.push(`1️⃣ 소속 여부 : ${ck('affil')}`, `2️⃣ 단계 여부 (상1,상2/복,확) : ${r.stageMark || ''}`, `3️⃣ 마팔 등록 여부 : ${ck('mapal')}`,
@@ -6457,7 +6465,8 @@
     // 서버로 보내는 보고 칸 — 이 단계에 보이는 칸만 보낸다(안 보이는 칸은 섭외자 프로필에 남은 값을 지우지 않게)
     function rpPayload(f) {
       const r = f.rp, tier = rpTier(f.activityItem);
-      const p = { tier, title: rpTitle(f.activityItem), center: r.center, age: r.age, faith: r.faith, recruitType: r.recruitType, time: r.time, nextDate: r.nextDate, request: r.request.trim() };
+      const p = { tier, title: rpTitle(f.activityItem), age: r.age, faith: r.faith, recruitType: r.recruitType, time: r.time, nextDate: r.nextDate, request: r.request.trim() };
+      if (rpIsEnrolled(f)) p.enroll = r.enroll; else p.center = r.center;
       if (tier !== 'basic') { p.phone4 = r.phone4; p.team = r.team; }
       else if (Object.values(r.team).some(Boolean)) p.team = r.team;
       if (tier === 'edu' || tier === 'center') { p.checks = r.checks; p.stageMark = r.stageMark; p.plan = r.plan; }
@@ -6491,7 +6500,9 @@
             </div>
             <datalist id="rp-faith-list">${RP_FAITH.map(x => `<option value="${x}">`).join('')}</datalist>
             <datalist id="rp-recruit-list">${RP_RECRUIT.map(x => `<option value="${x}">`).join('')}</datalist>
-            <div><div class="act-field-label">목표 센터명</div>${rpIn('data-rp', 'center', r.center, '예) 덕진2 센터')}</div>`,
+            ${rpIsEnrolled(f) ? `<div><div class="act-field-label">수강 기수 <span class="rp-opt">· 몇 월 수강자인가요?</span></div>
+              <div class="act-chip-scroll"><button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === 'none' ? 'on' : ''}" data-v="none">해당 없음</button>${rpEnrollMonths().map(v => `<button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === v ? 'on' : ''}" data-v="${v}">${v}월 수강자</button>`).join('')}</div></div>`
+              : `<div><div class="act-field-label">목표 센터명</div>${rpIn('data-rp', 'center', r.center, '예) 덕진2 센터')}</div>`}`,
         checks: !full ? '' : `
         <div class="act-form-group">
           <div class="act-step-label">보고 체크 5가지</div>
@@ -6547,6 +6558,7 @@
       document.querySelectorAll('[data-rp-plan]').forEach(el => { el.onchange = () => { r.plan[el.dataset.rpPlan] = el.value; rpRefreshPreview(); }; });
       document.querySelectorAll('.rp-ck-btn').forEach(b => { b.onclick = () => { const k = b.dataset.ck; r.checks[k] = r.checks[k] === b.dataset.v ? '' : b.dataset.v; renderActivityFormSheet(); }; });
       document.querySelectorAll('.rp-mark-btn').forEach(b => { b.onclick = () => { r.stageMark = r.stageMark === b.dataset.v ? '' : b.dataset.v; renderActivityFormSheet(); }; });
+      document.querySelectorAll('.rp-enroll-btn').forEach(b => { b.onclick = () => { r.enroll = r.enroll === b.dataset.v ? '' : b.dataset.v; renderActivityFormSheet(); }; });
       document.querySelectorAll('.rp-weekly-btn').forEach(b => { b.onclick = () => { r.eduWeekly = r.eduWeekly === b.dataset.v ? '' : b.dataset.v; renderActivityFormSheet(); }; });
     }
 
@@ -6616,7 +6628,7 @@
               <div class="act-field-label">지금 어느 단계인가요?</div>
               <div class="act-chip-scroll">${stageOptions.map(s => `<button type="button" class="act-chip-btn af-stage-chip ${f.targetStage === s ? 'on' : ''}" data-stage="${esc(s)}">${esc(s)}</button>`).join('')}</div>
             </div>
-            <div class="af-goal">
+            <div class="af-goal" ${rpIsEnrolled(f) ? 'hidden' : ''}>
               <div class="act-field-label">몇 월 개강 센터 인도를 목표로 할까요? <span style="font-weight:500;color:var(--dg-text-sub)">· 선택</span></div>
               <div class="act-chip-wrap">${glMonths().map(g => `<button type="button" class="act-chip-btn af-goal-chip ${f.goalCohort === g ? 'on' : ''}" data-goal="${g}">${glLabel(g)}</button>`).join('')}</div>
             </div>
@@ -6760,7 +6772,7 @@
           report: rpPayload(f), reportText: rpReportText(f)
         });
         if (res && res.error) throw new Error(res.error);
-        const submittedItem = f.activityItem, goal = targetNameTrimmed ? f.goalCohort : '';
+        const submittedItem = f.activityItem, goal = targetNameTrimmed && !rpIsEnrolled(f) ? f.goalCohort : '';   // 수강생은 개강 목표 없음
         f.targetName = ''; f.targetGender = ''; f.targetAgeGroup = ''; f.targetStage = ''; f.existingTargetId = ''; f.goalCohort = '';
         f.todayWork = ''; f.nextWork = '';
         f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
