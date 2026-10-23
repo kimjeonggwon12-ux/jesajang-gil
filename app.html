@@ -853,6 +853,39 @@
     .tg-goal-sum > * { font-size:12.5px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid #E5E7EB; background:#F9FAFB; color:#6B7280; }
     .tg-goal-sum > .on { background:#FFF4EC; border-color:#FFD2B3; color:#C2410C; }
     .tg-goal-sum > button { cursor:pointer; }
+    /* 2026-10-23 기록 카드(rc-) — 이름 먼저, 단계 한 번, 결재란 3칸, 접기 */
+    .rc-card { margin:10px var(--dg-pad); padding:14px 14px 12px; border-radius:16px; background:#fff; border:1px solid #E5E7EB; box-shadow:0 2px 8px -4px rgba(0,0,0,.12); }
+    .rc-card.is-new { border-color:#00AE82; box-shadow:0 0 0 3px #CDEFE4; }
+    .rc-card.folded { padding-bottom:10px; background:#FAFAFB; }
+    .rc-head { display:flex; align-items:center; gap:7px; width:100%; padding:0; border:none; background:none; text-align:left; cursor:pointer; font-family:inherit; }
+    .rc-name { font-size:19px; font-weight:800; letter-spacing:-0.03em; color:#111; }
+    .rc-stage { font-size:13px; font-weight:800; padding:3px 9px; border-radius:999px; border:1px solid #D1D5DB; background:#F3F4F6; color:#374151; white-space:nowrap; }
+    .rc-item { font-size:12.5px; font-weight:700; color:#6B7280; white-space:nowrap; }
+    .rc-when { margin-left:auto; font-size:12.5px; color:#8A8F98; white-space:nowrap; }
+    .rc-fold { font-size:11.5px; font-weight:700; color:#94A3B8; white-space:nowrap; }
+    .rc-sub { display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:6px; }
+    .rc-sub span { font-size:12px; font-weight:700; padding:2px 8px; border-radius:6px; background:#F3F4F6; color:#4B5563; }
+    .rc-sub em { font-style:normal; font-size:12px; font-weight:700; color:#7C3AED; }
+    .rc-body { margin-top:10px; font-size:15px; line-height:1.6; color:#222; white-space:pre-wrap; word-break:break-word; }
+    .rc-appr { display:grid; grid-template-columns:repeat(3, 1fr); margin-top:12px; border:1.5px solid #CBD5E1; border-radius:12px; overflow:hidden; }
+    .rc-cell { display:flex; flex-direction:column; min-width:0; }
+    .rc-cell + .rc-cell { border-left:1.5px solid #CBD5E1; }
+    .rc-cell-h { padding:6px 4px; text-align:center; font-size:12.5px; font-weight:800; color:#334155; background:#F1F5F9; border-bottom:1.5px solid #CBD5E1; white-space:nowrap; }
+    .rc-cell-b { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-height:66px; padding:8px 4px; }
+    .rc-stamp { display:inline-block; padding:3px 8px; border:2px solid #DC2626; border-radius:8px; color:#DC2626; font-size:12.5px; font-weight:900; transform:rotate(-6deg); text-align:center; line-height:1.3; }
+    .rc-cell.done .rc-cell-h { background:#FEF2F2; color:#B91C1C; }
+    .rc-btn { min-width:72px; height:32px; padding:0 10px; border-radius:8px; border:1px solid #CBD5E1; background:#fff; color:#334155; font-size:13px; font-weight:800; cursor:pointer; font-family:inherit; }
+    .rc-btn.primary { background:#2AABEE; border-color:#2AABEE; color:#fff; }
+    .rc-btn.again { height:24px; min-width:0; font-size:11.5px; font-weight:700; color:#64748B; border-color:#E2E8F0; }
+    .rc-btn:disabled { opacity:.6; }
+    .rc-off { font-size:12px; font-weight:700; color:#94A3B8; text-align:center; line-height:1.35; }
+    .rc-off i { display:block; font-style:normal; font-weight:500; font-size:11px; }
+    .rc-mini { display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+    .rc-mini span { font-size:12px; font-weight:700; color:#94A3B8; }
+    .rc-mini span.ok { color:#B91C1C; }
+    .rc-fb { margin-top:10px; padding:12px 14px; border-radius:12px; background:#F0FDF4; border:1px solid #BBF7D0; font-size:14px; line-height:1.6; white-space:pre-wrap; color:#14532D; }
+    .rc-fb b { display:block; margin-bottom:4px; }
+    html.pz-dk .rc-name { font-size:21px; } html.pz-dk .rc-body { font-size:17px; } html.pz-dk .rc-cell-h { font-size:14px; }
     .rp-row-acts { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
     .rp-act { height:32px; padding:0 12px; border:none; cursor:pointer; font-weight:700; }
     .rp-act-post { background:#2AABEE; color:#fff; }
@@ -6565,15 +6598,6 @@
       f.rp = rpEmpty(); f.rpAuto = {}; f.rpTotalAuto = false;
       f.loading = false;
     }
-    // 2026-10-23 기록 보기 카드: [✏️ 수정] · [📤 보고방에 올리기](내 부서 방 또는 기본 방이 연결돼 있고 아직 안 올린 기록) · 올림 표시
-    function rpRowActsHtml(a) {
-      if (!a.id) return '';
-      const posts = a.tgPosts || [], posted = posts.some(p => p.kind === 'post'), edits = posts.filter(p => p.kind === 'edit').length;
-      const room = home.monthlyActRes && home.monthlyActRes.reportRoom;
-      return `<button type="button" class="act-chip rp-act" onclick="rpOpenEdit(${Number(a.id)})">✏️ 수정</button>
-        ${room && a.reportText && !posted ? `<button type="button" class="act-chip rp-act rp-act-post" onclick="rpPostRow(${Number(a.id)}, this)">📤 보고방에 올리기</button>` : ''}
-        ${posted ? `<span class="rp-posted">✅ 보고방에 올림${edits ? ` · 수정본 ${edits}번` : ''}</span>` : a.editedAt ? '<span class="rp-posted rp-edited">수정됨</span>' : ''}`;
-    }
     const rpRow = id => ((home.monthlyActRes && home.monthlyActRes.rows) || []).find(x => Number(x.id) === Number(id));
     window.rpOpenEdit = function (id) {
       const a = rpRow(id); if (!a) return;
@@ -7244,35 +7268,71 @@
       home.aiFeedback[key] = { loading: false, text: '오류가 발생했습니다: ' + lastErr };
       renderHome();
     }
-    // ── Phase 2: 당근 "동네생활 게시판" 스타일 피드 행.
-    // 위계: 제목(활동 항목 + 대상자) → 본문(오늘/다음 할 일) → 메타(날짜·역할·단계 칩).
-    // home.newActivityKey가 일치하면 방금 등록된 글이라 살짝 하이라이트되며 들어온다(Phase 4).
+    // ── 2026-10-23(사용자) 기록 카드 다시 정리: "가시성이 떨어짐 — 이름이 먼저 잘 보이고 그다음 단계, 만남1이 두 번 겹치지 않게,
+    //   AI 피드백·수정·보고방 올림은 전자 결재처럼 잘 보이게, 필요 없는 건 접기". 위계: 이름(크게) → 단계 칩(한 번만) → 날짜·역할,
+    //   본문(오늘/다음·보고 문자), 맨 아래 결재란 3칸. 머리를 누르면 접힘(이 기기에 기억, 접혀도 결재 상태는 작게 보임).
+    //   home.newActivityKey가 일치하면 방금 등록된 글이라 살짝 하이라이트되며 들어온다(Phase 4).
+    const RC_FOLD_KEY = 'ts_rc_fold';
+    const rcFolded = new Set((() => { try { return JSON.parse(localStorage.getItem(RC_FOLD_KEY) || '[]'); } catch (e) { return []; } })());
+    window.rcToggle = function (id) {
+      rcFolded.has(id) ? rcFolded.delete(id) : rcFolded.add(id);
+      try { localStorage.setItem(RC_FOLD_KEY, JSON.stringify([...rcFolded].slice(-300))); } catch (e) {}
+      renderHome();
+    };
+    // 결재란 3칸: [🤖 AI 피드백] [✏️ 수정] [📤 보고방] — 칸마다 완료 도장 또는 누르는 단추
+    function rcApprovalHtml(a, key, mini) {
+      const fb = home.aiFeedback[key], posts = a.tgPosts || [];
+      const post = posts.find(p => p.kind === 'post'), edits = posts.filter(p => p.kind === 'edit').length;
+      const room = home.monthlyActRes && home.monthlyActRes.reportRoom;
+      const md = s => s ? `${Number(String(s).slice(5, 7))}/${Number(String(s).slice(8, 10))}` : '';
+      const cells = [
+        { ic: '🤖', t: 'AI 피드백', done: !!(fb && fb.text && !fb.loading), stamp: '받음',
+          act: fb && fb.loading ? '<span class="loading loading-spinner loading-xs"></span> 읽는 중' : '받기', ai: true, busy: fb && fb.loading },
+        { ic: '✏️', t: '수정', done: !!a.editedAt, stamp: `수정 ${md(a.editedAt)}`, act: '고치기', btn: `onclick="rpOpenEdit(${Number(a.id)})"`, again: true },
+        post ? { ic: '📤', t: '보고방', done: true, stamp: `올림 ${md(post.at)}${edits ? `<br>수정본 ${edits}` : ''}` }
+          : !a.reportText ? { ic: '📤', t: '보고방', off: '보고 문자 없음', hint: '고쳐서 저장하면 생겨요' }
+          : !room ? { ic: '📤', t: '보고방', off: '방 연결 전' }
+          : { ic: '📤', t: '보고방', act: '올리기', btn: `onclick="rpPostRow(${Number(a.id)}, this)"`, primary: true },
+      ];
+      if (mini) return `<div class="rc-mini">${cells.map(c => `<span class="${c.done ? 'ok' : ''}">${c.ic} ${c.done ? String(c.stamp).replace('<br>', ' · ') : c.t}</span>`).join('')}</div>`;
+      return `<div class="rc-appr">${cells.map(c => {
+        const btn = c.ai ? `class="rc-btn ai-fb-btn" data-key="${esc(key)}"` : c.btn ? `${c.btn} class="rc-btn${c.primary ? ' primary' : ''}${c.done ? ' again' : ''}"` : '';
+        const showBtn = btn && (!c.done || c.again);
+        return `<div class="rc-cell${c.done ? ' done' : ''}${c.off ? ' off' : ''}">
+            <div class="rc-cell-h">${c.ic} ${c.t}</div>
+            <div class="rc-cell-b">
+              ${c.done ? `<span class="rc-stamp">${c.stamp}</span>` : ''}
+              ${c.off ? `<span class="rc-off">${c.off}${c.hint ? `<i>${c.hint}</i>` : ''}</span>` : ''}
+              ${showBtn ? `<button type="button" ${btn} ${c.busy ? 'disabled' : ''}>${c.done ? '다시 고치기' : c.act}</button>` : ''}
+            </div>
+          </div>`;
+      }).join('')}</div>`;
+    }
     function activityHistoryRowHtml(a) {
       const key = activityRowKey(a);
       const fb = home.aiFeedback[key];
       const item = a.activityItem || (a.activities && a.activities[0]) || '';
+      const stage = a.targetStage || '';
+      const st = stage ? stageTemp(stage) : null;
       const bodyLines = [a.todayWork, a.nextWork ? '→ 다음: ' + a.nextWork : ''].filter(Boolean).join('\n');
       const isNew = home.newActivityKey && home.newActivityKey === key;
+      const folded = !!a.id && rcFolded.has(a.id);
+      const who = a.targetName ? maskName(a.targetName) : (item || '활동');
       return `
-        <div class="act-feed-row ${isNew ? 'is-new' : ''}">
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <span style="font-size:16px;font-weight:700;letter-spacing:-0.03em">${esc(item)}</span>
-            ${a.targetName ? `<span style="font-size:15px;color:var(--dg-text-sub)">· ${esc(maskName(a.targetName))}</span>` : ''}
-            ${a.targetStage ? `<span class="act-chip act-chip-stage">${esc(a.targetStage)}</span>` : ''}
-          </div>
-          ${bodyLines ? `<div class="act-feed-body">${esc(bodyLines)}</div>` : ''}
-          ${a.reportText ? `<details class="rp-preview" style="margin-top:10px"><summary>📨 보고 문자 <span>· ${esc(a.reportTitle || '')}</span></summary><pre>${esc(a.reportText)}</pre><button type="button" class="act-btn-ghost rp-copy-row" data-key="${esc(key)}" style="height:40px;width:100%;margin-top:8px">보고 문자 복사</button></details>` : ''}
-          <div class="act-feed-meta">
-            <span>${esc(actFeedTimeText(a.submittedAt))}</span>
-            ${(a.roles || []).map(r => `<span class="act-chip">${esc(roleShortLabel(r))}</span>`).join('')}
-          </div>
-          <div class="mt-2.5 rp-row-acts">
-            <button class="ai-fb-btn act-chip" data-key="${esc(key)}" style="height:32px;padding:0 12px;cursor:pointer;border:none" ${fb && fb.loading ? 'disabled' : ''}>
-              ${fb && fb.loading ? '<span class="loading loading-spinner loading-xs"></span> AI가 읽는 중...' : ICON_BOT + ' AI 피드백 받기'}
-            </button>
-            ${rpRowActsHtml(a)}
-          </div>
-          ${fb && !fb.loading && fb.text ? `<div class="mt-2.5" style="border-radius:var(--dg-radius-md);background:var(--dg-bg-soft);padding:14px;font-size:14px;line-height:1.6;white-space:pre-wrap;color:var(--dg-text)">${esc(fb.text)}</div>` : ''}
+        <div class="rc-card${isNew ? ' is-new' : ''}${folded ? ' folded' : ''}">
+          <button type="button" class="rc-head" ${a.id ? `onclick="rcToggle(${Number(a.id)})"` : ''} aria-expanded="${!folded}">
+            <span class="rc-name">${esc(who)}</span>
+            ${stage ? `<span class="rc-stage" ${st ? `style="background:${st.bg};color:${st.text};border-color:${st.border}"` : ''}>${esc(stage)}</span>` : ''}
+            ${item && item !== stage && a.targetName ? `<span class="rc-item">${esc(item)}</span>` : ''}
+            <span class="rc-when">${esc(actFeedTimeText(a.submittedAt))}</span>
+            <span class="rc-fold" aria-hidden="true">${folded ? '펼치기 ▾' : '접기 ▴'}</span>
+          </button>
+          <div class="rc-sub">${(a.roles || []).map(r => `<span>${esc(roleShortLabel(r))}</span>`).join('')}${a.reportTitle ? `<em>${esc(a.reportTitle)}</em>` : ''}</div>
+          ${folded ? rcApprovalHtml(a, key, true) : `
+          ${bodyLines ? `<div class="rc-body">${esc(bodyLines)}</div>` : ''}
+          ${a.reportText ? `<details class="rp-preview" style="margin-top:10px"><summary>📨 보고 문자 보기</summary><pre>${esc(a.reportText)}</pre><button type="button" class="act-btn-ghost rp-copy-row" data-key="${esc(key)}" style="height:40px;width:100%;margin-top:8px">보고 문자 복사</button></details>` : ''}
+          ${rcApprovalHtml(a, key, false)}
+          ${fb && !fb.loading && fb.text ? `<div class="rc-fb"><b>🤖 AI 피드백</b>${esc(fb.text)}</div>` : ''}`}
         </div>`;
     }
     // 당근처럼 "3분 전 / 어제 / 9월 20일" 식 상대 시간 표기.
