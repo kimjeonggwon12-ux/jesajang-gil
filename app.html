@@ -6440,37 +6440,32 @@
       const cur = String(f.extraTitle || '').trim();
       return cur && prev[prev.length - 1] !== cur ? prev.concat([cur]) : prev;
     }
+    // 10/23(사용자): "해당 없는 부분도 다 표기, 보고방 원래 양식과 같게" → 단계와 상관없이 늘 같은 틀·같은 순서·같은 칸.
+    //   단계에 따라 바뀌는 건 [보고 제목]과 둘째 줄(센터수강이면 수강 기수)뿐. 빈 칸은 이름만 남는다.
     function rpReportText(f) {
-      const r = f.rp, item = f.activityItem, tier = rpTier(item);
+      const r = f.rp, item = f.activityItem, ck = k => (r.checks || {})[k] || '';
       const gm = Number((f.goalCohort || f.date || todayStr()).slice(5, 7));
       const head = rpIsEnrolled(f) ? `수강 기수: ${rpEnrollText(r.enroll)}` : `${gm}월 목표 센터명: ${r.center || ''}`;
-      const L = [`🦋${rpDept()}`, head, '', `[${rpTitle(item)}]`, ''];
-      if (tier === 'edu' || tier === 'center') {
-        const ck = k => (r.checks || {})[k] || '';
-        L.push(`1️⃣ 소속 여부 : ${ck('affil')}`, `2️⃣ 단계 여부 (상1,상2/복,확) : ${r.stageMark || ''}`, `3️⃣ 마팔 등록 여부 : ${ck('mapal')}`,
-          `4️⃣ 성경 오픈 여부 : ${ck('bible')}`, `5️⃣ 녹음본 제출 : ${ck('record')}`, '');
-      }
-      if (f.targetName.trim()) {
-        L.push(`💞${tier === 'edu' || tier === 'center' ? '수강생' : '섭외자'} 정보: ${f.targetName.trim()}(성별 : ${f.targetGender || ''} /나이 : ${r.age || f.targetAgeGroup || ''} )`);
-        if (tier !== 'basic') L.push(`전화번호 뒷자리 : ${r.phone4 || ''}`);
-        L.push(`신앙: ${r.faith || ''}`, `섭외유형: ${r.recruitType || ''}`, '');
-      }
-      const team = tier === 'edu' || tier === 'center' ? RP_TEAM : RP_TEAM.filter(([k]) => (tier === 'meet' && RP_TEAM_MEET.includes(k)) || (r.team || {})[k]);
-      if (team.length) L.push(...team.map(([k, l, ic]) => `${ic}${l} : ${(r.team || {})[k] || ''}`), '');
-      L.push(`🔷날짜: ${rpDateText(f.date, r.time)}`);
-      if (tier === 'edu') {
-        L.push(`🔸교육 총횟수 : ${r.eduTotal ? r.eduTotal + '회' : ''}`, `🔸교육 주중횟수 : ${r.eduWeekly || ''}`, `🔸교육 제목 : ${f.extraTitle.trim()}`,
-          '🔸교육내용및 반응: ', '1. 교육내용: ', rpDash(f.todayWork), '', '2. 반응: ', rpDash([f.reaction, f.reactionNote.trim()].filter(Boolean).join(' — ')), '',
-          `🔸차후 교육 주제(계획): ${f.nextWork.trim()}`, '', `🔸다음 교육 날짜 : ${rpSlash(r.nextDate)}`, '', `🔸요청사항 : ${r.request.trim()}`, '',
-          '🔹진행되었던 교육제목 누적기록', ...rpLessons(f).map((t, i) => `${i + 1}. ${t}`), '');
-      } else {
-        L.push('🔸활동 내용 및 반응: ', '1. 활동 내용: ', rpDash(f.todayWork), '', '2. 반응: ', rpDash([f.reaction, f.reactionNote.trim()].filter(Boolean).join(' — ')), '',
-          `🔸다음 계획: ${f.nextWork.trim()}`, `🔸다음 만남 날짜 : ${rpSlash(r.nextDate)}`, `🔸요청사항 : ${r.request.trim()}`, '');
-      }
-      if (tier === 'edu' || tier === 'center') {
-        L.push('🦋센터보내기 위한 플랜(예정)', ...RP_PLAN.map(([k, l]) => `🌱${l} : ${rpMD((r.plan || {})[k])}`), '', '⬆️위 항목외에 필요한 사항들은 섭외자에 맞게 계획세우기');
-      }
-      return L.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+      const lessons = rpLessons(f);
+      const numbered = Array.from({ length: Math.max(5, lessons.length + 1) }, (_, i) => `${i + 1}. ${lessons[i] || ''}`);   // 원래 틀처럼 5번까지 빈 번호
+      return [
+        `🦋${rpDept()}`, head, '', `[${rpTitle(item)}]`, '',
+        `1️⃣ 소속 여부 : ${ck('affil')}`, `2️⃣ 단계 여부 (상1,상2/복,확) : ${r.stageMark || ''}`, `3️⃣ 마팔 등록 여부 : ${ck('mapal')}`,
+        `4️⃣ 성경 오픈 여부 : ${ck('bible')}`, `5️⃣ 녹음본 제출 : ${ck('record')}`, '',
+        `💞수강생 : ${f.targetName.trim()}(성별 : ${f.targetGender || ''} /나이 : ${r.age || f.targetAgeGroup || ''} )`,
+        `전화번호 뒷자리 : ${r.phone4 || ''}`, `신앙: ${r.faith || ''}`, `섭외유형: ${r.recruitType || ''}`, '',
+        ...RP_TEAM.map(([k, l, ic]) => `${ic}${l} : ${(r.team || {})[k] || ''}`), '',
+        `🔷날짜: ${rpDateText(f.date, r.time)}`, '',
+        `🔸교육 총횟수 : ${r.eduTotal ? r.eduTotal + '회' : ''}`, `🔸교육 주중횟수 : ${r.eduWeekly || ''}`, '',
+        `🔸교육 제목 : ${f.extraTitle.trim()}`, '',
+        '🔸교육내용및 반응: ', '1. 교육내용: ', rpDash(f.todayWork), '', '2. 반응: ', rpDash([f.reaction, f.reactionNote.trim()].filter(Boolean).join(' — ')), '',
+        `🔸차후 교육 주제(계획): ${f.nextWork.trim()}`, '',
+        `🔸다음 교육 날짜 : ${rpSlash(r.nextDate)}`, '',
+        `🔸요청사항 : ${r.request.trim()}`, '',
+        '🔹진행되었던 교육제목 누적기록', ...numbered, '',
+        '🦋센터보내기 위한 플랜(예정)', ...RP_PLAN.map(([k, l]) => `🌱${l} : ${rpMD((r.plan || {})[k])}`), '',
+        '⬆️위 항목외에 필요한 사항들은 섭외자에 맞게 계획세우기',
+      ].join('\n');
     }
     // 서버로 보내는 보고 칸 — 이 단계에 보이는 칸만 보낸다(안 보이는 칸은 섭외자 프로필에 남은 값을 지우지 않게)
     function rpPayload(f) {
