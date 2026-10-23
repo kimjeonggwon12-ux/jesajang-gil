@@ -67,7 +67,7 @@ export async function upsertTargetFromActivity(activity) {
   }
 }
 
-async function upsertTargetOnce({ memberId, name, roles, targetName, gender, ageGroup, stage, note }) {
+async function upsertTargetOnce({ memberId, name, roles, targetName, gender, ageGroup, stage, note, report, date }) {
   const mid = str(memberId);
   if (!mid || !targetName) return;
   const now = kstDateTime();
@@ -80,6 +80,7 @@ async function upsertTargetOnce({ memberId, name, roles, targetName, gender, age
     if (stageChanged) patch.stage = stage;
     if (gender) patch.gender = gender;
     if (ageGroup) patch.age_group = ageGroup;
+    if (report) patch.report_profile = mergeProfile(existing.report_profile, report, date);
     await run(db().from('targets').update(patch).eq('id', existing.id));
     if (stageChanged) {
       await appendHistory(mid, existing.target_id, existing.stage, stage, note);
@@ -93,6 +94,7 @@ async function upsertTargetOnce({ memberId, name, roles, targetName, gender, age
     target_id: randomUUID(), creator_id: mid, teacher_name: String(name || ''), target_name: targetName,
     stage: firstStage, memo: note || '', created_at: now, updated_at: now, gender: gender || '', age_group: ageGroup || '',
     leader_id: '', helper_id: '', teacher_change_log: '',
+    report_profile: report ? mergeProfile(null, report, date) : null,
   };
   await run(db().from('targets').insert({ ...fresh, ...roleAssignment(fresh, roles, mid) }));
   await appendHistory(mid, fresh.target_id, '', firstStage, '활동 등록으로 자동 생성');
@@ -129,6 +131,7 @@ const toTarget = (t) => ({
   leaderId: t.leader_id, helperId: t.helper_id, teacherChangeLog: t.teacher_change_log,
   goalCohort: t.goal_cohort || '', goalPlan: t.goal_plan || '', goalPlanAt: fmtTs(t.goal_plan_at), goalPlanBasis: t.goal_plan_basis || '',
   swot: t.swot || null, swotAt: fmtTs(t.swot_at), swotAi: t.swot_ai || '', swotAiAt: fmtTs(t.swot_ai_at),
+  reportProfile: t.report_profile || null,
 });
 
 const toHistory = (h) => ({ changedAt: fmtTs(h.changed_at), fromStage: h.from_stage, toStage: h.to_stage, memo: h.memo });
@@ -154,6 +157,34 @@ async function getTargets(body) {
     return a.nextMeetingDate < b.nextMeetingDate ? -1 : 1;
   });
   return { rows, stages: TARGET_STAGES };
+}
+
+// ── 활동 보고 틀 (2026-10-23) ── app.html rpPayload 와 같은 칸. 섭외자마다 잘 안 바뀌는 칸은 targets.report_profile 에 모은다.
+const RP_TEXT = { tier: 10, title: 60, center: 60, age: 3, faith: 30, recruitType: 30, phone4: 4, time: 30, nextDate: 10, request: 500, eduTotal: 3, eduWeekly: 10, lesson: 120, stageMark: 4 };
+const RP_MAPS = { team: ['leader', 'mentor', 'teacher', 'counselor', 'helper', 'leaf', 'comm'], checks: ['affil', 'mapal', 'bible', 'record'], plan: ['mapal', 'teacherIntro', 'bibleRoom', 'centerIntro', 'interview'] };
+const RP_PROFILE_KEYS = ['center', 'age', 'faith', 'recruitType', 'phone4', 'eduWeekly', 'stageMark', 'team', 'checks', 'plan'];
+/** 앱이 보낸 보고 칸 → 정해진 칸만, 길이 제한. 보내지 않은 칸은 빠진다(프로필의 기존 값을 지우지 않게). */
+export function cleanReport(v) {
+  if (!v || typeof v !== 'object') return null;
+  const o = {};
+  for (const [k, n] of Object.entries(RP_TEXT)) if (v[k] !== undefined) o[k] = String(v[k] == null ? '' : v[k]).trim().slice(0, n);
+  for (const [k, keys] of Object.entries(RP_MAPS)) {
+    if (!v[k] || typeof v[k] !== 'object') continue;
+    o[k] = Object.fromEntries(keys.map((x) => [x, str(v[k][x]).slice(0, 60)]));
+  }
+  return o;
+}
+function mergeProfile(prev, report, date) {
+  const p = { ...(prev || {}) };
+  for (const k of RP_PROFILE_KEYS) {
+    if (report[k] === undefined) continue;
+    p[k] = typeof report[k] === 'object' ? { ...(p[k] || {}), ...report[k] } : report[k];
+  }
+  const lessons = Array.isArray(p.lessons) ? p.lessons.slice(-60) : [];
+  const last = lessons[lessons.length - 1];
+  if (report.lesson && !(last && last.title === report.lesson)) lessons.push({ date, title: report.lesson });
+  p.lessons = lessons;
+  return p;
 }
 
 const SWOT_TEXT = ['s', 'w', 'o', 't', 'so', 'st', 'wo', 'wt'];

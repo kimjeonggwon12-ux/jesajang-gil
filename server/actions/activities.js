@@ -3,7 +3,7 @@ import { db, run, selectAll } from '../lib/db.js';
 import { normId, str, kstDate, kstDateTime, fmtTs, byDesc } from '../lib/util.js';
 import { notifyActivityChannel } from '../lib/telegram.js';
 import { afterAction } from '../lib/events.js';
-import { upsertTargetFromActivity, TARGET_STAGES } from './targets.js';
+import { upsertTargetFromActivity, TARGET_STAGES, cleanReport } from './targets.js';
 
 // ⚠️ app.html 의 같은 이름 상수와 같이 맞출 것.
 export const ROLE_OPTIONS = ['인도자', '교사', '섬김이', '협력교사'];
@@ -41,6 +41,7 @@ async function submitActivity(body) {
   const note = String(t.note || '');
   const memberId = String(body.memberId || '');
   const name = String(body.name || '');
+  const report = cleanReport(body.report);   // 2026-10-23 보고방 문자 틀 칸
 
   await run(db().from('activities').insert({
     member_id: memberId, name, submitted_at: recordedAt, activities, note: String(body.note || ''), roles,
@@ -49,10 +50,11 @@ async function submitActivity(body) {
     target_dept: ageGroup ? ageGenderToOrg(ageGroup, gender) : '',
     consult_title: String(body.consultTitle || ''), gospel_subject: String(body.gospelSubject || ''),
     reaction: oneOf(REACTION_OPTIONS, body.reaction), reaction_note: String(body.reactionNote || ''),
+    report, report_text: String(body.reportText || '').slice(0, 6000),
   }));
 
   if (targetName) {
-    await upsertTargetFromActivity({ memberId, name, roles, targetName, gender, ageGroup, stage, note });
+    await upsertTargetFromActivity({ memberId, name, roles, targetName, gender, ageGroup, stage, note, report, date: recordedAt.slice(0, 10) });
   }
 
   const label = activities.join(', ');
@@ -72,6 +74,7 @@ const toActivityRow = (a) => ({
   targetStage: a.target_stage, specialNote: a.special_note, todayWork: a.today_work, nextWork: a.next_work,
   targetDept: a.target_dept,
   consultTitle: a.consult_title, gospelSubject: a.gospel_subject, reaction: a.reaction, reactionNote: a.reaction_note,
+  reportTitle: (a.report && a.report.title) || '', reportText: a.report_text || '',
 });
 
 /** 내 활동 기록 + 올해 역할별·항목별 건수. */
