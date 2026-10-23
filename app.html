@@ -842,6 +842,10 @@
     .act-input::placeholder { color:#B0B4BA; }
     textarea.act-input { min-height:80px; resize:none; line-height:1.55; }
     /* 2026-10-23 보고 틀 칸 */
+    .rp-auto { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+    .rp-auto span { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 2px; border-radius:10px; background:#fff; box-shadow:inset 0 0 0 1px #E5E7EB; font-size:12px; font-weight:700; color:#6B7280; }
+    .rp-auto span b { font-size:14px; color:#DC2626; }
+    .rp-auto span.ok b { color:#00875F; }
     .rp-row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     .rp-row2 > div { min-width:0; }
     .rp-opt { font-weight:500; font-size:12px; color:var(--dg-text-sub); }
@@ -6494,6 +6498,15 @@
     // 10/23(사용자): "해당 없는 부분도 다 표기" → 단계와 상관없이 늘 같은 칸·같은 순서(바뀌는 건 제목과 둘째 줄뿐).
     // 10/23(2차, 사용자): "기존과 같은 아이콘 말고 더 괜찮은 아이콘과 정리로" → 칸은 그대로, 묶음 머리(아이콘+이름) 아래 • 줄로 정리.
     //   봇이 올리므로 맨 아래에 보고한 사람을 붙인다.
+    // 10/23(사용자): 체크 항목에 "단상 피백 여부·개강 피백 여부" — 이 섭외자에게 AI 단계향상 피드백 / AI 센터 인도 계획을 받았는지.
+    //   손으로 고르지 않고 앱 기록으로 자동 체크(⑥~⑨). 더 넣은 것: 개강 목표 설정, SWOT 분석.
+    function rpAutoChecks(f) {
+      const nm = f.targetName.trim(); if (!nm) return null;
+      const t = home.targets.find(x => String(x.targetName || '').trim() === nm);
+      const fbN = ((home.monthlyActRes && home.monthlyActRes.rows) || []).filter(a => String(a.targetName || '').trim() === nm && a.aiFeedback).length;
+      const goal = (t && t.goalCohort) || (!rpIsEnrolled(f) && f.goalCohort) || '';
+      return { fb: fbN > 0, fbN, plan: !!(t && t.goalPlan), goal: goal ? `${Number(goal.slice(5))}월 개강` : '', swot: !!(t && t.swot) };
+    }
     function rpReportText(f) {
       const r = f.rp, item = f.activityItem, ck = k => (r.checks || {})[k] || '';
       const gm = Number((f.goalCohort || f.date || todayStr()).slice(5, 7));
@@ -6506,7 +6519,9 @@
         `📋 ${rpTitle(item)}`, `🏛 ${rpDept() || '부서'}  |  ${head}`, line, '',
         '✅ 확인 사항',
         li('① 소속 여부', ck('affil')), li('② 단계 여부 (상1·상2 / 복·확)', r.stageMark || ''), li('③ 마팔 등록 여부', ck('mapal')),
-        li('④ 성경 오픈 여부', ck('bible')), li('⑤ 녹음본 제출', ck('record')), '',
+        li('④ 성경 오픈 여부', ck('bible')), li('⑤ 녹음본 제출', ck('record')),
+        ...(ac => [li('⑥ 단상 피백 여부', ac ? (ac.fb ? `O (${ac.fbN}회)` : 'X') : ''), li('⑦ 개강 피백 여부', ac ? (ac.plan ? 'O' : 'X') : ''),
+          li('⑧ 개강 목표', ac ? ac.goal || 'X' : ''), li('⑨ SWOT 분석 여부', ac ? (ac.swot ? 'O' : 'X') : '')])(rpAutoChecks(f)), '',
         '👤 수강생',
         li('이름', `${f.targetName.trim()} (${f.targetGender || '-'} / ${r.age ? r.age + '세' : f.targetAgeGroup || '-'})`),
         li('전화번호 뒷자리', r.phone4 || ''), li('신앙', r.faith || ''), li('섭외유형', r.recruitType || ''), '',
@@ -6713,6 +6728,12 @@
         </div>
 
         ${rb.checks}
+        ${(ac => !ac ? '' : `<div class="act-form-group">
+          <div class="act-step-label">자동 체크 <span class="rp-opt">· 앱 기록으로 저절로 표시돼요</span></div>
+          <div class="rp-auto">${[['단상 피백', ac.fb ? `O · ${ac.fbN}회` : 'X', ac.fb], ['개강 피백', ac.plan ? 'O' : 'X', ac.plan], ['개강 목표', ac.goal || 'X', !!ac.goal], ['SWOT 분석', ac.swot ? 'O' : 'X', ac.swot]]
+            .map(([l, v, ok]) => `<span class="${ok ? 'ok' : ''}">${l}<b>${esc(v)}</b></span>`).join('')}</div>
+          <div class="rp-opt" style="margin-top:8px">X 항목은 저장한 뒤 기록 카드의 <b>관리 흐름</b>에서 바로 할 수 있어요. 하고 나서 기록을 고쳐 저장하면 보고방에 O로 다시 올라가요.</div>
+        </div>`)(rpAutoChecks(f))}
 
         <div class="act-form-group">
           <div class="act-step-label">${tier === 'edu' || tier === 'center' ? '💞수강생 정보' : '💞섭외자 정보'}</div>
@@ -6836,6 +6857,8 @@
       ['af-tname', 'af-today', 'af-next', 'af-extra-title', 'af-reaction-note'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('input', rpRefreshPreview); });
       const titleEl = document.getElementById('af-extra-title');
       if (titleEl) titleEl.onchange = renderActivityFormSheet;   // 누적 교육 제목 목록 다시 그림
+      const tnameEl = document.getElementById('af-tname');
+      if (tnameEl) tnameEl.onchange = renderActivityFormSheet;   // 자동 체크(이 섭외자 기록) 다시 그림
       wireRpForm(f);
 
       document.querySelectorAll('.af-reaction-chip').forEach(btn => {
