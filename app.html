@@ -842,6 +842,11 @@
     .act-input::placeholder { color:#B0B4BA; }
     textarea.act-input { min-height:80px; resize:none; line-height:1.55; }
     /* 2026-10-23 보고 틀 칸 */
+    .tg-logo { display:inline-block; flex:0 0 auto; vertical-align:-2px; }
+    .tg-note { display:flex; align-items:flex-start; gap:10px; margin:6px 0 2px; padding:11px 13px; border-radius:12px; background:#EAF6FD; border:1px solid #BEE3F8; font-size:13px; line-height:1.5; color:#1E4E6B; }
+    .tg-note b { color:#0B6FA4; }
+    .tg-note.edit { background:#E3F2FD; border-color:#90CDF4; }
+    .pf-tg { display:inline-flex; align-items:center; gap:3px; font-size:10.5px; font-weight:700; color:#1C8ED0; white-space:nowrap; }
     .rp-auto { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
     .rp-auto span { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 2px; border-radius:10px; background:#fff; box-shadow:inset 0 0 0 1px #E5E7EB; font-size:12px; font-weight:700; color:#6B7280; }
     .rp-auto span b { font-size:14px; color:#DC2626; }
@@ -6791,8 +6796,11 @@
         ${rb.plan}
         ${rb.preview}
 
+        <div class="tg-note${f.editId ? ' edit' : ''}">${TG_LOGO(22)}<span>${f.editId
+          ? '<b>고친 내용을 저장하면 텔레그램 보고방에 재보고됩니다.</b><br>처음 보고 글에 답장으로 ‘✏️ 수정본’이 올라가요.'
+          : '<b>저장하면 텔레그램 보고방에 바로 보고됩니다.</b><br>맨 위에 내 이름이 보고자로 붙어요.'}</span></div>
         <div class="act-submit-row">
-          <button id="af-submit" class="act-btn-primary" ${f.loading ? 'disabled' : ''}>${f.loading ? '저장하는 중...' : f.editId ? '고친 내용 저장' : '보고 기록 남기기'}</button>
+          <button id="af-submit" class="act-btn-primary" ${f.loading ? 'disabled' : ''}>${f.loading ? '저장하는 중...' : f.editId ? '고친 내용 저장 · 재보고' : '보고 기록 남기기'}</button>
           <button id="af-aicoach" class="act-btn-ghost">AI 코칭</button>
         </div>
       `;
@@ -7331,6 +7339,8 @@
       check: '<path d="M20 6L9 17l-5-5"/>',
       doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>',
     };
+    // 10/23(사용자): "고쳐 저장하면 텔레그램 보고방에 재보고된다는 안내 — 텔레그램 이미지면 더 좋음"
+    const TG_LOGO = (sz = 16) => `<svg class="tg-logo" width="${sz}" height="${sz}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#2AABEE"/><path fill="#fff" d="M5.4 11.8l11.6-4.5c.54-.2 1.01.13.83.94l-1.97 9.3c-.15.66-.54.82-1.09.51l-3-2.21-1.45 1.39c-.16.16-.29.29-.6.29l.21-3.05 5.56-5.02c.24-.21-.05-.33-.38-.12l-6.87 4.33-2.96-.93c-.64-.2-.66-.64.13-.95z"/></svg>`;
     const pfSvg = (k, cls) => `<svg class="${cls || 'pf-svg'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PF_ICON[k]}</svg>`;
     const rcPlanOpen = {}, rcFbOpen = {};   // 기록 id → 카드 안에서 계획·피드백을 펼쳤는지
     const rcTarget = a => home.targets.find(t => String(t.targetName || '').trim() === String(a.targetName || '').trim());
@@ -7362,8 +7372,8 @@
           : { k: 'route', name: planTitle, short: `${Number(t.goalCohort.slice(5))}월 센터<br>인도 계획`,
               st: gst.busy ? 'busy' : t.goalPlan ? 'done' : 'ready', sub: gst.busy ? '설계 중…' : t.goalPlan ? pfMD(t.goalPlanAt) || '설계됨' : '설계받기',
               go: `rcPlan(${id}, '${tid}', ${t.goalPlan ? 'false' : 'true'})`, verb: '설계받기', open: !!(rcPlanOpen[id] && t.goalPlan) },
-        { k: 'pen', name: '수정', short: '수정', optional: true, st: a.editedAt ? 'done' : 'ready', sub: a.editedAt ? pfMD(a.editedAt) : '필요할 때', go: `rpOpenEdit(${id})`, verb: '고치기' },
-        post ? { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'done', sub: `${pfMD(post.at)}${edits ? ` · 수정본 ${edits}` : ''}` }
+        { k: 'pen', name: '수정', short: '수정', optional: true, st: a.editedAt ? 'done' : 'ready', sub: a.editedAt ? pfMD(a.editedAt) : '필요할 때', tg: post ? '텔레그램 재보고' : '', go: `rpOpenEdit(${id})`, verb: '고치기' },
+        post ? { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'done', sub: pfMD(post.at), tg: edits ? `재보고 ${edits}번` : '텔레그램 보고' }
           : !a.reportText ? { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'off', sub: '보고 문자 없음', go: `rpOpenEdit(${id})`, verb: '고쳐 저장해 보고 문자 만들기' }
           : !room ? { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'off', sub: '방 연결 전' }
           : { k: 'send', name: '보고방 보고', short: '보고방<br>보고', st: 'ready', sub: '다시 올리기', go: `rpPostRow(${id}, this)`, verb: '보고방에 다시 올리기' },   // 저장 때 자동으로 못 올라간 기록
@@ -7383,6 +7393,7 @@
                 <span class="pf-dot">${s.st === 'busy' ? '<span class="loading loading-spinner loading-xs"></span>' : s.st === 'done' ? pfSvg('check') : pfSvg(s.k)}</span>
                 <span class="pf-l">${s.short}</span>
                 <span class="pf-s">${s.sub}</span>
+                ${s.tg ? `<span class="pf-tg">${TG_LOGO(12)} ${s.tg}</span>` : ''}
               </button>
             </li>`).join('')}</ol>
           ${doneN === need.length ? `<div class="pf-next done">${pfSvg('check', 'pf-svg sm')} 피드백 · 인도 계획 · 보고까지 마쳤어요</div>`
