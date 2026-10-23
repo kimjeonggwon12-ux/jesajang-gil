@@ -75,6 +75,16 @@ export async function reportRooms(body) {
     }
     return { bots: out };
   }
+  if (op === 'setName') {   // 보고방에 들어간 봇(출석 봇)의 보이는 이름 — 10/23 사용자: "교사광장 도우미"
+    const name = String(body.name || '').trim().slice(0, 64);
+    if (!name) return { error: 'name 이 필요합니다.' };
+    const r = await fetch(`https://api.telegram.org/bot${process.env.ATT_BOT_TOKEN}/setMyName`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }),
+    });
+    const j = await r.json();
+    const me = await (await fetch(`https://api.telegram.org/bot${process.env.ATT_BOT_TOKEN}/getMe`)).json();
+    return { ok: !!j.ok, error: j.ok ? undefined : j.description, name: me.result && me.result.first_name, username: me.result && me.result.username };
+  }
   if (op === 'set') {
     const dept = String(body.dept || '').trim(), chatId = String(body.chatId || '').trim();
     if (!dept || !/^-?\d+$/.test(chatId)) return { error: 'dept, chatId 가 필요합니다.' };

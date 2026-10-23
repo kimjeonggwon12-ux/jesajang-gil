@@ -849,6 +849,10 @@
     .rp-team label > span { font-size:13.5px; font-weight:700; color:var(--dg-text); }
     .rp-team .act-input { min-height:42px; padding:9px 12px; }
     .rp-lessons { margin:0; padding-left:22px; font-size:14.5px; line-height:1.8; }
+    .tg-goal-sum { display:flex; flex-wrap:wrap; gap:6px; padding:2px var(--dg-pad) 4px; }
+    .tg-goal-sum > * { font-size:12.5px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid #E5E7EB; background:#F9FAFB; color:#6B7280; }
+    .tg-goal-sum > .on { background:#FFF4EC; border-color:#FFD2B3; color:#C2410C; }
+    .tg-goal-sum > button { cursor:pointer; }
     .rp-row-acts { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
     .rp-act { height:32px; padding:0 12px; border:none; cursor:pointer; font-weight:700; }
     .rp-act-post { background:#2AABEE; color:#fff; }
@@ -6440,31 +6444,36 @@
       const cur = String(f.extraTitle || '').trim();
       return cur && prev[prev.length - 1] !== cur ? prev.concat([cur]) : prev;
     }
-    // 10/23(사용자): "해당 없는 부분도 다 표기, 보고방 원래 양식과 같게" → 단계와 상관없이 늘 같은 틀·같은 순서·같은 칸.
-    //   단계에 따라 바뀌는 건 [보고 제목]과 둘째 줄(센터수강이면 수강 기수)뿐. 빈 칸은 이름만 남는다.
+    // 10/23(사용자): "해당 없는 부분도 다 표기" → 단계와 상관없이 늘 같은 칸·같은 순서(바뀌는 건 제목과 둘째 줄뿐).
+    // 10/23(2차, 사용자): "기존과 같은 아이콘 말고 더 괜찮은 아이콘과 정리로" → 칸은 그대로, 묶음 머리(아이콘+이름) 아래 • 줄로 정리.
+    //   봇이 올리므로 맨 아래에 보고한 사람을 붙인다.
     function rpReportText(f) {
       const r = f.rp, item = f.activityItem, ck = k => (r.checks || {})[k] || '';
       const gm = Number((f.goalCohort || f.date || todayStr()).slice(5, 7));
-      const head = rpIsEnrolled(f) ? `수강 기수: ${rpEnrollText(r.enroll)}` : `${gm}월 목표 센터명: ${r.center || ''}`;
+      const head = rpIsEnrolled(f) ? `수강 기수 : ${rpEnrollText(r.enroll)}` : `${gm}월 목표 센터 : ${r.center || ''}`;
       const lessons = rpLessons(f);
-      const numbered = Array.from({ length: Math.max(5, lessons.length + 1) }, (_, i) => `${i + 1}. ${lessons[i] || ''}`);   // 원래 틀처럼 5번까지 빈 번호
+      const line = '━━━━━━━━━━━━━━';
+      const li = (k, v) => `• ${k} : ${v == null ? '' : v}`;
+      const dash = v => rpDash(v).split('\n').map(x => '   ' + x);
       return [
-        `🦋${rpDept()}`, head, '', `[${rpTitle(item)}]`, '',
-        `1️⃣ 소속 여부 : ${ck('affil')}`, `2️⃣ 단계 여부 (상1,상2/복,확) : ${r.stageMark || ''}`, `3️⃣ 마팔 등록 여부 : ${ck('mapal')}`,
-        `4️⃣ 성경 오픈 여부 : ${ck('bible')}`, `5️⃣ 녹음본 제출 : ${ck('record')}`, '',
-        `💞수강생 : ${f.targetName.trim()}(성별 : ${f.targetGender || ''} /나이 : ${r.age || f.targetAgeGroup || ''} )`,
-        `전화번호 뒷자리 : ${r.phone4 || ''}`, `신앙: ${r.faith || ''}`, `섭외유형: ${r.recruitType || ''}`, '',
-        ...RP_TEAM.map(([k, l, ic]) => `${ic}${l} : ${(r.team || {})[k] || ''}`), '',
-        `🔷날짜: ${rpDateText(f.date, r.time)}`, '',
-        `🔸교육 총횟수 : ${r.eduTotal ? r.eduTotal + '회' : ''}`, `🔸교육 주중횟수 : ${r.eduWeekly || ''}`, '',
-        `🔸교육 제목 : ${f.extraTitle.trim()}`, '',
-        '🔸교육내용및 반응: ', '1. 교육내용: ', rpDash(f.todayWork), '', '2. 반응: ', rpDash([f.reaction, f.reactionNote.trim()].filter(Boolean).join(' — ')), '',
-        `🔸차후 교육 주제(계획): ${f.nextWork.trim()}`, '',
-        `🔸다음 교육 날짜 : ${rpSlash(r.nextDate)}`, '',
-        `🔸요청사항 : ${r.request.trim()}`, '',
-        '🔹진행되었던 교육제목 누적기록', ...numbered, '',
-        '🦋센터보내기 위한 플랜(예정)', ...RP_PLAN.map(([k, l]) => `🌱${l} : ${rpMD((r.plan || {})[k])}`), '',
-        '⬆️위 항목외에 필요한 사항들은 섭외자에 맞게 계획세우기',
+        `📋 ${rpTitle(item)}`, `🏛 ${rpDept() || '부서'}  |  ${head}`, line, '',
+        '✅ 확인 사항',
+        li('① 소속 여부', ck('affil')), li('② 단계 여부 (상1·상2 / 복·확)', r.stageMark || ''), li('③ 마팔 등록 여부', ck('mapal')),
+        li('④ 성경 오픈 여부', ck('bible')), li('⑤ 녹음본 제출', ck('record')), '',
+        '👤 수강생',
+        li('이름', `${f.targetName.trim()} (${f.targetGender || '-'} / ${r.age ? r.age + '세' : f.targetAgeGroup || '-'})`),
+        li('전화번호 뒷자리', r.phone4 || ''), li('신앙', r.faith || ''), li('섭외유형', r.recruitType || ''), '',
+        '🤝 함께하는 팀', ...RP_TEAM.map(([k, l]) => li(l, (r.team || {})[k] || '')), '',
+        `🗓 날짜 : ${rpDateText(f.date, r.time)}`, '',
+        '📖 교육',
+        li('총횟수', r.eduTotal ? r.eduTotal + '회' : ''), li('주중횟수', r.eduWeekly || ''), li('제목', f.extraTitle.trim()),
+        '• 내용', ...dash(f.todayWork), '• 반응', ...dash([f.reaction, f.reactionNote.trim()].filter(Boolean).join(' — ')), '',
+        '➡️ 다음 계획',
+        li('차후 교육 주제', f.nextWork.trim()), li('다음 교육 날짜', rpSlash(r.nextDate)), li('요청사항', r.request.trim()), '',
+        '📚 누적 교육 제목', ...Array.from({ length: Math.max(5, lessons.length + 1) }, (_, i) => `${i + 1}. ${lessons[i] || ''}`), '',
+        '🏁 센터보내기 플랜 (예정)', ...RP_PLAN.map(([k, l]) => li(l, rpMD((r.plan || {})[k]))),
+        '※ 위 항목 외에 필요한 사항은 섭외자에 맞게 계획 세우기', line,
+        `✍️ 보고 : ${rpSelf()}`,
       ].join('\n');
     }
     // 서버로 보내는 보고 칸 — 이 단계에 보이는 칸만 보낸다(안 보이는 칸은 섭외자 프로필에 남은 값을 지우지 않게)
@@ -6977,7 +6986,8 @@
           <span class="act-sec-more">${home.targets.length}명</span>
           <button type="button" onclick="openTargetDeleteList()" style="margin-left:auto;padding:5px 11px;border-radius:999px;border:1px solid #FCA5A5;background:#FEF2F2;color:#DC2626;font-size:13px;font-weight:700">🗑 대상자 삭제</button>
         </div>
-        <div style="padding:0 var(--dg-pad) 4px;font-size:12.5px;color:var(--dg-text-sub)">막대 하나가 대상자 한 명이에요. 누르면 자세히 보기·삭제를 고를 수 있어요.</div>
+        <div style="padding:0 var(--dg-pad) 4px;font-size:12.5px;color:var(--dg-text-sub)">막대 하나가 대상자 한 명이에요. 이름 아래는 <b style="color:#E8590C">목표 개강</b>(없으면 '목표 없음'). 누르면 자세히 보기·삭제를 고를 수 있어요.</div>
+        ${tgGoalSummaryHtml()}
         <div class="overflow-x-auto pb-1" style="padding:8px var(--dg-pad) 0">
           <div style="width:${chartWidth}px;height:260px">
             <canvas id="targetsChart"></canvas>
@@ -6985,13 +6995,22 @@
         </div>
       `;
     }
+    const tgGoalLabel = t => (t && t.goalCohort) ? `${Number(t.goalCohort.slice(5))}월 개강` : '목표 없음';
+    // 그래프 위 한 줄: 개강 달별 인원 + 목표 없음(누르면 센터 인도 계획의 '목표 정하기'로)
+    function tgGoalSummaryHtml() {
+      const by = {};
+      home.targets.forEach(t => { const k = t.goalCohort || ''; by[k] = (by[k] || 0) + 1; });
+      const months = Object.keys(by).filter(Boolean).sort();
+      return `<div class="tg-goal-sum">${months.map(g => `<span class="on">${Number(g.slice(5))}월 개강 목표 <b>${by[g]}명</b></span>`).join('')}${by[''] ? `<button type="button" onclick="glOpenFor('')">개강 목표 없음 <b>${by['']}명</b> ›</button>` : ''}</div>`;
+    }
     function renderTargetsChart() {
       if (targetsChartInstance) { targetsChartInstance.destroy(); targetsChartInstance = null; }
       const canvas = document.getElementById('targetsChart');
       if (!canvas || !home.targets.length) return;
       const stages = home.stages;
       const n = stages.length || 1;
-      const labels = home.targets.map(t => maskName(t.targetName));
+      // 10/23(사용자): 그래프에도 "○월 개강 목표"가 보이게, 목표 없는 섭외자는 '목표 없음' — 이름 아래 둘째 줄
+      const labels = home.targets.map(t => [maskName(t.targetName), tgGoalLabel(t)]);
       const values = home.targets.map(t => { const idx = stageIndex(t.stage); return idx >= 0 ? idx + 1 : 0.3; });
       targetsChartInstance = new Chart(canvas, {
         type: 'bar',
@@ -6999,8 +7018,9 @@
         options: {
           responsive: true, maintainAspectRatio: false,
           onClick: (evt, elements) => { if (!elements.length) return; const t = home.targets[elements[0].index]; if (t) openTargetBarActions(t.targetId); },
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => (home.targets[ctx.dataIndex] && home.targets[ctx.dataIndex].stage) || '단계 미상' } } },
-          scales: { y: { min: 0, max: n, ticks: { stepSize: 1, font: { size: 9 }, callback: v => stages[v - 1] || '' } }, x: { ticks: { font: { size: 9 } } } }
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { const t = home.targets[ctx.dataIndex] || {}; return `${t.stage || '단계 미상'} · ${tgGoalLabel(t)}`; } } } },
+          scales: { y: { min: 0, max: n, ticks: { stepSize: 1, font: { size: 9 }, callback: v => stages[v - 1] || '' } },
+            x: { ticks: { font: { size: 10, weight: '600' }, color: ctx => (home.targets[ctx.index] || {}).goalCohort ? '#C2410C' : '#9CA3AF' } } }
         }
       });
     }
@@ -7413,14 +7433,16 @@
         <div class="pb-6 act-pages" data-act-page="${actPage}">
           <div data-ap="attend">${attCardHtml()}</div>
           <div data-ap="goal">${goalPageHtml()}</div>
-          <div data-ap="targets">${histSubTabsHtml()}${histSub === 'swot' ? swPageHtml() : histSub === 'log' ? activityHistorySectionHtml() : `
+          <div data-ap="targets">${histSubTabsHtml()}${histSub === 'swot' ? swPageHtml() : `
             ${actHeroHtml()}
             ${glBannerHtml(true)}
             ${encouragementBannerHtml()}
             ${coachReplyBannerHtml()}
             ${myActivityViewHtml()}
             <div class="act-divider"></div>
-            ${targetsSectionHtml()}`}
+            ${targetsSectionHtml()}
+            <div class="act-divider"></div>
+            ${activityHistorySectionHtml()}`}
           </div>
           <div data-ap="edu"><div id="lcEduCard"></div><div class="act-edu-prep">🚧 <b>아래 교육 이수 내용은 준비 중이에요.</b><br>교육 과정과 이수 기록을 정리해서 곧 보여 드릴게요.</div><div id="actEduBody" class="p-4"></div></div>
         </div>
@@ -7588,11 +7610,12 @@
     // 2026-10-23(사용자): "내 활동과 내 기록은 같은 거니까 내 활동 하나로, 그 안에 서브 탭 세 개 — 활동 요약·기록 보기·SWOT.
     //   상황이 되면 피드백 도구는 늘려 감" → 새 도구는 HIST_SUBS에 한 줄 더하고 dashboardViewHtml에서 그 키를 그리면 된다.
     // 10/23(사용자): "활동 요약·기록 보기·SWOT가 메인 기능처럼 잘 보이게" → 아이콘+이름+설명 큰 카드 3칸(.hs-tabs)
-    const HIST_SUBS = [['sum', '📋', '활동 요약', '등급·실적·섭외자'], ['log', '📝', '기록 보기', '내가 남긴 보고'], ['swot', '📊', 'SWOT', '섭외자 분석']];
-    let histSub = 'sum';   // 내 활동 안 탭: 'sum' 활동 요약 / 'log' 기록 보기 / 'swot' SWOT
+    // 10/23(2차, 사용자): '기록 보기' → '기록 & 보고하기', 활동 요약을 그 위에 섞어 한 탭에서 보이게
+    const HIST_SUBS = [['log', '📝', '기록 & 보고하기', '요약·기록·보고방 올리기'], ['swot', '📊', 'SWOT', '섭외자 분석']];
+    let histSub = 'log';   // 내 활동 안 탭: 'log' 기록 & 보고하기(활동 요약 + 기록) / 'swot' SWOT
     window.histSetSub = function (k) { histSub = k; renderHome(); document.getElementById('appSections').scrollTop = 0; };
     function histSubTabsHtml() {
-      return `<div class="hs-tabs" role="tablist">${HIST_SUBS.map(([k, i, l, d]) => `<button type="button" role="tab" aria-selected="${k === histSub}" class="${k === histSub ? 'on' : ''}" onclick="histSetSub('${k}')"><span class="hs-i">${i}</span><span class="hs-l">${l}</span><span class="hs-s">${d}</span></button>`).join('')}</div>`;
+      return `<div class="hs-tabs" role="tablist" style="grid-template-columns:repeat(${HIST_SUBS.length}, 1fr)">${HIST_SUBS.map(([k, i, l, d]) => `<button type="button" role="tab" aria-selected="${k === histSub}" class="${k === histSub ? 'on' : ''}" onclick="histSetSub('${k}')"><span class="hs-i">${i}</span><span class="hs-l">${l}</span><span class="hs-s">${d}</span></button>`).join('')}</div>`;
     }
     const SW_FACTS = [   // [키, 이름, 내부/외부, 설명, 예시]
       ['s', '강점 S', '내부', '섭외자 본인의 좋은 점', '예) 성경에 관심 있음\n예) 나를 믿고 속마음을 말함'],
