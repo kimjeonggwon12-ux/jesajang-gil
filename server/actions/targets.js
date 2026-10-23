@@ -187,6 +187,22 @@ function mergeProfile(prev, report, date) {
   return p;
 }
 
+/** 고친 보고 기록 → 그 섭외자 프로필. 보낸 칸만 덮고, 누적 교육 제목은 이 기록(같은 날짜·옛 제목)의 제목만 바꾼다. */
+export async function updateProfileFromEdit(memberId, targetName, report, date, oldLesson) {
+  const mine = await run(db().from('targets').select('id, target_name, report_profile').or(ownedBy(normId(memberId))).order('id'));
+  const target = mine.find((x) => x.target_name.trim() === targetName);
+  if (!target) return;
+  const { lesson, ...rest } = report;
+  const p = mergeProfile(target.report_profile, rest, date);
+  if (lesson !== undefined) {
+    const same = p.lessons.findIndex((l) => l.date === date && l.title === oldLesson);
+    const at = same >= 0 ? same : p.lessons.findIndex((l) => l.title === oldLesson);
+    if (oldLesson && at >= 0) { if (lesson) p.lessons[at] = { ...p.lessons[at], date, title: lesson }; else p.lessons.splice(at, 1); }
+    else if (lesson && !p.lessons.some((l) => l.title === lesson)) p.lessons.push({ date, title: lesson });
+  }
+  await run(db().from('targets').update({ report_profile: p }).eq('id', target.id));
+}
+
 const SWOT_TEXT = ['s', 'w', 'o', 't', 'so', 'st', 'wo', 'wt'];
 const SWOT_CELLS = ['so', 'st', 'wo', 'wt'];
 /** 앱이 보낸 SWOT → 정해진 칸만, 길이 제한. 내용이 하나도 없으면 null. */

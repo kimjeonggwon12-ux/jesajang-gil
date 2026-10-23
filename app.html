@@ -849,6 +849,12 @@
     .rp-team label > span { font-size:13.5px; font-weight:700; color:var(--dg-text); }
     .rp-team .act-input { min-height:42px; padding:9px 12px; }
     .rp-lessons { margin:0; padding-left:22px; font-size:14.5px; line-height:1.8; }
+    .rp-row-acts { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .rp-act { height:32px; padding:0 12px; border:none; cursor:pointer; font-weight:700; }
+    .rp-act-post { background:#2AABEE; color:#fff; }
+    .rp-act:disabled { opacity:.6; }
+    .rp-posted { font-size:12.5px; font-weight:700; color:#0E8F5F; }
+    .rp-edited { color:#8A8F98; }
     .rp-preview { background:#F5F3FF; border-radius:var(--dg-radius-md); padding:12px 14px; }
     .rp-preview summary { cursor:pointer; font-size:14.5px; font-weight:800; color:#5B21B6; }
     .rp-preview summary span { font-weight:600; font-size:12.5px; color:#7C6BB0; }
@@ -5961,6 +5967,7 @@
         todayWork: '', nextWork: '',
         extraTitle: '', reaction: '', reactionNote: '',
         rp: rpEmpty(), rpAuto: {}, rpTotalAuto: false,   // 2026-10-23 보고 틀 칸(rpEmpty)
+        editId: null,   // 2026-10-23 기록 보기 [수정]으로 연 기록의 id(없으면 새 기록)
         loading: false
       }
     };
@@ -6541,6 +6548,63 @@
         </details>`
       };
     }
+    // 기록을 남긴 뒤·고치기를 마친 뒤 칸 비우기(역할은 다음 기록에도 그대로 둠)
+    function rpResetForm(f) {
+      if (f.editId) f.date = todayStr();
+      f.editId = null;
+      f.targetName = ''; f.targetGender = ''; f.targetAgeGroup = ''; f.targetStage = ''; f.existingTargetId = ''; f.goalCohort = '';
+      f.todayWork = ''; f.nextWork = '';
+      f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
+      f.rp = rpEmpty(); f.rpAuto = {}; f.rpTotalAuto = false;
+      f.loading = false;
+    }
+    // 2026-10-23 기록 보기 카드: [✏️ 수정] · [📤 보고방에 올리기](내 부서 방 또는 기본 방이 연결돼 있고 아직 안 올린 기록) · 올림 표시
+    function rpRowActsHtml(a) {
+      if (!a.id) return '';
+      const posts = a.tgPosts || [], posted = posts.some(p => p.kind === 'post'), edits = posts.filter(p => p.kind === 'edit').length;
+      const room = home.monthlyActRes && home.monthlyActRes.reportRoom;
+      return `<button type="button" class="act-chip rp-act" onclick="rpOpenEdit(${Number(a.id)})">✏️ 수정</button>
+        ${room && a.reportText && !posted ? `<button type="button" class="act-chip rp-act rp-act-post" onclick="rpPostRow(${Number(a.id)}, this)">📤 보고방에 올리기</button>` : ''}
+        ${posted ? `<span class="rp-posted">✅ 보고방에 올림${edits ? ` · 수정본 ${edits}번` : ''}</span>` : a.editedAt ? '<span class="rp-posted rp-edited">수정됨</span>' : ''}`;
+    }
+    const rpRow = id => ((home.monthlyActRes && home.monthlyActRes.rows) || []).find(x => Number(x.id) === Number(id));
+    window.rpOpenEdit = function (id) {
+      const a = rpRow(id); if (!a) return;
+      const f = home.form, rep = a.report || {};
+      const t = home.targets.find(x => String(x.targetName || '').trim() === String(a.targetName || '').trim());
+      rpResetForm(f);
+      f.editId = a.id;
+      f.date = String(a.submittedAt || '').slice(0, 10) || todayStr();
+      f.roles = (a.roles || []).slice();
+      f.activityItem = a.activityItem || (a.activities && a.activities[0]) || '';
+      f.existingTargetId = t ? t.targetId : '';
+      f.targetName = a.targetName || ''; f.targetGender = a.targetGender || ''; f.targetAgeGroup = a.targetAgeGroup || ''; f.targetStage = a.targetStage || '';
+      f.goalCohort = (t && t.goalCohort) || '';
+      f.todayWork = a.todayWork || ''; f.nextWork = a.nextWork || '';
+      f.extraTitle = rep.lesson || a.gospelSubject || a.consultTitle || '';
+      f.reaction = a.reaction || ''; f.reactionNote = a.reactionNote || '';
+      // 섭외자 프로필 위에 이 기록 때 적은 칸을 덮는다. 누적 교육 제목은 이 기록 앞까지만.
+      const base = t ? rpFromTarget(t) : rpEmpty();
+      const at = base.lessons.findIndex(l => l && l.date === f.date && l.title === rep.lesson);
+      const own = Object.fromEntries(['center', 'enroll', 'age', 'faith', 'recruitType', 'phone4', 'stageMark', 'time', 'nextDate', 'eduTotal', 'eduWeekly'].filter(k => rep[k] !== undefined).map(k => [k, rep[k]]));
+      f.rp = { ...base, ...own,
+        lessons: at >= 0 ? base.lessons.slice(0, at) : base.lessons.filter(l => !l || l.title !== rep.lesson),
+        team: { ...base.team, ...(rep.team || {}) }, checks: { ...base.checks, ...(rep.checks || {}) }, plan: { ...base.plan, ...(rep.plan || {}) },
+        request: rep.request !== undefined ? rep.request : (a.note || '') };
+      renderActivityFormSheet();
+    };
+    window.rpPostRow = async function (id, btn) {
+      const a = rpRow(id), room = home.monthlyActRes && home.monthlyActRes.reportRoom;
+      if (!a || !room || !confirm(`이 보고를 '${room.title}'에 올릴까요?\n올린 뒤 고치면 수정본이 그 글에 답장으로 다시 올라가요.`)) return;
+      if (btn) { btn.disabled = true; btn.textContent = '올리는 중…'; }
+      try {
+        const res = await callApi({ action: 'postActivityReport', memberId, id });
+        if (res && res.error) throw new Error(res.error);
+        a.tgPosts = res.tgPosts || [];
+        renderHome();
+        toast(`'${res.room || room.title}'에 올렸어요 📤`);
+      } catch (e) { toast(e.message, true); renderHome(); }
+    };
     function rpLoadTarget(f, t) {
       const time = f.rp.time, request = f.rp.request;
       f.rp = { ...rpFromTarget(t), time, request }; f.rpAuto = {}; f.rpTotalAuto = false;
@@ -6574,8 +6638,8 @@
       return `
         <div class="act-sheet-head">
           <div>
-            <div class="act-sheet-title">오늘 활동, 보고해볼까요?</div>
-            <div class="act-sheet-sub">보고방 문자 틀 그대로 기록돼요. 단계에 맞는 칸만 보여 드려요.</div>
+            <div class="act-sheet-title">${f.editId ? '보고 기록 고치기' : '오늘 활동, 보고해볼까요?'}</div>
+            <div class="act-sheet-sub">${f.editId ? '고쳐서 저장하면, 보고방에 올린 기록은 수정본이 다시 올라가요.' : '보고방 문자 틀 그대로 기록돼요. 단계에 맞는 칸만 보여 드려요.'}</div>
           </div>
           <button type="button" class="act-sheet-close" onclick="closeSheet()" aria-label="닫기">✕</button>
         </div>
@@ -6661,7 +6725,7 @@
         ${rb.preview}
 
         <div class="act-submit-row">
-          <button id="af-submit" class="act-btn-primary" ${f.loading ? 'disabled' : ''}>${f.loading ? '기록하는 중...' : '보고 기록 남기기'}</button>
+          <button id="af-submit" class="act-btn-primary" ${f.loading ? 'disabled' : ''}>${f.loading ? '저장하는 중...' : f.editId ? '고친 내용 저장' : '보고 기록 남기기'}</button>
           <button id="af-aicoach" class="act-btn-ghost">AI 코칭</button>
         </div>
       `;
@@ -6757,8 +6821,9 @@
       f.loading = true;
       renderActivityFormSheet();
       try {
+        const editId = f.editId;   // 2026-10-23: 기록 보기에서 [수정]으로 연 경우 같은 기록을 고친다
         const res = await callApi({
-          action: 'submitActivity', memberId, name,
+          action: editId ? 'updateActivity' : 'submitActivity', id: editId || undefined, memberId, name,
           roles: f.roles, activityItem: f.activityItem, date: f.date,
           target: {
             name: targetNameTrimmed, gender: f.targetGender, ageGroup: f.targetAgeGroup, stage: f.targetStage,
@@ -6772,12 +6837,16 @@
           report: rpPayload(f), reportText: rpReportText(f)
         });
         if (res && res.error) throw new Error(res.error);
+        if (editId) {
+          rpResetForm(f);
+          closeSheet();
+          await refreshAfterSubmit();
+          renderHome();
+          toast(res.reposted ? '수정했어요. 보고방에도 수정본을 다시 올렸어요 ✏️' : res.repostError ? '수정했어요. 다만 ' + res.repostError : '수정했어요 ✏️', !!res.repostError);
+          return;
+        }
         const submittedItem = f.activityItem, goal = targetNameTrimmed && !rpIsEnrolled(f) ? f.goalCohort : '';   // 수강생은 개강 목표 없음
-        f.targetName = ''; f.targetGender = ''; f.targetAgeGroup = ''; f.targetStage = ''; f.existingTargetId = ''; f.goalCohort = '';
-        f.todayWork = ''; f.nextWork = '';
-        f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
-        f.rp = rpEmpty(); f.rpAuto = {}; f.rpTotalAuto = false;
-        f.loading = false;
+        rpResetForm(f);
         // 당근 스타일: 등록 성공하면 바텀시트를 닫고 피드(대시보드)로 돌아가 새 기록을 바로 보여줌.
         closeSheet();
         await refreshAfterSubmit();
@@ -6798,7 +6867,7 @@
           openStageUpModal(targetNameTrimmed, prevTarget.stage, newStage);
         }
       } catch (e) {
-        alert('등록 중 오류가 발생했습니다: ' + e.message);
+        alert((f.editId ? '수정' : '등록') + ' 중 오류가 발생했습니다: ' + e.message);
         f.loading = false;
         renderActivityFormSheet(); // 실패 시엔 시트를 유지해서 바로 재시도할 수 있게
       }
@@ -7179,10 +7248,11 @@
             <span>${esc(actFeedTimeText(a.submittedAt))}</span>
             ${(a.roles || []).map(r => `<span class="act-chip">${esc(roleShortLabel(r))}</span>`).join('')}
           </div>
-          <div class="mt-2.5">
+          <div class="mt-2.5 rp-row-acts">
             <button class="ai-fb-btn act-chip" data-key="${esc(key)}" style="height:32px;padding:0 12px;cursor:pointer;border:none" ${fb && fb.loading ? 'disabled' : ''}>
               ${fb && fb.loading ? '<span class="loading loading-spinner loading-xs"></span> AI가 읽는 중...' : ICON_BOT + ' AI 피드백 받기'}
             </button>
+            ${rpRowActsHtml(a)}
           </div>
           ${fb && !fb.loading && fb.text ? `<div class="mt-2.5" style="border-radius:var(--dg-radius-md);background:var(--dg-bg-soft);padding:14px;font-size:14px;line-height:1.6;white-space:pre-wrap;color:var(--dg-text)">${esc(fb.text)}</div>` : ''}
         </div>`;
@@ -7799,7 +7869,7 @@
       const bannerEl = document.getElementById('encourage-banner');
       if (bannerEl) bannerEl.onclick = openEncourageBannerModal;
       const fabEl = document.getElementById('act-fab');
-      if (fabEl) fabEl.onclick = renderActivityFormSheet;
+      if (fabEl) fabEl.onclick = () => { if (home.form.editId) rpResetForm(home.form); renderActivityFormSheet(); };   // 고치다 닫은 기록이 새 기록 칸에 남지 않게
     }
     window.Sections.activity = { mount() { loadHomeDashboard(); attLoadMy(); } };
 
