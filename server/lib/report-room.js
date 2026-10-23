@@ -61,13 +61,18 @@ export async function reportRooms(body) {
     return { rooms: Object.values(chats) };
   }
   if (op === 'check') {   // 글을 올리지 않고 봇이 그 방에 있는지·글을 쓸 수 있는지만 본다
-    const token = process.env.TEACHERSQUARE_BOT_TOKEN, chatId = String(body.chatId || '');
-    const tg = async (m, q) => (await fetch(`https://api.telegram.org/bot${token}/${m}?${new URLSearchParams(q)}`)).json();
-    const me = await tg('getMe', {});
-    const chat = await tg('getChat', { chat_id: chatId });
-    const member = me.ok ? await tg('getChatMember', { chat_id: chatId, user_id: me.result.id }) : {};
-    return { bot: me.result && me.result.username, chat: chat.ok ? { title: chat.result.title, type: chat.result.type } : chat.description,
-      member: member.ok ? { status: member.result.status, canPost: member.result.can_send_messages !== false } : member.description };
+    // 앱의 봇 셋(교사광장·출석·활동 알림)을 모두 본다 — 다른 봇을 초대했는지도 알 수 있게
+    const chatId = String(body.chatId || '');
+    const out = [];
+    for (const token of [process.env.TEACHERSQUARE_BOT_TOKEN, process.env.ATT_BOT_TOKEN, process.env.TELEGRAM_BOT_TOKEN].filter(Boolean)) {
+      const tg = async (m, q) => (await fetch(`https://api.telegram.org/bot${token}/${m}?${new URLSearchParams(q)}`)).json();
+      const me = await tg('getMe', {});
+      const chat = await tg('getChat', { chat_id: chatId });
+      const member = me.ok ? await tg('getChatMember', { chat_id: chatId, user_id: me.result.id }) : {};
+      out.push({ bot: me.result && me.result.username, chat: chat.ok ? { title: chat.result.title, type: chat.result.type } : chat.description,
+        member: member.ok ? { status: member.result.status, canPost: member.result.can_send_messages !== false } : member.description });
+    }
+    return { bots: out };
   }
   if (op === 'set') {
     const dept = String(body.dept || '').trim(), chatId = String(body.chatId || '').trim();
