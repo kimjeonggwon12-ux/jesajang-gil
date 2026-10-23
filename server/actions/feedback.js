@@ -3,7 +3,7 @@ import { db, run, selectAll } from '../lib/db.js';
 import { normId, str, isoTs } from '../lib/util.js';
 import { callAi, askAi, askAiModels, textOf } from '../lib/gemini.js';
 import { findTeacher } from './roster.js';
-import { addTargetAiNote, ownedTarget } from './targets.js';
+import { addTargetAiNote, ownedTarget, targetDossier, TARGET_STAGES } from './targets.js';
 
 const SOURCE = { ai: 'AI셀프코칭', escalation: '사람에스컬레이션', coach: '교관요청' };
 const COACH_VISIBLE = [SOURCE.coach, SOURCE.escalation];
@@ -15,16 +15,28 @@ const generateContent = (body) => callAi(body.payload, body.model);
 /** 전도 대상자 한 명에 대한 다음 단계 전략·대화 멘트.
  * 2026-10-20: 대상자(targetId)를 주면 답을 그 사람 기록(target_ai_notes)에 쌓아 개강 인도 계획 때 다시 읽힌다.
  * 하루 20회인 AI상담 모델 대신 개강 인도 계획과 같은 모델을 쓴다. */
+// 2026-10-23(사용자): 기록 카드의 'AI 피드백'이 약하다 → 'AI 다음 단계 피드백'. 이 기록만이 아니라 그 섭외자의
+//   모든 기록·단계 이력·교관 답·이전 AI 기록(targetDossier)을 같이 주고, 다음 단계·이번 주 할 일·멘트·조심할 점으로 답하게 한다.
 async function getActivityFeedback(body) {
-  const prompt = `대상자: ${String(body.targetName || '대상자')} / 단계: ${String(body.stage || '미상')}` +
-    ` / 오늘 한 일: ${String(body.todayWork || '기록 없음')} / 다음 할 일: ${String(body.nextWork || '기록 없음')}\n\n` +
-    '위 전도 대상자를 현재 단계에서 다음 단계로 발전시키기 위한 구체적인 전략과 대화 멘트를 제시해주세요.\n\n' +
-    '한국어로 간결하고 실천 가능하게 답변하되, 반드시 아래 2개 마크다운 제목을 정확히 그대로 사용하고 ' +
-    '다른 제목은 추가하지 마세요:\n## 🎯 다음 단계 전략\n## 💬 추천 대화 멘트';
+  const target = await ownedTarget(body.memberId, body.targetId);
+  const stage = String(body.stage || (target && target.stage) || '미상');
+  const i = TARGET_STAGES.indexOf(stage);
+  const next = i >= 0 && i < TARGET_STAGES.length - 1 ? TARGET_STAGES[i + 1] : '';
+  const d = target ? await targetDossier(target, str(body.memberId)) : null;
+  const goal = target && target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '아직 정하지 않음';
+  const prompt = [
+    '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 아래 섭외자를 지금 단계에서 바로 다음 단계로 올리기 위한 피드백을 주세요.',
+    `- 섭외자: ${String(body.targetName || '대상자')} / 지금 단계: ${stage}${next ? ` / 다음 단계: ${next}` : ''} / 목표: ${goal}`,
+    `- 이번 기록: 한 일 — ${String(body.todayWork || '기록 없음')} / 다음 할 일 — ${String(body.nextWork || '기록 없음')}`,
+    d ? `\n[이 섭외자의 활동 기록 전부]\n${d.acts || '(없음)'}\n\n[단계 이력]\n${d.history || '(없음)'}\n\n[AI상담·교관 답]\n${d.coaching || '(없음)'}\n\n[이전 AI 기록]\n${d.notes || '(없음)'}` : '',
+    '',
+    '규칙: 기록에 나온 사실(반응·관심사·가족·일정)을 근거로 이 사람에게만 맞는 말로 쓰세요. 일반론·뻔한 말은 빼고 짧고 구체적으로.',
+    '반드시 아래 4개 마크다운 제목을 정확히 그대로 쓰고 다른 제목은 추가하지 마세요:',
+    `## 🎯 다음 단계${next ? `(${next})` : ''}로 가려면`, '## ✅ 이번 주 할 일 (3가지, 언제까지)', '## 💬 바로 쓸 대화 멘트', '## ⚠️ 조심할 점',
+  ].join('\n');
   const text = await askAiModels(prompt, ['gemini-3.5-flash', 'gemini-3.8-flash']);
-  const target = !text.startsWith('⚠️') && await ownedTarget(body.memberId, body.targetId);
-  if (target) {
-    await addTargetAiNote(target.target_id, String(body.memberId), '활동 AI 피드백',
+  if (target && !text.startsWith('⚠️')) {
+    await addTargetAiNote(target.target_id, String(body.memberId), 'AI 다음 단계 피드백',
       `단계: ${String(body.stage || '')} / 한 일: ${String(body.todayWork || '')} / 다음: ${String(body.nextWork || '')}`, text);
   }
   return { text };

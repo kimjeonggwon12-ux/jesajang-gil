@@ -441,7 +441,7 @@ export async function ownedTarget(memberId, targetId) {
   return t && owns(t, normId(memberId)) ? t : null;
 }
 
-async function targetDossier(target, mid) {
+export async function targetDossier(target, mid) {
   const name = target.target_name.trim();
   const owners = [...new Set([target.creator_id, target.leader_id, target.helper_id, mid].filter((id) => str(id)).map(normId))];
   const [acts, history, notes, mine, feedbacks] = await Promise.all([
