@@ -3043,10 +3043,12 @@
           <button type="button" class="kko-tab" data-subtab="calAdmin" onclick="adminSwitchSubTab('calAdmin')">행사</button>
           <button type="button" class="kko-tab" data-subtab="attend" onclick="adminSwitchSubTab('attend')">출석</button>
           <button type="button" class="kko-tab" data-subtab="roster" onclick="adminSwitchSubTab('roster')">명단</button>   <!-- 2026-10-12 명단 관리 -->
+          <button type="button" class="kko-tab" data-subtab="rooms" onclick="adminSwitchSubTab('rooms')">보고방</button>   <!-- 2026-10-25 부서·지역 텔레그램 보고방 연결 -->
           <button type="button" class="kko-tab" data-subtab="cohort" onclick="adminSwitchSubTab('cohort')" style="display:none">교육 관리</button>   <!-- 2026-10-16 교육생·교육 과정(7777만) -->
         </div>
         <div id="admin-pane-cohort" class="admin-pane"><div id="cohortAdmRoot" class="ra"></div></div>
         <div id="admin-pane-roster" class="admin-pane"><div id="rosterAdmRoot" class="ra"></div></div>
+        <div id="admin-pane-rooms" class="admin-pane"><div id="roomsAdmRoot" class="ra"></div></div>
         <div id="admin-pane-edu" class="admin-pane"><div id="eduRoot"></div></div>
         <div id="admin-pane-dist" class="admin-pane"><div id="distRoot"></div></div>
         <div id="admin-pane-connectAdmin" class="admin-pane">
@@ -15155,6 +15157,7 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         else if (tab === 'calAdmin') calAdmInit();
         else if (tab === 'attend') attAdmLoad();
         else if (tab === 'roster') rosterAdm.mount();
+        else if (tab === 'rooms') roomsAdm.mount();
         else if (tab === 'cohort') cohortAdm.mount();
       }
       else if (tab === 'attend') attAdmLoad();   // 다시 들어올 때마다 최신 출석 인원
@@ -16832,6 +16835,148 @@ async function calAdmInit() {
         saveSettings, setStatus, findChats, connectBot, sendSummary, sheet, excel };
     })();
     window.cohortAdm = cohortAdm;
+
+    // ════════════════════════════════════════════════════════════════
+    // [ADMIN] 보고방 (2026-10-25) — 사용자: "관리자 탭에서 받은 방 번호를 등록하면 그 방하고 연결되게".
+    //   부서(교역자) 또는 부서+지역(부녀회 03지역) ↔ 텔레그램 방 번호. 서버: server/lib/report-room.js reportRoomsAdmin
+    //   연결하면 서버가 봇이 그 방에 있는지 보고 방에 확인 글을 올린다. 활동 보고·22시 일일 보고가 그 방으로 간다.
+    // ════════════════════════════════════════════════════════════════
+    const roomsAdm = (() => {
+      const st = { rooms: null, depts: [], dept: '', region: '', busy: false, msg: '', error: '', log: [] };
+      const root = () => document.getElementById('roomsAdmRoot');
+      const call = payload => callApi({ action: 'reportRoomsAdmin', ...payload, memberId: App.memberId, name: App.name });
+      const regionsOf = dept => ((st.depts.find(d => d.dept === dept) || {}).regions || []);
+      const keyLabel = key => key === '*' ? '기본 방(연결 안 된 부서 전부)' : key.replace('/', ' ');
+
+      function css() {
+        if (document.getElementById('rmCss')) return;
+        const el = document.createElement('style'); el.id = 'rmCss';
+        el.textContent = `
+          .rm-f{display:block;margin-top:12px;font-size:13px;font-weight:700;color:#4b5651}
+          .rm-f select,.rm-f input,.rm-f textarea{display:block;width:100%;margin-top:4px;border:1px solid #d6dbd8;border-radius:10px;padding:0 12px;font-size:16px;font-weight:400;background:#fff;height:44px}
+          .rm-f textarea{height:150px;padding:10px 12px;line-height:1.5;font-family:inherit}
+          .rm-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+          .rm-btn{height:44px;padding:0 16px;border-radius:10px;border:1px solid #00AE82;background:#00AE82;color:#fff;font-weight:700;font-size:15px;white-space:nowrap;margin-top:12px}
+          .rm-btn.line{background:#fff;color:#00875f}
+          .rm-btn.sm{height:34px;padding:0 12px;font-size:13px;margin:0}
+          .rm-btn:disabled{opacity:.5}
+          .rm-h{margin:22px 0 2px;padding-top:16px;border-top:1px solid #e3e8e5;font-size:15px;font-weight:800}
+          .rm-note{margin:10px 2px;color:#6b7772;font-size:14px;line-height:1.55}
+          .rm-row{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e3e8e5;border-radius:12px;padding:12px 14px;margin-top:8px}
+          .rm-row.off{opacity:.55}
+          .rm-row b{font-size:16px}
+          .rm-sub{color:#6b7772;font-size:13px;margin-top:2px;word-break:break-all}
+          .rm-ok{color:#00875f}.rm-bad{color:#c0392b}
+        `;
+        document.head.appendChild(el);
+      }
+
+      function render() {
+        const r = root(); if (!r) return;
+        const regions = regionsOf(st.dept);
+        const deptOpts = st.depts.map(d => `<option value="${esc(d.dept)}" ${d.dept === st.dept ? 'selected' : ''}>${esc(d.dept)} (${d.n}명)</option>`).join('');
+        const regionOpts = `<option value="">지역 없이 — 부서 전체 한 방</option>` +
+          regions.map(x => `<option value="${esc(x.region)}" ${x.region === st.region ? 'selected' : ''}>${esc(x.region)} (${x.n}명)</option>`).join('');
+        const list = st.rooms === null ? '<p class="rm-note">불러오는 중…</p>' : st.rooms.length ? st.rooms.map((x, i) => `
+          <div class="rm-row ${x.active ? '' : 'off'}">
+            <span style="flex:1;min-width:0">
+              <b>${esc(keyLabel(x.key))}</b>${x.active ? '' : ' <small>(끊김)</small>'}
+              <div class="rm-sub">💬 ${esc(x.title || '')} · ${esc(x.chatId)}${x.at ? ' · ' + esc(String(x.at).slice(0, 10)) : ''}</div>
+            </span>
+            ${x.active
+              ? `<button type="button" class="rm-btn line sm" ${st.busy ? 'disabled' : ''} onclick="roomsAdm.off(${i})">끊기</button>`
+              : `<button type="button" class="rm-btn line sm" ${st.busy ? 'disabled' : ''} onclick="roomsAdm.again(${i})">다시 연결</button>`}
+          </div>`).join('') : '<p class="rm-note">아직 연결된 보고방이 없어요.</p>';
+        r.innerHTML = `
+          <p class="rm-note">① 텔레그램 방에 <b>교사광장 도우미</b> 봇을 초대하고 ② 방 번호(-100…)를 받아 ③ 아래에서 부서·지역을 골라 연결하세요.
+            연결하면 봇이 그 방에 확인 글을 올려요. 그 부서·지역 교사의 활동 보고가 그 방으로 가고, 매일 22시에 일일 보고가 모여 올라와요.
+            지역 방이 없으면 부서 방으로, 부서 방도 없으면 기본 방으로 가요.</p>
+          <div class="rm-two">
+            <label class="rm-f">부서<select onchange="roomsAdm.pick(this.value)">${deptOpts}</select></label>
+            <label class="rm-f">지역<select onchange="roomsAdm.pickRegion(this.value)">${regionOpts}</select></label>
+          </div>
+          <label class="rm-f">방 번호<input id="rmChat" inputmode="numeric" placeholder="-1001234567890" autocomplete="off"></label>
+          <button type="button" class="rm-btn" ${st.busy ? 'disabled' : ''} onclick="roomsAdm.connect()">${st.busy ? '연결하는 중…' : '연결'}</button>
+
+          <div class="rm-h">여러 방 한꺼번에</div>
+          <p class="rm-note">위에서 고른 부서(<b>${esc(st.dept || '-')}</b>)로, 한 줄에 "지역 방번호"씩 붙여 넣으세요. 예) <code>03지역 -1001830371396</code> · <code>유아모 -1003623129700</code></p>
+          <label class="rm-f"><textarea id="rmBulk" placeholder="01지역 -1001713067686&#10;03지역 -1001830371396"></textarea></label>
+          <button type="button" class="rm-btn line" ${st.busy ? 'disabled' : ''} onclick="roomsAdm.bulk()">한꺼번에 연결</button>
+          ${st.log.length ? `<div class="rm-note">${st.log.map(l => `<div class="${l.ok ? 'rm-ok' : 'rm-bad'}">${l.ok ? '✅' : '⚠️'} ${esc(l.text)}</div>`).join('')}</div>` : ''}
+          ${st.msg ? `<p class="rm-note rm-ok">${esc(st.msg)}</p>` : ''}
+          ${st.error ? `<p class="rm-note rm-bad">${esc(st.error)}</p>` : ''}
+
+          <div class="rm-h">연결된 방</div>
+          ${list}`;
+      }
+
+      function take(res) {
+        if (!res || res.error) { st.error = (res && res.error) || '서버에 연결하지 못했어요.'; return false; }
+        st.rooms = res.rooms || [];
+        st.depts = res.depts || [];
+        if (!st.dept || !st.depts.some(d => d.dept === st.dept)) st.dept = (st.depts[0] || {}).dept || '';
+        return true;
+      }
+      async function mount() {
+        css(); st.error = ''; render();
+        try { take(await call({ op: 'list' })); } catch (e) { st.error = e.message; }
+        render();
+      }
+      function pick(dept) { st.dept = dept; st.region = ''; render(); }
+      function pickRegion(region) { st.region = region; }
+
+      /** 연결 하나 → 실패하면 오류 글, 되면 null */
+      async function setOne(dept, region, chatId) {
+        return take(await call({ op: 'set', dept, region, chatId })) ? null : st.error;
+      }
+      async function connect() {
+        const chatId = ((document.getElementById('rmChat') || {}).value || '').trim();
+        const label = st.region ? `${st.dept} ${st.region}` : st.dept;
+        st.busy = true; st.msg = st.error = ''; st.log = []; render();
+        try { if (!(await setOne(st.dept, st.region, chatId))) st.msg = `${label} 보고방을 연결했어요. 텔레그램 방에 확인 글이 올라갔는지 보세요.`; }
+        catch (e) { st.error = e.message; }
+        st.busy = false; render();
+      }
+      /** "03지역" / "3" / "유아모" → 이 부서 명단에 있는 지역 값 */
+      function matchRegion(token) {
+        const regions = regionsOf(st.dept).map(x => x.region);
+        const t = String(token).trim();
+        const n = (t.match(/^0*(\d+)(지역)?$/) || [])[1];
+        if (n) return regions.find(r => (r.match(/^0*(\d+)지역$/) || [])[1] === n) || '';
+        return regions.find(r => r === t) || regions.find(r => r.includes(t) || t.includes(r)) || '';
+      }
+      async function bulk() {
+        const lines = ((document.getElementById('rmBulk') || {}).value || '').split('\n').map(s => s.trim()).filter(Boolean);
+        st.busy = true; st.msg = st.error = ''; st.log = []; render();
+        for (const line of lines) {
+          const m = line.match(/^(.+?)\s+(-\d+)/);
+          if (!m) { if (!/^[가-힣]+$/.test(line)) st.log.push({ ok: false, text: `${line} — "지역 방번호" 모양이 아니에요` }); continue; }   // '부녀회' 같은 제목 줄은 건너뜀
+          const region = matchRegion(m[1]);
+          if (!region) { st.log.push({ ok: false, text: `${m[1]} — ${st.dept} 명단에 없는 지역이에요` }); render(); continue; }
+          try {
+            const err = await setOne(st.dept, region, m[2]);
+            st.log.push(err ? { ok: false, text: `${region} — ${err}` } : { ok: true, text: `${st.dept} ${region} 연결` });
+          } catch (e) { st.log.push({ ok: false, text: `${region} — ${e.message}` }); }
+          st.error = ''; render();
+        }
+        st.busy = false; render();
+      }
+      async function off(i) {
+        const x = (st.rooms || [])[i]; if (!x) return;
+        st.busy = true; st.msg = st.error = ''; render();
+        try { if (take(await call({ op: 'off', key: x.key }))) st.msg = `${keyLabel(x.key)} 연결을 끊었어요.`; } catch (e) { st.error = e.message; }
+        st.busy = false; render();
+      }
+      async function again(i) {
+        const x = (st.rooms || [])[i]; if (!x) return;
+        const [dept, region = ''] = x.key.split('/');
+        st.busy = true; st.msg = st.error = ''; render();
+        try { if (!(await setOne(dept, region, x.chatId))) st.msg = `${keyLabel(x.key)} 다시 연결했어요.`; } catch (e) { st.error = e.message; }
+        st.busy = false; render();
+      }
+      return { mount, pick, pickRegion, connect, bulk, off, again };
+    })();
+    window.roomsAdm = roomsAdm;
 
     window.Sections.admin = { mount() {
       const t = document.querySelector('#admin-subtabs [data-subtab="cohort"]');

@@ -3,7 +3,7 @@
 // 10/25: 지역 방(dept '부녀회/03지역')이 있으면 그 지역 사람 보고는 지역 방으로, 매일 22시에 방마다 일일 보고 취합(reportDailyTick).
 import { db, run } from './db.js';
 import { kstDate, kstDateTime, normId } from './util.js';
-import { findTeacher } from '../actions/roster.js';
+import { findTeacher, loadRoster, isApprover } from '../actions/roster.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const deptLabelOf = (dept) => { const d = String(dept || '').trim(); return !d ? '' : /(회|부)$/.test(d) ? d : d + '회'; };
@@ -253,4 +253,50 @@ export async function reportRooms(body) {
     await run(db().from('report_rooms').update({ active: false }).eq('dept', String(body.dept || '')));
   }
   return { rooms: await run(db().from('report_rooms').select('*').order('dept')) };
+}
+
+// ── 관리자 탭 '보고방' (2026-10-25) ── 사용자: "관리자 탭에서 받은 방 번호를 등록하면 그 방하고 연결되게".
+//   운영 키 대신 앱 관리자(교육·전도 담당) 로그인으로. 방 열쇠 = 교사명단의 부서('교역자') 또는 '부서/지역'('부녀회/03지역').
+//   op 'list' = 연결 목록 + 명단에 있는 부서·지역 칸, op 'set' {dept, region?, chatId} = 봇이 그 방에 있는지 보고 연결 + 방에 확인 글,
+//   op 'off' {key} = 연결 끊기(그 방 사람 보고는 부서 방 → 기본 방으로).
+export async function reportRoomsAdmin(body) {
+  if (!(await isApprover(body.memberId))) return { error: '보고방은 교육·전도 담당 관리자만 연결할 수 있어요.' };
+  const op = String(body.op || 'list');
+  if (op === 'set') {
+    const dept = String(body.dept || '').trim(), region = String(body.region || '').trim();
+    let chatId = String(body.chatId || '').replace(/\s/g, '');
+    if (!dept) return { error: '부서를 골라 주세요.' };
+    if (!/^-\d+$/.test(chatId)) return { error: '방 번호는 -100… 처럼 빼기(-)로 시작하는 숫자예요.' };
+    const key = region ? `${dept}/${region}` : dept;
+    let chat;
+    try { chat = await tg('getChat', { chat_id: chatId }); }
+    catch (e) {
+      // 일반 그룹이 슈퍼그룹으로 바뀌면 번호가 새로 생긴다 — 텔레그램이 알려 주는 새 번호로
+      const r = await fetch(`https://api.telegram.org/bot${botToken()}/getChat?chat_id=${encodeURIComponent(chatId)}`).then((x) => x.json()).catch(() => ({}));
+      const moved = r.parameters && r.parameters.migrate_to_chat_id;
+      if (!moved) return { error: `봇이 그 방을 찾지 못했어요(${r.description || e.message}). 방에 '교사광장 도우미' 봇을 초대했는지, 번호가 맞는지 확인해 주세요.` };
+      chatId = String(moved);
+      chat = await tg('getChat', { chat_id: chatId });
+    }
+    const title = chat.title || key;
+    try { await sendText(chatId, `✅ 이 방이 <b>${esc(region ? `${deptLabelOf(dept)} ${regionOf({ region }) || region}` : deptLabelOf(dept))}</b> 보고방으로 연결됐어요.\n교사가 활동 보고를 올리면 이 방으로 오고, 매일 22시에 일일 보고가 모여 올라와요.`); }
+    catch (e) { return { error: `방은 찾았지만 글을 올리지 못했어요(${e.message}). 봇이 글을 쓸 수 있게 권한을 확인해 주세요.` }; }
+    await run(db().from('report_rooms').upsert({ dept: key, chat_id: chatId, title, active: true, created_at: kstDateTime() }));
+  } else if (op === 'off') {
+    await run(db().from('report_rooms').update({ active: false }).eq('dept', String(body.key || '')));
+  }
+  const [rooms, roster] = await Promise.all([run(db().from('report_rooms').select('*').order('dept')), loadRoster()]);
+  // 명단에 있는 부서·지역(사람 수) — 화면의 고르기 칸. 교역자처럼 지역 없이 쓰는 부서도 부서 칸은 나온다.
+  const slots = {};
+  for (const t of roster) {
+    const d = String(t.dept || '').trim(); if (!d) continue;
+    const r = String(t.region || '').trim();
+    slots[d] = slots[d] || { dept: d, n: 0, regions: {} };
+    slots[d].n++;
+    if (r) slots[d].regions[r] = (slots[d].regions[r] || 0) + 1;
+  }
+  return {
+    rooms: rooms.map((r) => ({ key: r.dept, chatId: r.chat_id, title: r.title, active: r.active, at: r.created_at || '' })),
+    depts: Object.values(slots).map((s) => ({ dept: s.dept, n: s.n, regions: Object.entries(s.regions).map(([region, n]) => ({ region, n })).sort((a, b) => a.region.localeCompare(b.region, 'ko', { numeric: true })) })),
+  };
 }

@@ -5,7 +5,7 @@ import { notifyActivityChannel } from '../lib/telegram.js';
 import { afterAction } from '../lib/events.js';
 import { upsertTargetFromActivity, updateProfileFromEdit, TARGET_STAGES, cleanReport } from './targets.js';
 import { findTeacher } from './roster.js';
-import { roomForTeacher, postReport, reportRooms } from '../lib/report-room.js';
+import { roomForTeacher, postReport, reportRooms, reportRoomsAdmin } from '../lib/report-room.js';
 import { storeImage } from '../lib/images.js';
 
 // ⚠️ app.html 의 같은 이름 상수와 같이 맞출 것.
@@ -254,7 +254,7 @@ async function getMyGospelLeads(body) {
 }
 
 export default {
-  submitActivity, updateActivity, postActivityReport, reportRooms, getMyActivities, getAllActivities,
+  submitActivity, updateActivity, postActivityReport, reportRooms, reportRoomsAdmin, getMyActivities, getAllActivities,
   sendEncouragement, getMyEncouragements, markEncouragementRead,
   submitCenterLead, submitGospelLead, getMyGospelLeads,
 };
