@@ -981,6 +981,29 @@
     .er-head-n { display:flex; align-items:center; gap:7px; font-size:22px; font-weight:900; color:#111; letter-spacing:-0.03em; }
     .er-head-i { font-size:12.5px; color:#6B7280; }
     .er-acts3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+    /* 10/25(3차): 옆으로 넘기는 칸 줄 + 누르면 아래로 펼침 */
+    .er-cells { display:flex; gap:8px; overflow-x:auto; scroll-snap-type:x proximity; margin:0 -16px; padding:2px 16px 6px; scrollbar-width:none; }
+    .er-cells::-webkit-scrollbar { display:none; }
+    .er-cells .er-act { flex:0 0 106px; scroll-snap-align:start; }
+    .er-act.open { box-shadow:0 0 0 3px #BFEBDD; transform:translateY(-1px); }
+    .er-act.busy .er-act-i { background:#E3F6EF; color:#00AE82; }
+    .er-act.case.busy { border-color:#DC2626; }
+    .er-open { margin-top:-2px; padding:14px; border-radius:16px; border:1.5px solid #CDEFE3; background:#F7FCFA; display:flex; flex-direction:column; gap:10px; animation:kkoFadeIn .15s ease; }
+    .er-o-h { font-size:14px; font-weight:900; color:#111; } .er-o-h span { margin-left:4px; font-size:12px; font-weight:700; color:#6B7280; }
+    .er-o-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px dashed #DDEFE8; font-size:13px; color:#374151; }
+    .er-o-btn { flex:0 0 auto; height:30px; padding:0 10px; border-radius:8px; border:none; background:#F59E0B; color:#fff; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit; }
+    .er-o-main { height:46px; border-radius:12px; border:none; background:#00AE82; color:#fff; font-size:14.5px; font-weight:800; cursor:pointer; font-family:inherit; }
+    .er-o-main.red { background:linear-gradient(135deg, #F87171, #DC2626); }
+    .er-o-main:disabled { opacity:.75; }
+    .er-o-card { padding:12px 14px; border-radius:12px; background:#fff; border:1px solid #DDEFE8; font-size:14px; line-height:1.6; color:#1F2937; }
+    .er-o-card.plan { background:#FFFAF5; border-color:#FDE2CC; }
+    .er-o-card summary { cursor:pointer; font-size:13px; font-weight:800; color:#00875F; } .er-o-card.plan summary { color:#C2410C; }
+    .er-o-card[open] summary { margin-bottom:8px; }
+    .er-o-sit { margin-bottom:8px; padding:8px 10px; border-radius:8px; background:#F1F5F9; font-size:12.5px; color:#475569; white-space:pre-wrap; }
+    .er-o-ans { margin-top:10px; padding-top:10px; border-top:1px dashed #DDEFE8; } .er-o-ans > b { display:block; margin-bottom:4px; color:#00875F; font-size:13px; }
+    .er-o-note { font-size:12.5px; line-height:1.55; color:#6B7280; }
+    .er-open .gl-chips { flex-wrap:wrap; }
+    .er-open .gl-chips button.on { background:#E8590C; border-color:#E8590C; color:#fff; }
     .er-act { display:flex; flex-direction:column; align-items:center; gap:3px; min-width:0; padding:12px 4px 10px; border-radius:14px; border:1.5px solid #E5E7EB; background:#fff; cursor:pointer; font-family:inherit; text-align:center; }
     .er-act:disabled { cursor:default; }
     .er-act b { font-size:13.5px; font-weight:900; color:#111; letter-spacing:-0.03em; }
@@ -7097,7 +7120,7 @@
         if (goalT) {
           try {
             await glSaveGoal(goalT, goal);
-            actPage = 'goal'; renderHome(); glFocus(goalT.targetId);
+            erGo(goalT.targetName, 'plan');
             toast(`기록을 남기고 ${glLabel(goal)} 인도 목표로 체크했어요.${rpMsg}`);
           } catch (e) { renderHome(); toast('기록은 남겼지만 개강 목표 저장에 실패했어요: ' + e.message, true); }
         } else {
@@ -7763,11 +7786,10 @@
       return `
         <div class="pb-6 act-pages" data-act-page="${actPage}">
           <div data-ap="attend">${attCardHtml()}</div>
-          <div data-ap="goal">${goalPageHtml()}</div>
-          <div data-ap="targets">${histSubTabsHtml()}${histSub === 'swot' ? swPageHtml() : `
+          <div data-ap="targets">
             ${encouragementBannerHtml()}
             ${coachReplyBannerHtml()}
-            ${erPageHtml()}`}
+            ${erPageHtml()}
           </div>
           <div data-ap="edu"><div id="lcEduCard"></div><div class="act-edu-prep">🚧 <b>아래 교육 이수 내용은 준비 중이에요.</b><br>교육 과정과 이수 기록을 정리해서 곧 보여 드릴게요.</div><div id="actEduBody" class="p-4"></div></div>
         </div>
@@ -7933,9 +7955,7 @@
     // 대상자 상세 → 개강 인도 탭의 그 사람 카드(목표가 없으면 '목표 정하기')
     window.glOpenFor = function (id) {
       const t = glTarget(id);
-      if (t && t.goalPlan) glSetOpen(id, true);
-      home.view = 'dashboard'; actPage = 'goal'; renderHome();
-      glFocus(t && t.goalCohort ? id : '');
+      if (t) erGo(t.targetName, 'plan');
     };
 
     // ════════════════════════════════════════════════════════════════
@@ -8028,29 +8048,110 @@
           </div>
         </div>`;
     }
-    // 10/25(2차, 사용자): 예전 기록 카드의 4단계 동그라미(피드백 → 센터 인도 계획 → 수정 → 보고방)는 헷갈림 → 사람 화면 위 그리드 3칸.
-    //   센터 인도 계획은 '내 센터 인도 계획' 탭에, 수정·새 기록은 아래 이력의 [고치기]와 오른쪽 아래 ＋ 단추에 있으니 뺐다.
-    //   피드백·보고는 그 사람의 가장 최근 기록 기준.
-    function erActsHtml(p) {
-      const a = p.list[p.list.length - 1], key = activityRowKey(a), t = p.t;
-      const fb = home.aiFeedback[key] || {}, fbText = fb.text || a.aiFeedback;
-      const room = home.monthlyActRes && home.monthlyActRes.reportRoom;
-      const post = (a.tgPosts || []).find(x => x.kind === 'post');
-      const unsent = p.list.filter(x => !(x.tgPosts || []).some(y => y.kind === 'post')).length;
-      const busy = t && erCaseBusy === t.targetId;
-      const cell = (cls, icon, label, sub, go) => `<button type="button" class="er-act ${cls}" ${go ? `onclick="${go}"` : 'disabled'}><span class="er-act-i">${icon}</span><b>${label}</b><span>${sub}</span></button>`;
-      return `<div class="er-acts3">
-          ${cell(fb.loading ? 'busy' : fbText ? 'done' : 'ready', fb.loading ? '<span class="loading loading-spinner loading-xs"></span>' : pfSvg('up'), '단계향상 피드백',
-            fb.loading ? '읽는 중…' : fbText ? `${a.aiFeedbackAt ? pfMD(a.aiFeedbackAt) + ' ' : ''}받음 · ${rcFbOpen[a.id] ? '접기' : '보기'}` : '받기', `rcFb(${Number(a.id)}, '${esc(key)}')`)}
-          ${post ? cell('done', pfSvg('send'), '보고 완료', `${pfMD(post.at)}${unsent ? ` · 미보고 ${unsent}건` : ''}`, '')
-            : !a.reportText ? cell('off', pfSvg('send'), '미보고', '보고 문자 없음', `rpOpenEdit(${Number(a.id)})`)
-            : !room ? cell('off', pfSvg('send'), '미보고', '보고방 연결 전', '')
-            : cell('warn', pfSvg('send'), '미보고', '눌러서 보고방에 올리기', `rpPostRow(${Number(a.id)}, this)`)}
-          ${t ? cell(`case${erSent(p.stage) ? ' hot' : ''}${busy ? ' busy' : ''}`, busy ? '<span class="loading loading-spinner loading-xs"></span>' : '✍️', '사례로 남기기', busy ? 'AI 초안 쓰는 중…' : erSent(p.stage) ? '센터 보냄 · AI 초안' : 'AI 초안 받기', busy ? '' : `erWriteCase('${esc(t.targetId)}')`) : ''}
-        </div>
-        ${rcFbBoxHtml(a, key)}`;
+    // 10/25(3차, 사용자): 사람 화면 위 칸을 옆으로 넘기는 한 줄로 — 보고 → 단계향상 피드백 → SWOT → ○월 개강 계획 → HEARTS → 사례로 남기기.
+    //   칸을 누르면 바로 아래에 그 내용이 쫙 펼쳐진다(피드백·개강 계획·HEARTS는 지금까지 받은 것 누적). '내 센터 인도 계획' 탭·SWOT 탭은 이리로 들어옴.
+    let erCell = '';                // 펼친 칸
+    const erFile = {};              // targetId → { loading, hearts:[], plans:[], error } (getTargetFile)
+    const ER_IC = {
+      swot: '<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M12 3v18M3 12h18"/>',
+      heart: '<path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.7a4.3 4.3 0 0 1 7.5 2.6c0 5.6-7.5 10.2-7.5 10.2z"/>',
+    };
+    const erSvg = k => `<svg class="pf-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ER_IC[k]}</svg>`;
+    const erPosted = a => (a.tgPosts || []).some(x => x.kind === 'post');
+    async function erLoadFile(tid) {
+      if (!tid) return;
+      erFile[tid] = { ...(erFile[tid] || {}), loading: true };
+      try {
+        const res = await callApi({ action: 'getTargetFile', memberId, targetId: tid });
+        if (res && res.error) throw new Error(res.error);
+        erFile[tid] = { hearts: res.hearts || [], plans: res.plans || [] };
+      } catch (e) { erFile[tid] = { error: e.message, hearts: [], plans: [] }; }
+      renderHome();
     }
-    window.erOpen = function (name) { erSel = name; renderHome(); document.getElementById('appSections').scrollTop = 0; };
+    function erActsHtml(p) {
+      const t = p.t, a = p.list[p.list.length - 1], key = activityRowKey(a), fbNow = home.aiFeedback[key] || {};
+      const posted = p.list.filter(erPosted).length, lastPost = p.list.map(x => (x.tgPosts || []).find(y => y.kind === 'post')).filter(Boolean).pop();
+      const fbs = p.list.filter(x => x.aiFeedback);
+      const gst = t ? glSt[t.targetId] || {} : {}, file = t ? erFile[t.targetId] || {} : {};
+      const gm = t && t.goalCohort ? Number(t.goalCohort.slice(5)) : 0;
+      const spin = '<span class="loading loading-spinner loading-xs"></span>';
+      const cells = [
+        ['report', posted === p.list.length ? 'done' : 'warn', pfSvg('send'), posted === p.list.length ? '보고 완료' : '미보고',
+          posted === p.list.length ? `${pfMD(lastPost.at)} · ${posted}건` : `${p.list.length - posted}건 남음`],
+        ['fb', fbNow.loading ? 'busy' : fbs.length ? 'done' : 'ready', fbNow.loading ? spin : pfSvg('up'), '단계향상 피드백',
+          fbNow.loading ? '읽는 중…' : fbs.length ? `${fbs.length}회 · ${pfMD(fbs[fbs.length - 1].aiFeedbackAt) || '받음'}` : '받기'],
+        t && ['swot', t.swot ? 'done' : 'ready', erSvg('swot'), 'SWOT', t.swot ? `✓ 작성 ${pfMD(t.swotAt)}` : '미작성'],
+        t && ['plan', gst.busy ? 'busy' : t.goalPlan ? 'done' : 'ready', gst.busy ? spin : pfSvg('route'), gm ? `${gm}월 개강 계획` : '개강 계획',
+          gst.busy ? '설계 중…' : t.goalPlan ? `설계 ${pfMD(t.goalPlanAt)}` : gm ? '설계받기' : '목표 정하기'],
+        t && ['hearts', file.loading ? 'busy' : (file.hearts || []).length ? 'done' : 'off', file.loading ? spin : erSvg('heart'), 'HEARTS',
+          file.loading ? '확인 중…' : (file.hearts || []).length ? `완료 · ${file.hearts.length}건` : '미완료'],
+        t && ['case', `case${erSent(p.stage) ? ' hot' : ''}${erCaseBusy === t.targetId ? ' busy' : ''}`, erCaseBusy === t.targetId ? spin : pfSvg('doc'), '사례로 남기기',
+          erCaseBusy === t.targetId ? 'AI 초안 쓰는 중…' : erSent(p.stage) ? '센터 보냄 · AI 초안' : 'AI 초안'],
+      ].filter(Boolean);
+      return `<div class="er-cells">${cells.map(([k, cls, ic, label, sub]) => `<button type="button" class="er-act ${cls}${erCell === k ? ' open' : ''}" onclick="erCellOpen('${k}')"><span class="er-act-i">${ic}</span><b>${label}</b><span>${sub}</span></button>`).join('')}</div>
+        ${erCell ? `<div class="er-open">${erCellBodyHtml(p, erCell)}</div>` : ''}`;
+    }
+    function erCellBodyHtml(p, k) {
+      const t = p.t, room = home.monthlyActRes && home.monthlyActRes.reportRoom;
+      const item = a => erItems(a).join(', ');
+      if (k === 'report') return `<div class="er-o-h">보고방 보고 <span>${room ? esc(room.title) : '보고방 연결 전'}</span></div>
+        ${p.list.slice().reverse().map(a => { const post = (a.tgPosts || []).find(y => y.kind === 'post'), ed = (a.tgPosts || []).filter(y => y.kind === 'edit').length;
+          return `<div class="er-o-row"><span>${esc(String(a.submittedAt).slice(5, 10).replace('-', '/'))} · ${esc(item(a))}</span>${post
+            ? `<i class="er-tg ok">보고 ${pfMD(post.at)}${ed ? ` · 수정본 ${ed}` : ''}</i>`
+            : room && a.reportText ? `<button type="button" class="er-o-btn" onclick="rpPostRow(${Number(a.id)}, this)">보고방에 올리기</button>` : `<i class="er-tg">미보고${a.reportText ? '' : ' · 보고 문자 없음'}</i>`}</div>`; }).join('')}
+        <div class="er-o-note">새로 기록하거나 이력에서 고쳐 저장하면 보고방에 바로(수정본은 답장으로) 올라가요.</div>`;
+      if (k === 'fb') {
+        const a = p.list[p.list.length - 1], key = activityRowKey(a), now = home.aiFeedback[key] || {};
+        const fbs = p.list.filter(x => x.aiFeedback).reverse();
+        return `<button type="button" class="er-o-main" onclick="erFbRun('${esc(key)}')" ${now.loading ? 'disabled' : ''}>${now.loading ? '<span class="loading loading-spinner loading-xs"></span> 기록 전부 읽는 중…' : `🤖 최근 기록(${esc(String(a.submittedAt).slice(5, 10).replace('-', '/'))} ${esc(item(a))})으로 ${a.aiFeedback ? '다시' : ''} 받기`}</button>
+          ${now.text && !a.aiFeedback ? `<div class="er-o-card">${glMd(now.text)}</div>` : ''}
+          ${fbs.length ? `<div class="er-o-h">받은 피드백 <span>${fbs.length}회 · 새것부터</span></div>` + fbs.map((x, i) => `<details class="er-o-card" ${i === 0 ? 'open' : ''}><summary>${esc(pfMD(x.aiFeedbackAt) || String(x.submittedAt).slice(5, 10))} · ${esc(item(x))} 기록에 대한 피드백</summary>${glMd(x.aiFeedback)}</details>`).join('')
+            : '<div class="er-o-note">아직 받은 피드백이 없어요. 이 사람의 기록 전부·HEARTS·교관 답을 모아 다음 단계로 가는 방법을 알려 드려요.</div>'}`;
+      }
+      if (!t) return '';
+      if (k === 'swot') { swSt.id = t.targetId; return swEditorHtml(t); }
+      if (k === 'plan') {
+        const id = esc(t.targetId), gst = glSt[t.targetId] || {}, file = erFile[t.targetId] || {};
+        const past = (file.plans || []).filter(x => x.text !== t.goalPlan);
+        const cur = GL_FLOW.findIndex(([, ss]) => ss.includes(t.stage));
+        const opts = [...new Set(glMonths().concat(t.goalCohort ? [t.goalCohort] : []))].sort();
+        return `<div class="er-o-h">몇 월 개강으로 인도할까요?</div>
+          <div class="gl-chips">${opts.map(g => `<button type="button" class="${g === t.goalCohort ? 'on' : ''}" onclick="glSetGoal('${id}','${g}')">${glLabel(g)}</button>`).join('')}${t.goalCohort ? `<button type="button" onclick="glSetGoal('${id}','')">목표 빼기</button>` : ''}</div>
+          ${t.goalCohort ? `
+          <div class="gl-flow" style="margin-top:12px">${GL_FLOW.map(([n], i) => `<span class="${i < cur ? 'done' : i === cur ? 'now' : ''}">${n}</span>`).join('<i>›</i>')}</div>
+          <button type="button" class="er-o-main" onclick="erPlan('${id}')" ${gst.busy ? 'disabled' : ''}>${gst.busy ? '<span class="loading loading-spinner loading-xs"></span> 기록 전부 모아 설계 중…' : `🤖 AI ${glLabel(t.goalCohort)} 센터 인도 계획 ${t.goalPlan ? '다시 ' : ''}설계`}</button>
+          ${gst.text ? `<div class="er-o-card">${glMd(gst.text)}</div>` : ''}
+          ${t.goalPlan ? `<div class="er-o-h">지금 계획 <span>${esc(String(t.goalPlanAt || '').slice(0, 16))}${t.goalPlanBasis ? ' · ' + esc(t.goalPlanBasis) : ''}</span></div><div class="er-o-card plan">${glMd(t.goalPlan)}</div>` : ''}
+          ${past.length ? `<div class="er-o-h">지난 계획 <span>${past.length}개 · 새것부터</span></div>` + past.map(x => `<details class="er-o-card plan"><summary>${esc(x.at.slice(0, 16))} · ${esc(String(x.input || '').split(' · ')[0])}</summary>${glMd(x.text)}</details>`).join('') : ''}
+          <div class="gl-guide"><div><span>💬 구체적인 대화·상황 피드백은 <b>HEARTS(AI상담)</b>에서</span><button type="button" onclick="glToAi('${id}')">HEARTS ›</button></div>
+            <div><span>🧑‍🏫 계획은 꼭 <b>담당 교관님과 상의</b>해서 확정하세요</span><button type="button" onclick="glToCoach('${id}')">교관님께 ›</button></div></div>` : ''}`;
+      }
+      if (k === 'hearts') {
+        const id = esc(t.targetId), file = erFile[t.targetId] || {};
+        return `<button type="button" class="er-o-main" onclick="glToAi('${id}')">💬 이 사람으로 HEARTS(AI상담) 받기 ›</button>
+          ${file.loading ? '<div class="er-o-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>' : file.error ? `<div class="er-o-note">⚠️ ${esc(file.error)}</div>`
+            : (file.hearts || []).length ? `<div class="er-o-h">HEARTS 상담 기록 <span>${file.hearts.length}건 · 새것부터</span></div>` + file.hearts.map((h, i) => `<details class="er-o-card" ${i === 0 ? 'open' : ''}><summary>${esc(h.at.slice(0, 10))} · ${esc(h.source || '상담')}${h.answer ? ' · 교관 답 있음' : ''}</summary>
+                <div class="er-o-sit">${esc(h.situation)}</div>${h.ai ? glMd(h.ai) : ''}${h.answer ? `<div class="er-o-ans"><b>🧑‍🏫 ${esc(h.handler || '교관')} 답</b>${glMd(h.answer)}</div>` : ''}</details>`).join('')
+            : '<div class="er-o-note">아직 이 사람 이야기로 받은 HEARTS 상담이 없어요. 상담 상황에 이름(예: 홍*동)이 들어가면 여기에 쌓여요.</div>'}`;
+      }
+      if (k === 'case') return `<div class="er-o-note" style="margin-top:0">${erSent(p.stage) ? '<b>센터에 보냈어요 🎉</b> ' : ''}지금까지의 기록·HEARTS·교관 답으로 AI가 사례 틀(7항목)에 맞춰 초안을 써 드려요. 사례 글쓰기 화면에서 다듬어 올려 주세요.</div>
+        <button type="button" class="er-o-main red" onclick="erWriteCase('${esc(t.targetId)}')" ${erCaseBusy ? 'disabled' : ''}>${erCaseBusy === t.targetId ? '<span class="loading loading-spinner loading-xs"></span> 사례 초안 쓰는 중…' : '✍️ AI 사례 초안 쓰기'}</button>`;
+      return '';
+    }
+    window.erCellOpen = function (k) { erCell = erCell === k ? '' : k; renderHome(); };
+    window.erPlan = async function (id) { await glPlan(id, true); erLoadFile(id); };
+    // 다른 화면(기록 저장·대상자 상세)에서 이 사람의 칸으로 바로
+    window.erGo = function (name, cell) {
+      home.view = 'dashboard'; actPage = 'targets'; erSel = erKey(name); erCell = cell || '';
+      const t = home.targets.find(x => erKey(x.targetName) === erSel); if (t) erLoadFile(t.targetId);
+      renderHome(); document.getElementById('appSections').scrollTop = 0;
+    };
+    window.erFbRun = key => runActivityAiFeedback(key);
+    window.erOpen = function (name) {
+      erSel = name; erCell = '';
+      const t = name && home.targets.find(x => erKey(x.targetName) === name); if (t) erLoadFile(t.targetId);
+      renderHome(); document.getElementById('appSections').scrollTop = 0;
+    };
     window.erToggleRow = function (id) { erOpenRows.has(id) ? erOpenRows.delete(id) : erOpenRows.add(id); renderHome(); };
     // 사례로 남기기: 서버(writeCaseDraft)가 이 사람 기록 전부로 사례 틀 초안 → 사례 탭 글쓰기 화면을 초안으로 연다(바로 올리지 않음)
     window.erWriteCase = async function (tid) {
@@ -8314,7 +8415,8 @@
     // 2026-10-23(사용자): '기록 보기'는 내 활동 안 서브 탭으로, '개강 인도' → '개강 인도 계획'
     // 2026-10-25(사용자): '센터 인도 계획' → '내 센터 인도 계획', 섭외자별 교육 이력을 모아 보는 '내 교육 보고' 탭 추가
     // 2026-10-25(2차, 사용자): '내 활동'과 '내 교육 보고'가 겹침 → '내 활동 보고' 하나로(섭외자 그리드 + 사람별 교육 이력·피드백·보고·사례)
-    const ACT_PAGES = [['attend', '내 교육 출석'], ['targets', '내 활동 보고'], ['goal', '내 센터 인도 계획'], ['edu', '내가 이수한 교육']];   // 순서: 출석·내 활동·센터 인도 계획·내가 이수한 교육(10/23 사용자: 표적 아이콘 뺌)   // 이수 교육 = 예전 교재 탭의 '이수교육'
+    // 10/25(3차): '내 센터 인도 계획' 탭 없앰 — 사람 화면의 '○월 개강 계획' 칸에서 목표·설계·지난 계획까지
+    const ACT_PAGES = [['attend', '내 교육 출석'], ['targets', '내 활동 보고'], ['edu', '내가 이수한 교육']];   // 순서: 출석·내 활동·센터 인도 계획·내가 이수한 교육(10/23 사용자: 표적 아이콘 뺌)   // 이수 교육 = 예전 교재 탭의 '이수교육'
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {

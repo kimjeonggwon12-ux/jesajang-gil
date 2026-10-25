@@ -405,6 +405,21 @@ async function swotAdvice(body) {
   return { text, swotAiAt: at, swotAt: at, basis: d.basis };
 }
 
+// ── 섭외자 한 사람 화면(2026-10-25, 내 활동 보고) ── HEARTS(AI상담·교관 답) 누적 + 지금까지 받은 AI 개강 계획 누적. 새것부터.
+async function getTargetFile(body) {
+  const mid = str(body.memberId);
+  const target = await ownedTarget(mid, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  const [coach, plans] = await Promise.all([
+    coachingAbout(target, mid),
+    run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).eq('kind', '개강 인도 계획').order('id', { ascending: false })).catch(() => []),
+  ]);
+  return {
+    hearts: coach.reverse().map((f) => ({ at: fmtTs(f.submitted_at), source: f.source, situation: f.situation, ai: f.ai_coach_text, handler: f.handler, answer: f.handler_answer, status: f.status })),
+    plans: plans.map((n) => ({ at: fmtTs(n.created_at), input: n.input, text: n.text })),
+  };
+}
+
 // ── 사례로 남기기 (2026-10-25) ── 사용자: "센터를 보내면 성공 사례를 써야 하는데 이것도 일이잖아 — 사례 서식에 맞추어 사례 글이 나오도록".
 // 그 사람의 누적 기록 전부 → 사례 틀 7항목 초안. 앱은 이 초안으로 사례 글쓰기 화면을 열고, 교사가 다듬어 올린다(바로 올리지 않음).
 // ⚠️ 항목 제목은 app.html CASE_SECTIONS 와 같아야 틀로 다시 열린다.
@@ -505,13 +520,11 @@ export async function ownedTarget(memberId, targetId) {
   return t && owns(t, normId(memberId)) ? t : null;
 }
 
-export async function targetDossier(target, mid) {
+/** 이 대상자 이야기가 든 AI상담(HEARTS)·교관 요청 — 오래된 것부터. */
+async function coachingAbout(target, mid) {
   const name = target.target_name.trim();
   const owners = [...new Set([target.creator_id, target.leader_id, target.helper_id, mid].filter((id) => str(id)).map(normId))];
-  const [acts, history, notes, mine, feedbacks] = await Promise.all([
-    activitiesAbout(target),
-    run(db().from('target_history').select('*').eq('target_id', target.target_id).order('id')),
-    run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).order('id')).catch(() => []),
+  const [mine, feedbacks] = await Promise.all([
     run(db().from('targets').select('target_name').or(ownedBy(normId(mid)))),
     selectAll(() => db().from('feedbacks').select('*').in('nid', owners).order('id')),
   ]);
@@ -519,6 +532,16 @@ export async function targetDossier(target, mid) {
   const m = maskName(name);
   const maskUnique = mine.filter((t) => maskName(t.target_name) === m).length <= 1;
   const about = (s) => !!name && (s.includes(name) || (maskUnique && m.length > 1 && s.includes(m)));
+  return feedbacks.filter((f) => about(String(f.situation || ''))).sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1));
+}
+
+export async function targetDossier(target, mid) {
+  const [acts, history, notes, coach] = await Promise.all([
+    activitiesAbout(target),
+    run(db().from('target_history').select('*').eq('target_id', target.target_id).order('id')),
+    run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).order('id')).catch(() => []),
+    coachingAbout(target, mid),
+  ]);
 
   const actLines = acts.sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1)).map((a) => '- ' + [
     day(a.submitted_at), a.roles.length && `[${a.roles.join('·')}]`, a.activities.join(', '), a.target_stage && `(단계: ${a.target_stage})`,
@@ -527,8 +550,6 @@ export async function targetDossier(target, mid) {
     a.today_work && `한 일: ${cut(a.today_work, 600)}`, a.next_work && `다음: ${cut(a.next_work, 300)}`, a.special_note && `특이사항: ${cut(a.special_note, 300)}`,
   ].filter(Boolean).join(' / '));
   const histLines = history.map((h) => `- ${day(h.changed_at)} ${h.from_stage || '(처음)'} → ${h.to_stage}${h.memo ? ` (${cut(h.memo, 200)})` : ''}`);
-  const coach = feedbacks.filter((f) => about(String(f.situation || '')))
-    .sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1));
   const coachLines = coach.map((f) => [`- ${day(f.submitted_at)} [${f.source}] 상황: ${cut(f.situation, 400)}`,
     f.ai_coach_text && `  AI 답: ${cut(f.ai_coach_text, 1500)}`, f.handler_answer && `  교관 답(${f.handler || '교관'}): ${cut(f.handler_answer, 1200)}`].filter(Boolean).join('\n'));
   const noteLines = notes.map((n) => `- ${day(n.created_at)} [${n.kind}] ${cut(n.input, 300)}\n  ${cut(n.text, 2500).replace(/\n/g, '\n  ')}`);
@@ -627,5 +648,5 @@ async function getKeyStageCount() {
 export default {
   getTargetStageDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
-  getTargetJournal, deleteTarget, planCohortLead, swotAdvice, writeCaseDraft,
+  getTargetJournal, deleteTarget, planCohortLead, swotAdvice, writeCaseDraft, getTargetFile,
 };
