@@ -618,7 +618,10 @@ async function attAutoSummary(body) {
   // 2026-10-16: 교육 과정 — 출석·과제·시험 마감 시각이 지나면 과정 방으로 결과 서머리
   let cohort = [];
   try { cohort = await (await import('./cohort-tick.js')).cohortTick(); } catch (e) { console.log('교육 과정 서머리 오류: ' + e); }
-  return { ok: true, closed, cohort };
+  // 2026-10-25: 22시가 지나면 보고방(지역·부서 방)마다 오늘 일일 보고 취합
+  let daily = [];
+  try { daily = await (await import('../lib/report-room.js')).reportDailyTick(); } catch (e) { console.log('일일 보고 취합 오류: ' + e); }
+  return { ok: true, closed, cohort, daily };
 }
 
 export default {

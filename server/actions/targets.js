@@ -405,6 +405,70 @@ async function swotAdvice(body) {
   return { text, swotAiAt: at, swotAt: at, basis: d.basis };
 }
 
+// ── 사례로 남기기 (2026-10-25) ── 사용자: "센터를 보내면 성공 사례를 써야 하는데 이것도 일이잖아 — 사례 서식에 맞추어 사례 글이 나오도록".
+// 그 사람의 누적 기록 전부 → 사례 틀 7항목 초안. 앱은 이 초안으로 사례 글쓰기 화면을 열고, 교사가 다듬어 올린다(바로 올리지 않음).
+// ⚠️ 항목 제목은 app.html CASE_SECTIONS 와 같아야 틀로 다시 열린다.
+const CASE_SECTIONS = [
+  ['마음 사기 · 친분', '첫 만남 · 공감 · 소망 심기'],
+  ['단계 향상 방법', '섭외 → 친분 → 만남 → 상담 → 복음방'],
+  ['경계 낮추기 · 방해 극복', '신뢰 쌓기 · 방해 요소와 이겨 낸 방법'],
+  ['교사 연결', '연결 방법 · 교사 컨셉'],
+  ['성경 띄우기', '기간 띄우기 · 동기 부여'],
+  ['센터 소개', '시기 · 방법 · 소개 멘트'],
+  ['깨달은 점', '감사 · 배운 점'],
+];
+const CASE_AI_DAILY = 5;
+const CASE_AI_KIND = '사례 초안';
+
+async function writeCaseDraft(body) {
+  const mid = str(body.memberId);
+  const target = await ownedTarget(mid, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  const today = kstDate();
+  const used = await run(db().from('target_ai_notes').select('id').eq('member_id', mid).eq('kind', CASE_AI_KIND).gte('created_at', `${today} 00:00:00`));
+  if (used.length >= CASE_AI_DAILY) return { error: `사례 초안은 하루 ${CASE_AI_DAILY}번까지예요. 내일 다시 만들어 보세요.` };
+  const d = await targetDossier(target, mid);
+  const who = `${target.gender || ''}${target.age_group ? ' ' + target.age_group : ''}`.trim() || '섭외자';
+  const prompt = [
+    '당신은 교회 전도 교사의 "센터 등록 성공 사례" 글을 대신 정리해 주는 편집자입니다. 아래 기록만 근거로, 교사 본인이 1인칭으로 쓴 사례 글 초안을 만드세요.',
+    '',
+    `- 섭외자: ${who} / 지금 단계: ${target.stage || '섭외'} / 처음 등록: ${day(target.created_at) || '모름'}`,
+    '',
+    '[지금까지의 기록 전부 — 오래된 것부터]',
+    '■ 활동 기록', ...d.acts,
+    '■ 단계 변경 이력', ...d.history,
+    '■ AI 상담·교관 답변', ...d.coaching,
+    '■ 이전에 받은 AI 계획·피드백', ...d.notes,
+    '',
+    '규칙:',
+    '1. 기록에 있는 사실만 쓰세요. 기록에 없는 일(날짜·멘트·사건)을 지어내지 마세요. 그 항목에 쓸 기록이 없으면 "(기록 없음 — 직접 채워 주세요)" 한 줄만 쓰세요.',
+    '2. 섭외자 실명은 쓰지 말고 "그분", "○○님"처럼 쓰세요. 함께한 교사·섬김이 이름도 역할로만 쓰세요.',
+    '3. 다른 교사가 읽고 따라 할 수 있게, 단계마다 무엇을 했고 상대가 어떻게 반응했는지 구체적으로 쓰세요. 항목마다 2~5문장.',
+    '4. 맨 첫 줄은 "제목: " 다음에 30자 안쪽 제목(예: 세 번 거절당한 분이 센터에 오시기까지).',
+    '5. 그 다음부터 아래 7개 항목 머리줄을 글자 하나 바꾸지 말고 이 순서대로 쓰고, 머리줄 바로 아래에 내용을 쓰세요. 마크다운 기호(#, *, -)는 쓰지 마세요.',
+    ...CASE_SECTIONS.map(([t, s], i) => `${i + 1}. ${t} (${s})`),
+  ].join('\n');
+  const text = await askAiModels(prompt, PLAN_MODELS);
+  if (text.startsWith('⚠️')) return { error: text.replace(/^⚠️\s*/, '') };
+  // 머리줄을 틀 제목 그대로 맞춰 다시 짓는다(AI가 번호·괄호를 조금 바꿔도 앱 틀로 열리게)
+  const lines = text.replace(/\*\*/g, '').split('\n');
+  const tl = lines.find((l) => /^\s*제목\s*[:：]/.test(l));
+  const title = tl ? tl.replace(/^\s*제목\s*[:：]\s*/, '').trim().slice(0, 80) : '';
+  const sec = CASE_SECTIONS.map(() => []);
+  let cur = -1;
+  for (const l of lines) {
+    if (l === tl) continue;
+    const m = l.match(/^\s*#*\s*(\d)\s*[.)]\s*(.+)$/);
+    const idx = m ? CASE_SECTIONS.findIndex(([t]) => m[2].replace(/\s/g, '').startsWith(t.replace(/\s/g, ''))) : -1;
+    if (idx >= 0) { cur = idx; continue; }
+    if (cur >= 0) sec[cur].push(l);
+  }
+  const bodyText = CASE_SECTIONS.map(([t, s], i) => `${i + 1}. ${t} (${s})\n${sec[i].join('\n').trim()}`).join('\n\n');
+  if (!sec.some((x) => x.join('').trim())) return { error: 'AI가 사례 틀대로 쓰지 못했어요. 한 번 더 눌러 주세요.' };
+  await addTargetAiNote(target.target_id, mid, CASE_AI_KIND, `${target.stage || '섭외'} 단계 · ${d.basis}`, text);
+  return { title, body: bodyText, basis: d.basis };
+}
+
 
 // ── 대상자 한 사람의 누적 기록 (2026-10-20) ──
 // 사용자: "최근 한 건 말고, 지금까지 그 사람에 대한 기록을 총합하여 — 과거 AI 코칭 기록 등을 누적 또 누적하여".
@@ -563,5 +627,5 @@ async function getKeyStageCount() {
 export default {
   getTargetStageDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
-  getTargetJournal, deleteTarget, planCohortLead, swotAdvice,
+  getTargetJournal, deleteTarget, planCohortLead, swotAdvice, writeCaseDraft,
 };

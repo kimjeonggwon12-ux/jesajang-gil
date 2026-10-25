@@ -923,6 +923,85 @@
     .pf-mini i.done { background:#00AE82; border-color:#00AE82; } .pf-mini i.off { border-style:dashed; }
     .pf-mini span { margin-left:4px; font-size:12px; font-weight:700; color:#64748B; }
     .pf-box { margin-top:10px; padding:12px 14px; border-radius:12px; font-size:14px; line-height:1.6; border:1px solid; }
+    /* 2026-10-25 관리 흐름 아이콘: 계단+연필 / 센터 건물+달력 / 고치는 일지 / 텔레그램 — 했으면 아이콘 그대로 + 오른쪽 아래 체크 */
+    .pf-dot { position:relative; width:42px; height:42px; }
+    .pf-dot .pf-svg { width:24px; height:24px; stroke-width:1.7; }
+    .pf-step + .pf-step::before { top:21px; }
+    .pf-ok { position:absolute; right:-4px; bottom:-4px; display:flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%; background:#fff; border:1.5px solid #00AE82; color:#00AE82; }
+    .pf-ok .pf-svg.xs, .pf-svg.xs { width:10px; height:10px; stroke-width:3.2; }
+    .pf-box-h { display:flex; align-items:center; gap:4px; }
+    .pf-box-x { margin-left:auto; height:26px; padding:0 9px; border-radius:7px; border:1px solid currentColor; background:#fff; font-size:11.5px; font-weight:800; color:inherit; cursor:pointer; font-family:inherit; opacity:.85; }
+    /* 내 센터 인도 계획: 개강 달을 달력 모양 큰 제목으로 · AI 계획 접기 */
+    .gl-mh { display:flex; align-items:center; gap:12px; margin-top:6px; padding:12px 14px; border-radius:16px; background:linear-gradient(135deg, #FFF4EC, #FFE6D5); border:1px solid #FDD3B5; }
+    .gl-mh-cal { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; width:58px; height:62px; border-radius:12px; background:#fff; border:2px solid #E8590C; box-shadow:0 4px 10px -6px rgba(232,89,12,.8); overflow:hidden; }
+    .gl-mh-cal i { font-style:normal; font-size:10px; font-weight:800; color:#fff; background:#E8590C; width:100%; text-align:center; line-height:16px; }
+    .gl-mh-cal i:last-child { background:none; color:#E8590C; line-height:12px; }
+    .gl-mh-cal b { font-size:26px; font-weight:900; color:#C2410C; line-height:1.1; }
+    .gl-mh-t b { display:block; font-size:24px; font-weight:900; color:#C2410C; letter-spacing:-0.04em; line-height:1.15; }
+    .gl-mh-t span { font-size:13px; font-weight:700; color:#9A5B33; }
+    .gl-mh-t em { font-style:normal; margin-left:2px; padding:1px 8px; border-radius:99px; background:#E8590C; color:#fff; font-size:12px; font-weight:800; }
+    .gl-fold { display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:12px; padding:11px 14px; border-radius:12px; border:1px solid #FDE2CC; background:#FFFAF5; font-size:13.5px; font-weight:800; color:#9A3412; cursor:pointer; font-family:inherit; text-align:left; }
+    .gl-fold b { flex:0 0 auto; font-size:12px; color:#E8590C; }
+    .gl-fold.in { margin:-4px 0 8px; padding:0 0 8px; border:none; border-bottom:1px dashed #FDE2CC; border-radius:0; background:none; }
+    /* 보고 사진 · 신앙/섭외유형 칩 */
+    .rp-photos { display:flex; flex-wrap:wrap; gap:8px; }
+    .rp-ph { position:relative; width:84px; height:84px; border-radius:12px; overflow:hidden; background:#F3F4F6; }
+    .rp-ph img { width:100%; height:100%; object-fit:cover; }
+    .rp-ph-rm { position:absolute; top:4px; right:4px; width:24px; height:24px; border-radius:50%; border:none; background:rgba(0,0,0,.6); color:#fff; font-size:12px; cursor:pointer; }
+    .rp-ph-add { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; width:84px; height:84px; border-radius:12px; border:1.5px dashed #CBD5E1; background:#F8FAFC; font-size:12px; font-weight:700; color:#64748B; cursor:pointer; }
+    .rp-pick .act-chip-btn { height:36px; padding:0 12px; }
+    .er-ph { display:flex; gap:6px; margin-top:8px; }
+    .er-ph img { width:calc((100% - 12px) / 3); max-width:120px; aspect-ratio:1; object-fit:cover; border-radius:10px; background:#F3F4F6; }
+    .rc-ph { margin-top:10px; }
+    /* 내 교육 보고: 섭외자 그리드 → 한 사람의 교육 이력 표 */
+    .er-wrap { padding:14px 16px 96px; display:flex; flex-direction:column; gap:12px; }
+    .er-hero { padding:16px; border-radius:18px; background:linear-gradient(135deg, #0F5B45, #00AE82); color:#fff; }
+    .er-hero-t { font-size:20px; font-weight:900; letter-spacing:-0.03em; }
+    .er-hero-s { margin-top:4px; font-size:13px; line-height:1.5; color:#D5F3E8; }
+    .er-hero-n { display:flex; gap:8px; margin-top:12px; }
+    .er-hero-n span { flex:1; padding:8px 0; border-radius:11px; background:rgba(255,255,255,.14); text-align:center; font-size:12.5px; font-weight:700; }
+    .er-hero-n b { font-size:19px; font-weight:900; margin-right:1px; }
+    .er-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+    .er-tile { position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:5px; min-width:0; padding:13px 12px 11px; border-radius:16px; border:1.5px solid #E5E7EB; background:#fff; text-align:left; cursor:pointer; font-family:inherit; transition:transform .12s, box-shadow .15s; }
+    .er-tile:active { transform:scale(.98); }
+    .er-tile.sent { border-color:#FCA5A5; background:linear-gradient(180deg, #FFF5F5, #fff 60%); }
+    .er-ava { display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg, #2BC79A, #00875F); color:#fff; font-size:15px; font-weight:900; }
+    .er-ava.lg { width:52px; height:52px; font-size:22px; flex:0 0 auto; }
+    .er-nm { font-size:17px; font-weight:900; color:#111; letter-spacing:-0.03em; }
+    .er-st { display:inline-block; padding:1px 8px; border-radius:99px; border:1px solid; font-size:11.5px; font-weight:800; }
+    .er-flow { display:flex; gap:3px; width:100%; }
+    .er-flow i { flex:1; height:5px; border-radius:99px; background:#E5E7EB; }
+    .er-flow i.done { background:#7FD8BF; } .er-flow i.now { background:#00AE82; }
+    .er-ct { font-size:12px; color:#4B5563; } .er-ct b { font-size:14px; color:#00875F; }
+    .er-dt { font-size:11px; color:#9CA3AF; }
+    .er-badge { position:absolute; top:10px; right:10px; padding:2px 7px; border-radius:99px; background:#DC2626; color:#fff; font-size:10.5px; font-weight:800; }
+    .er-back { align-self:flex-start; height:34px; padding:0 12px; border-radius:99px; border:1px solid #E5E7EB; background:#fff; font-size:13px; font-weight:700; color:#374151; cursor:pointer; font-family:inherit; }
+    .er-head { display:flex; gap:12px; align-items:center; }
+    .er-head-m { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+    .er-head-n { display:flex; align-items:center; gap:7px; font-size:22px; font-weight:900; color:#111; letter-spacing:-0.03em; }
+    .er-head-i { font-size:12.5px; color:#6B7280; }
+    .er-acts { display:flex; gap:8px; }
+    .er-btn { flex:1; height:44px; border-radius:12px; border:1.5px solid #00AE82; background:#fff; color:#00875F; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; }
+    .er-btn.case { border-color:#E5E7EB; color:#374151; }
+    .er-btn.case.hot { border-color:#DC2626; background:linear-gradient(135deg, #F87171, #DC2626); color:#fff; box-shadow:0 6px 14px -8px rgba(220,38,38,.9); }
+    .er-btn:disabled { opacity:.7; }
+    .er-case-note { margin-top:-4px; font-size:12.5px; line-height:1.5; color:#6B7280; }
+    .er-sec { margin-top:6px; font-size:15px; font-weight:900; color:#111; }
+    .er-sec span { margin-left:4px; padding:1px 8px; border-radius:99px; background:#E8F8F2; color:#00875F; font-size:12px; }
+    .er-lessons { list-style:decimal; margin:0; padding:10px 14px 10px 32px; border-radius:12px; background:#F7FAF9; font-size:13.5px; line-height:1.7; color:#1F2937; }
+    .er-table { border:1px solid #E5E7EB; border-radius:14px; overflow:hidden; background:#fff; }
+    .er-tr { display:grid; grid-template-columns:38px 46px 74px 1fr; gap:6px; align-items:center; width:100%; padding:10px 10px; border:none; border-top:1px solid #F1F5F9; background:#fff; text-align:left; font-size:12.5px; color:#374151; cursor:pointer; font-family:inherit; }
+    .er-tr.er-th { border-top:none; background:#F8FAFC; font-size:11.5px; font-weight:800; color:#6B7280; cursor:default; }
+    .er-tr.open { background:#F0FBF7; }
+    .er-tr em { display:inline-block; margin:0 3px 2px 0; padding:0 6px; border-radius:6px; background:#EEF2F7; font-style:normal; font-size:11px; font-weight:700; color:#374151; }
+    .er-no { display:flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:#E8F8F2; color:#00875F; font-weight:900; font-size:12px; }
+    .er-tt { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .er-tt b { margin-right:5px; color:#111; }
+    .er-tt i { font-style:normal; color:#6B7280; }
+    .er-more { padding:4px 12px 12px 54px; background:#F0FBF7; border-top:1px dashed #CDEFE3; display:flex; flex-direction:column; gap:6px; font-size:13px; line-height:1.55; color:#1F2937; white-space:pre-wrap; }
+    .er-more b { display:inline-block; min-width:62px; margin-right:6px; color:#00875F; font-size:12px; }
+    .er-edit { align-self:flex-start; height:32px; padding:0 12px; border-radius:9px; border:1px solid #CBD5E1; background:#fff; font-size:12.5px; font-weight:700; color:#374151; cursor:pointer; font-family:inherit; }
+    @media (max-width: 360px) { .er-tr { grid-template-columns:30px 40px 64px 1fr; font-size:12px; } .er-more { padding-left:12px; } }
     .pf-box.fb { background:#F3FAF7; border-color:#CDEBDF; color:#14372B; }
     .pf-box.plan { background:#FFF8F1; border-color:#FBD9B8; color:#3B2614; }
     .pf-box-h { font-size:13.5px; font-weight:800; margin-bottom:6px; }
@@ -2279,7 +2358,8 @@
     .act-pages[data-act-page="attend"] > [data-ap]:not([data-ap="attend"]),
     .act-pages[data-act-page="targets"] > [data-ap]:not([data-ap="targets"]),
     .act-pages[data-act-page="edu"] > [data-ap]:not([data-ap="edu"]),
-    .act-pages[data-act-page="goal"] > [data-ap]:not([data-ap="goal"]) { display:none; }
+    .act-pages[data-act-page="goal"] > [data-ap]:not([data-ap="goal"]),
+    .act-pages[data-act-page="report"] > [data-ap]:not([data-ap="report"]) { display:none; }
     .hs-tabs { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; padding:12px 16px 14px; border-bottom:8px solid #F4F5F7; }
     .hs-tabs > button { display:flex; flex-direction:column; align-items:center; gap:3px; min-width:0; padding:12px 4px 10px; border-radius:16px; border:1.5px solid #E5E7EB; background:#fff; cursor:pointer; transition:background .15s, border-color .15s, box-shadow .15s; }
     .hs-tabs .hs-i { font-size:26px; line-height:1.1; }
@@ -5671,7 +5751,7 @@
       const CORNER_CATS = { story: ['사례'], board: ['전도부'], etc: ['질문', '불편신고'] };
       const CORNER_TITLE = { story: '✍️ 성공 사례 쓰기', board: '전도부 게시판 글쓰기', etc: '질문·불편신고 글쓰기' };
       const cornerOfCat = c => c === '사례' ? 'story' : c === '전도부' ? 'board' : c ? 'etc' : '';
-      function openWrite(existing, presetCat) {
+      function openWrite(existing, presetCat, draft) {   // draft {title, body}: 10/25 '사례로 남기기' AI 초안
         const exCat = existing && PZ_CATS.includes(catOf(existing.category)) ? catOf(existing.category) : '';
         const corner = cornerOfCat(existing ? exCat : presetCat) || (CORNER_CATS[pzPage] ? pzPage : 'etc');
         const cats = existing && exCat === '전도부' ? ['전도부'] : CORNER_CATS[corner].filter(c => writeCats().includes(c));
@@ -5679,7 +5759,7 @@
         if (!cats.includes(presetCat)) presetCat = cats.length === 1 ? cats[0] : '';
         const f = existing
           ? { postId: existing.postId, category: exCat, title: existing.title, body: existing.body, tags: existing.tags.map(t => '#' + t).join(' '), photos: (existing.photos || []).slice() }
-          : { postId: '', category: presetCat, title: '', body: '', tags: '', photos: [] };
+          : { postId: '', category: presetCat, title: (draft && draft.title) || '', body: (draft && draft.body) || '', tags: '', photos: [] };
         // 사례는 틀(항목별 칸)로 — 예전 자유 형식 사례를 고칠 때는 자유 형식 그대로
         const parsed = caseParse(f.body);
         f.sec = parsed || CASE_SECTIONS.map(() => '');
@@ -5940,6 +6020,7 @@
         if (pzPage === 'etc' && etcIsFeed()) P.cat = pzEtc;   // 첫 목록을 지금 쪽에 맞게
         renderPills(); renderEtcTabs(); pzSetPage(pzPage, true); pzNew.start();
         window.pzWriteCase = () => openWrite(null, '사례');   // 2026-10-20: 사례 배너의 [내 성공 사례 쓰기]
+        window.pzWriteCaseDraft = d => openWrite(null, '사례', d);   // 2026-10-25: 나의교실 '사례로 남기기'
         $('pzFab').onclick = () => openWrite(null, pzPage === 'story' ? '사례' : pzPage === 'board' ? '전도부' : ['질문', '불편신고'].includes(pzEtc) ? pzEtc : '');
         $('pzFreeWrite').onclick = () => openWrite(null, '전도부');
         loadFree();
@@ -6047,6 +6128,8 @@
         date: todayStr(),
         roles: [],
         activityItem: '',
+        items: [],   // 2026-10-25: 활동 여러 개 고르기(activityItem = 그중 가장 높은 단계)
+        photos: [],  // 2026-10-25: 보고 사진(최대 3장, 보고방에 사진 묶음으로)
         existingTargetId: '', // 2026-09-22 신규: "기존 섭외자 선택" 드롭다운에서 고른 대상자ID
         targetName: '', targetGender: '', targetAgeGroup: '', targetStage: '',
         goalCohort: '',   // 2026-10-20: ○월 개강 인도 목표('2026-11')
@@ -6433,18 +6516,26 @@
     // ════════════════════════════════════════════════════════════════
     const RP_TIER = { '만남1': 'meet', '만남2': 'meet', '상담1': 'edu', '상담2': 'edu', '복음방': 'edu', '센터소개': 'center', '센터수강': 'center' };
     const rpTier = item => RP_TIER[item] || 'basic';
+    // 10/25(사용자): "상담부터는 교육 보고, 그 이전(섭외~만남2)은 일반 전도 보고" — 칸은 모두 같고 제목만 다르다.
     function rpTitle(item) {
       if (COOP_ACTIVITY_OPTIONS.includes(item)) return `협력 활동 보고(${item})`;
-      if (item === '피드백') return '피드백 활동 보고';
       if (item === '센터수강') return '센터 수강 관리 보고';
-      return { basic: '섭외/친분 활동 보고', meet: '만남 활동 보고', edu: '상담/복음방 교육 보고', center: '센터 소개 보고' }[rpTier(item)];
+      if (item === '센터소개') return '센터 소개 보고';
+      return rpTier(item) === 'edu' ? '상담/복음방 교육 보고' : '일반 전도 보고';
     }
     const RP_TIER_NOTE = {
-      basic: '섭외자 정보와 오늘 한 일만 가볍게 적어요.',
-      meet: '만남에 함께한 사람과 연락처 뒷자리까지 적어요.',
-      center: '보고 체크 5가지와 센터보내기 플랜을 함께 적어요.',
-      edu: '보고방 틀 그대로 — 체크·팀·교육 내용·누적 교육·센터 플랜까지 적어요.'
+      basic: '섭외 단계 보고예요. 아는 칸만 채우고 나머지는 비워 둬도 보고 틀에는 다 표시돼요.',
+      meet: '만남 단계 보고예요. 함께한 팀과 연락처 뒷자리까지 적어 주세요.',
+      center: '센터 단계 보고예요. 확인 사항과 센터보내기 플랜을 꼭 적어 주세요.',
+      edu: '교육 보고예요(클래스 운영처럼) — 교육 제목·횟수·누적 교육까지 적어 주세요.'
     };
+    // 활동을 여러 개 고르면 보고 제목·단계는 그중 가장 높은 단계로(피드백·협력 활동은 고른 순서대로)
+    function rpPrimary(items) {
+      const rank = i => ROLE_ACTIVITY_OPTIONS.indexOf(i);
+      return items.slice().sort((a, b) => rank(b) - rank(a))[0] || '';
+    }
+    // 텔레그램 해시태그 — 이름 앞에 #(누르면 그 사람 보고만 모아 봄). 띄어쓰기·괄호 앞까지만 이름으로 본다.
+    const rpTag = v => { const s = String(v || '').trim(); const m = s.match(/^([^\s(（]+)\s*(.*)$/); return !s ? '' : m && /^[가-힣A-Za-z]/.test(m[1]) ? `#${m[1]}${m[2] ? ' ' + m[2] : ''}`.replace(/^#(\S+) \(/, '#$1(') : s; };
     const RP_STAGE_MARKS = ['상1', '상2', '복', '확'];
     const RP_STAGE_MARK_OF = { '상담1': '상1', '상담2': '상2', '복음방': '복' };
     const RP_CHECKS = [['affil', '소속 여부'], ['mapal', '마팔 등록 여부'], ['bible', '성경 오픈 여부'], ['record', '녹음본 제출']];
@@ -6524,18 +6615,21 @@
       const line = '━━━━━━━━━━━━━━';
       const li = (k, v) => `• ${k} : ${v == null ? '' : v}`;
       const dash = v => rpDash(v).split('\n').map(x => '   ' + x);
+      const items = (f.items && f.items.length ? f.items : [item]).filter(Boolean);
+      // 10/25(사용자): 날짜는 맨 위(보고자 바로 다음), 인교섬협 역할과 고른 활동(여러 개)도 한 줄로. 보고자는 서버가 맨 위·맨 아래에 붙인다.
       return [
-        `📋 ${rpTitle(item)}`, `🏛 ${rpDept() || '부서'}  |  ${head}`, line, '',
+        `🗓 날짜 : ${rpDateText(f.date, r.time)}`, '',
+        `📋 ${rpTitle(item)}`, `🏛 ${rpDept() || '부서'}  |  ${head}`,
+        `🔖 역할 · 활동 : ${(f.roles || []).join('·') || '-'} / ${items.join(', ') || '-'}`, line, '',
         '✅ 확인 사항',
         li('① 소속 여부', ck('affil')), li('② 단계 여부 (상1·상2 / 복·확)', r.stageMark || ''), li('③ 마팔 등록 여부', ck('mapal')),
         li('④ 성경 오픈 여부', ck('bible')), li('⑤ 녹음본 제출', ck('record')),
         ...(ac => [li('⑥ 단상 피백 여부', ac ? (ac.fb ? `O (${ac.fbN}회)` : 'X') : ''), li('⑦ 개강 피백 여부', ac ? (ac.plan ? 'O' : 'X') : ''),
           li('⑧ 개강 목표', ac ? ac.goal || 'X' : ''), li('⑨ SWOT 분석 여부', ac ? (ac.swot ? 'O' : 'X') : '')])(rpAutoChecks(f)), '',
         '👤 수강생',
-        li('이름', `${f.targetName.trim()} (${f.targetGender || '-'} / ${r.age ? r.age + '세' : f.targetAgeGroup || '-'})`),
+        li('이름', `${rpTag(f.targetName)} (${f.targetGender || '-'} / ${r.age ? r.age + '세' : f.targetAgeGroup || '-'})`),
         li('전화번호 뒷자리', r.phone4 || ''), li('신앙', r.faith || ''), li('섭외유형', r.recruitType || ''), '',
-        '🤝 함께하는 팀', ...RP_TEAM.map(([k, l]) => li(l, (r.team || {})[k] || '')), '',
-        `🗓 날짜 : ${rpDateText(f.date, r.time)}`, '',
+        '🤝 함께하는 팀', ...RP_TEAM.map(([k, l]) => li(l, k === 'comm' ? (r.team || {})[k] || '' : rpTag((r.team || {})[k]))), '',
         '📖 교육',
         li('총횟수', r.eduTotal ? r.eduTotal + '회' : ''), li('주중횟수', r.eduWeekly || ''), li('제목', f.extraTitle.trim()),
         '• 내용', ...dash(f.todayWork), '• 반응', ...dash([f.reaction, f.reactionNote.trim()].filter(Boolean).join(' — ')), '',
@@ -6547,15 +6641,12 @@
         '※ 위 항목 외에 필요한 사항은 섭외자에 맞게 계획 세우기', line,   // 보고자는 보고방에 올릴 때 서버가 맨 위에 굵게 붙인다(report-room.js)
       ].join('\n');
     }
-    // 서버로 보내는 보고 칸 — 이 단계에 보이는 칸만 보낸다(안 보이는 칸은 섭외자 프로필에 남은 값을 지우지 않게)
+    // 서버로 보내는 보고 칸 — 10/25(사용자: "서식의 칸을 다 적게") 단계와 상관없이 모든 칸을 보낸다.
     function rpPayload(f) {
       const r = f.rp, tier = rpTier(f.activityItem);
-      const p = { tier, title: rpTitle(f.activityItem), age: r.age, faith: r.faith, recruitType: r.recruitType, time: r.time, nextDate: r.nextDate, request: r.request.trim() };
+      const p = { tier, title: rpTitle(f.activityItem), age: r.age, faith: r.faith, recruitType: r.recruitType, time: r.time, nextDate: r.nextDate, request: r.request.trim(),
+        phone4: r.phone4, team: r.team, checks: r.checks, stageMark: r.stageMark, plan: r.plan, eduTotal: r.eduTotal, eduWeekly: r.eduWeekly, lesson: f.extraTitle.trim() };
       if (rpIsEnrolled(f)) p.enroll = r.enroll; else p.center = r.center;
-      if (tier !== 'basic') { p.phone4 = r.phone4; p.team = r.team; }
-      else if (Object.values(r.team).some(Boolean)) p.team = r.team;
-      if (tier === 'edu' || tier === 'center') { p.checks = r.checks; p.stageMark = r.stageMark; p.plan = r.plan; }
-      if (tier === 'edu') { p.eduTotal = r.eduTotal; p.eduWeekly = r.eduWeekly; p.lesson = f.extraTitle.trim(); }
       return p;
     }
     function rpRefreshPreview() {
@@ -6568,59 +6659,68 @@
       catch (e) { toast('복사하지 못했어요. 미리보기를 길게 눌러 복사해 주세요.', true); }
     };
     const rpIn = (attr, key, val, ph, extra) => `<input type="text" class="act-input" ${attr}="${key}" value="${esc(val || '')}" placeholder="${esc(ph || '')}" ${extra || ''}>`;
+    // 10/25(사용자): 폰에서 신앙·섭외유형 목록(datalist)을 눌러도 값이 안 들어가고 닫힘 → 누르면 바로 들어가는 칩 + 목록에 없을 때만 직접 적기
+    const rpPick = (k, list, val) => `<div class="act-chip-wrap rp-pick">${list.map(x => `<button type="button" class="act-chip-btn rp-pick-btn ${val === x ? 'on' : ''}" data-k="${k}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      ${rpIn('data-rp', k, list.includes(val) ? '' : val, '목록에 없으면 직접 적기', 'style="margin-top:8px;height:40px"')}`;
     function rpFormBlocks(f) {
-      const r = f.rp, tier = rpTier(f.activityItem), full = tier === 'edu' || tier === 'center';
-      const team = full ? RP_TEAM : tier === 'meet' ? RP_TEAM.filter(([k]) => RP_TEAM_MEET.includes(k)) : [];
+      const r = f.rp, tier = rpTier(f.activityItem), isEdu = tier === 'edu';
       const lessons = rpLessons(f);
+      // 10/25(사용자): "서식 칸을 다 적게" — 단계와 상관없이 확인 사항·팀·교육·누적 교육·센터 플랜을 모두 보여 준다(상담 전은 '선택' 표시만).
+      const opt = isEdu || tier === 'center' ? '' : ' <span class="rp-opt">· 아는 것만</span>';
       return {
         // 섭외자 정보에 이어 붙는 칸
         info: `
             <div class="rp-row2">
               <div><div class="act-field-label">나이 <span class="rp-opt">· 숫자</span></div>${rpIn('data-rp', 'age', r.age, '예) 26', 'inputmode="numeric" maxlength="3"')}</div>
-              ${tier !== 'basic' ? `<div><div class="act-field-label">전화번호 뒷자리</div>${rpIn('data-rp', 'phone4', r.phone4, '예) 2249', 'inputmode="numeric" maxlength="4"')}</div>` : '<div></div>'}
+              <div><div class="act-field-label">전화번호 뒷자리</div>${rpIn('data-rp', 'phone4', r.phone4, '예) 2249', 'inputmode="numeric" maxlength="4"')}</div>
             </div>
-            <div class="rp-row2">
-              <div><div class="act-field-label">신앙</div>${rpIn('data-rp', 'faith', r.faith, '예) 입탈', 'list="rp-faith-list"')}</div>
-              <div><div class="act-field-label">섭외유형</div>${rpIn('data-rp', 'recruitType', r.recruitType, '예) 가족', 'list="rp-recruit-list"')}</div>
-            </div>
-            <datalist id="rp-faith-list">${RP_FAITH.map(x => `<option value="${x}">`).join('')}</datalist>
-            <datalist id="rp-recruit-list">${RP_RECRUIT.map(x => `<option value="${x}">`).join('')}</datalist>
+            <div><div class="act-field-label">신앙</div>${rpPick('faith', RP_FAITH, r.faith)}</div>
+            <div><div class="act-field-label">섭외유형</div>${rpPick('recruitType', RP_RECRUIT, r.recruitType)}</div>
             ${rpIsEnrolled(f) ? `<div><div class="act-field-label">수강 기수 <span class="rp-opt">· 몇 월 수강자인가요?</span></div>
               <div class="act-chip-scroll"><button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === 'none' ? 'on' : ''}" data-v="none">해당 없음</button>${rpEnrollMonths().map(v => `<button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === v ? 'on' : ''}" data-v="${v}">${v}월</button>`).join('')}</div></div>`
               : `<div><div class="act-field-label">목표 센터명</div>${rpIn('data-rp', 'center', r.center, '예) 덕진2 센터')}</div>`}`,
-        checks: !full ? '' : `
+        checks: `
         <div class="act-form-group">
-          <div class="act-step-label">보고 체크 5가지</div>
+          <div class="act-step-label">✅ 확인 사항${opt}</div>
           <div class="rp-checks">
-            <div class="rp-ck"><span>1️⃣ 소속 여부</span>${['O', 'X'].map(v => `<button type="button" class="act-chip-btn rp-ck-btn ${r.checks.affil === v ? 'on' : ''}" data-ck="affil" data-v="${v}">${v}</button>`).join('')}</div>
-            <div class="rp-ck"><span>2️⃣ 단계 여부</span><div class="rp-ck-marks">${RP_STAGE_MARKS.map(v => `<button type="button" class="act-chip-btn rp-mark-btn ${r.stageMark === v ? 'on' : ''}" data-v="${v}">${v}</button>`).join('')}</div></div>
-            ${RP_CHECKS.slice(1).map(([k, l], i) => `<div class="rp-ck"><span>${['3️⃣', '4️⃣', '5️⃣'][i]} ${l}</span>${['O', 'X'].map(v => `<button type="button" class="act-chip-btn rp-ck-btn ${r.checks[k] === v ? 'on' : ''}" data-ck="${k}" data-v="${v}">${v}</button>`).join('')}</div>`).join('')}
+            <div class="rp-ck"><span>① 소속 여부</span>${['O', 'X'].map(v => `<button type="button" class="act-chip-btn rp-ck-btn ${r.checks.affil === v ? 'on' : ''}" data-ck="affil" data-v="${v}">${v}</button>`).join('')}</div>
+            <div class="rp-ck"><span>② 단계 여부</span><div class="rp-ck-marks">${RP_STAGE_MARKS.map(v => `<button type="button" class="act-chip-btn rp-mark-btn ${r.stageMark === v ? 'on' : ''}" data-v="${v}">${v}</button>`).join('')}</div></div>
+            ${RP_CHECKS.slice(1).map(([k, l], i) => `<div class="rp-ck"><span>${['③', '④', '⑤'][i]} ${l}</span>${['O', 'X'].map(v => `<button type="button" class="act-chip-btn rp-ck-btn ${r.checks[k] === v ? 'on' : ''}" data-ck="${k}" data-v="${v}">${v}</button>`).join('')}</div>`).join('')}
           </div>
         </div>`,
-        team: !team.length ? '' : `
+        team: `
         <div class="act-form-group">
-          <div class="act-step-label">${full ? '함께하는 팀' : '함께한 사람'} <span class="rp-opt">· 이름(고유번호), 소통자는 전화번호</span></div>
-          <div class="rp-team">${team.map(([k, l, ic]) => `<label><span>${ic}${l}</span>${rpIn('data-rp-team', k, r.team[k], k === 'comm' ? '000(전화번호)' : '000(고유번호)')}</label>`).join('')}</div>
+          <div class="act-step-label">🤝 함께하는 팀 <span class="rp-opt">· 이름(고유번호), 소통자는 전화번호</span></div>
+          <div class="rp-team">${RP_TEAM.map(([k, l, ic]) => `<label><span>${ic}${l}</span>${rpIn('data-rp-team', k, r.team[k], k === 'comm' ? '000(전화번호)' : '000(고유번호)')}</label>`).join('')}</div>
         </div>`,
-        edu: tier !== 'edu' ? '' : `
+        edu: `
             <div class="rp-row2">
-              <div><div class="act-field-label">교육 총횟수 <span class="rp-opt">· 자동</span></div>${rpIn('data-rp', 'eduTotal', r.eduTotal, '예) 4', 'inputmode="numeric" maxlength="3"')}</div>
-              <div><div class="act-field-label">교육 주중횟수</div><div class="act-chip-wrap">${RP_WEEKLY.map(v => `<button type="button" class="act-chip-btn rp-weekly-btn ${r.eduWeekly === v ? 'on' : ''}" data-v="${v}" style="height:36px;padding:0 10px">${v}</button>`).join('')}</div></div>
+              <div><div class="act-field-label">${isEdu ? '교육 총횟수 <span class="rp-opt">· 자동</span>' : '총횟수'}</div>${rpIn('data-rp', 'eduTotal', r.eduTotal, '예) 4', 'inputmode="numeric" maxlength="3"')}</div>
+              <div><div class="act-field-label">주중횟수</div><div class="act-chip-wrap">${RP_WEEKLY.map(v => `<button type="button" class="act-chip-btn rp-weekly-btn ${r.eduWeekly === v ? 'on' : ''}" data-v="${v}" style="height:36px;padding:0 10px">${v}</button>`).join('')}</div></div>
             </div>`,
-        lessons: tier !== 'edu' ? '' : `
+        lessons: `
         <div class="act-form-group">
-          <div class="act-step-label">🔹진행되었던 교육제목 누적기록 <span class="rp-opt">· 교육 제목을 적으면 자동으로 쌓여요</span></div>
-          ${lessons.length ? `<ol class="rp-lessons">${lessons.map(t => `<li>${esc(t)}</li>`).join('')}</ol>` : '<div class="rp-opt">아직 없어요. 위에 교육 제목을 적어 주세요.</div>'}
+          <div class="act-step-label">📚 누적 교육 제목 <span class="rp-opt">· 제목을 적으면 자동으로 쌓여요</span></div>
+          ${lessons.length ? `<ol class="rp-lessons">${lessons.map(t => `<li>${esc(t)}</li>`).join('')}</ol>` : '<div class="rp-opt">아직 없어요. 위에 제목을 적어 주세요.</div>'}
         </div>`,
-        plan: !full ? '' : `
+        plan: `
         <div class="act-form-group">
-          <div class="act-step-label">🦋센터보내기 위한 플랜${rpSent(f) ? "" : "(예정)"}</div>
+          <div class="act-step-label">🏁 센터보내기 플랜${rpSent(f) ? '' : ' (예정)'}${opt}</div>
           <div class="rp-team">${RP_PLAN.map(([k, l]) => `<label><span>🌱${l}</span><input type="date" class="act-input" data-rp-plan="${k}" value="${esc(r.plan[k] || '')}"></label>`).join('')}</div>
           <div class="rp-opt" style="margin-top:8px">⬆️ 위 항목 외에 필요한 사항들은 섭외자에 맞게 계획 세우기</div>
         </div>`,
+        // 10/25(사용자): 사진 3장까지 — 보고방에는 사진 묶음(앨범) + 보고 글로 올라간다
+        photos: `
+        <div class="act-form-group">
+          <div class="act-step-label">📷 사진 <span class="rp-opt">· 최대 3장, 보고방에 사진 묶음으로 같이 올라가요</span></div>
+          <div class="rp-photos">
+            ${(f.photos || []).map((src, i) => `<div class="rp-ph"><img src="${esc(src)}" alt=""><button type="button" class="rp-ph-rm" data-i="${i}" aria-label="사진 빼기">✕</button></div>`).join('')}
+            ${(f.photos || []).length < 3 ? `<label class="rp-ph-add">${f.photoBusy ? '<span class="loading loading-spinner loading-sm"></span>' : '<span style="font-size:22px;line-height:1">📷</span>'}${(f.photos || []).length}/3<input type="file" id="af-photo" accept="image/*" multiple hidden></label>` : ''}
+          </div>
+        </div>`,
         preview: `
         <details class="rp-preview">
-          <summary>📨 보고 문자 미리보기 <span>· 보고방에는 맨 위에 "🙋 보고자 : ${esc(App.name || name || '내 이름')}"이 붙어요</span></summary>
+          <summary>📨 보고 문자 미리보기 <span>· 보고방에는 맨 위·맨 아래에 "🙋 보고자 : #${esc(App.name || name || '내 이름')}"이 붙어요</span></summary>
           <pre id="af-rp-preview">${esc(rpReportText(f))}</pre>
           <button type="button" class="act-btn-ghost" style="height:42px;width:100%;margin-top:8px" onclick="rpCopy()">보고 문자 복사</button>
         </details>`
@@ -6634,6 +6734,7 @@
       f.todayWork = ''; f.nextWork = '';
       f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
       f.rp = rpEmpty(); f.rpAuto = {}; f.rpTotalAuto = false;
+      f.photos = []; f.photoBusy = false;
       f.loading = false;
     }
     const rpRow = id => ((home.monthlyActRes && home.monthlyActRes.rows) || []).find(x => Number(x.id) === Number(id));
@@ -6645,7 +6746,10 @@
       f.editId = a.id;
       f.date = String(a.submittedAt || '').slice(0, 10) || todayStr();
       f.roles = (a.roles || []).slice();
-      f.activityItem = a.activityItem || (a.activities && a.activities[0]) || '';
+      f.items = (a.activities || []).slice();
+      f.activityItem = a.activityItem || f.items[0] || '';
+      if (!f.items.length && f.activityItem) f.items = [f.activityItem];
+      f.photos = Array.isArray(rep.photos) ? rep.photos.slice(0, 3) : [];
       f.existingTargetId = t ? t.targetId : '';
       f.targetName = a.targetName || ''; f.targetGender = a.targetGender || ''; f.targetAgeGroup = a.targetAgeGroup || ''; f.targetStage = a.targetStage || '';
       f.goalCohort = (t && t.goalCohort) || '';
@@ -6693,6 +6797,37 @@
       document.querySelectorAll('.rp-mark-btn').forEach(b => { b.onclick = () => { r.stageMark = r.stageMark === b.dataset.v ? '' : b.dataset.v; renderActivityFormSheet(); }; });
       document.querySelectorAll('.rp-enroll-btn').forEach(b => { b.onclick = () => { r.enroll = r.enroll === b.dataset.v ? '' : b.dataset.v; renderActivityFormSheet(); }; });
       document.querySelectorAll('.rp-weekly-btn').forEach(b => { b.onclick = () => { r.eduWeekly = r.eduWeekly === b.dataset.v ? '' : b.dataset.v; renderActivityFormSheet(); }; });
+      document.querySelectorAll('.rp-pick-btn').forEach(b => { b.onclick = () => { const k = b.dataset.k; r[k] = r[k] === b.dataset.v ? '' : b.dataset.v; renderActivityFormSheet(); }; });
+      document.querySelectorAll('.rp-ph-rm').forEach(b => { b.onclick = () => { f.photos.splice(Number(b.dataset.i), 1); renderActivityFormSheet(); }; });
+      const ph = document.getElementById('af-photo');
+      if (ph) ph.onchange = async () => {
+        const files = [...ph.files].slice(0, 3 - f.photos.length);
+        if (!files.length) return;
+        f.photoBusy = true; renderActivityFormSheet();
+        try { for (const fl of files) f.photos.push(await rpPhotoData(fl)); }
+        catch (e) { toast(e.message, true); }
+        f.photoBusy = false; renderActivityFormSheet();
+      };
+    }
+    // 보고 사진 → JPEG(긴 변 1280px). 텔레그램 사진 묶음으로 보내므로 WebP 말고 JPEG, 캔버스로 다시 그려 위치정보(EXIF)도 빠진다.
+    function rpPhotoData(file) {
+      return new Promise((ok, no) => {
+        const url = URL.createObjectURL(file), im = new Image();
+        im.onload = () => {
+          URL.revokeObjectURL(url);
+          let side = 1280;
+          for (let round = 0; round < 5; round++) {
+            const sc = Math.min(1, side / Math.max(im.width, im.height)), c = document.createElement('canvas');
+            c.width = Math.round(im.width * sc); c.height = Math.round(im.height * sc);
+            c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+            for (const q of [0.82, 0.7, 0.6]) { const u = c.toDataURL('image/jpeg', q); if (u.length <= 700000) return ok(u); }
+            side = Math.round(side * 0.8);
+          }
+          no(new Error('사진이 너무 커요. 다른 사진을 골라 주세요.'));
+        };
+        im.onerror = () => { URL.revokeObjectURL(url); no(new Error('사진을 읽지 못했어요.')); };
+        im.src = url;
+      });
     }
 
     function activityFormHtml() {
@@ -6730,10 +6865,10 @@
         </div>
 
         <div class="act-form-group">
-          <div class="act-step-label">어떤 활동을 하셨나요?</div>
+          <div class="act-step-label">어떤 활동을 하셨나요? <span style="font-weight:500;color:var(--dg-text-sub)">· 여러 개 가능</span></div>
           ${f.roles.length
-            ? `<div class="act-chip-scroll">${itemOptions.map(o => `<button type="button" class="act-chip-btn af-item-chip ${f.activityItem === o ? 'on' : ''}" data-item="${esc(o)}">${esc(o)}</button>`).join('')}</div>
-               ${f.activityItem ? `<div class="rp-tier rp-tier-${tier}"><b>[${esc(rpTitle(f.activityItem))}]</b> ${RP_TIER_NOTE[tier]}</div>` : ''}`
+            ? `<div class="act-chip-scroll">${itemOptions.map(o => `<button type="button" class="act-chip-btn af-item-chip ${f.items.includes(o) ? 'on' : ''}" data-item="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+               ${f.activityItem ? `<div class="rp-tier rp-tier-${tier}"><b>[${esc(rpTitle(f.activityItem))}]</b>${f.items.length > 1 ? ` <span class="rp-opt">· ${esc(f.items.join(', '))} 중 ${esc(f.activityItem)} 기준</span>` : ''} ${RP_TIER_NOTE[tier]}</div>` : ''}`
             : `<div style="font-size:13.5px;color:var(--dg-text-sub)">역할을 먼저 골라주시면 보여드릴게요</div>`}
         </div>
 
@@ -6781,7 +6916,7 @@
           <div class="act-step-label">${isEdu ? '🔸교육 내용 및 반응' : '🔸활동 내용 및 반응'}</div>
           <div class="flex flex-col gap-2.5">
             ${rb.edu}
-            ${isEdu ? `<div><div class="act-field-label">교육 제목</div><input type="text" id="af-extra-title" placeholder="예) 영혼을 위한 투자" class="act-input" value="${esc(f.extraTitle)}"></div>` : ''}
+            <div><div class="act-field-label">${isEdu ? '교육 제목' : '제목 <span class="rp-opt">· 오늘 나눈 주제(교육 제목 누적에 쌓여요)</span>'}</div><input type="text" id="af-extra-title" placeholder="${isEdu ? '예) 영혼을 위한 투자' : '예) 자전거 타며 고민 나눔'}" class="act-input" value="${esc(f.extraTitle)}"></div>
             <div><div class="act-field-label">${isEdu ? '1. 교육내용' : '1. 오늘 한 일'}</div>
               <textarea id="af-today" class="act-input" placeholder="${isEdu ? '예) 잘 먹고 잘 살기 위해 투자하듯, 영혼이 잘 되기 위한 투자도 필요하다' : '편하게 적어주세요. 짧아도 괜찮아요.'}">${esc(f.todayWork)}</textarea></div>
             <div><div class="act-field-label">2. 반응</div>
@@ -6797,6 +6932,7 @@
 
         ${rb.lessons}
         ${rb.plan}
+        ${rb.photos}
         ${rb.preview}
 
         ${(room => `<div class="tg-note${f.editId ? ' edit' : ''}${room ? '' : ' off'}">${TG_LOGO(22)}<span>${!room
@@ -6825,7 +6961,9 @@
           else if (v === COOP_ROLE) f.roles = [v];                       // 협력은 단독 선택
           else f.roles = f.roles.filter(r => r !== COOP_ROLE).concat([v]);
           const opts = activityOptionsForRoles(f.roles);
-          if (!opts.includes(f.activityItem)) f.activityItem = f.roles.length ? opts[0] : '';
+          f.items = f.items.filter(x => opts.includes(x));
+          if (!f.items.length && f.roles.length) f.items = [opts[0]];
+          f.activityItem = rpPrimary(f.items);
           renderActivityFormSheet();
         };
       });
@@ -6833,7 +6971,11 @@
       // 2026-09-22: select → 가로 스크롤 칩(당근 스타일). 값 반영 위치(home.form.*)는 그대로.
       document.querySelectorAll('.af-item-chip').forEach(btn => {
         btn.onclick = () => {
-          f.activityItem = btn.dataset.item;
+          const v = btn.dataset.item;
+          f.items = f.items.includes(v) ? f.items.filter(x => x !== v) : f.items.concat([v]);
+          const before = f.activityItem;
+          f.activityItem = rpPrimary(f.items);
+          if (f.activityItem === before) { renderActivityFormSheet(); return; }
           const mapped = ACTIVITY_TO_STAGE[f.activityItem];
           if (mapped) f.targetStage = mapped;
           if (RP_STAGE_MARK_OF[f.activityItem]) f.rp.stageMark = RP_STAGE_MARK_OF[f.activityItem];
@@ -6907,6 +7049,8 @@
         const res = await callApi({
           action: editId ? 'updateActivity' : 'submitActivity', id: editId || undefined, memberId, name,
           roles: f.roles, activityItem: f.activityItem, date: f.date,
+          activities: [f.activityItem].concat(f.items.filter(x => x !== f.activityItem)),   // 10/25: 여러 활동(맨 앞 = 보고 기준 활동)
+          photos: f.photos,
           target: {
             name: targetNameTrimmed, gender: f.targetGender, ageGroup: f.targetAgeGroup, stage: f.targetStage,
             note: '', todayWork: f.todayWork.trim(), nextWork: f.nextWork.trim()
@@ -7337,10 +7481,11 @@
     //   칸을 누르면 그 일을 하고(이미 했으면 결과 펼치기), 아래 '다음 할 일' 줄이 아직 안 한 첫 칸을 큰 단추로 알려 준다.
     //   ③ 수정은 필요할 때만이라 진행률(n/3)에는 넣지 않는다.
     const PF_ICON = {
-      up: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
-      route: '<circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H16a3.5 3.5 0 0 0 0-7H8a3.5 3.5 0 0 1 0-7h7.5"/>',
-      pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
-      send: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+      // 10/25(사용자): ① 단계 향상 계단 + 연필 ② 선교센터 건물 + 달력 ③ 반복해서 고치는 일지 ④ 텔레그램 전송(종이비행기)
+      up: '<path d="M3 21h4.5v-4.5H12V12h4.5V7.5H21"/><path d="M4 10.5l5.5-5.5 2 2L6 12.5H4z"/><path d="M8 6.5l2 2"/>',
+      route: '<path d="M2 21h10"/><path d="M3 21V11l4-3.2 4 3.2v10"/><path d="M5.6 21v-3.6h2.8V21"/><path d="M7 2.5v4.5M5.4 4h3.2"/><rect x="13.5" y="11" width="8.5" height="10" rx="1.6"/><path d="M13.5 14.6h8.5M16.2 9.5v3M19.3 9.5v3"/>',
+      pen: '<rect x="3" y="2" width="11" height="15.5" rx="1.6"/><path d="M6 2v15.5M8.6 6.5h3M8.6 10h3"/><path d="M21.5 18a3.5 3.5 0 1 1-1.1-2.55"/><path d="M21 13.3v2.4h-2.4"/>',
+      send: '<path d="M21.2 3.6L2.9 10.7c-.9.35-.85 1.15.1 1.45l4.5 1.4 1.75 5.5c.25.8.8.85 1.25.4l2.55-2.35 4.85 3.55c.8.55 1.4.25 1.6-.7l3.15-14.95c.25-1.2-.45-1.75-1.45-1.4z"/><path d="M7.6 13.5l9.8-6.2-7.5 7.2"/>',
       check: '<path d="M20 6L9 17l-5-5"/>',
       doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>',
     };
@@ -7395,7 +7540,7 @@
           <ol class="pf-steps">${steps.map((s, i) => `
             <li class="pf-step ${s.st}${s.optional ? ' opt' : ''}${s.open ? ' open' : ''}">
               <button type="button" ${s.go ? `onclick="${s.go}"` : 'disabled'} title="${esc(s.name)}">
-                <span class="pf-dot">${s.st === 'busy' ? '<span class="loading loading-spinner loading-xs"></span>' : s.st === 'done' ? pfSvg('check') : pfSvg(s.k)}</span>
+                <span class="pf-dot">${s.st === 'busy' ? '<span class="loading loading-spinner loading-xs"></span>' : pfSvg(s.k)}${s.st === 'done' ? `<i class="pf-ok">${pfSvg('check', 'pf-svg xs')}</i>` : ''}</span>
                 <span class="pf-l">${s.short}</span>
                 <span class="pf-s">${s.sub}</span>
                 ${s.tg ? `<span class="pf-tg">${TG_LOGO(12)} ${s.tg}</span>` : ''}
@@ -7409,13 +7554,13 @@
       const t = rcTarget(a); if (!t || !rcPlanOpen[a.id]) return '';
       const gst = glSt[t.targetId] || {}, plan = gst.text || t.goalPlan;
       if (gst.busy || !plan) return '';
-      return `<div class="pf-box plan"><div class="pf-box-h">${pfSvg('route', 'pf-svg sm')} ${esc(maskName(t.targetName))} · AI ${glLabel(t.goalCohort).replace(' 개강', '')} 센터 인도 계획</div>${glMd(plan)}
-          <div class="pf-box-acts"><button type="button" onclick="rcPlan(${Number(a.id)}, '${esc(t.targetId)}', true)">다시 설계</button><button type="button" onclick="glOpenFor('${esc(t.targetId)}')">센터 인도 계획 탭에서 보기 ›</button></div></div>`;
+      return `<div class="pf-box plan"><div class="pf-box-h">${pfSvg('route', 'pf-svg sm')} ${esc(maskName(t.targetName))} · AI ${glLabel(t.goalCohort).replace(' 개강', '')} 센터 인도 계획<button type="button" class="pf-box-x" onclick="rcPlan(${Number(a.id)}, '${esc(t.targetId)}')">접기 ▴</button></div>${glMd(plan)}
+          <div class="pf-box-acts"><button type="button" onclick="rcPlan(${Number(a.id)}, '${esc(t.targetId)}', true)">다시 설계</button><button type="button" onclick="glOpenFor('${esc(t.targetId)}')">내 센터 인도 계획에서 보기 ›</button></div></div>`;
     }
     function rcFbBoxHtml(a, key) {
       const fb = home.aiFeedback[key] || {}, text = fb.text || a.aiFeedback;
       if (!rcFbOpen[a.id] || fb.loading || !text) return '';
-      return `<div class="pf-box fb"><div class="pf-box-h">${pfSvg('up', 'pf-svg sm')} AI 단계향상 피드백</div>${glMd(text)}
+      return `<div class="pf-box fb"><div class="pf-box-h">${pfSvg('up', 'pf-svg sm')} AI 단계향상 피드백<button type="button" class="pf-box-x" onclick="rcFb(${Number(a.id)}, '${esc(key)}')">접기 ▴</button></div>${glMd(text)}
           <div class="pf-box-acts"><button type="button" onclick="rcFb(${Number(a.id)}, '${esc(key)}', true)">다시 받기</button></div></div>`;
     }
     function activityHistoryRowHtml(a) {
@@ -7440,6 +7585,7 @@
           <div class="rc-sub">${(a.roles || []).map(r => `<span>${esc(roleShortLabel(r))}</span>`).join('')}${a.reportTitle ? `<em>${esc(a.reportTitle)}</em>` : ''}</div>
           ${folded ? rcApprovalHtml(a, key, true) : `
           ${bodyLines ? `<div class="rc-body">${esc(bodyLines)}</div>` : ''}
+          ${((a.report && a.report.photos) || []).length ? `<div class="er-ph rc-ph">${a.report.photos.map(u => `<img class="zoomable" src="${esc(u)}" alt="보고 사진" loading="lazy">`).join('')}</div>` : ''}
           ${a.reportText ? `<details class="rp-preview" style="margin-top:10px"><summary>${pfSvg('doc', 'pf-svg sm')} 보고 문자 보기</summary><pre>${esc(a.reportText)}</pre><button type="button" class="act-btn-ghost rp-copy-row" data-key="${esc(key)}" style="height:40px;width:100%;margin-top:8px">보고 문자 복사</button></details>` : ''}
           ${rcApprovalHtml(a, key, false)}
           ${rcFbBoxHtml(a, key)}
@@ -7604,6 +7750,7 @@
         <div class="pb-6 act-pages" data-act-page="${actPage}">
           <div data-ap="attend">${attCardHtml()}</div>
           <div data-ap="goal">${goalPageHtml()}</div>
+          <div data-ap="report">${erPageHtml()}</div>
           <div data-ap="targets">${histSubTabsHtml()}${histSub === 'swot' ? swPageHtml() : `
             ${glBannerHtml(true)}
             ${myActivityViewHtml()}
@@ -7662,6 +7809,15 @@
     // ════════════════════════════════════════════════════════════════
     const GL_FLOW = [['친분', ['섭외', '친분']], ['만남', ['만남1', '만남2']], ['상담', ['상담1', '상담2']], ['복음방', ['복음방']], ['센터 소개', ['센터소개']], ['센터 인도', ['센터수강']]];
     const glSt = {};   // targetId → { busy, text(저장 안 된 안내 문구) }
+    // 10/25(사용자): "AI 피드백 나온 거는 접어서 둘 수 있게" — 카드마다 접기/펼치기, 이 기기에 기억(기본 접힘)
+    const GL_OPEN_KEY = 'ts_gl_open';
+    const glOpen = (() => { try { return new Set(JSON.parse(localStorage.getItem(GL_OPEN_KEY) || '[]')); } catch (e) { return new Set(); } })();
+    const glFolded = id => !glOpen.has(id);
+    function glSetOpen(id, on) {
+      on ? glOpen.add(id) : glOpen.delete(id);
+      try { localStorage.setItem(GL_OPEN_KEY, JSON.stringify([...glOpen].slice(-200))); } catch (e) {}
+    }
+    window.glFold = function (id) { glSetOpen(id, glFolded(id)); renderHome(); };
     function glMonths() {   // 이번 달부터 개강 3개: '2026-10', '2026-11', '2026-12'
       const [y, m] = todayStr().split('-').map(Number);
       return [0, 1, 2].map(k => `${y + Math.floor((m - 1 + k) / 12)}-${String((m - 1 + k) % 12 + 1).padStart(2, '0')}`);
@@ -7688,7 +7844,9 @@
           <div class="gl-flow">${GL_FLOW.map(([n], i) => `<span class="${i < cur ? 'done' : i === cur ? 'now' : ''}">${n}</span>`).join('<i>›</i>')}</div>
           <button type="button" class="gl-ai" onclick="glPlan('${id}')" ${st.busy ? 'disabled' : ''}>${st.busy ? '<span class="loading loading-spinner loading-xs"></span> 센터 인도 계획 설계 중…' : '🤖 센터 인도 계획 설계'}</button>
           <div class="gl-ai-note">이 사람의 <b>활동 기록 전부</b>·단계 이력·AI상담·교관 답·이전 AI 계획을 <b>모두 모아</b> 설계해요. 기록이 쌓일수록 계획이 정확해져요.</div>
-          ${plan && !st.busy ? `<div class="gl-plan">${glMd(plan)}${t.goalPlanAt && !st.text ? `<div class="gl-at">${esc(t.goalPlanAt.slice(0, 16))} 설계${t.goalPlanBasis ? ' · ' + esc(t.goalPlanBasis) : ''}</div>` : ''}</div>` : ''}
+          ${plan && !st.busy ? (glFolded(t.targetId)
+            ? `<button type="button" class="gl-fold" onclick="glFold('${id}')"><span>🤖 AI 센터 인도 계획${t.goalPlanAt && !st.text ? ` · ${esc(t.goalPlanAt.slice(5, 10).replace('-', '/'))} 설계` : ''}</span><b>펼치기 ▾</b></button>`
+            : `<div class="gl-plan"><button type="button" class="gl-fold in" onclick="glFold('${id}')"><span>🤖 AI 센터 인도 계획</span><b>접기 ▴</b></button>${glMd(plan)}${t.goalPlanAt && !st.text ? `<div class="gl-at">${esc(t.goalPlanAt.slice(0, 16))} 설계${t.goalPlanBasis ? ' · ' + esc(t.goalPlanBasis) : ''}</div>` : ''}</div>`) : ''}
           <div class="gl-guide">
             <div><span>💬 단계마다 <b>구체적인 대화·상황 피드백</b>은 AI상담 코너에서 받으세요.</span><button type="button" onclick="glToAi('${id}')">AI상담 ›</button></div>
             <div><span>🧑‍🏫 이 계획은 꼭 <b>담당 교관님과 상의</b>해서 확정하세요.</span><button type="button" onclick="glToCoach('${id}')">교관님께 ›</button></div>
@@ -7702,7 +7860,7 @@
           <div class="gl-bn-eye">왜 나의교실에 기록해야 할까요?</div>
           <div class="gl-bn-t">내 작은 기록 하나하나가<br><span>센터 인도 계획</span>이 됩니다</div>
           <div class="gl-bn-s">만남·상담·반응을 짧게라도 남기면, AI가 그 사람의 <b>모든 기록과 교관 답</b>을 모아 친분부터 센터 인도까지 개강에 맞춘 센터 인도 계획을 짜 드려요. 기록이 쌓일수록 계획이 정확해져요.</div>
-          ${link ? '<div class="gl-bn-go">센터 인도 계획 보러 가기 ›</div>' : ''}
+          ${link ? '<div class="gl-bn-go">내 센터 인도 계획 보러 가기 ›</div>' : ''}
           <span class="gl-bn-art" aria-hidden="true">🧭</span>
         </div>`;
     }
@@ -7712,7 +7870,7 @@
       const rest = ts.filter(t => !t.goalCohort);
       return `<div class="gl-wrap">
           ${glBannerHtml(false)}
-          ${groups.map(g => { const list = ts.filter(t => t.goalCohort === g); return `<div class="gl-co"><div class="gl-co-h"><b>${glLabel(g)}</b> 인도 목표 <span>${list.length}명</span></div>
+          ${groups.map(g => { const list = ts.filter(t => t.goalCohort === g); return `<div class="gl-co"><div class="gl-mh"><div class="gl-mh-cal"><i>${Number(g.slice(0, 4))}</i><b>${Number(g.slice(5))}</b><i>월</i></div><div class="gl-mh-t"><b>${Number(g.slice(5))}월 개강</b><span>센터 인도 목표 <em>${list.length}명</em></span></div></div>
             ${list.length ? list.map(glCardHtml).join('') : '<div class="gl-empty">아직 없어요. 아래 \'목표 정하기\'에서 섭외자를 체크하세요.</div>'}</div>`; }).join('')}
           <div class="gl-co" id="gl-pick"><div class="gl-co-h"><b>목표 정하기</b> <span>${rest.length}명</span></div>
             ${!ts.length ? '<div class="gl-empty">아직 기록한 섭외자가 없어요.<br>오른쪽 아래 <b>＋</b> 버튼으로 섭외자를 기록하면 여기서 개강 목표를 정할 수 있어요.</div>'
@@ -7748,7 +7906,7 @@
         if (res && res.error) throw new Error(res.error);
         const text = String(res.text || '');
         if (text.startsWith('⚠️')) glSt[id] = { text };   // 실패 안내는 저장되지 않음
-        else { t.goalPlan = text; t.goalPlanAt = res.goalPlanAt || ''; t.goalPlanBasis = res.basis || ''; glSt[id] = {}; }
+        else { t.goalPlan = text; t.goalPlanAt = res.goalPlanAt || ''; t.goalPlanBasis = res.basis || ''; glSt[id] = {}; glSetOpen(id, true); }
       } catch (e) { glSt[id] = { text: '⚠️ ' + e.message }; }
       renderHome(); if (!stay) glFocus(id);
     };
@@ -7767,8 +7925,130 @@
     // 대상자 상세 → 개강 인도 탭의 그 사람 카드(목표가 없으면 '목표 정하기')
     window.glOpenFor = function (id) {
       const t = glTarget(id);
+      if (t && t.goalPlan) glSetOpen(id, true);
       home.view = 'dashboard'; actPage = 'goal'; renderHome();
       glFocus(t && t.goalCohort ? id : '');
+    };
+
+    // ════════════════════════════════════════════════════════════════
+    // 2026-10-25 내 교육 보고 — 사용자: "나의 교실에 내 교육 보고 탭을 따로 — 섭외자를 순차적으로 교육한 것을 그 사람 이름을 누르면
+    //   교육 이력을 따로 볼 수 있게, 그리드로. 기록을 하기 시작하면 그리드가 자동 생성되어 누적, 기록은 활동 기록 동그란 버튼 하나로".
+    //   새 저장소 없음 — 내 활동 기록(getMyActivities)을 섭외자 이름별로 묶는다. 센터에 보낸 사람은 [사례로 남기기](AI 초안 → 사례 글쓰기).
+    // ════════════════════════════════════════════════════════════════
+    let erSel = '';                 // 지금 보고 있는 섭외자 이름(없으면 전체 그리드)
+    const erOpenRows = new Set();   // 펼친 기록 id
+    let erCaseBusy = '';            // 사례 초안 만드는 중인 targetId
+    const erKey = v => String(v || '').trim();
+    const erItems = a => (a.activities && a.activities.length ? a.activities : [a.activityItem]).filter(Boolean);
+    function erPeople() {
+      const rows = ((home.monthlyActRes && home.monthlyActRes.rows) || []).filter(a => erKey(a.targetName));
+      const by = new Map();
+      for (const a of rows) { const k = erKey(a.targetName); if (!by.has(k)) by.set(k, []); by.get(k).push(a); }
+      return [...by.entries()].map(([name, list]) => {
+        list.sort((x, y) => String(x.submittedAt).localeCompare(String(y.submittedAt)));
+        const t = home.targets.find(x => erKey(x.targetName) === name) || null;
+        const edu = list.filter(a => erItems(a).some(i => rpTier(i) === 'edu')).length;
+        return { name, list, t, stage: (t && t.stage) || list[list.length - 1].targetStage || '', last: list[list.length - 1].submittedAt, edu };
+      }).sort((x, y) => String(y.last).localeCompare(String(x.last)));
+    }
+    const erSent = st => st === '센터수강' || st === '센터소개';
+    function erFlowHtml(stage) {
+      const cur = GL_FLOW.findIndex(([, ss]) => ss.includes(stage));
+      return `<div class="er-flow">${GL_FLOW.map(([n], i) => `<i class="${i < cur ? 'done' : i === cur ? 'now' : ''}" title="${esc(n)}"></i>`).join('')}</div>`;
+    }
+    function erPageHtml() {
+      const people = erPeople();
+      if (erSel) { const p = people.find(x => x.name === erSel); if (p) return erDetailHtml(p); erSel = ''; }
+      const total = people.reduce((n, p) => n + p.list.length, 0);
+      return `<div class="er-wrap">
+          <div class="er-hero">
+            <div class="er-hero-t">내 교육 보고</div>
+            <div class="er-hero-s">기록을 남길 때마다 섭외자 칸이 저절로 생기고 쌓여요. 이름을 누르면 그 사람의 교육 이력이 한눈에 보여요.</div>
+            <div class="er-hero-n"><span><b>${people.length}</b>명</span><span><b>${total}</b>번 기록</span><span><b>${people.filter(p => erSent(p.stage)).length}</b>명 센터</span></div>
+          </div>
+          ${!people.length ? `<div class="gl-empty">아직 기록한 섭외자가 없어요.<br>오른쪽 아래 <b>＋</b> 버튼으로 첫 기록을 남기면 여기에 칸이 생겨요.</div>` : `
+          <div class="er-grid">${people.map(p => { const st = stageTemp(p.stage); return `
+            <button type="button" class="er-tile${erSent(p.stage) ? ' sent' : ''}" onclick="erOpen('${esc(p.name)}')">
+              <span class="er-ava">${esc(p.name.charAt(0))}</span>
+              <span class="er-nm">${esc(maskName(p.name))}</span>
+              ${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(p.stage)}</span>` : ''}
+              ${erFlowHtml(p.stage)}
+              <span class="er-ct"><b>${p.list.length}</b>회 기록${p.edu ? ` · 교육 ${p.edu}회` : ''}</span>
+              <span class="er-dt">${esc(actFeedTimeText(p.last))}</span>
+              ${erSent(p.stage) ? '<span class="er-badge">✍️ 사례</span>' : ''}
+            </button>`; }).join('')}</div>`}
+        </div>`;
+    }
+    function erDetailHtml(p) {
+      const t = p.t, prof = (t && t.reportProfile) || {}, st = stageTemp(p.stage);
+      const lessons = (prof.lessons || []).map(l => (l && l.title) || l).filter(Boolean);
+      const info = [t && t.gender, t && t.ageGroup, prof.age && prof.age + '세', prof.faith, prof.recruitType && '섭외 ' + prof.recruitType].filter(Boolean).join(' · ');
+      const rows = p.list.map((a, i) => ({ a, n: i + 1 })).reverse();
+      const busy = t && erCaseBusy === t.targetId;
+      return `<div class="er-wrap">
+          <button type="button" class="er-back" onclick="erOpen('')">‹ 섭외자 전체</button>
+          <div class="er-head">
+            <span class="er-ava lg">${esc(p.name.charAt(0))}</span>
+            <div class="er-head-m">
+              <div class="er-head-n">${esc(maskName(p.name))}${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(p.stage)}</span>` : ''}</div>
+              ${info ? `<div class="er-head-i">${esc(info)}</div>` : ''}
+              ${erFlowHtml(p.stage)}
+            </div>
+          </div>
+          <div class="er-acts">
+            <button type="button" class="er-btn" onclick="erAddRecord('${esc(p.name)}')">＋ 이 사람 기록하기</button>
+            ${t ? `<button type="button" class="er-btn case${erSent(p.stage) ? ' hot' : ''}" onclick="erWriteCase('${esc(t.targetId)}')" ${busy ? 'disabled' : ''}>${busy ? '<span class="loading loading-spinner loading-xs"></span> 사례 초안 쓰는 중…' : '✍️ 사례로 남기기'}</button>` : ''}
+          </div>
+          ${t ? `<div class="er-case-note">${erSent(p.stage) ? '<b>센터에 보냈어요 🎉</b> 지금까지의 기록으로 AI가 사례 틀(7항목)에 맞춰 초안을 써 드려요. 다듬어서 사례 코너에 올려 주세요.' : '센터에 보낸 뒤 누르면 지금까지의 기록으로 사례 초안을 써 드려요(지금 눌러도 돼요).'}</div>` : ''}
+          ${lessons.length ? `<div class="er-sec">📚 누적 교육 제목 <span>${lessons.length}</span></div><ol class="er-lessons">${lessons.map(l => `<li>${esc(l)}</li>`).join('')}</ol>` : ''}
+          <div class="er-sec">🗂 교육 이력 <span>${p.list.length}회</span></div>
+          <div class="er-table">
+            <div class="er-tr er-th"><span>회차</span><span>날짜</span><span>활동</span><span>제목 · 내용</span></div>
+            ${rows.map(({ a, n }) => { const rep = a.report || {}, open = erOpenRows.has(Number(a.id)), photos = rep.photos || [];
+              const title = rep.lesson || a.gospelSubject || a.consultTitle || '';
+              return `<button type="button" class="er-tr${open ? ' open' : ''}" onclick="erToggleRow(${Number(a.id)})">
+                <span class="er-no">${n}</span><span>${esc(String(a.submittedAt || '').slice(5, 10).replace('-', '/'))}</span>
+                <span>${erItems(a).map(i => `<em>${esc(i)}</em>`).join('')}</span>
+                <span class="er-tt">${title ? `<b>${esc(title)}</b>` : ''}${esc(String(a.todayWork || '').split('\n')[0])}${photos.length ? ` <i>📷${photos.length}</i>` : ''}</span>
+              </button>
+              ${open ? `<div class="er-more">
+                ${a.todayWork ? `<div><b>내용</b>${esc(a.todayWork)}</div>` : ''}
+                ${a.reaction || a.reactionNote ? `<div><b>반응</b>${esc([a.reaction, a.reactionNote].filter(Boolean).join(' — '))}</div>` : ''}
+                ${a.nextWork ? `<div><b>다음 계획</b>${esc(a.nextWork)}${rep.nextDate ? ` (${esc(rep.nextDate.slice(5).replace('-', '/'))})` : ''}</div>` : ''}
+                ${(a.roles || []).length ? `<div><b>역할</b>${esc(a.roles.join('·'))}</div>` : ''}
+                ${photos.length ? `<div class="er-ph">${photos.map(u => `<img class="zoomable" src="${esc(u)}" alt="보고 사진" loading="lazy">`).join('')}</div>` : ''}
+                ${a.reportText ? `<details class="rp-preview"><summary>${pfSvg('doc', 'pf-svg sm')} 보고 문자 보기</summary><pre>${esc(a.reportText)}</pre></details>` : ''}
+                <button type="button" class="er-edit" onclick="rpOpenEdit(${Number(a.id)})">✏️ 이 기록 고치기</button>
+              </div>` : ''}`; }).join('')}
+          </div>
+        </div>`;
+    }
+    window.erOpen = function (name) { erSel = name; renderHome(); document.getElementById('appSections').scrollTop = 0; };
+    window.erToggleRow = function (id) { erOpenRows.has(id) ? erOpenRows.delete(id) : erOpenRows.add(id); renderHome(); };
+    window.erAddRecord = function (name) {
+      const t = home.targets.find(x => erKey(x.targetName) === name), f = home.form;
+      rpResetForm(f);
+      f.targetName = name; f.date = todayStr();
+      if (t) {
+        f.existingTargetId = t.targetId; f.targetGender = t.gender || ''; f.targetAgeGroup = t.ageGroup || ''; f.targetStage = t.stage || ''; f.goalCohort = t.goalCohort || '';
+        rpLoadTarget(f, t);
+      }
+      renderActivityFormSheet();
+    };
+    // 사례로 남기기: 서버(writeCaseDraft)가 이 사람 기록 전부로 사례 틀 초안 → 사례 탭 글쓰기 화면을 초안으로 연다(바로 올리지 않음)
+    window.erWriteCase = async function (tid) {
+      if (erCaseBusy) return;
+      erCaseBusy = tid; renderHome();
+      try {
+        const res = await callApi({ action: 'writeCaseDraft', memberId, targetId: tid });
+        if (res && res.error) throw new Error(res.error);
+        erCaseBusy = ''; renderHome();
+        switchTab('story');
+        setTimeout(() => {
+          if (window.pzWriteCaseDraft) { window.pzWriteCaseDraft({ title: res.title || '', body: res.body || '' }); toast('AI가 쓴 사례 초안이에요. 사실과 다른 곳은 고친 뒤 [완료]로 올려 주세요.'); }
+          else toast('사례 화면을 열지 못했어요. 잠시 뒤 다시 눌러 주세요.', true);
+        }, 120);
+      } catch (e) { erCaseBusy = ''; renderHome(); toast(e.message, true); }
     };
 
     // ════════════════════════════════════════════════════════════════
@@ -8015,7 +8295,8 @@
     // 2026-10-10(2차): 출석(QR·출석 현황) / 내 활동(등급·인교섬협 요약·전도 대상자) / 활동 기록
     // 2026-10-20: '🎯 개강 인도'(개강 인도 계획)— 주황 칸으로 늘 눈에 띄게(.hot)
     // 2026-10-23(사용자): '기록 보기'는 내 활동 안 서브 탭으로, '개강 인도' → '개강 인도 계획'
-    const ACT_PAGES = [['attend', '내 교육 출석'], ['targets', '내 활동'], ['goal', '센터 인도 계획'], ['edu', '내가 이수한 교육']];   // 순서: 출석·내 활동·센터 인도 계획·내가 이수한 교육(10/23 사용자: 표적 아이콘 뺌)   // 이수 교육 = 예전 교재 탭의 '이수교육'
+    // 2026-10-25(사용자): '센터 인도 계획' → '내 센터 인도 계획', 섭외자별 교육 이력을 모아 보는 '내 교육 보고' 탭 추가
+    const ACT_PAGES = [['attend', '내 교육 출석'], ['targets', '내 활동'], ['report', '내 교육 보고'], ['goal', '내 센터 인도 계획'], ['edu', '내가 이수한 교육']];   // 순서: 출석·내 활동·센터 인도 계획·내가 이수한 교육(10/23 사용자: 표적 아이콘 뺌)   // 이수 교육 = 예전 교재 탭의 '이수교육'
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
@@ -8043,7 +8324,7 @@
     function renderHome() {
       const root = document.getElementById('homeContent');
       renderActTabs();
-      ctcSet('actCtc', { attend: 'attend', goal: 'apply', targets: 'apply', edu: 'edu' }[actPage]);
+      ctcSet('actCtc', { attend: 'attend', goal: 'apply', targets: 'apply', report: 'apply', edu: 'edu' }[actPage]);
       if (home.view === 'targetDetail') {
         if (targetsChartInstance) { targetsChartInstance.destroy(); targetsChartInstance = null; }
         root.innerHTML = targetDetailViewHtml();

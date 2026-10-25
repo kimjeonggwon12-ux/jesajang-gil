@@ -1,10 +1,17 @@
 // 보고방(교자장부청 공식 보고방, 텔레그램) — 출석 봇이 보고 문자를 그대로 올린다(2026-10-23).
 // 부서 → 방은 report_rooms 표. 고친 보고는 처음 올린 글에 답장으로 "수정본"을 다시 올린다.
+// 10/25: 지역 방(dept '부녀회/03지역')이 있으면 그 지역 사람 보고는 지역 방으로, 매일 22시에 방마다 일일 보고 취합(reportDailyTick).
 import { db, run } from './db.js';
-import { kstDateTime } from './util.js';
+import { kstDate, kstDateTime, normId } from './util.js';
 import { findTeacher } from '../actions/roster.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const deptLabelOf = (dept) => { const d = String(dept || '').trim(); return !d ? '' : /(회|부)$/.test(d) ? d : d + '회'; };
+const regionOf = (t) => { const m = String((t && t.region) || '').match(/^0*(\d+)지역$/); return m ? `${m[1]}지역` : ''; };   // '03지역' → '3지역'
+const guOf = (t) => { const m = String((t && (t.affiliation || t.note)) || '').match(/지역-(\d{1,2})/); return m ? m[1].padStart(2, '0') : ''; };   // '03지역-01구' → '01'
+// 텔레그램 해시태그 — 띄어쓰기·기호가 있으면 태그가 끊기므로 글자만 남긴다
+const tag = (s) => { const v = String(s || '').replace(/[^0-9A-Za-z가-힣_]/g, ''); return v ? '#' + v : ''; };
+export const regionRoomKey = (t) => (t && t.dept && t.region ? `${String(t.dept).trim()}/${String(t.region).trim()}` : '');
 
 /**
  * 이 부서의 보고방. 부서 방이 없으면 기본 방(dept '*')으로 — 10/23 사용자: "부서를 보고 맞는 방으로, 일단은 봇을 초대한 그 방으로".
@@ -14,21 +21,43 @@ export async function roomForDept(dept) {
   const rows = await run(db().from('report_rooms').select('*').in('dept', [dept || '', '*']).eq('active', true)).catch(() => []);
   return rows.find((x) => x.dept === dept) || rows.find((x) => x.dept === '*') || null;
 }
+/** 이 교사의 보고방: 지역 방('부서/지역') → 부서 방 → 기본 방. */
+export async function roomForTeacher(t) {
+  if (!t) return null;
+  const keys = [regionRoomKey(t), String(t.dept || ''), '*'].filter(Boolean);
+  const rows = await run(db().from('report_rooms').select('*').in('dept', keys).eq('active', true)).catch(() => []);
+  for (const k of keys) { const r = rows.find((x) => x.dept === k); if (r) return r; }
+  return null;
+}
 
-/** 글 하나 보내기 → 보낸 글 번호(실패하면 Error). 4096자 넘으면 잘라서 앞부분만. */
-async function sendText(chatId, text, replyTo) {
+function botToken() {
   // 10/23: 보고방에는 출석 봇(@teachersquare_att_bot)이 초대돼 있어 그 봇으로 보낸다(출석 봇 웹훅은 교육 과정 방 글만 처리 — 보고방 글은 무시).
   const token = process.env.ATT_BOT_TOKEN || process.env.TEACHERSQUARE_BOT_TOKEN;
   if (!token) throw new Error('보고방 봇 설정(ATT_BOT_TOKEN)이 없습니다.');
-  const body = { chat_id: chatId, text: String(text).slice(0, 4096), parse_mode: 'HTML' };   // 보고자 이름 굵게(본문은 esc 로 이스케이프)
-  if (replyTo) body.reply_parameters = { message_id: Number(replyTo), allow_sending_without_reply: true };
-  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  return token;
+}
+async function tg(method, body) {
+  const r = await fetch(`https://api.telegram.org/bot${botToken()}/${method}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const j = await r.json().catch(() => ({}));
   if (!j.ok) throw new Error('보고방에 올리지 못했습니다: ' + (j.description || r.status));
-  return j.result.message_id;
+  return j.result;
 }
+const replyTo = (id) => (id ? { reply_parameters: { message_id: Number(id), allow_sending_without_reply: true } } : {});
+
+/** 글 하나 보내기 → 보낸 글 번호(실패하면 Error). 4096자 넘으면 잘라서 앞부분만. 본문은 esc 로 이스케이프해서 넘길 것. */
+async function sendText(chatId, text, reply) {
+  const res = await tg('sendMessage', { chat_id: chatId, text: String(text).slice(0, 4096), parse_mode: 'HTML', ...replyTo(reply) });
+  return res.message_id;
+}
+/** 사진 묶음(1~3장, R2 주소) → 첫 사진 글 번호. caption 은 첫 사진 아래에 붙는다(1024자까지). */
+async function sendAlbum(chatId, urls, caption, reply) {
+  const media = urls.map((u, i) => ({ type: 'photo', media: u, ...(i === 0 && caption ? { caption, parse_mode: 'HTML' } : {}) }));
+  const res = await tg('sendMediaGroup', { chat_id: chatId, media, ...replyTo(reply) });
+  return res[0].message_id;
+}
+const visibleLen = (html) => html.replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt);/g, '_').length;
 
 /**
  * 보고 기록 한 줄(activities 행)을 보고방에 올린다. kind 'post' = 처음, 'edit' = 고친 뒤 다시.
@@ -39,19 +68,133 @@ export async function postReport(row, room, kind) {
   const first = posts.find((p) => p.kind === 'post');
   // 10/23(사용자): "보고자가 누구인지 알 수 없다" — 봇은 그 사람 프로필로 못 올리므로 맨 위에 보고자 이름(굵게)·부서·번호.
   //   이름·부서는 교사명단 기준(앱에 이름이 비어 있어도 나옴). 본문 맨 아래 옛 '✍️ 보고 :' 줄은 겹치므로 뺀다.
+  // 10/25(사용자): 이름·지역 앞에 #(누르면 그 사람·그 지역 보고만 모아 봄), 맨 아래에도 보고자 이름과 소속을 한 번 더.
   const t = await findTeacher(row.member_id).catch(() => null);
-  const who = esc((t && t.name) || row.name || '이름 미상');
-  const dept = String((t && t.dept) || '').trim();
-  const deptLabel = !dept ? '' : /(회|부)$/.test(dept) ? dept : dept + '회';
+  const nm = (t && t.name) || row.name || '이름 미상';
+  const who = `<b>${esc(tag(nm) || nm)}</b>`;
+  const deptLabel = deptLabelOf(t && t.dept);
+  const tags = [deptLabel && tag(deptLabel), tag(regionOf(t))].filter(Boolean).join(' · ');
   const day = String(row.submitted_at || '').slice(5, 10).replace('-', '/').replace(/^0/, '');
   const head = kind === 'edit'
-    ? `✏️ <b>[수정본]</b>  🙋 보고자 : <b>${who}</b>${deptLabel ? ` · ${esc(deptLabel)}` : ''}\n${day} 보고를 고쳐 다시 올립니다`
-    : `🙋 보고자 : <b>${who}</b>${deptLabel ? ` · ${esc(deptLabel)}` : ''}  <code>${esc(row.member_id)}</code>`;
+    ? `✏️ <b>[수정본]</b>  🙋 보고자 : ${who}${tags ? ` · ${esc(tags)}` : ''}\n${day} 보고를 고쳐 다시 올립니다`
+    : `🙋 보고자 : ${who}${tags ? ` · ${esc(tags)}` : ''}  <code>${esc(row.member_id)}</code>`;
+  const affil = String((t && (t.affiliation || t.region)) || '').trim();
+  const foot = `🙋 보고자 : ${who}${deptLabel ? ` · ${esc(deptLabel)}` : ''}${affil && affil !== deptLabel ? ` · ${esc(affil)}` : ''}`;
   const body = esc(String(row.report_text || '').replace(/\n?✍️ 보고 :[^\n]*$/, '').trim());
-  const msg = await sendText(room.chat_id, `${head}\n\n${body}`, kind === 'edit' && first ? first.msg : null);
-  const next = posts.concat([{ chat: String(room.chat_id), msg, at: kstDateTime(), kind }]);
+  const text = `${head}\n\n${body}\n${foot}`;
+  const reply = kind === 'edit' && first ? first.msg : null;
+
+  // 10/25(사용자): 사진 3장까지 — 텔레그램에서 사진 묶음 아래 보고 글이 붙은 모양. 글이 길면(1024자 넘음) 사진 묶음 바로 뒤에 글을 답장으로.
+  //   수정본은 사진이 바뀌었을 때만 사진 묶음을 다시 올린다.
+  const photos = ((row.report && row.report.photos) || []).filter((u) => /^https:\/\//.test(u)).slice(0, 3);
+  const ph = photos.join(' ');
+  const lastPh = [...posts].reverse().find((p) => p.ph !== undefined);
+  let msg;
+  if (photos.length && (kind !== 'edit' || !lastPh || lastPh.ph !== ph)) {
+    if (visibleLen(text) <= 1024) msg = await sendAlbum(room.chat_id, photos, text, reply);
+    else {
+      const albumMsg = await sendAlbum(room.chat_id, photos, `${head}\n📷 사진 ${photos.length}장 · 보고 글은 바로 아래에`, reply);
+      msg = await sendText(room.chat_id, text, albumMsg);
+    }
+  } else msg = await sendText(room.chat_id, text, reply);
+  const next = posts.concat([{ chat: String(room.chat_id), msg, at: kstDateTime(), kind, ph }]);
   await run(db().from('activities').update({ tg_posts: next }).eq('id', row.id));
   return next;
+}
+
+// ── 지역 일일 보고 취합 (2026-10-25) ── 사용자: "한 지역의 방에서 저녁 22:00가 되면 일일 보고가 취합되어 올라오게".
+//   그날(기록 날짜 기준) 남긴 활동을 방마다 묶어 지역 보고 틀(📍3지역-일일 보고)로 보낸다. 5분마다 도는 attAutoSummary 가 부르고,
+//   같은 방·같은 날은 cohort_summary_log 로 한 번만. 줄 = "구역 섭외자-인도자", 그날 처음 등록한 섭외자는 ✅신규.
+const DAILY_SECTIONS = [
+  ['💜새찾기', ['섭외']],
+  ['🟠만남', ['친분', '만남1', '만남2']],
+  ['🟢상담1️⃣', ['상담1']],
+  ['🟢상담2️⃣', ['상담2']],
+  ['🔵복음방', ['복음방']],
+  ['🏛센터소개', ['센터소개']],
+  ['🎓센터수강', ['센터수강']],
+];
+const DAILY_MANUAL = ['🔴확정(O)', '🟡확정(N)', '🟣지역장 승인'];   // 앱에 아직 없는 단계 — 틀 그대로 빈칸
+const LINE = 'ㅡㅡㅡㅡㅡㅡㅡ';
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const leaderName = (v) => String(v || '').replace(/\(.*$/, '').trim();
+const leaderId = (v) => { const m = String(v || '').match(/\(([^)]+)\)/); return m ? m[1].trim() : ''; };
+
+/** 한 방의 일일 보고 글. acts = 그 방 사람들의 그날 기록(+ teacher). leaders = nid → 교사명단 행(인도자 구역 찾기). */
+export function dailyText(roomTitle, date, acts, newSet, leaders) {
+  const [y, m, d] = date.split('-').map(Number);
+  const wd = WD[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  const out = [`📍${roomTitle}-일일 보고 (${y - 1983}.${m}.${d}.${wd}요일)`, '', LINE, '구역 사랑이-인도자', LINE];
+  DAILY_SECTIONS.forEach(([label, items], si) => {
+    const seen = new Map();
+    for (const a of acts) {
+      const name = String(a.target_name || '').trim();
+      if (!name || !(a.activities || []).some((x) => items.includes(x))) continue;
+      const lv = (a.report && a.report.team && a.report.team.leader) || '';
+      const lt = leaders.get(normId(leaderId(lv))) || null;
+      const leader = leaderName(lv) || (a.teacher && a.teacher.name) || a.name || '';
+      const gu = guOf(lt || a.teacher);
+      const key = `${name}|${leader}`;
+      if (!seen.has(key)) seen.set(key, { gu, line: `${gu ? gu + ' ' : ''}${name}-${leader}${newSet.has(name) ? '✅신규' : ''}` });
+    }
+    const rows = [...seen.values()].sort((p, q) => (p.gu || '99').localeCompare(q.gu || '99') || p.line.localeCompare(q.line, 'ko'));
+    if (si === 3 || si === 6) out.push('');   // 상담2·센터수강은 앞 칸과 한 묶음(빈 줄만)
+    else if (si > 0) out.push(LINE);
+    out.push(`${label}- ${rows.length}명`, ...rows.map((r) => r.line));
+  });
+  out.push(LINE, ...DAILY_MANUAL.flatMap((l, i) => [...(i ? [''] : []), `${l}- 명`]));
+  return out.join('\n');
+}
+
+/** 그날 기록을 방마다 묶어 일일 보고 글들을 만든다 → [{ room, text, count }] */
+export async function buildDailyReports(date, onlyDept = '') {
+  const rooms = (await run(db().from('report_rooms').select('*').eq('active', true))).filter((r) => r.dept !== '*' && (!onlyDept || r.dept === onlyDept));
+  if (!rooms.length) return [];
+  const acts = await run(db().from('activities').select('id, member_id, nid, name, activities, roles, target_name, report, submitted_at')
+    .gte('submitted_at', `${date} 00:00:00`).lte('submitted_at', `${date} 23:59:59`).order('id'));
+  const nids = acts.map((a) => a.nid).filter(Boolean);
+  const leaderIds = acts.map((a) => normId(leaderId(a.report && a.report.team && a.report.team.leader))).filter(Boolean);
+  const want = [...new Set([...nids, ...leaderIds])];
+  const teachers = want.length ? await run(db().from('teachers').select('nid, name, dept, region, affiliation, note').in('nid', want)) : [];
+  const byNid = new Map(teachers.map((t) => [t.nid, t]));
+  const names = [...new Set(acts.map((a) => String(a.target_name || '').trim()).filter(Boolean))];
+  const fresh = names.length
+    ? await run(db().from('targets').select('target_name').in('target_name', names).gte('created_at', `${date} 00:00:00`).lte('created_at', `${date} 23:59:59`))
+    : [];
+  const newSet = new Set(fresh.map((t) => t.target_name.trim()));
+  const roomKeys = new Set(rooms.map((r) => r.dept));
+  const groups = new Map(rooms.map((r) => [r.dept, []]));
+  for (const a of acts) {
+    const t = byNid.get(a.nid);
+    if (!t) continue;   // 교사명단에 없는 번호(시험 계정)는 뺀다
+    const key = roomKeys.has(regionRoomKey(t)) ? regionRoomKey(t) : roomKeys.has(t.dept) ? t.dept : '';
+    if (key) groups.get(key).push({ ...a, teacher: t });
+  }
+  return rooms.map((room) => {
+    const list = groups.get(room.dept);
+    const region = room.dept.includes('/') ? room.dept.split('/')[1] : '';
+    const title = region ? regionOf({ region }) || region : deptLabelOf(room.dept);
+    return { room, count: list.length, text: dailyText(title, date, list, newSet, byNid) };
+  });
+}
+
+/** 5분마다: 22시가 지나면 오늘 일일 보고를 방마다 한 번씩. */
+export async function reportDailyTick() {
+  if (kstDateTime().slice(11, 16) < '22:00') return [];
+  const date = kstDate();
+  const sent = [];
+  for (const { room, text, count } of await buildDailyReports(date)) {
+    if (!count) continue;   // 그날 기록이 하나도 없는 방은 보내지 않는다(빈 보고로 방을 채우지 않게)
+    const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#report-room', kind: '일일보고', ref_id: room.dept, date, sent_at: kstDateTime() });
+    if (error) continue;   // 이미 보냄
+    try { await sendText(room.chat_id, esc(text)); sent.push(room.dept); }
+    catch (e) {
+      // 못 보냈으면 표시를 지워 다음 5분에 다시
+      await db().from('cohort_summary_log').delete().eq('cohort_id', '#report-room').eq('ref_id', room.dept).eq('date', date);
+      console.log(`일일 보고 실패(${room.dept}): ${e.message}`);
+    }
+  }
+  return sent;
 }
 
 // ── 관리용(운영 키 필요) ── 봇이 들어간 방 찾기 · 부서와 방 연결. 예) { action:'reportRooms', key, op:'candidates' }
@@ -95,6 +238,12 @@ export async function reportRooms(body) {
     const j = await r.json();
     const me = await (await fetch(`https://api.telegram.org/bot${process.env.ATT_BOT_TOKEN}/getMe`)).json();
     return { ok: !!j.ok, error: j.ok ? undefined : j.description, name: me.result && me.result.first_name, username: me.result && me.result.username };
+  }
+  if (op === 'daily') {   // 일일 보고 미리 보기 {date?, dept?} — send:true 면 그 방에 바로 보낸다(22시 자동과 별개)
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(body.date || '')) ? String(body.date) : kstDate();
+    const list = await buildDailyReports(date, String(body.dept || ''));
+    if (body.send) for (const r of list) await sendText(r.room.chat_id, esc(r.text));
+    return { date, reports: list.map((r) => ({ dept: r.room.dept, title: r.room.title, count: r.count, text: r.text })), sent: !!body.send };
   }
   if (op === 'set') {
     const dept = String(body.dept || '').trim(), chatId = String(body.chatId || '').trim();

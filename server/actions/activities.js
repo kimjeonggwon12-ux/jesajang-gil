@@ -5,7 +5,8 @@ import { notifyActivityChannel } from '../lib/telegram.js';
 import { afterAction } from '../lib/events.js';
 import { upsertTargetFromActivity, updateProfileFromEdit, TARGET_STAGES, cleanReport } from './targets.js';
 import { findTeacher } from './roster.js';
-import { roomForDept, postReport, reportRooms } from '../lib/report-room.js';
+import { roomForTeacher, postReport, reportRooms } from '../lib/report-room.js';
+import { storeImage } from '../lib/images.js';
 
 // ⚠️ app.html 의 같은 이름 상수와 같이 맞출 것.
 export const ROLE_OPTIONS = ['인도자', '교사', '섬김이', '협력교사'];
@@ -30,9 +31,9 @@ function activityFields(body, timeOfDay) {
   const recordedAt = /^\d{4}-\d{2}-\d{2}$/.test(String(body.date || '')) && !isNaN(new Date(body.date).getTime())
     ? `${body.date} ${timeOfDay}`
     : `${kstDate()} ${timeOfDay}`;
-  const activities = body.activityItem
-    ? [String(body.activityItem)]
-    : (Array.isArray(body.activities) ? body.activities.map(String) : (body.activities ? String(body.activities).split(/,\s*/) : []));
+  // 10/25: 활동을 여러 개 고를 수 있다(맨 앞 = 보고 기준 활동). 옛 앱은 activityItem 하나만 보낸다.
+  const list = Array.isArray(body.activities) ? body.activities.map(String).filter(Boolean) : (body.activities ? String(body.activities).split(/,\s*/) : []);
+  const activities = [...new Set(body.activityItem ? [String(body.activityItem), ...list] : list)].slice(0, 12);
   const t = body.target || {};
   const gender = oneOf(GENDER_OPTIONS, t.gender);
   const ageGroup = oneOf(AGE_GROUP_OPTIONS, t.ageGroup);
@@ -49,8 +50,16 @@ function activityFields(body, timeOfDay) {
   };
 }
 
+/** 10/25 보고 사진(최대 3장): data:image → R2 주소, 이미 올린 주소는 그대로. report.photos 에 둔다(보고방에 사진 묶음으로). */
+async function withPhotos(fields, photos) {
+  if (!Array.isArray(photos)) return fields;
+  const urls = [];
+  for (const v of photos.slice(0, 3)) { const u = await storeImage(v, 'report'); if (u) urls.push(u); }
+  return { ...fields, report: { ...(fields.report || {}), photos: urls } };
+}
+
 async function submitActivity(body) {
-  const fields = activityFields(body, kstDateTime().slice(11));
+  const fields = await withPhotos(activityFields(body, kstDateTime().slice(11)), body.photos);
   const memberId = String(body.memberId || '');
   const name = String(body.name || '');
   const { roles, activities, target_name: targetName, target_gender: gender, target_age_group: ageGroup, target_stage: stage, special_note: note, report } = fields;
@@ -78,7 +87,7 @@ async function autoReport(row, kind) {
   try {
     const teacher = await findTeacher(row.member_id);
     if (!teacher) return { reported: false };
-    const room = await roomForDept(teacher.dept);
+    const room = await roomForTeacher(teacher);
     if (!room) return { reported: false, reportError: '부서 보고방이 아직 연결되지 않았어요.' };
     const first = (row.tg_posts || []).some((p) => p.kind === 'post');
     await postReport(row, room, kind === 'edit' && first ? 'edit' : 'post');
@@ -94,8 +103,7 @@ async function myActivity(memberId, id) {
   return rows[0] && rows[0].nid === normId(memberId) ? rows[0] : null;
 }
 async function myRoom(memberId) {
-  const teacher = await findTeacher(memberId);
-  return roomForDept(teacher && teacher.dept);
+  return roomForTeacher(await findTeacher(memberId));
 }
 
 /**
@@ -107,7 +115,11 @@ async function updateActivity(body) {
   const mid = str(body.memberId);
   const old = mid && await myActivity(mid, body.id);
   if (!old) return { error: '고칠 기록을 찾을 수 없습니다.' };
-  const fields = activityFields(body, fmtTs(old.submitted_at).slice(11) || '00:00:00');
+  let fields = activityFields(body, fmtTs(old.submitted_at).slice(11) || '00:00:00');
+  // 사진을 안 보내는 옛 앱이면 전에 올린 사진을 그대로 둔다
+  fields = body.photos === undefined
+    ? { ...fields, report: fields.report && { ...fields.report, photos: (old.report && old.report.photos) || [] } }
+    : await withPhotos(fields, body.photos);
   const editedAt = kstDateTime();
   await run(db().from('activities').update({ ...fields, edited_at: editedAt }).eq('id', old.id));
   if (fields.target_name && fields.report) {
