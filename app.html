@@ -980,7 +980,21 @@
     .er-head-m { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
     .er-head-n { display:flex; align-items:center; gap:7px; font-size:22px; font-weight:900; color:#111; letter-spacing:-0.03em; }
     .er-head-i { font-size:12.5px; color:#6B7280; }
-    .er-acts { display:flex; gap:8px; }
+    .er-acts3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+    .er-act { display:flex; flex-direction:column; align-items:center; gap:3px; min-width:0; padding:12px 4px 10px; border-radius:14px; border:1.5px solid #E5E7EB; background:#fff; cursor:pointer; font-family:inherit; text-align:center; }
+    .er-act:disabled { cursor:default; }
+    .er-act b { font-size:13.5px; font-weight:900; color:#111; letter-spacing:-0.03em; }
+    .er-act > span:last-child { font-size:11px; font-weight:700; color:#94A3B8; line-height:1.3; }
+    .er-act-i { display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:50%; background:#F1F5F9; color:#64748B; font-size:18px; }
+    .er-act .pf-svg { width:22px; height:22px; stroke-width:1.7; }
+    .er-act.ready { border-color:#00AE82; } .er-act.ready .er-act-i { background:#E3F6EF; color:#00AE82; } .er-act.ready > span:last-child { color:#00AE82; }
+    .er-act.done .er-act-i { background:#00AE82; color:#fff; } .er-act.done > span:last-child { color:#00875F; }
+    .er-act.warn { border-color:#F59E0B; background:#FFFBEB; } .er-act.warn .er-act-i { background:#FEF3C7; color:#D97706; } .er-act.warn b { color:#B45309; } .er-act.warn > span:last-child { color:#D97706; }
+    .er-act.off .er-act-i { border:1.5px dashed #CBD5E1; background:#F8FAFC; color:#A0AEC0; }
+    .er-act.case.hot { border-color:#DC2626; background:linear-gradient(135deg, #F87171, #DC2626); } .er-act.case.hot b, .er-act.case.hot > span:last-child { color:#fff; } .er-act.case.hot .er-act-i { background:rgba(255,255,255,.25); }
+    .er-tg { font-style:normal; justify-self:end; padding:1px 6px; border-radius:6px; background:#FEF3C7; color:#B45309; font-size:10.5px; font-weight:800; }
+    .er-tg.ok { background:#E3F6EF; color:#00875F; }
+    .er-un { padding:1px 7px; border-radius:99px; background:#FEF3C7; color:#B45309; font-size:11px; font-weight:800; }
     .er-btn { flex:1; height:44px; border-radius:12px; border:1.5px solid #00AE82; background:#fff; color:#00875F; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; }
     .er-btn.case { border-color:#E5E7EB; color:#374151; }
     .er-btn.case.hot { border-color:#DC2626; background:linear-gradient(135deg, #F87171, #DC2626); color:#fff; box-shadow:0 6px 14px -8px rgba(220,38,38,.9); }
@@ -990,7 +1004,7 @@
     .er-sec span { margin-left:4px; padding:1px 8px; border-radius:99px; background:#E8F8F2; color:#00875F; font-size:12px; }
     .er-lessons { list-style:decimal; margin:0; padding:10px 14px 10px 32px; border-radius:12px; background:#F7FAF9; font-size:13.5px; line-height:1.7; color:#1F2937; }
     .er-table { border:1px solid #E5E7EB; border-radius:14px; overflow:hidden; background:#fff; }
-    .er-tr { display:grid; grid-template-columns:38px 46px 74px 1fr; gap:6px; align-items:center; width:100%; padding:10px 10px; border:none; border-top:1px solid #F1F5F9; background:#fff; text-align:left; font-size:12.5px; color:#374151; cursor:pointer; font-family:inherit; }
+    .er-tr { display:grid; grid-template-columns:38px 46px 74px 1fr auto; gap:6px; align-items:center; width:100%; padding:10px 10px; border:none; border-top:1px solid #F1F5F9; background:#fff; text-align:left; font-size:12.5px; color:#374151; cursor:pointer; font-family:inherit; }
     .er-tr.er-th { border-top:none; background:#F8FAFC; font-size:11.5px; font-weight:800; color:#6B7280; cursor:default; }
     .er-tr.open { background:#F0FBF7; }
     .er-tr em { display:inline-block; margin:0 3px 2px 0; padding:0 6px; border-radius:6px; background:#EEF2F7; font-style:normal; font-size:11px; font-weight:700; color:#374151; }
@@ -7750,16 +7764,10 @@
         <div class="pb-6 act-pages" data-act-page="${actPage}">
           <div data-ap="attend">${attCardHtml()}</div>
           <div data-ap="goal">${goalPageHtml()}</div>
-          <div data-ap="report">${erPageHtml()}</div>
           <div data-ap="targets">${histSubTabsHtml()}${histSub === 'swot' ? swPageHtml() : `
-            ${glBannerHtml(true)}
-            ${myActivityViewHtml()}
             ${encouragementBannerHtml()}
             ${coachReplyBannerHtml()}
-            <div class="act-divider"></div>
-            ${targetsSectionHtml()}
-            <div class="act-divider"></div>
-            ${activityHistorySectionHtml()}`}
+            ${erPageHtml()}`}
           </div>
           <div data-ap="edu"><div id="lcEduCard"></div><div class="act-edu-prep">🚧 <b>아래 교육 이수 내용은 준비 중이에요.</b><br>교육 과정과 이수 기록을 정리해서 곧 보여 드릴게요.</div><div id="actEduBody" class="p-4"></div></div>
         </div>
@@ -7962,7 +7970,7 @@
       const total = people.reduce((n, p) => n + p.list.length, 0);
       return `<div class="er-wrap">
           <div class="er-hero">
-            <div class="er-hero-t">내 교육 보고</div>
+            <div class="er-hero-t">내 활동 보고</div>
             <div class="er-hero-s">기록을 남길 때마다 섭외자 칸이 저절로 생기고 쌓여요. 이름을 누르면 그 사람의 교육 이력이 한눈에 보여요.</div>
             <div class="er-hero-n"><span><b>${people.length}</b>명</span><span><b>${total}</b>번 기록</span><span><b>${people.filter(p => erSent(p.stage)).length}</b>명 센터</span></div>
           </div>
@@ -7974,6 +7982,7 @@
               ${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(p.stage)}</span>` : ''}
               ${erFlowHtml(p.stage)}
               <span class="er-ct"><b>${p.list.length}</b>회 기록${p.edu ? ` · 교육 ${p.edu}회` : ''}</span>
+              ${(n => n ? `<span class="er-un">미보고 ${n}</span>` : '')(p.list.filter(x => !(x.tgPosts || []).some(y => y.kind === 'post')).length)}
               <span class="er-dt">${esc(actFeedTimeText(p.last))}</span>
               ${erSent(p.stage) ? '<span class="er-badge">✍️ 사례</span>' : ''}
             </button>`; }).join('')}</div>`}
@@ -7995,21 +8004,17 @@
               ${erFlowHtml(p.stage)}
             </div>
           </div>
-          <div class="er-acts">
-            <button type="button" class="er-btn" onclick="erAddRecord('${esc(p.name)}')">＋ 이 사람 기록하기</button>
-            ${t ? `<button type="button" class="er-btn case${erSent(p.stage) ? ' hot' : ''}" onclick="erWriteCase('${esc(t.targetId)}')" ${busy ? 'disabled' : ''}>${busy ? '<span class="loading loading-spinner loading-xs"></span> 사례 초안 쓰는 중…' : '✍️ 사례로 남기기'}</button>` : ''}
-          </div>
-          ${t ? `<div class="er-case-note">${erSent(p.stage) ? '<b>센터에 보냈어요 🎉</b> 지금까지의 기록으로 AI가 사례 틀(7항목)에 맞춰 초안을 써 드려요. 다듬어서 사례 코너에 올려 주세요.' : '센터에 보낸 뒤 누르면 지금까지의 기록으로 사례 초안을 써 드려요(지금 눌러도 돼요).'}</div>` : ''}
+          ${erActsHtml(p)}
           ${lessons.length ? `<div class="er-sec">📚 누적 교육 제목 <span>${lessons.length}</span></div><ol class="er-lessons">${lessons.map(l => `<li>${esc(l)}</li>`).join('')}</ol>` : ''}
           <div class="er-sec">🗂 교육 이력 <span>${p.list.length}회</span></div>
           <div class="er-table">
-            <div class="er-tr er-th"><span>회차</span><span>날짜</span><span>활동</span><span>제목 · 내용</span></div>
+            <div class="er-tr er-th"><span>회차</span><span>날짜</span><span>활동</span><span>제목 · 내용</span><span>보고</span></div>
             ${rows.map(({ a, n }) => { const rep = a.report || {}, open = erOpenRows.has(Number(a.id)), photos = rep.photos || [];
               const title = rep.lesson || a.gospelSubject || a.consultTitle || '';
               return `<button type="button" class="er-tr${open ? ' open' : ''}" onclick="erToggleRow(${Number(a.id)})">
                 <span class="er-no">${n}</span><span>${esc(String(a.submittedAt || '').slice(5, 10).replace('-', '/'))}</span>
                 <span>${erItems(a).map(i => `<em>${esc(i)}</em>`).join('')}</span>
-                <span class="er-tt">${title ? `<b>${esc(title)}</b>` : ''}${esc(String(a.todayWork || '').split('\n')[0])}${photos.length ? ` <i>📷${photos.length}</i>` : ''}</span>
+                <span class="er-tt">${title ? `<b>${esc(title)}</b>` : ''}${esc(String(a.todayWork || '').split('\n')[0])}${photos.length ? ` <i>📷${photos.length}</i>` : ''}</span>${(a.tgPosts || []).some(x => x.kind === 'post') ? '<i class="er-tg ok">보고</i>' : '<i class="er-tg">미보고</i>'}
               </button>
               ${open ? `<div class="er-more">
                 ${a.todayWork ? `<div><b>내용</b>${esc(a.todayWork)}</div>` : ''}
@@ -8023,18 +8028,30 @@
           </div>
         </div>`;
     }
+    // 10/25(2차, 사용자): 예전 기록 카드의 4단계 동그라미(피드백 → 센터 인도 계획 → 수정 → 보고방)는 헷갈림 → 사람 화면 위 그리드 3칸.
+    //   센터 인도 계획은 '내 센터 인도 계획' 탭에, 수정·새 기록은 아래 이력의 [고치기]와 오른쪽 아래 ＋ 단추에 있으니 뺐다.
+    //   피드백·보고는 그 사람의 가장 최근 기록 기준.
+    function erActsHtml(p) {
+      const a = p.list[p.list.length - 1], key = activityRowKey(a), t = p.t;
+      const fb = home.aiFeedback[key] || {}, fbText = fb.text || a.aiFeedback;
+      const room = home.monthlyActRes && home.monthlyActRes.reportRoom;
+      const post = (a.tgPosts || []).find(x => x.kind === 'post');
+      const unsent = p.list.filter(x => !(x.tgPosts || []).some(y => y.kind === 'post')).length;
+      const busy = t && erCaseBusy === t.targetId;
+      const cell = (cls, icon, label, sub, go) => `<button type="button" class="er-act ${cls}" ${go ? `onclick="${go}"` : 'disabled'}><span class="er-act-i">${icon}</span><b>${label}</b><span>${sub}</span></button>`;
+      return `<div class="er-acts3">
+          ${cell(fb.loading ? 'busy' : fbText ? 'done' : 'ready', fb.loading ? '<span class="loading loading-spinner loading-xs"></span>' : pfSvg('up'), '단계향상 피드백',
+            fb.loading ? '읽는 중…' : fbText ? `${a.aiFeedbackAt ? pfMD(a.aiFeedbackAt) + ' ' : ''}받음 · ${rcFbOpen[a.id] ? '접기' : '보기'}` : '받기', `rcFb(${Number(a.id)}, '${esc(key)}')`)}
+          ${post ? cell('done', pfSvg('send'), '보고 완료', `${pfMD(post.at)}${unsent ? ` · 미보고 ${unsent}건` : ''}`, '')
+            : !a.reportText ? cell('off', pfSvg('send'), '미보고', '보고 문자 없음', `rpOpenEdit(${Number(a.id)})`)
+            : !room ? cell('off', pfSvg('send'), '미보고', '보고방 연결 전', '')
+            : cell('warn', pfSvg('send'), '미보고', '눌러서 보고방에 올리기', `rpPostRow(${Number(a.id)}, this)`)}
+          ${t ? cell(`case${erSent(p.stage) ? ' hot' : ''}${busy ? ' busy' : ''}`, busy ? '<span class="loading loading-spinner loading-xs"></span>' : '✍️', '사례로 남기기', busy ? 'AI 초안 쓰는 중…' : erSent(p.stage) ? '센터 보냄 · AI 초안' : 'AI 초안 받기', busy ? '' : `erWriteCase('${esc(t.targetId)}')`) : ''}
+        </div>
+        ${rcFbBoxHtml(a, key)}`;
+    }
     window.erOpen = function (name) { erSel = name; renderHome(); document.getElementById('appSections').scrollTop = 0; };
     window.erToggleRow = function (id) { erOpenRows.has(id) ? erOpenRows.delete(id) : erOpenRows.add(id); renderHome(); };
-    window.erAddRecord = function (name) {
-      const t = home.targets.find(x => erKey(x.targetName) === name), f = home.form;
-      rpResetForm(f);
-      f.targetName = name; f.date = todayStr();
-      if (t) {
-        f.existingTargetId = t.targetId; f.targetGender = t.gender || ''; f.targetAgeGroup = t.ageGroup || ''; f.targetStage = t.stage || ''; f.goalCohort = t.goalCohort || '';
-        rpLoadTarget(f, t);
-      }
-      renderActivityFormSheet();
-    };
     // 사례로 남기기: 서버(writeCaseDraft)가 이 사람 기록 전부로 사례 틀 초안 → 사례 탭 글쓰기 화면을 초안으로 연다(바로 올리지 않음)
     window.erWriteCase = async function (tid) {
       if (erCaseBusy) return;
@@ -8061,7 +8078,7 @@
     //   상황이 되면 피드백 도구는 늘려 감" → 새 도구는 HIST_SUBS에 한 줄 더하고 dashboardViewHtml에서 그 키를 그리면 된다.
     // 10/23(사용자): "활동 요약·기록 보기·SWOT가 메인 기능처럼 잘 보이게" → 아이콘+이름+설명 큰 카드 3칸(.hs-tabs)
     // 10/23(2차, 사용자): '기록 보기' → '기록 & 보고하기', 활동 요약을 그 위에 섞어 한 탭에서 보이게
-    const HIST_SUBS = [['log', '📝', '기록 & 보고하기', '요약·기록·보고방 올리기'], ['swot', '📊', 'SWOT', '섭외자 분석']];
+    const HIST_SUBS = [['log', '📝', '기록 & 보고하기', '섭외자별 기록·보고'], ['swot', '📊', 'SWOT', '섭외자 분석']];
     let histSub = 'log';   // 내 활동 안 탭: 'log' 기록 & 보고하기(활동 요약 + 기록) / 'swot' SWOT
     window.histSetSub = function (k) { histSub = k; renderHome(); document.getElementById('appSections').scrollTop = 0; };
     function histSubTabsHtml() {
@@ -8296,7 +8313,8 @@
     // 2026-10-20: '🎯 개강 인도'(개강 인도 계획)— 주황 칸으로 늘 눈에 띄게(.hot)
     // 2026-10-23(사용자): '기록 보기'는 내 활동 안 서브 탭으로, '개강 인도' → '개강 인도 계획'
     // 2026-10-25(사용자): '센터 인도 계획' → '내 센터 인도 계획', 섭외자별 교육 이력을 모아 보는 '내 교육 보고' 탭 추가
-    const ACT_PAGES = [['attend', '내 교육 출석'], ['targets', '내 활동'], ['report', '내 교육 보고'], ['goal', '내 센터 인도 계획'], ['edu', '내가 이수한 교육']];   // 순서: 출석·내 활동·센터 인도 계획·내가 이수한 교육(10/23 사용자: 표적 아이콘 뺌)   // 이수 교육 = 예전 교재 탭의 '이수교육'
+    // 2026-10-25(2차, 사용자): '내 활동'과 '내 교육 보고'가 겹침 → '내 활동 보고' 하나로(섭외자 그리드 + 사람별 교육 이력·피드백·보고·사례)
+    const ACT_PAGES = [['attend', '내 교육 출석'], ['targets', '내 활동 보고'], ['goal', '내 센터 인도 계획'], ['edu', '내가 이수한 교육']];   // 순서: 출석·내 활동·센터 인도 계획·내가 이수한 교육(10/23 사용자: 표적 아이콘 뺌)   // 이수 교육 = 예전 교재 탭의 '이수교육'
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
