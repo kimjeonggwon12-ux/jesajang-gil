@@ -5,7 +5,7 @@ import { notifyActivityChannel } from '../lib/telegram.js';
 import { afterAction } from '../lib/events.js';
 import { upsertTargetFromActivity, updateProfileFromEdit, TARGET_STAGES, cleanReport } from './targets.js';
 import { findTeacher } from './roster.js';
-import { roomForTeacher, postReport, reportRooms, reportRoomsAdmin } from '../lib/report-room.js';
+import { roomForTeacher, roomsForReport, postReport, reportRooms, reportRoomsAdmin } from '../lib/report-room.js';
 import { storeImage } from '../lib/images.js';
 
 // ⚠️ app.html 의 같은 이름 상수와 같이 맞출 것.
@@ -87,14 +87,23 @@ async function autoReport(row, kind) {
   try {
     const teacher = await findTeacher(row.member_id);
     if (!teacher) return { reported: false };
-    const room = await roomForTeacher(teacher);
-    if (!room) return { reported: false, reportError: '부서 보고방이 아직 연결되지 않았어요.' };
-    const first = (row.tg_posts || []).some((p) => p.kind === 'post');
-    await postReport(row, room, kind === 'edit' && first ? 'edit' : 'post');
-    return { reported: true, room: room.title };
+    const rooms = await roomsForReport(teacher, row);   // 10/25: 지역 방 + 상담 이상 건이면 부서 전체 방
+    if (!rooms.length) return { reported: false, reportError: '부서 보고방이 아직 연결되지 않았어요.' };
+    return await postToRooms(row, rooms, kind);
   } catch (e) {
     return { reported: false, reportError: e.message };
   }
+}
+
+/** 방마다 차례로 올린다(postReport 가 방별로 처음 글/수정본을 가림). 첫 방(내 방)이 실패하면 오류, 뒤 방만 실패하면 알림 글만. */
+async function postToRooms(row, rooms, kind) {
+  let posts = row.tg_posts || [];
+  const fails = [];
+  for (const [i, room] of rooms.entries()) {
+    try { posts = await postReport({ ...row, tg_posts: posts }, room, kind); }
+    catch (e) { if (i === 0) throw e; fails.push(`${room.title || room.dept}: ${e.message}`); }
+  }
+  return { reported: true, room: rooms.map((r) => r.title).join(' · '), tgPosts: posts, ...(fails.length ? { reportError: fails.join(' / ') } : {}) };
 }
 
 /** 내 보고 기록 한 줄(남의 것이면 null). */
@@ -136,10 +145,10 @@ async function postActivityReport(body) {
   if (!row) return { error: '올릴 기록을 찾을 수 없습니다.' };
   if (!row.report_text) return { error: '보고 문자가 없는 예전 기록이에요. 수정해서 저장하면 보고 문자가 생겨요.' };
   if ((row.tg_posts || []).some((p) => p.kind === 'post')) return { error: '이미 보고방에 올린 기록이에요. 고치면 수정본이 다시 올라가요.' };
-  const room = await myRoom(mid);
-  if (!room) return { error: '아직 내 부서 보고방이 연결되지 않았어요.' };
-  const posts = await postReport(row, room, 'post');
-  return { ok: true, tgPosts: posts, room: room.title };
+  const rooms = await roomsForReport(await findTeacher(mid), row);
+  if (!rooms.length) return { error: '아직 내 부서 보고방이 연결되지 않았어요.' };
+  const sent = await postToRooms(row, rooms, 'post');
+  return { ok: true, tgPosts: sent.tgPosts, room: sent.room };
 }
 
 const toActivityRow = (a) => ({

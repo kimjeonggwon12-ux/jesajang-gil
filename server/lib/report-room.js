@@ -30,6 +30,19 @@ export async function roomForTeacher(t) {
   return null;
 }
 
+// 10/25(사용자): "상담 이상으로 체크된 건은 센터 인도 관리 건 — 지역 방에 보고된 것 중 그 건은 ○○회 전체 방에도".
+//   targets.js TARGET_STAGES 의 상담1부터 끝까지와 같은 값.
+const COUNSEL_UP = ['상담1', '상담2', '복음방', '센터소개', '센터수강'];
+export const isCounselUp = (row) => (row && row.activities || []).some((a) => COUNSEL_UP.includes(a));
+
+/** 이 보고를 올릴 방들: 내 방(roomForTeacher) + 내 방이 지역 방이고 상담 이상 건이면 부서 전체 방. */
+export async function roomsForReport(t, row) {
+  const room = await roomForTeacher(t);
+  if (!room || room.dept !== regionRoomKey(t) || !isCounselUp(row)) return room ? [room] : [];
+  const whole = await roomForDept(String(t.dept || '').trim());
+  return whole && whole.dept !== '*' && String(whole.chat_id) !== String(room.chat_id) ? [room, whole] : [room];
+}
+
 function botToken() {
   // 10/23: 보고방에는 출석 봇(@teachersquare_att_bot)이 초대돼 있어 그 봇으로 보낸다(출석 봇 웹훅은 교육 과정 방 글만 처리 — 보고방 글은 무시).
   const token = process.env.ATT_BOT_TOKEN || process.env.TEACHERSQUARE_BOT_TOKEN;
@@ -69,7 +82,10 @@ const visibleLen = (html) => html.replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt);
  */
 export async function postReport(row, room, kind) {
   const posts = Array.isArray(row.tg_posts) ? row.tg_posts : [];
-  const first = posts.find((p) => p.kind === 'post');
+  // 10/25: 한 보고가 지역 방·부서 전체 방 두 곳에 올라갈 수 있어 처음 글·지난 사진은 그 방 것만 본다. 이 방에 처음 글이 없으면 수정본도 처음 글로.
+  const inRoom = posts.filter((p) => String(p.chat) === String(room.chat_id));
+  const first = inRoom.find((p) => p.kind === 'post');
+  if (kind === 'edit' && !first) kind = 'post';
   // 10/23(사용자): "보고자가 누구인지 알 수 없다" — 봇은 그 사람 프로필로 못 올리므로 맨 위에 보고자 이름(굵게)·부서·번호.
   //   이름·부서는 교사명단 기준(앱에 이름이 비어 있어도 나옴). 본문 맨 아래 옛 '✍️ 보고 :' 줄은 겹치므로 뺀다.
   // 10/25(사용자): 이름·지역 앞에 #(누르면 그 사람·그 지역 보고만 모아 봄), 맨 아래에도 보고자 이름과 소속을 한 번 더.
@@ -92,7 +108,7 @@ export async function postReport(row, room, kind) {
   //   수정본은 사진이 바뀌었을 때만 사진 묶음을 다시 올린다.
   const photos = ((row.report && row.report.photos) || []).filter((u) => /^https:\/\//.test(u)).slice(0, 3);
   const ph = photos.join(' ');
-  const lastPh = [...posts].reverse().find((p) => p.ph !== undefined);
+  const lastPh = [...inRoom].reverse().find((p) => p.ph !== undefined);
   let msg;
   if (photos.length && (kind !== 'edit' || !lastPh || lastPh.ph !== ph)) {
     if (visibleLen(text) <= 1024) msg = await sendAlbum(room.chat_id, photos, text, reply);
@@ -173,6 +189,8 @@ export async function buildDailyReports(date, onlyDept = '') {
     if (!t) continue;   // 교사명단에 없는 번호(시험 계정)는 뺀다
     const key = roomKeys.has(regionRoomKey(t)) ? regionRoomKey(t) : roomKeys.has(t.dept) ? t.dept : '';
     if (key) groups.get(key).push({ ...a, teacher: t });
+    // 지역 방에 들어간 상담 이상 건은 부서 전체 방 일일 보고에도(roomsForReport 와 같은 규칙)
+    if (key && key === regionRoomKey(t) && roomKeys.has(t.dept) && isCounselUp(a)) groups.get(t.dept).push({ ...a, teacher: t });
   }
   return rooms.map((room) => {
     const list = groups.get(room.dept);
