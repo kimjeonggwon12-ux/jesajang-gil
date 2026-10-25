@@ -41,7 +41,11 @@ async function tg(method, body) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const j = await r.json().catch(() => ({}));
-  if (!j.ok) throw new Error('보고방에 올리지 못했습니다: ' + (j.description || r.status));
+  if (!j.ok) {
+    const err = new Error('보고방에 올리지 못했습니다: ' + (j.description || r.status));
+    err.migrateTo = j.parameters && j.parameters.migrate_to_chat_id;   // 일반 그룹 → 슈퍼그룹으로 바뀐 방의 새 번호
+    throw err;
+  }
   return j.result;
 }
 const replyTo = (id) => (id ? { reply_parameters: { message_id: Number(id), allow_sending_without_reply: true } } : {});
@@ -268,18 +272,14 @@ export async function reportRoomsAdmin(body) {
     if (!dept) return { error: '부서를 골라 주세요.' };
     if (!/^-\d+$/.test(chatId)) return { error: '방 번호는 -100… 처럼 빼기(-)로 시작하는 숫자예요.' };
     const key = region ? `${dept}/${region}` : dept;
+    // 일반 그룹이 슈퍼그룹으로 바뀌면 번호가 새로 생긴다 — 방 찾기·확인 글 어느 쪽에서 알려 주든 텔레그램이 준 새 번호로 한 번 더
+    const moved = async (fn) => { try { return await fn(); } catch (e) { if (!e.migrateTo) throw e; chatId = String(e.migrateTo); return fn(); } };
     let chat;
-    try { chat = await tg('getChat', { chat_id: chatId }); }
-    catch (e) {
-      // 일반 그룹이 슈퍼그룹으로 바뀌면 번호가 새로 생긴다 — 텔레그램이 알려 주는 새 번호로
-      const r = await fetch(`https://api.telegram.org/bot${botToken()}/getChat?chat_id=${encodeURIComponent(chatId)}`).then((x) => x.json()).catch(() => ({}));
-      const moved = r.parameters && r.parameters.migrate_to_chat_id;
-      if (!moved) return { error: `봇이 그 방을 찾지 못했어요(${r.description || e.message}). 방에 '교사광장 도우미' 봇을 초대했는지, 번호가 맞는지 확인해 주세요.` };
-      chatId = String(moved);
-      chat = await tg('getChat', { chat_id: chatId });
-    }
+    try { chat = await moved(() => tg('getChat', { chat_id: chatId })); }
+    catch (e) { return { error: `봇이 그 방을 찾지 못했어요(${e.message}). 방에 '교사광장 도우미' 봇을 초대했는지, 번호가 맞는지 확인해 주세요.` }; }
     const title = chat.title || key;
-    try { await sendText(chatId, `✅ 이 방이 <b>${esc(region ? `${deptLabelOf(dept)} ${regionOf({ region }) || region}` : deptLabelOf(dept))}</b> 보고방으로 연결됐어요.\n교사가 활동 보고를 올리면 이 방으로 오고, 매일 22시에 일일 보고가 모여 올라와요.`); }
+    const label = region ? `${deptLabelOf(dept)} ${regionOf({ region }) || region}` : deptLabelOf(dept);
+    try { await moved(() => sendText(chatId, `✅ 이 방이 <b>${esc(label)}</b> 보고방으로 연결됐어요.\n교사가 활동 보고를 올리면 이 방으로 오고, 매일 22시에 일일 보고가 모여 올라와요.`)); }
     catch (e) { return { error: `방은 찾았지만 글을 올리지 못했어요(${e.message}). 봇이 글을 쓸 수 있게 권한을 확인해 주세요.` }; }
     await run(db().from('report_rooms').upsert({ dept: key, chat_id: chatId, title, active: true, created_at: kstDateTime() }));
   } else if (op === 'off') {
