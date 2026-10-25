@@ -159,7 +159,8 @@ async function requestCoach(body) {
 async function getMyCoachRequests(body) {
   const mid = str(body.memberId);
   if (!mid) return { error: 'memberId 가 필요합니다.' };
-  const data = await run(db().from('feedbacks').select('*').eq('nid', normId(mid)).eq('source', SOURCE.coach).order('id'));
+  // 10/25: AI상담 '피드백 이력' 탭을 없애 AI 답을 교관에게 넘긴 것(사람에스컬레이션)의 답도 여기서 본다
+  const data = await run(db().from('feedbacks').select('*').eq('nid', normId(mid)).in('source', COACH_VISIBLE).order('id'));
   const rows = data.map((f) => ({
     receiptNo: f.receipt_no, situation: f.situation, handlerAnswer: f.handler_answer,
     status: f.status, submittedAt: isoTs(f.submitted_at), answeredAt: isoTs(f.answered_at),

@@ -10319,7 +10319,6 @@ DISC: ${selDisc || '선택안함'}
         <div class="l2">
           <button type="button" id="tab-coach" class="${aiState.tab==='coach' ? 'on' : ''}">교사 코칭</button>
           <button type="button" id="tab-studentCoach" class="${aiState.tab==='studentCoach' ? 'on' : ''}">수강생 단계향상</button>
-          <button type="button" id="tab-history" class="${aiState.tab==='history' ? 'on' : ''}">피드백 이력</button>
           <button type="button" id="tab-askCoach" class="${aiState.tab==='askCoach' ? 'on' : ''}">교관에게 요청</button>
           ${aiState.coachInfo && aiState.coachInfo.isCoach ? `<button type="button" id="tab-coachMode" class="${aiState.tab==='coachMode' ? 'on' : ''}">교관 모드 <svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /><circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></svg></button>` : ''}
         </div>
@@ -10328,7 +10327,6 @@ DISC: ${selDisc || '선택안함'}
       `;
       document.getElementById('tab-coach').onclick = () => { aiState.tab = 'coach'; aiRender(); };
       document.getElementById('tab-studentCoach').onclick = () => { aiState.tab = 'studentCoach'; aiRender(); };
-      document.getElementById('tab-history').onclick = () => { aiState.tab = 'history'; aiRender(); aiLoadHistory(); };
       document.getElementById('tab-askCoach').onclick = () => { aiState.tab = 'askCoach'; aiRender(); aiLoadMyCoachRequests(); };
       const tabCoachModeBtn = document.getElementById('tab-coachMode');
       if (tabCoachModeBtn) tabCoachModeBtn.onclick = () => { aiState.tab = 'coachMode'; aiRender(); aiLoadCoachFeedbacks(); };
@@ -10339,7 +10337,6 @@ DISC: ${selDisc || '선택안함'}
       const body = document.getElementById('aiBody');
       if (aiState.tab === 'coach') aiRenderCoachTab(body);
       else if (aiState.tab === 'studentCoach') aiRenderStudentCoachTab(body);
-      else if (aiState.tab === 'history') aiRenderHistoryTab(body);
       else if (aiState.tab === 'askCoach') aiRenderAskCoachTab(body);
       else if (aiState.tab === 'coachMode') aiRenderCoachModeTab(body);
     }
@@ -10515,7 +10512,7 @@ DISC: ${selDisc || '선택안함'}
             <div class="text-[11px] text-gray-400 mt-2">접수번호: ${sc.receiptNo || '-'}</div>
           </div>
           ${sc.escalated
-            ? `<div class="text-sm rounded-xl p-3 my-3" style="color:var(--color-primary);background:var(--color-primary-light);border:1px solid var(--color-primary)">교관님께 전달되었습니다. 답변이 오면 '내 피드백 이력'에서 확인하실 수 있습니다.</div>`
+            ? `<div class="text-sm rounded-xl p-3 my-3" style="color:var(--color-primary);background:var(--color-primary-light);border:1px solid var(--color-primary)">교관님께 전달되었습니다. 답변이 오면 '교관에게 요청' 탭에서 확인하실 수 있습니다.</div>`
             : `<button id="btn-sc-escalate" class="kko-btn-outline my-3 flex items-center justify-center gap-2"><svg class="lucide-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528" /></svg> 이 내용 그대로 교관님께도 전달하기</button>`
           }
           <div class="kko-card kko-card-in mt-2">
@@ -10630,7 +10627,7 @@ DISC: ${selDisc || '선택안함'}
           <div class="kko-card kko-card-in text-sm whitespace-pre-wrap">${aiState.lastCoachText}</div>
           <div class="text-xs text-gray-400 mt-2">접수번호: ${aiState.lastReceiptNo}</div>
           ${aiState.escalated
-            ? `<div class="mt-3 text-sm rounded-lg p-3" style="color:var(--color-primary);background:var(--color-primary-light);border:1px solid var(--color-primary)">교관님께 전달되었습니다. 답변이 오면 '내 피드백 이력'에서 확인하실 수 있습니다.</div>`
+            ? `<div class="mt-3 text-sm rounded-lg p-3" style="color:var(--color-primary);background:var(--color-primary-light);border:1px solid var(--color-primary)">교관님께 전달되었습니다. 답변이 오면 '교관에게 요청' 탭에서 확인하실 수 있습니다.</div>`
             : `<button id="btn-escalate" class="kko-btn-outline mt-3">이 내용 그대로 교관님께도 전달하기</button>`
           }
         `;
@@ -10830,9 +10827,9 @@ DISC: ${selDisc || '선택안함'}
       const p = App.pendingAi;
       if (!p) return;
       App.pendingAi = null;
-      if (p.tab === 'history') {
-        aiState.tab = 'history';
-        aiLoadHistory();
+      if (p.tab === 'history' || p.tab === 'askCoach') {   // 10/25: '피드백 이력' 탭을 없애 교관 답은 '교관에게 요청'에서 본다
+        aiState.tab = 'askCoach';
+        aiLoadMyCoachRequests();
       } else if (p.heartsStage || p.situation || p.targetGroup) {
         aiState.tab = 'studentCoach';
         aiState.sc.subMode = 'script';
