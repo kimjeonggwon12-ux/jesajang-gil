@@ -52,8 +52,8 @@ function botToken() {
   if (!token) throw new Error('보고방 봇 설정(ATT_BOT_TOKEN)이 없습니다.');
   return token;
 }
-async function tg(method, body) {
-  const r = await fetch(`https://api.telegram.org/bot${botToken()}/${method}`, {
+async function tg(method, body, token = botToken()) {
+  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const j = await r.json().catch(() => ({}));
@@ -68,9 +68,15 @@ const replyTo = (id) => (id ? { reply_parameters: { message_id: Number(id), allo
 
 /** 글 하나 보내기 → 보낸 글 번호(실패하면 Error). 4096자 넘으면 잘라서 앞부분만. 본문은 esc 로 이스케이프해서 넘길 것. */
 // 10/27: 주제(토픽)가 있는 방은 chat_id 를 '-100…/주제번호'로 적는다(부녀회 지역장+교관방의 '일일보고' 주제).
-const target = (chatId) => { const [id, th] = String(chatId).split('/'); return { chat_id: id, ...(th ? { message_thread_id: Number(th) } : {}) }; };
+//   방 번호 '@교사활동현황' = 교사광장 봇(teachersquare_bot)의 기본 방 '교사광장(교사활동현황)'(TEACHERSQUARE_CHAT_ID) — 보고방 봇이 없는 방이라 그 봇으로.
+const TS_ROOM = '@교사활동현황';
+const target = (chatId) => {
+  if (String(chatId) === TS_ROOM) return { chat_id: process.env.TEACHERSQUARE_CHAT_ID };
+  const [id, th] = String(chatId).split('/'); return { chat_id: id, ...(th ? { message_thread_id: Number(th) } : {}) };
+};
+const tokenFor = (chatId) => (String(chatId) === TS_ROOM ? process.env.TEACHERSQUARE_BOT_TOKEN : botToken());
 async function sendText(chatId, text, reply) {
-  const res = await tg('sendMessage', { ...target(chatId), text: String(text).slice(0, 4096), parse_mode: 'HTML', ...replyTo(reply) });
+  const res = await tg('sendMessage', { ...target(chatId), text: String(text).slice(0, 4096), parse_mode: 'HTML', ...replyTo(reply) }, tokenFor(chatId));
   return res.message_id;
 }
 /** 사진 묶음(1~3장, R2 주소) → 첫 사진 글 번호. caption 은 첫 사진 아래에 붙는다(1024자까지). */
@@ -271,7 +277,8 @@ export function summaryBoard(dept, date, orgs, actsByOrg) {
 /** 총합 방들('부서#총합')의 글 → [{ room, count, text, caption, png }]. text·caption 은 이미 HTML(esc 끝남). */
 export async function buildSummaryReports(date, onlyKey = '') {
   const all = (await run(db().from('report_rooms').select('*').eq('active', true)));
-  const sums = all.filter((r) => r.dept.endsWith('#총합') && (!onlyKey || r.dept === onlyKey));
+  // '부녀회#총합' = 부서 대표 방, '부녀회#총합:활동현황' 처럼 뒤에 붙이면 같은 총합을 다른 방에도(10/27 교사광장 교사활동현황 방)
+  const sums = all.filter((r) => r.dept.includes('#총합') && (!onlyKey || r.dept === onlyKey));
   if (!sums.length) return [];
   const acts = await run(db().from('activities').select('id, member_id, nid, name, activities, target_name, report, submitted_at')
     .gte('submitted_at', `${date} 00:00:00`).lte('submitted_at', `${date} 23:59:59`).order('id'));
@@ -317,7 +324,7 @@ async function sendDaily(r, pre = '') {
       form.set('caption', (pre + r.caption).slice(0, 1024));
       form.set('parse_mode', 'HTML');
       form.set('photo', new Blob([r.png], { type: 'image/png' }), 'summary.png');
-      const j = await (await fetch(`https://api.telegram.org/bot${botToken()}/sendPhoto`, { method: 'POST', body: form })).json().catch(() => ({}));
+      const j = await (await fetch(`https://api.telegram.org/bot${tokenFor(r.room.chat_id)}/sendPhoto`, { method: 'POST', body: form })).json().catch(() => ({}));
       if (j.ok) { r.via = '사진'; return j.result.message_id; }
       r.photoError = j.description || '';
       console.log('총합 사진 실패, 글로 보냄: ' + r.photoError);
@@ -363,6 +370,19 @@ export async function reportRooms(body) {
       if (m.chat && m.chat.type !== 'private') chats[m.chat.id] = { chatId: String(m.chat.id), title: m.chat.title || '', type: m.chat.type, status: u.my_chat_member ? u.my_chat_member.new_chat_member.status : '' };
     }
     return { rooms: Object.values(chats) };
+  }
+  if (op === 'envRooms') {   // 앱 봇들의 기본 방 이름(번호는 안 보임) — 어느 방이 무엇인지 확인용
+    const out = [];
+    for (const [tk, ck] of [['TEACHERSQUARE_BOT_TOKEN', 'TEACHERSQUARE_CHAT_ID'], ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID'], ['ATT_BOT_TOKEN', 'ATT_ADMIN_CHAT']]) {
+      const token = process.env[tk], chatId = process.env[ck];
+      if (!token || !chatId) { out.push({ env: ck, set: false }); continue; }
+      const j = await (await fetch(`https://api.telegram.org/bot${token}/getChat?chat_id=${encodeURIComponent(chatId)}`)).json().catch(() => ({}));
+      const me = await (await fetch(`https://api.telegram.org/bot${token}/getMe`)).json().catch(() => ({}));
+      // 출석 봇(보고방 봇)이 그 방에도 있는지
+      const att = process.env.ATT_BOT_TOKEN ? await (await fetch(`https://api.telegram.org/bot${process.env.ATT_BOT_TOKEN}/getChat?chat_id=${encodeURIComponent(chatId)}`)).json().catch(() => ({})) : {};
+      out.push({ env: ck, bot: me.result && me.result.username, title: j.ok ? j.result.title : j.description, forum: j.ok ? !!j.result.is_forum : undefined, attBotIn: !!att.ok });
+    }
+    return { rooms: out };
   }
   if (op === 'check') {   // 글을 올리지 않고 봇이 그 방에 있는지·글을 쓸 수 있는지만 본다
     // 앱의 봇 셋(교사광장·출석·활동 알림)을 모두 본다 — 다른 봇을 초대했는지도 알 수 있게
