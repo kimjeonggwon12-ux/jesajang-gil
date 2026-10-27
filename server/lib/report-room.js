@@ -4,6 +4,7 @@
 import { db, run } from './db.js';
 import { kstDate, kstDateTime, normId } from './util.js';
 import { findTeacher, loadRoster, isApprover } from '../actions/roster.js';
+import { tablePng } from './table-image.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const deptLabelOf = (dept) => { const d = String(dept || '').trim(); return !d ? '' : /(회|부)$/.test(d) ? d : d + '회'; };
@@ -214,37 +215,60 @@ export async function buildDailyReports(date, onlyDept = '') {
 // ── 부서 지역별 총합 (2026-10-27) ── 사용자: "부녀회 1~12지역·유아모·새신자 14개 조직을 단계별로 취합해 지역끼리 한눈에 비교,
 //   맨 아래에는 단계별 토탈(새찾기~센터수강)" → 부녀회 지역장+교관방. 방 열쇠 '부녀회#총합'(사람 보고는 이 방으로 안 감).
 //   조직 = 그 부서의 지역 방들(지역 방과 같은 묶음·같은 건수: 섭외자-인도자 한 쌍을 한 건).
-//   표는 숫자 칸을 앞에, 조직 이름을 맨 끝에 둔다 — 텔레그램 고정폭 글꼴에서 한글 폭이 달라 앞에 두면 줄이 어긋난다.
+//   10/27(사용자: "글 표는 보기 사납다"): 한글 문서 표처럼 사진 표(1열 = 14개 조직, 옆으로 단계 칸) + 아래 설명 글(신청 현황 글 모양).
 const SUMMARY_COLS = [['새찾기', '💜'], ['만남', '🟠'], ['상담1', '🟢'], ['상담2', '🟢'], ['복음방', '🔵'], ['센터소개', '🏛'], ['센터수강', '🎓']];
 const orgOrder = (r) => { const m = r.match(/^0*(\d+)/); return m ? [0, Number(m[1])] : [1, ['유아모', '새신자'].indexOf(r) + 1 || 9]; };
 const countPairs = (acts, items) => new Set(acts.filter((a) => (a.activities || []).some((x) => items.includes(x)))
   .map((a) => `${String(a.target_name || '').trim()}|${leaderName((a.report && a.report.team && a.report.team.leader) || '') || a.nid}`)
   .filter((k) => !k.startsWith('|'))).size;
 
-export function summaryText(dept, date, orgs, actsByOrg) {
+export function summaryBoard(dept, date, orgs, actsByOrg) {
   const [y, m, d] = date.split('-').map(Number);
   const wd = WD[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
   const total = DAILY_SECTIONS.map(() => 0);
-  const rows = orgs.map((org) => {
+  const per = orgs.map((org) => {
     const nums = DAILY_SECTIONS.map(([, items], i) => { const n = countPairs(actsByOrg.get(org) || [], items); total[i] += n; return n; });
-    return nums.map((n) => String(n || '·').padStart(3)).join('') + ` │${String(nums.reduce((a, b) => a + b, 0)).padStart(3)}  ${org}`;
+    return { org, nums, sum: nums.reduce((a, b) => a + b, 0) };
   });
   const sum = total.reduce((a, b) => a + b, 0);
   const done = orgs.filter((o) => (actsByOrg.get(o) || []).length).length;
-  // 표 머리는 숫자 칸 위에 한글을 두면 폰마다 어긋나서, 칸 순서를 표 위 한 줄로 알린다
-  const out = [
-    `📊 <b>${esc(deptLabelOf(dept))} 지역별 일일 보고 총합</b> (${y - 1983}.${m}.${d}.${wd}요일)`, '',
-    '칸 순서 ▶ 1 새찾기 · 2 만남 · 3 상담1 · 4 상담2 · 5 복음방 · 6 센터소개 · 7 센터수강 │ 계  (· = 0)',
-    '<pre>' + ['  1  2  3  4  5  6  7 │ 계', ...rows, '─'.repeat(28),
-      total.map((n) => String(n).padStart(3)).join('') + ` │${String(sum).padStart(3)}  총합`].map(esc).join('\n') + '</pre>',
-    LINE, '<b>단계별 토탈</b>',
-    ...SUMMARY_COLS.map(([l, e], i) => `${e}${l}- ${total[i]}건`),
-    LINE, `합계- <b>${sum}건</b> · 보고 올라온 조직 ${done}/${orgs.length}`,
-  ];
-  return out.join('\n');
+  const title = `${deptLabelOf(dept)} 지역별 일일 보고 총합`;
+  const day = `${y - 1983}.${m}.${d}.${wd}요일`;
+  // 사진 표: 1열 조직, 옆으로 새찾기~센터수강 + 계, 맨 아래 총합 줄
+  const head = ['지역', ...SUMMARY_COLS.map(([l]) => l), '계'];
+  const rows = [...per.map((p) => [p.org, ...p.nums.map((n) => n || '-'), p.sum || '-']), ['총합', ...total, sum]];
+  const last = rows.length - 1, sumCol = head.length - 1;
+  let png = null;
+  try {
+    png = tablePng({
+      title, sub: `${day} · 섭외자-인도자 한 쌍 = 1건`, head, rows, align: ['left'],
+      style: (r, c, v) => {
+        if (r === last) return { fill: c ? '#e3f6ef' : '#d3efe4', bold: true, color: '#0b5e44' };
+        if (v === '-') return { color: '#b0b8b4' };
+        if (c === 0) return { bold: true };
+        if (c === sumCol) return { bold: true, color: '#00875f' };
+        return null;
+      },
+    });
+  } catch (e) { console.log('총합 표 이미지 오류: ' + e.message); }
+  // 사진 아래 설명(신청 현황 글 모양)
+  const caption = [
+    `📊 <b>${esc(title)}</b> (${day})`, '',
+    `📌 합계 · <b>${sum}건</b>`,
+    `🗂️ 보고 올라온 조직 · ${done}/${orgs.length}`, '',
+    '🧭 단계별 토탈',
+    ...SUMMARY_COLS.map(([l, e], i) => `   - ${e}${l} — ${total[i]}건`),
+  ].join('\n');
+  // 사진을 못 보낼 때의 글: 조직마다 줄을 바꿔 단계별 숫자
+  const text = [
+    caption, '', '🗂️ 지역별 현황',
+    ...per.flatMap((p) => [` ▸ ${esc(p.org)} (총 ${p.sum}건)`,
+      p.sum ? '   ' + p.nums.map((n, i) => (n ? `${SUMMARY_COLS[i][0]} ${n}` : '')).filter(Boolean).join(' · ') : '   보고 없음']),
+  ].join('\n');
+  return { caption, text, png };
 }
 
-/** 총합 방들('부서#총합')의 글 → [{ room, text, count }]. 이미 HTML(esc 끝남). */
+/** 총합 방들('부서#총합')의 글 → [{ room, count, text, caption, png }]. text·caption 은 이미 HTML(esc 끝남). */
 export async function buildSummaryReports(date, onlyKey = '') {
   const all = (await run(db().from('report_rooms').select('*').eq('active', true)));
   const sums = all.filter((r) => r.dept.endsWith('#총합') && (!onlyKey || r.dept === onlyKey));
@@ -264,7 +288,7 @@ export async function buildSummaryReports(date, onlyKey = '') {
       if (t && String(t.dept || '').trim() === dept && actsByOrg.has(String(t.region || '').trim())) actsByOrg.get(String(t.region).trim()).push(a);
     }
     const count = [...actsByOrg.values()].reduce((n, l) => n + l.length, 0);
-    return { room, count, text: summaryText(dept, date, orgs, actsByOrg), html: true };
+    return { room, count, ...summaryBoard(dept, date, orgs, actsByOrg), html: true };
   });
 }
 
@@ -282,16 +306,36 @@ export async function learnSummaryTopic(msg) {
   return rows.length > 0;
 }
 
+/** 일일 보고 한 통 — 총합은 표 사진 + 설명(사진을 못 만들거나 못 보내면 글로). pre = 맨 위에 붙일 HTML 한 줄. */
+async function sendDaily(r, pre = '') {
+  if (r.png) {
+    try {
+      const form = new FormData();
+      const t = target(r.room.chat_id);
+      form.set('chat_id', t.chat_id);
+      if (t.message_thread_id) form.set('message_thread_id', String(t.message_thread_id));
+      form.set('caption', (pre + r.caption).slice(0, 1024));
+      form.set('parse_mode', 'HTML');
+      form.set('photo', new Blob([r.png], { type: 'image/png' }), 'summary.png');
+      const j = await (await fetch(`https://api.telegram.org/bot${botToken()}/sendPhoto`, { method: 'POST', body: form })).json().catch(() => ({}));
+      if (j.ok) return j.result.message_id;
+      console.log('총합 사진 실패, 글로 보냄: ' + (j.description || ''));
+    } catch (e) { console.log('총합 사진 실패, 글로 보냄: ' + e.message); }
+  }
+  return sendText(r.room.chat_id, pre + (r.html ? r.text : esc(r.text)));
+}
+
 /** 5분마다: 22시가 지나면 오늘 일일 보고를 방마다 한 번씩. */
 export async function reportDailyTick() {
   if (kstDateTime().slice(11, 16) < '22:00') return [];
   const date = kstDate();
   const sent = [];
-  for (const { room, text, count, html } of [...await buildDailyReports(date), ...await buildSummaryReports(date)]) {
+  for (const r of [...await buildDailyReports(date), ...await buildSummaryReports(date)]) {
+    const { room, count } = r;
     if (!count) continue;   // 그날 기록이 하나도 없는 방은 보내지 않는다(빈 보고로 방을 채우지 않게)
     const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#report-room', kind: '일일보고', ref_id: room.dept, date, sent_at: kstDateTime() });
     if (error) continue;   // 이미 보냄
-    try { await sendText(room.chat_id, html ? text : esc(text)); sent.push(room.dept); }
+    try { await sendDaily(r); sent.push(room.dept); }
     catch (e) {
       // 못 보냈으면 표시를 지워 다음 5분에 다시
       await db().from('cohort_summary_log').delete().eq('cohort_id', '#report-room').eq('ref_id', room.dept).eq('date', date);
@@ -348,7 +392,7 @@ export async function reportRooms(body) {
     const key = String(body.dept || '');
     const list = key.includes('#') ? await buildSummaryReports(date, key) : [...await buildDailyReports(date, key), ...(key ? [] : await buildSummaryReports(date))];
     const pre = body.label ? `🧪 <b>${esc(String(body.label).slice(0, 60))}</b>\n` : '';   // 시험 보내기 표시(예: '샘플')
-    if (body.send) for (const r of list) await sendText(r.room.chat_id, pre + (r.html ? r.text : esc(r.text)));
+    if (body.send) for (const r of list) await sendDaily(r, pre);
     return { date, reports: list.map((r) => ({ dept: r.room.dept, title: r.room.title, count: r.count, text: r.text })), sent: !!body.send };
   }
   if (op === 'set') {
