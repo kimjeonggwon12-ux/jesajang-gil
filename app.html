@@ -277,6 +277,7 @@
     .me-chip b, .me-chip small { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .me-chip b { font-size:13px; font-weight:700; }
     .me-chip small { font-size:11px; font-weight:500; opacity:.7; }
+    @media (max-width: 380px) { .me-chip { display:none !important; } }   /* 10/27(2차): 아주 좁은 폰은 이름표 글자를 빼고 계정 아이콘만(앱 설치 자리) */
     @media (max-width: 420px) {
       .me-chip { max-width:64px; }   /* 10/27: 오른쪽 위 '앱 설치' 자리 */
       .hdr-inst { padding:0 9px 0 7px !important; font-size:12px !important; }
@@ -642,10 +643,10 @@
     .cal-wk-x { flex-shrink:0; margin-top:6px; padding:4px 10px; border-radius:8px; border:1px solid #E5E7EB; background:#fff; color:#6B7280; font-size:12.5px; font-weight:700; }
     .cal-wk-add { width:100%; margin-top:10px; height:40px; border-radius:10px; border:1.5px dashed #F5A25D; background:#fff; color:#E8590C; font-size:14px; font-weight:800; }
     /* 2026-10-27 달력 부서 탭: 전도부(기본·공식 파랑) | 교역자·자문회·장년회·부녀회·청년회(그 부서 초록) */
-    .cal-dtabs { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 0 10px; padding:2px 0; }
+    .cal-dtabs { display:flex; gap:6px; margin:0 0 10px; padding:2px 0; }   /* 10/27(2차): 한 글자 탭 — 옆으로 넘기지 않고 한 줄에 */
     .cal-dtabs::-webkit-scrollbar { display:none; }
-    .cal-dtabs button { flex:0 0 auto; height:34px; padding:0 14px; border-radius:999px; border:1.5px solid #E5E7EB; background:#fff; color:#4B5563; font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit; white-space:nowrap; }
-    .cal-dtabs button.main { border-color:#BFD3F6; color:#2F6FDE; }
+    .cal-dtabs button { flex:1 1 0; min-width:0; height:36px; padding:0 4px; border-radius:999px; border:1.5px solid #E5E7EB; background:#fff; color:#4B5563; font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit; white-space:nowrap; }
+    .cal-dtabs button.main { flex:1.8 1 0; border-color:#BFD3F6; color:#2F6FDE; }
     .cal-dtabs button.on { background:#2D9B6F; border-color:#2D9B6F; color:#fff; }
     .cal-dtabs button.main.on { background:#2F6FDE; border-color:#2F6FDE; }
     .cal-dtab-note { font-size:12.5px; color:#6B7280; margin:-4px 0 10px; }
@@ -2703,14 +2704,14 @@
     .hdr-me { margin-left:auto; display:flex; align-items:center; gap:6px; background:none; border:none; padding:0; cursor:pointer; color:inherit; }
     .hdr-home { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:30px; height:30px; margin-left:auto; padding:0; border:none; background:none; color:#111; cursor:pointer; }
     .hdr-home + .hdr-me { margin-left:6px; }
-    /* 2026-10-27(사용자): 오른쪽 위 '앱 설치' — 홈 화면에 설치하는 단추를 눈에 잘 띄게. 이미 앱으로 열었으면 숨김(html.pd-app) */
+    /* 2026-10-27(사용자): 오른쪽 위 '앱 설치' — 홈 화면에 설치하는 단추를 눈에 잘 띄게. 10/27(2차): 설치한 사람에게도 늘 보임 */
     .hdr-inst { flex-shrink:0; display:inline-flex; align-items:center; gap:4px; height:30px; margin-left:auto; padding:0 11px 0 9px !important; border:none !important; border-radius:999px !important; background:linear-gradient(135deg, #FF8A3D, #FF5A5F) !important; color:#fff !important; font-size:12.5px; font-weight:900; letter-spacing:-0.02em; white-space:nowrap; cursor:pointer; font-family:inherit; box-shadow:0 2px 8px rgba(255,90,95,.35); animation:hdrInstPulse 2.4s ease-in-out infinite; }
     .hdr-inst svg { width:15px; height:15px; flex-shrink:0; }
     .hdr-inst:active { transform:scale(.94); }
     .hdr-inst + .hdr-home { margin-left:6px; }
     .dk-nav .hdr-inst { margin-left:12px; margin-right:8px; }
     @keyframes hdrInstPulse { 0%, 100% { box-shadow:0 2px 8px rgba(255,90,95,.35); } 50% { box-shadow:0 0 0 5px rgba(255,90,95,.18), 0 2px 10px rgba(255,90,95,.45); } }
-    html.pd-app .hdr-inst { display:none !important; }
+    @media (min-width:1024px) { .kko-header .hdr-inst, .act-appbar .hdr-inst, .adm-top .hdr-inst, #appHeader .hdr-inst { display:none !important; } }   /* 10/27(2차): PC는 위 공용 메뉴 하나로 */
     .hdr-home:active { transform:scale(.92); }
     @media (min-width:1024px) { .kko-header .hdr-home, .act-appbar .hdr-home, .adm-top .hdr-home, #appHeader .hdr-home { display:none !important; } }
     @media (min-width:1024px) { .hdr-me { display:none !important; } }   /* PC는 맨 위 공용 메뉴에 이름표가 있음 */
@@ -3876,7 +3877,7 @@
         }
       }
       const d = pdDevice();
-      const steps = d.installed ? ['이미 홈 화면 앱으로 쓰고 계세요. 👍']
+      const steps = d.installed ? ['이미 홈 화면에 설치된 교사광장으로 열려 있어요. 👍', '다른 휴대폰에 설치하려면 그 휴대폰에서 교사광장을 열고 오른쪽 위 <b>앱 설치</b>를 눌러 주세요.']
         : d.inApp ? [`지금은 ${d.kakao ? '카카오톡' : '다른 앱'} 안에서 열려 있어요.`, `화면 ${d.ios ? '아래의 <b>공유 단추(□↑)</b>' : '오른쪽 위(또는 아래)의 <b>⋮</b>'} → <b>다른 브라우저로 열기</b>`, `열린 ${d.ios ? '사파리' : '크롬'}에서 오른쪽 위 <b>앱 설치</b>를 다시 눌러 주세요.`]
         : d.ios ? ['사파리 아래 가운데 <b>공유 단추(□↑)</b>를 눌러요.', '목록을 내려 <b>홈 화면에 추가</b>를 눌러요.', '오른쪽 위 <b>추가</b>를 누르면 끝!']
         : d.android ? ['크롬 오른쪽 위 <b>⋮</b>(점 세 개)를 눌러요.', '<b>홈 화면에 추가</b>(또는 <b>앱 설치</b>)를 눌러요.', '<b>설치</b>를 누르면 홈 화면에 교사광장 아이콘이 생겨요.']
@@ -3960,7 +3961,15 @@
 
     // 알림 권한 안내 버튼 (설정 섹션에서 호출)
     async function openPushNotiSheet() {
-      if (!('Notification' in window) || Notification.permission === 'default') { pdWelcomeGuide(true); return; }
+      // 10/27(2차, 사용자): 종은 알림만 — 설치 안내(pdWelcomeGuide)는 띄우지 않는다(설치는 오른쪽 위 '앱 설치')
+      if (!('Notification' in window)) {
+        const ios = pdDevice().ios;
+        openSheet(`
+          <div style="font-size:20px;font-weight:800;margin-bottom:8px">🔔 알림 켜기</div>
+          <div style="font-size:14px;color:#6B7280;line-height:1.7">${ios ? '아이폰은 <b>홈 화면에 설치한 교사광장</b>에서만 알림을 켤 수 있어요.<br>오른쪽 위 <b>앱 설치</b>로 설치한 뒤, 설치된 앱에서 🔔을 다시 눌러 주세요.' : '이 브라우저는 알림을 지원하지 않아요. 크롬에서 열어 주세요.'}</div>
+          <button onclick="closeSheet()" style="width:100%;height:44px;margin-top:16px;border:none;background:#F3F4F6;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">확인</button>`);
+        return;
+      }
       const perm = Notification.permission;
       if (perm === 'granted') {
         toast('✅ 알림이 이미 켜져 있어요. 이번 주 일정을 예약합니다.');
@@ -4444,14 +4453,14 @@
     // 2026-10-27(사용자): 달력은 지파 전도부 것이 메인(공식 = 파랑 + 내 일정), 부서 탭(교역자·자문회·장년회·부녀회·청년회)을 누르면
     //   그 부서 일정(초록)만. 부서 일정은 그 부서 탭에서만, 공식 일정은 전도부 탭에서만 보인다(한쪽에만).
     //   부서 일정 올리기·고치기 = 그 부서 관리자(서버 deptManager: 'all' | 부서 한 글자 | '').
-    const CAL_VIEWS = [['', '전도부'], ['교', '교역자'], ['자', '자문회'], ['장', '장년회'], ['부', '부녀회'], ['청', '청년회']];
+    const CAL_VIEWS = [['', '전도부'], ['교', '교역자'], ['자', '자문회'], ['장', '장년회'], ['부', '부녀회'], ['청', '청년회']];   // 탭에는 첫 글자만(교·자·장·부·청)
     const calDeptOf = e => String((e && e.dept) || '').trim().charAt(0);
     const calViewName = v => (CAL_VIEWS.find(x => x[0] === v) || CAL_VIEWS[0])[1];
     const calInView = e => calSt.view ? (e.category === '부서' && calDeptOf(e) === calSt.view) : e.category !== '부서';
     const calCanDept = d => calSt.deptManager === 'all' || (!!d && calSt.deptManager === d);
     function calRenderViews() {
       const tabs = document.getElementById('calDeptTabs'); if (!tabs) return;
-      tabs.innerHTML = CAL_VIEWS.map(([v, l]) => `<button type="button" class="${v ? '' : 'main'}${v === calSt.view ? ' on' : ''}" data-cv="${v}">${l}</button>`).join('');
+      tabs.innerHTML = CAL_VIEWS.map(([v, l]) => `<button type="button" class="${v ? '' : 'main'}${v === calSt.view ? ' on' : ''}" data-cv="${v}" title="${l}">${v || l}</button>`).join('');
       tabs.querySelectorAll('[data-cv]').forEach(b => { b.onclick = () => { calSt.view = b.dataset.cv; calRenderViews(); calDrawCalendar(); calRenderUpcoming(); }; });
       const v = calSt.view, nm = calViewName(v);
       document.getElementById('calDeptNote').innerHTML = v
