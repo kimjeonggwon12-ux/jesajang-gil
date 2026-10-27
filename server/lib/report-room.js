@@ -31,9 +31,11 @@ export async function roomForTeacher(t) {
 }
 
 // 10/25(사용자): "상담 이상으로 체크된 건은 센터 인도 관리 건 — 지역 방에 보고된 것 중 그 건은 ○○회 전체 방에도".
-//   targets.js TARGET_STAGES 의 상담1부터 끝까지와 같은 값.
-const COUNSEL_UP = ['상담1', '상담2', '복음방', '센터소개', '센터수강'];
+// 10/27(사용자): 부서 전체 방(부녀회 43.11월 개강 교육 보고방)은 개강 인도 준비 방 — 상담1~복음방만 올리고 센터소개·센터수강부터는 올리지 않는다.
+const COUNSEL_UP = ['상담1', '상담2', '복음방'];
 export const isCounselUp = (row) => (row && row.activities || []).some((a) => COUNSEL_UP.includes(a));
+// 부서 전체 방 일일 보고에는 상담1~복음방 칸만(지역 방에서 넘어온 건은 그 단계 항목만 남긴다)
+const WHOLE_SECTIONS = ['🟢상담1️⃣', '🟢상담2️⃣', '🔵복음방'];
 
 /** 이 보고를 올릴 방들: 내 방(roomForTeacher) + 내 방이 지역 방이고 상담 이상 건이면 부서 전체 방. */
 export async function roomsForReport(t, row) {
@@ -141,11 +143,12 @@ const leaderName = (v) => String(v || '').replace(/\(.*$/, '').trim();
 const leaderId = (v) => { const m = String(v || '').match(/\(([^)]+)\)/); return m ? m[1].trim() : ''; };
 
 /** 한 방의 일일 보고 글. acts = 그 방 사람들의 그날 기록(+ teacher). leaders = nid → 교사명단 행(인도자 구역 찾기). */
-export function dailyText(roomTitle, date, acts, newSet, leaders) {
+export function dailyText(roomTitle, date, acts, newSet, leaders, only = null) {
   const [y, m, d] = date.split('-').map(Number);
   const wd = WD[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
   const out = [`📍${roomTitle}-일일 보고 (${y - 1983}.${m}.${d}.${wd}요일)`, '', LINE, '구역 사랑이-인도자', LINE];
   DAILY_SECTIONS.forEach(([label, items], si) => {
+    if (only && !only.includes(label)) return;
     const seen = new Map();
     for (const a of acts) {
       const name = String(a.target_name || '').trim();
@@ -158,18 +161,21 @@ export function dailyText(roomTitle, date, acts, newSet, leaders) {
       if (!seen.has(key)) seen.set(key, { gu, line: `${gu ? gu + ' ' : ''}${name}-${leader}${newSet.has(name) ? '✅신규' : ''}` });
     }
     const rows = [...seen.values()].sort((p, q) => (p.gu || '99').localeCompare(q.gu || '99') || p.line.localeCompare(q.line, 'ko'));
-    if (si === 3 || si === 6) out.push('');   // 상담2·센터수강은 앞 칸과 한 묶음(빈 줄만)
+    if (only) { if (label !== only[0]) out.push(si === 3 ? '' : LINE); }
+    else if (si === 3 || si === 6) out.push('');   // 상담2·센터수강은 앞 칸과 한 묶음(빈 줄만)
     else if (si > 0) out.push(LINE);
     out.push(`${label}- ${rows.length}명`, ...rows.map((r) => r.line));
   });
-  out.push(LINE, ...DAILY_MANUAL.flatMap((l, i) => [...(i ? [''] : []), `${l}- 명`]));
+  if (only) out.push(LINE);
+  else out.push(LINE, ...DAILY_MANUAL.flatMap((l, i) => [...(i ? [''] : []), `${l}- 명`]));
   return out.join('\n');
 }
 
 /** 그날 기록을 방마다 묶어 일일 보고 글들을 만든다 → [{ room, text, count }] */
 export async function buildDailyReports(date, onlyDept = '') {
-  const rooms = (await run(db().from('report_rooms').select('*').eq('active', true))).filter((r) => r.dept !== '*' && (!onlyDept || r.dept === onlyDept));
-  if (!rooms.length) return [];
+  // 묶기는 모든 방 기준(지역 방 사람이 부서 방으로 새지 않게), 돌려주는 것만 onlyDept
+  const rooms = (await run(db().from('report_rooms').select('*').eq('active', true))).filter((r) => r.dept !== '*');
+  if (!rooms.some((r) => !onlyDept || r.dept === onlyDept)) return [];
   const acts = await run(db().from('activities').select('id, member_id, nid, name, activities, roles, target_name, report, submitted_at')
     .gte('submitted_at', `${date} 00:00:00`).lte('submitted_at', `${date} 23:59:59`).order('id'));
   const nids = acts.map((a) => a.nid).filter(Boolean);
@@ -190,13 +196,16 @@ export async function buildDailyReports(date, onlyDept = '') {
     const key = roomKeys.has(regionRoomKey(t)) ? regionRoomKey(t) : roomKeys.has(t.dept) ? t.dept : '';
     if (key) groups.get(key).push({ ...a, teacher: t });
     // 지역 방에 들어간 상담 이상 건은 부서 전체 방 일일 보고에도(roomsForReport 와 같은 규칙)
-    if (key && key === regionRoomKey(t) && roomKeys.has(t.dept) && isCounselUp(a)) groups.get(t.dept).push({ ...a, teacher: t });
+    if (key && key === regionRoomKey(t) && roomKeys.has(t.dept) && isCounselUp(a)) groups.get(t.dept).push({ ...a, activities: a.activities.filter((x) => COUNSEL_UP.includes(x)), teacher: t });
   }
-  return rooms.map((room) => {
+  return rooms.filter((r) => !onlyDept || r.dept === onlyDept).map((room) => {
     const list = groups.get(room.dept);
     const region = room.dept.includes('/') ? room.dept.split('/')[1] : '';
     const title = region ? regionOf({ region }) || region : deptLabelOf(room.dept);
-    return { room, count: list.length, text: dailyText(title, date, list, newSet, byNid) };
+    // 아래에 지역 방이 있는 부서 전체 방(= 개강 인도 준비 방)은 상담1~복음방 칸만
+    const whole = !region && rooms.some((r) => r.dept.startsWith(room.dept + '/'));
+    const shown = whole ? list.filter(isCounselUp) : list;
+    return { room, count: shown.length, text: dailyText(title, date, shown, newSet, byNid, whole ? WHOLE_SECTIONS : null) };
   });
 }
 
