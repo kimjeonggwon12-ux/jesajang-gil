@@ -2,7 +2,7 @@
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs, sameId } from '../lib/util.js';
 import { clip, newId, isDate } from '../lib/input.js';
-import { findTeacher, isAdmin } from './roster.js';
+import { findTeacher, isAdmin, isOwner, memberInfo } from './roster.js';
 import { storeImage } from '../lib/images.js';
 
 const DEPTS = ['교', '자', '장', '부', '청'];            // 신청용 부서 약칭
@@ -38,31 +38,39 @@ async function countByEvent(table) {
   return counts;
 }
 
-/** 부서 일정은 같은 부서(첫 글자) 사람에게만 보인다. */
-const sameDept = (event, viewer) => {
-  const d = String(viewer.dept || '').trim().charAt(0);
-  return !!d && String(event.dept || '').trim().charAt(0) === d;
-};
+/**
+ * 2026-10-27(사용자): 달력은 전도부(공식) 탭이 기본이고, 교역자·자문회·장년회·부녀회·청년회 탭에서 그 부서 일정(초록)을 본다.
+ * 부서 일정은 그 부서 관리자로 등록된 사람(관리자 명단의 부서)이 올리고 고친다 — 전도부 관리자와 앱 관리자는 모든 부서.
+ * 관리자 명단의 '중진'은 교역자 부서로 본다. 돌려주는 값: 'all' | 부서 한 글자 | ''.
+ */
+async function deptManagerOf(memberId) {
+  if (!memberId) return '';
+  if (isOwner(memberId)) return 'all';
+  const { admin } = await memberInfo(memberId);
+  const d = String(admin?.dept || '').trim();
+  if (!d) return '';
+  if (d === '전도부') return 'all';
+  if (d === '중진' || d.startsWith('교')) return '교';
+  return DEPTS.includes(d.charAt(0)) ? d.charAt(0) : '';
+}
+const canManageDept = (mgr, dept) => mgr === 'all' || (!!mgr && mgr === String(dept || '').trim().charAt(0));
 
 /**
- * 내가 볼 수 있는 행사: 공식은 모두, 부서 일정은 같은 부서(관리자·등록자는 전부), 내 일정은 본인만.
- * memberId 없이 부르면 공식·부서 일정을 모두 준다.
+ * 내가 볼 수 있는 행사: 공식·부서 일정은 모두(부서 탭에서 다른 부서 일정도 본다), 내 일정은 본인만.
+ * memberId 없이 부르면 공식·부서 일정을 모두 준다. deptManager = 내가 부서 일정을 올릴 수 있는 부서.
  */
 async function getCalendarEvents(body) {
   const me = clip(body.memberId, 40);
-  const seeAll = me ? await isAdmin(me) : false;
-  const viewer = me && !seeAll ? (await findTeacher(me)) || {} : null;
-  const [events, staff, attendees, cheers, weeks] = await Promise.all([
-    allEvents(), countByEvent('event_staff'), countByEvent('event_attendees'), cheerCounts(), allWeeks(),
+  const [events, staff, attendees, cheers, weeks, deptManager] = await Promise.all([
+    allEvents(), countByEvent('event_staff'), countByEvent('event_attendees'), cheerCounts(), allWeeks(), deptManagerOf(me),
   ]);
   const rows = events.filter((e) => {
     if (e.category === '내일정') return !!me && sameId(e.createdBy, me);
-    if (e.category === '부서' && viewer && !sameId(e.createdBy, me)) return sameDept(e, viewer);
     return true;
   }).map((e) => ({
     ...e, staffCount: staff.get(e.eventId) || 0, attendeeCount: attendees.get(e.eventId) || 0, cheerCount: cheers.get(e.eventId) || 0,
   }));
-  return { rows, weeks };
+  return { rows, weeks, deptManager };
 }
 
 // ── 주간 서머리 (2026-10-19) ── 달력 한 줄(일~토)마다 '주간:' 이름과 메모. 보기는 누구나, 쓰기는 관리자(전도부).
@@ -144,14 +152,19 @@ async function saveCalendarEvent(body) {
   const mid = clip(body.memberId, 40);
   // 앱 화면(memberId 를 보냄)에서 공식 일정은 관리자만 — 일반 교사에게는 관리자 페이지 안내.
   if (mid && category === '공식' && !(await isAdmin(mid))) return { error: '공식 일정은 관리자 페이지에서 등록·수정해요.' };
+  const mgr = mid && category === '부서' ? await deptManagerOf(mid) : '';
+  if (mid && category === '부서' && !canManageDept(mgr, dept)) return { error: '부서 일정은 그 부서 관리자만 올릴 수 있어요.' };
   const eventId = clip(ev.eventId, 40);
   if (eventId) {
     const [row] = await run(db().from('calendar_events').select('id, repeat_days, category, created_by').eq('event_id', eventId).limit(1));
     if (row) {
       // 삭제와 같은 규칙: 공식 일정이 아니면 등록한 본인만 고친다(memberId 를 보내는 화면에서만 확인).
       if (mid && toEvent(row).category === '공식' && !(await isAdmin(mid))) return { error: '공식 일정은 관리자 페이지에서 수정해요.' };
-      if (mid && toEvent(row).category !== '공식' && !sameId(row.created_by, mid)) {
+      if (mid && toEvent(row).category === '내일정' && !sameId(row.created_by, mid)) {
         return { error: '본인이 등록한 일정만 수정할 수 있습니다.' };
+      }
+      if (mid && toEvent(row).category === '부서' && !sameId(row.created_by, mid) && !canManageDept(await deptManagerOf(mid), row.dept)) {
+        return { error: '그 부서 관리자나 등록한 분만 수정할 수 있어요.' };
       }
       // 옛 화면은 repeatDays 를 보내지 않는다 — 그때는 반복 설정을 그대로 두고, 반복 일정이면 하루짜리로 유지한다.
       const repeat = Array.isArray(ev.repeatDays)
@@ -169,15 +182,18 @@ async function saveCalendarEvent(body) {
   return { ok: true, eventId: fresh };
 }
 
-/** 행사와 그 신청 내역까지 지운다. 공식 일정이 아니면 등록한 본인만. */
+/** 행사와 그 신청 내역까지 지운다. 내 일정은 등록한 본인, 부서 일정은 등록한 분이나 그 부서 관리자. */
 async function deleteCalendarEvent(body) {
   const eventId = clip(body.eventId, 40);
   const mid = clip(body.memberId, 40);
   if (!eventId) return { error: 'eventId 가 필요합니다.' };
   if (mid) {
     const [row] = await run(db().from('calendar_events').select('*').eq('event_id', eventId).limit(1));
-    if (row && toEvent(row).category !== '공식' && !sameId(row.created_by, mid)) {
+    if (row && toEvent(row).category === '내일정' && !sameId(row.created_by, mid)) {
       return { error: '본인이 등록한 일정만 삭제할 수 있습니다.' };
+    }
+    if (row && toEvent(row).category === '부서' && !sameId(row.created_by, mid) && !canManageDept(await deptManagerOf(mid), row.dept)) {
+      return { error: '그 부서 관리자나 등록한 분만 삭제할 수 있어요.' };
     }
   }
   await run(db().from('calendar_events').delete().eq('event_id', eventId));

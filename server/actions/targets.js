@@ -561,18 +561,36 @@ export async function targetDossier(target, mid) {
   };
 }
 
-/** 대상자를 영구 삭제한다 — 단계 이력과 그 대상자에 대한 담당자들의 활동 기록까지. */
+/**
+ * 대상자를 영구 삭제한다 — 단계 이력, AI 기록(피드백·개강 계획·SWOT 제안), 그 대상자에 대한 담당자들의 활동 기록까지.
+ * 2026-10-27: 내 활동 보고 그리드에서 지울 때는 대상자 행이 없을 수도 있어 이름(targetName)으로도 받는다 —
+ *             내 담당 대상자 중 같은 이름을 찾고, 없으면 내가 그 이름으로 남긴 활동 기록만 지운다.
+ */
 async function deleteTarget(body) {
   const mid = str(body.memberId);
-  const targetId = str(body.targetId);
-  if (!mid || !targetId) return { error: 'memberId, targetId 가 필요합니다.' };
+  let targetId = str(body.targetId);
+  const byName = str(body.targetName);
+  if (!mid || (!targetId && !byName)) return { error: 'memberId, targetId 가 필요합니다.' };
+  const nid = normId(mid);
+  if (!targetId) {
+    const mine = await run(db().from('targets').select('target_id, target_name').or(ownedBy(nid)).order('id'));
+    const hit = mine.find((t) => t.target_name.trim() === byName);
+    if (hit) targetId = hit.target_id;
+    else {
+      const gone = (await run(db().from('activities').select('id, target_name').eq('nid', nid).order('id')))
+        .filter((a) => a.target_name.trim() === byName).map((a) => a.id);
+      if (gone.length) await run(db().from('activities').delete().in('id', gone));
+      return { ok: true, targetName: byName, deletedActivities: gone.length, deletedHistory: 0 };
+    }
+  }
   const target = await findTarget(targetId);
   if (!target) return { error: '해당 대상자를 찾을 수 없습니다.' };
-  if (!owns(target, normId(mid))) return { error: '본인 담당의 전도 대상자만 삭제할 수 있습니다.' };
+  if (!owns(target, nid)) return { error: '본인 담당의 전도 대상자만 삭제할 수 있습니다.' };
 
   const activityIds = (await activitiesAbout(target)).map((a) => a.id);
   if (activityIds.length) await run(db().from('activities').delete().in('id', activityIds));
   const history = await run(db().from('target_history').delete().eq('target_id', targetId).select('id'));
+  try { await run(db().from('target_ai_notes').delete().eq('target_id', targetId)); } catch { /* 표가 없어도 삭제는 계속 */ }
   await run(db().from('targets').delete().eq('id', target.id));
   return { ok: true, targetName: target.target_name.trim(), deletedActivities: activityIds.length, deletedHistory: history.length };
 }

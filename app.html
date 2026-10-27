@@ -278,7 +278,9 @@
     .me-chip b { font-size:13px; font-weight:700; }
     .me-chip small { font-size:11px; font-weight:500; opacity:.7; }
     @media (max-width: 420px) {
-      .me-chip { max-width:84px; }
+      .me-chip { max-width:64px; }   /* 10/27: 오른쪽 위 '앱 설치' 자리 */
+      .hdr-inst { padding:0 9px 0 7px !important; font-size:12px !important; }
+      .hdr-inst + .hdr-home { margin-left:2px !important; }
       .me-chip b { font-size:12px; } .me-chip small { font-size:10px; }
       /* 나의교실 머리줄(등급칩·알림·이름표·홈으로)이 꽉 차서 제목이 두 줄로 꺾이던 것 방지 */
       #sec-activity .act-appbar-title { white-space:nowrap; flex-shrink:0; }
@@ -639,6 +641,15 @@
     .cal-wk-note textarea { flex:1; min-height:56px; }
     .cal-wk-x { flex-shrink:0; margin-top:6px; padding:4px 10px; border-radius:8px; border:1px solid #E5E7EB; background:#fff; color:#6B7280; font-size:12.5px; font-weight:700; }
     .cal-wk-add { width:100%; margin-top:10px; height:40px; border-radius:10px; border:1.5px dashed #F5A25D; background:#fff; color:#E8590C; font-size:14px; font-weight:800; }
+    /* 2026-10-27 달력 부서 탭: 전도부(기본·공식 파랑) | 교역자·자문회·장년회·부녀회·청년회(그 부서 초록) */
+    .cal-dtabs { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 0 10px; padding:2px 0; }
+    .cal-dtabs::-webkit-scrollbar { display:none; }
+    .cal-dtabs button { flex:0 0 auto; height:34px; padding:0 14px; border-radius:999px; border:1.5px solid #E5E7EB; background:#fff; color:#4B5563; font-size:13.5px; font-weight:800; cursor:pointer; font-family:inherit; white-space:nowrap; }
+    .cal-dtabs button.main { border-color:#BFD3F6; color:#2F6FDE; }
+    .cal-dtabs button.on { background:#2D9B6F; border-color:#2D9B6F; color:#fff; }
+    .cal-dtabs button.main.on { background:#2F6FDE; border-color:#2F6FDE; }
+    .cal-dtab-note { font-size:12.5px; color:#6B7280; margin:-4px 0 10px; }
+    .cal-dtab-note:empty { display:none; }
     .cal-legend { display:flex; gap:14px; font-size:12px; color:var(--color-text-sub); margin-top:8px; }
     .cal-legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
     .cal-ad-title { font-size:15px; font-weight:800; color:var(--color-primary); margin-bottom:8px; }
@@ -974,6 +985,8 @@
     .er-flow i.done { background:#7FD8BF; } .er-flow i.now { background:#00AE82; }
     .er-ct { font-size:12px; color:#4B5563; } .er-ct b { font-size:14px; color:#00875F; }
     .er-dt { font-size:11px; color:#9CA3AF; }
+    .er-del { position:absolute; right:8px; bottom:8px; display:flex; align-items:center; justify-content:center; width:30px; height:30px; padding:0; border-radius:9px; border:1px solid #FECACA; background:#FEF2F2; color:#DC2626; cursor:pointer; }
+    .er-del:active { transform:scale(.92); }
     .er-badge { position:absolute; top:10px; right:10px; padding:2px 7px; border-radius:99px; background:#DC2626; color:#fff; font-size:10.5px; font-weight:800; }
     .er-back { align-self:flex-start; height:34px; padding:0 12px; border-radius:99px; border:1px solid #E5E7EB; background:#fff; font-size:13px; font-weight:700; color:#374151; cursor:pointer; font-family:inherit; }
     .er-head { display:flex; gap:12px; align-items:center; }
@@ -2690,6 +2703,14 @@
     .hdr-me { margin-left:auto; display:flex; align-items:center; gap:6px; background:none; border:none; padding:0; cursor:pointer; color:inherit; }
     .hdr-home { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:30px; height:30px; margin-left:auto; padding:0; border:none; background:none; color:#111; cursor:pointer; }
     .hdr-home + .hdr-me { margin-left:6px; }
+    /* 2026-10-27(사용자): 오른쪽 위 '앱 설치' — 홈 화면에 설치하는 단추를 눈에 잘 띄게. 이미 앱으로 열었으면 숨김(html.pd-app) */
+    .hdr-inst { flex-shrink:0; display:inline-flex; align-items:center; gap:4px; height:30px; margin-left:auto; padding:0 11px 0 9px !important; border:none !important; border-radius:999px !important; background:linear-gradient(135deg, #FF8A3D, #FF5A5F) !important; color:#fff !important; font-size:12.5px; font-weight:900; letter-spacing:-0.02em; white-space:nowrap; cursor:pointer; font-family:inherit; box-shadow:0 2px 8px rgba(255,90,95,.35); animation:hdrInstPulse 2.4s ease-in-out infinite; }
+    .hdr-inst svg { width:15px; height:15px; flex-shrink:0; }
+    .hdr-inst:active { transform:scale(.94); }
+    .hdr-inst + .hdr-home { margin-left:6px; }
+    .dk-nav .hdr-inst { margin-left:12px; margin-right:8px; }
+    @keyframes hdrInstPulse { 0%, 100% { box-shadow:0 2px 8px rgba(255,90,95,.35); } 50% { box-shadow:0 0 0 5px rgba(255,90,95,.18), 0 2px 10px rgba(255,90,95,.45); } }
+    html.pd-app .hdr-inst { display:none !important; }
     .hdr-home:active { transform:scale(.92); }
     @media (min-width:1024px) { .kko-header .hdr-home, .act-appbar .hdr-home, .adm-top .hdr-home, #appHeader .hdr-home { display:none !important; } }
     @media (min-width:1024px) { .hdr-me { display:none !important; } }   /* PC는 맨 위 공용 메뉴에 이름표가 있음 */
@@ -2919,6 +2940,8 @@
           <!-- 2026-10-04: 달력은 항상 보이게(예전엔 [더보기·달력 보기]를 눌러야 열림). 옆(PC)/아래(폰)에 '이번 주 일정' 칸,
                달력 아래에 '다가오는 전도 일정' 목록(처음엔 접힘). 세 칸 모두 머리를 누르면 접고 펼친다(상태는 이 기기에 기억). -->
           <div class="pz-box c-cal pz-cal-box" id="pzCalBox">
+           <div class="cal-dtabs" id="calDeptTabs"></div>
+           <div class="cal-dtab-note" id="calDeptNote"></div>
            <div class="pz-cal-layout">
             <div class="pz-cal-main">
             <button type="button" class="pz-fold-h" data-pz-fold="cal"><span>🗓️ 달력</span><i>︿</i></button>
@@ -2931,7 +2954,7 @@
               <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="cal-today-btn" id="calTodayBtn">오늘</button></div>
               <div class="cal-grid" id="calDow"></div>
               <div class="cal-grid" id="calDays"></div>
-              <div class="cal-legend"><span><i style="background:#2F6FDE"></i>공식</span><span><i style="background:#2D9B6F"></i>부서</span><span><i style="background:#E8590C"></i>내 일정(비공개)</span><span><span class="cal-hl-dot" style="margin-left:0"></span>강조</span></div>
+              <div class="cal-legend" id="calLegend"></div>
             </div>
             <button type="button" class="pz-fold-h sub" data-pz-fold="up"><span>📋 다가오는 전도 일정 <small id="calUpCount"></small></span><i>︿</i></button>
             <div class="pz-fold-b" data-pz-fold-b="up">
@@ -3836,6 +3859,36 @@
      */
     // 2026-10-10: 머리줄 [홈] = 로그인 화면으로(goToCover — 저장된 번호를 지우고 표지·입력 화면부터). 사용자 지정.
     const HOME_BTN_HTML = '<button type="button" class="hdr-home" title="홈으로 (로그인 화면)" aria-label="홈으로" onclick="goToCover()"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>';
+    // 2026-10-27(사용자): 오른쪽 위 '앱 설치' 단추 — 홈 화면 단추 앞. 안드로이드·PC 크롬은 바로 설치 창, 아이폰·카톡 안 브라우저는 따라 하기 안내.
+    const INSTALL_BTN_HTML = '<button type="button" class="hdr-inst" title="홈 화면에 앱 설치" onclick="pdInstallApp()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>앱 설치</button>';
+    function pdMarkInstalled() { if (pdDevice().installed) document.documentElement.classList.add('pd-app'); }
+    pdMarkInstalled();
+    window.addEventListener('appinstalled', () => { document.documentElement.classList.add('pd-app'); pdInstallEvent = null; toast('홈 화면에 교사광장을 설치했어요 ✓'); });
+    window.pdInstallApp = async function () {
+      if (pdInstallEvent) {
+        const ev = pdInstallEvent;
+        let shown = false;
+        try { await ev.prompt(); shown = true; } catch (e) {}   // 브라우저가 막으면 아래 따라 하기 안내로
+        if (shown) {
+          try { const choice = await ev.userChoice; if (choice && choice.outcome === 'accepted') document.documentElement.classList.add('pd-app'); } catch (e) {}
+          pdInstallEvent = null;
+          return;
+        }
+      }
+      const d = pdDevice();
+      const steps = d.installed ? ['이미 홈 화면 앱으로 쓰고 계세요. 👍']
+        : d.inApp ? [`지금은 ${d.kakao ? '카카오톡' : '다른 앱'} 안에서 열려 있어요.`, `화면 ${d.ios ? '아래의 <b>공유 단추(□↑)</b>' : '오른쪽 위(또는 아래)의 <b>⋮</b>'} → <b>다른 브라우저로 열기</b>`, `열린 ${d.ios ? '사파리' : '크롬'}에서 오른쪽 위 <b>앱 설치</b>를 다시 눌러 주세요.`]
+        : d.ios ? ['사파리 아래 가운데 <b>공유 단추(□↑)</b>를 눌러요.', '목록을 내려 <b>홈 화면에 추가</b>를 눌러요.', '오른쪽 위 <b>추가</b>를 누르면 끝!']
+        : d.android ? ['크롬 오른쪽 위 <b>⋮</b>(점 세 개)를 눌러요.', '<b>홈 화면에 추가</b>(또는 <b>앱 설치</b>)를 눌러요.', '<b>설치</b>를 누르면 홈 화면에 교사광장 아이콘이 생겨요.']
+        : ['주소창 오른쪽의 <b>설치 아이콘(⊕ / 모니터 모양)</b>을 눌러요.', '<b>설치</b>를 누르면 프로그램처럼 따로 열 수 있어요.'];
+      openSheet(`
+        <div style="font-size:20px;font-weight:800">📲 홈 화면에 교사광장 설치</div>
+        <div style="font-size:14px;color:#6b7772;line-height:1.6;margin-top:6px">설치해 두면 앱처럼 아이콘 한 번으로 바로 들어오고, 알림도 받을 수 있어요.</div>
+        ${steps.map((t, i) => `<div style="display:flex;gap:12px;margin-top:16px;align-items:flex-start">
+          <div style="flex:none;width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#FF8A3D,#FF5A5F);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center">${i + 1}</div>
+          <div style="flex:1;font-size:15px;line-height:1.7;padding-top:2px">${t}</div></div>`).join('')}
+        <button type="button" onclick="closeSheet()" style="width:100%;height:48px;margin-top:22px;border:none;background:#F3F4F6;border-radius:12px;font-size:15px;font-weight:700">닫기</button>`);
+    };
     function goToCover() {
       pdClearSaved();
       try { sessionStorage.removeItem('pd_in'); sessionStorage.setItem('pd_cover', '1'); } catch (e) {}
@@ -3900,7 +3953,7 @@
       scheduleWeekEvents() {
         if (!calSt.events || !calSt.events.length) return;
         const sat = (() => { const d = new Date(calTodayDate); d.setDate(d.getDate() + (6 - d.getDay())); return calYmd(d.getFullYear(), d.getMonth(), d.getDate()); })();
-        calSt.events.filter(e => e.startDate >= CAL_TODAY && e.startDate <= sat).forEach(e => pushNoti.scheduleEventReminder(e));
+        calSt.events.filter(e => calForMe(e) && e.startDate >= CAL_TODAY && e.startDate <= sat).forEach(e => pushNoti.scheduleEventReminder(e));
       },
     };
     pushNoti.init();
@@ -3975,7 +4028,7 @@
       const sub = [dept, pos].filter((v, i, arr) => v && arr.indexOf(v) === i).join(' · ');
       return nm ? `<b>${esc(nm)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}` : '';
     }
-    function meBtnHtml() { const h = meChipInner(); return HOME_BTN_HTML + `<button type="button" class="hdr-me" title="내 계정" onclick="openAccountSheet()"><span class="me-chip"${h ? '' : ' style="display:none"'}>${h}</span><svg class="lucide-i" style="width:22px;height:22px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>`; }
+    function meBtnHtml() { const h = meChipInner(); return INSTALL_BTN_HTML + HOME_BTN_HTML + `<button type="button" class="hdr-me" title="내 계정" onclick="openAccountSheet()"><span class="me-chip"${h ? '' : ' style="display:none"'}>${h}</span><svg class="lucide-i" style="width:22px;height:22px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>`; }
     // 2026-10-14: 교사광장 운영 담당(구분표 ②~⑧) — 코너 한 귀퉁이 "문의 이름 전화" 칩. 전화는 비면 이름만 보임.
     // 2026-10-15: 전화번호 채움 + 누르면 전화·문자·텔레그램(번호로 찾기 허용한 사람만 열림) 고르기
     const CTC_PARTS = {
@@ -4047,6 +4100,8 @@
       document.querySelectorAll('button[onclick="openAccountSheet()"]').forEach(btn => {
         const prev = btn.previousElementSibling;
         if (!(prev && prev.classList.contains('hdr-home')) && !btn.closest('.sheet')) btn.insertAdjacentHTML('beforebegin', HOME_BTN_HTML);
+        const home = btn.previousElementSibling;   // 2026-10-27: 그 앞에 '앱 설치'
+        if (home && home.classList.contains('hdr-home') && !(home.previousElementSibling && home.previousElementSibling.classList.contains('hdr-inst'))) home.insertAdjacentHTML('beforebegin', INSTALL_BTN_HTML);
         let chip = btn.querySelector('.me-chip');
         if (!chip) { chip = document.createElement('span'); chip.className = 'me-chip'; btn.prepend(chip); }
         chip.innerHTML = html;
@@ -4364,7 +4419,7 @@
       return `<button type="button" class="pz-more" data-pz-more="${key}">${PZX[key] ? '접기 ︿' : (label || `더보기 (${total - 3}개 더) ›`)}</button>`;
     }
     const calDOW = ['일', '월', '화', '수', '목', '금', '토'];
-    const calSt = { y: 0, m: 0, events: [], weeks: {}, ads: null, adErr: '' };   // weeks: 주 시작(일요일) → { theme, memo }
+    const calSt = { y: 0, m: 0, events: [], weeks: {}, ads: null, adErr: '', view: '', deptManager: '' };   // view: '' = 전도부, 아니면 부서 한 글자   // weeks: 주 시작(일요일) → { theme, memo }
     const calP2 = n => String(n).padStart(2, '0');
     const calYmd = (y, m, d) => `${y}-${calP2(m + 1)}-${calP2(d)}`;
     const calTodayDate = new Date();
@@ -4386,7 +4441,35 @@
     const calIsRepeat = e => Array.isArray(e.repeatDays) && e.repeatDays.length > 0 && !!e.repeatUntil;
     // 2026-10-09: 전도부가 올린 공식(교회) 일정을 맨 위로 — '+N개'에 가려지지 않게. 그다음 부서, 내 일정.
     const CAL_RANK = { '공식': 0, '부서': 1, '내일정': 2 };
-    const calEventsOn = date => calSt.events.filter(e => calIsRepeat(e)
+    // 2026-10-27(사용자): 달력은 지파 전도부 것이 메인(공식 = 파랑 + 내 일정), 부서 탭(교역자·자문회·장년회·부녀회·청년회)을 누르면
+    //   그 부서 일정(초록)만. 부서 일정은 그 부서 탭에서만, 공식 일정은 전도부 탭에서만 보인다(한쪽에만).
+    //   부서 일정 올리기·고치기 = 그 부서 관리자(서버 deptManager: 'all' | 부서 한 글자 | '').
+    const CAL_VIEWS = [['', '전도부'], ['교', '교역자'], ['자', '자문회'], ['장', '장년회'], ['부', '부녀회'], ['청', '청년회']];
+    const calDeptOf = e => String((e && e.dept) || '').trim().charAt(0);
+    const calViewName = v => (CAL_VIEWS.find(x => x[0] === v) || CAL_VIEWS[0])[1];
+    const calInView = e => calSt.view ? (e.category === '부서' && calDeptOf(e) === calSt.view) : e.category !== '부서';
+    const calCanDept = d => calSt.deptManager === 'all' || (!!d && calSt.deptManager === d);
+    function calRenderViews() {
+      const tabs = document.getElementById('calDeptTabs'); if (!tabs) return;
+      tabs.innerHTML = CAL_VIEWS.map(([v, l]) => `<button type="button" class="${v ? '' : 'main'}${v === calSt.view ? ' on' : ''}" data-cv="${v}">${l}</button>`).join('');
+      tabs.querySelectorAll('[data-cv]').forEach(b => { b.onclick = () => { calSt.view = b.dataset.cv; calRenderViews(); calDrawCalendar(); calRenderUpcoming(); }; });
+      const v = calSt.view, nm = calViewName(v);
+      document.getElementById('calDeptNote').innerHTML = v
+        ? `${nm} 일정만 보여요.${calCanDept(v) ? ` <b style="color:#2D9B6F">${nm} 관리자로 일정을 올릴 수 있어요.</b>` : ` 일정은 ${nm} 관리자가 올려요.`}`
+        : '';
+      document.getElementById('calLegend').innerHTML = v
+        ? `<span><i style="background:#2D9B6F"></i>${nm} 일정</span>`
+        : '<span><i style="background:#2F6FDE"></i>전도부(교회) 일정</span><span><i style="background:#E8590C"></i>내 일정(비공개)</span><span><span class="cal-hl-dot" style="margin-left:0"></span>강조</span>';
+      const add = document.getElementById('calAddBtn');
+      if (add) { add.textContent = v ? `＋ ${nm} 일정` : '＋ 일정 추가'; add.style.display = !v || calCanDept(v) ? '' : 'none'; }
+    }
+    // 알림·오늘 카드: 공식·내 일정 + 내 부서 일정만(다른 부서 일정은 그 부서 탭에서만 본다)
+    function calForMe(e) {
+      if (e.category !== '부서') return true;
+      const mine = String((myRosterRow && myRosterRow.dept) || (myAdminInfo && myAdminInfo.dept) || '').trim().charAt(0);
+      return calDeptOf(e) === mine || sameIdClient(e.createdBy, MEMBER_ID);
+    }
+    const calEventsOn = date => calSt.events.filter(e => calInView(e)).filter(e => calIsRepeat(e)
       ? (e.startDate <= date && date <= e.repeatUntil && e.repeatDays.includes(calDow(date)))
       : (e.startDate <= date && date <= e.endDate))
       .map((e, i) => [e, i]).sort((a, b) => ((CAL_RANK[a[0].category] ?? 3) - (CAL_RANK[b[0].category] ?? 3)) || a[1] - b[1]).map(x => x[0]);
@@ -4412,6 +4495,7 @@
     function calPrefix(e) {
       if (!e || e.category !== '부서' || !e.dept) return '';
       const no = calRegionNo(e.region);
+      if (calSt.view) return no ? `${no}지역)` : '';   // 2026-10-27: 부서 탭 안에서는 지역만
       return no ? `${e.dept}-${no})` : `${e.dept})`;
     }
     function calTitleWithPrefix(e) {
@@ -4452,6 +4536,7 @@
     // 이 주(수요일 기준) 달부터 개강 3개: 10월 주면 10월·11월·12월 개강
     const calWkCohorts = ws => { const [y, m, d] = ws.split('-').map(Number); const mid = new Date(y, m - 1, d + 3).getMonth(); return [0, 1, 2].map(k => `${(mid + k) % 12 + 1}월 개강`); };
     function calWeekRowHtml(ws) {
+      if (calSt.view) return '';   // 2026-10-27: 주간 서머리는 전도부 탭에서만
       const w = calSt.weeks[ws];
       if (w) return `<div class="cal-wk" data-wk="${ws}">${calWeekBodyHtml(w, ws)}${isAdmin() ? '<i class="cal-wk-ed">✎</i>' : ''}</div>`;
       return isAdmin() ? `<div class="cal-wk empty" data-wk="${ws}">+ 주간 서머리 쓰기</div>` : '';
@@ -4639,12 +4724,13 @@
     function calRenderEvent(loading) {
       const e = calCur, isOfficialEvent = e.category === '공식' && e.type === '행사';
       // 2026-10-15: 내 일정·부서(초록) 일정은 등록한 본인이 이 팝업에서 고친다. 공식(파랑)은 팝업에서 못 고치고 관리자 페이지 안내.
-      const isMineNonOfficial = e.category !== '공식' && sameIdClient(e.createdBy, MEMBER_ID);
+      // 2026-10-27: 부서 일정은 그 부서 관리자도 고친다
+      const isMineNonOfficial = e.category !== '공식' && (sameIdClient(e.createdBy, MEMBER_ID) || (e.category === '부서' && calCanDept(calDeptOf(e))));
       const attIntent = calGetAttIntent(e);
       const showAttIntent = e.category !== '내일정'; // 공식·부서 일정에서 참석 의사 표시
       const host = e.hostDept || (e.category === '공식' ? e.dept : '');
       openSheet(`
-        <span class="cal-pill" style="background:${calCatColor(e.category)}">${esc(e.category)}${e.category === '공식' ? ' · ' + esc(e.type) : ''}${calPrefix(e) ? ' · ' + esc(calPrefix(e)) : ''}</span>
+        <span class="cal-pill" style="background:${calCatColor(e.category)}">${e.category === '공식' ? '전도부 · ' + esc(e.type) : e.category === '부서' ? esc(calViewName(calDeptOf(e))) : '내 일정'}${e.category === '부서' && calRegionNo(e.region) ? ' · ' + calRegionNo(e.region) + '지역' : ''}</span>
         <div style="font-size:21px;font-weight:800;margin:8px 0 4px">${esc(e.title)}${calNewTag(e)}</div>
         <div class="cal-hint">📅 ${esc(calRangeText(e))}${e.place ? ' · 📍 ' + esc(e.place) : ''}${e.dept && e.category !== '공식' ? ' · ' + esc(e.dept) : ''}</div>
         ${host || e.contactName || e.contactPhone ? `<div class="cal-host">
@@ -4670,7 +4756,7 @@
         ${isMineNonOfficial ? '<button class="kko-btn-outline" id="calEditMine" style="margin-top:14px">✏️ 이 일정 수정</button>' : ''}
         ${isMineNonOfficial ? '<button class="kko-btn-outline" id="calDelMine" style="margin-top:10px;color:var(--color-error);border-color:var(--color-error)">이 일정 삭제</button>' : ''}
         ${e.category === '공식' ? '<div class="cal-lock">🔒 공식 일정은 여기서 고칠 수 없어요. 수정은 <b>관리자 페이지</b>에서 해요.</div>'
-          : (e.category === '부서' && !isMineNonOfficial ? '<div class="cal-lock">✏️ 부서 일정은 등록한 분이 이 화면에서 직접 고칠 수 있어요.</div>' : '')}
+          : (e.category === '부서' && !isMineNonOfficial ? '<div class="cal-lock">✏️ 부서 일정은 그 부서 관리자가 이 화면에서 고칠 수 있어요.</div>' : '')}
         ${e.category !== '내일정' ? `<div id="calCheers">${calCheerHtml()}</div>` : ''}
         <div style="text-align:center;margin-top:12px"><button class="cal-hint" style="background:none;border:none;cursor:pointer" onclick="closeSheet()">닫기</button></div>`);
       calBindCheers();
@@ -4834,11 +4920,11 @@
       // 2026-10-05 속도 개선: 일정·공지는 지난번 받은 것을 먼저 그리고(apiSWR), 서버 결과가 오면 다시 그린다.
       await Promise.all([
         apiSWR({ action: 'getCalendarEvents', memberId: MEMBER_ID }, r => {
-          if (r && !r.error) { calSt.events = r.rows || []; calSt.weeks = Object.fromEntries((r.weeks || []).map(w => [w.weekStart, w])); }
-          calDrawCalendar(); calRenderUpcoming(); pzRenderEvents(); if (window.pzNew) pzNew.board();
+          if (r && !r.error) { calSt.events = r.rows || []; calSt.weeks = Object.fromEntries((r.weeks || []).map(w => [w.weekStart, w])); calSt.deptManager = r.deptManager || ''; }
+          calRenderViews(); calDrawCalendar(); calRenderUpcoming(); pzRenderEvents(); if (window.pzNew) pzNew.board();
           // 2026-10-05: 일정 로드 후 이번 주 일정 알림 자동 예약
           if (Notification.permission === 'granted') pushNoti.scheduleWeekEvents();
-        }, afterWrite).catch(() => { calDrawCalendar(); calRenderUpcoming(); pzRenderEvents(); }),
+        }, afterWrite).catch(() => { calRenderViews(); calDrawCalendar(); calRenderUpcoming(); pzRenderEvents(); }),
         apiSWR({ action: 'getCalendarAds' }, r => {
           if (r && r.error) calSt.adErr = r.error; else { calSt.ads = (r && r.rows) || []; calSt.adErr = ''; }
           calRenderAds(); if (window.pzNew) pzNew.board();
@@ -4884,7 +4970,7 @@
       const picked = [];
       // 2026-10-05: 참석 의사 뱃지 포함 렌더링
       const intentIcon = { yes: '✅', maybe: '🤔', no: '❌' };
-      const curWs = calYmd(days[0].getFullYear(), days[0].getMonth(), days[0].getDate()), curWk = calSt.weeks[curWs];   // 2026-10-19
+      const curWs = calYmd(days[0].getFullYear(), days[0].getMonth(), days[0].getDate()), curWk = calSt.view ? null : calSt.weeks[curWs];   // 2026-10-19
       host.innerHTML = (curWk ? `<div class="cal-wk cur">${calWeekBodyHtml(curWk, curWs)}</div>` : '') + days.map(d => {
         const date = calYmd(d.getFullYear(), d.getMonth(), d.getDate()), evs = calEventsOn(date), dow = d.getDay();
         return `<div class="pz-wk-day ${date === CAL_TODAY ? 'today' : ''} ${date < CAL_TODAY ? 'past' : ''} ${evs.length ? '' : 'empty'}">
@@ -5035,20 +5121,26 @@
         document.querySelectorAll('#adqSheet button').forEach(b => { b.disabled = false; });
       } finally { adqSt.busy = false; }
     }
-    document.getElementById('calAddBtn').onclick = () => calOpenAddCategoryPicker();
+    document.getElementById('calAddBtn').onclick = () => {
+      if (!calSt.view) return calOpenAddCategoryPicker();
+      if (!calCanDept(calSt.view)) return toast(`${calViewName(calSt.view)} 일정은 ${calViewName(calSt.view)} 관리자만 올릴 수 있어요.`, true);
+      calOpenAddForm('부서');
+    };
 
     // ============ 2026-09-22 신규: [+ 일정 추가] — 유형(공식/부서/내일정) 먼저 선택 ============
     // 공식은 isAdmin()일 때만 선택지에 노출(관리자만 등록) — 이 앱의 다른 관리자 기능과 동일하게
     // 서버가 아닌 클라이언트에서 가린다. 부서/내일정은 누구나 등록 가능.
     function calOpenAddCategoryPicker() {
-      const opts = isAdmin() ? CAL_CATEGORIES : CAL_CATEGORIES.filter(c => c !== '공식');
+      // 2026-10-27: 부서 일정은 부서 탭에서 올린다 — 여기는 공식(관리자)·내 일정만. 하나뿐이면 바로 입력 칸.
+      const opts = CAL_CATEGORIES.filter(c => c !== '부서' && (c !== '공식' || isAdmin()));
+      if (opts.length === 1) return calOpenAddForm(opts[0]);
       openSheet(`
         <div style="font-size:19px;font-weight:800;margin-bottom:4px">일정 추가</div>
         <div class="cal-hint" style="margin-bottom:14px">어떤 일정을 등록할까요?</div>
         <div style="display:flex;flex-direction:column;gap:10px">
           ${opts.map(c => `<button type="button" class="kko-btn-outline" data-cat="${esc(c)}" style="justify-content:flex-start;padding:0 16px;gap:10px">
             <span style="width:12px;height:12px;border-radius:3px;background:${calCatColor(c)};flex-shrink:0;display:inline-block"></span>
-            <span>${esc(c)}${c === '공식' ? ' (개강일·행사일)' : c === '부서' ? ' (우리 부서 일정)' : ' (나만 보는 개인 일정)'}</span>
+            <span>${c === '공식' ? '전도부 공식 (개강일·행사일)' : c === '부서' ? '부서 (우리 부서 일정)' : '내 일정 (나만 보는 개인 일정)'}</span>
           </button>`).join('')}
         </div>
         <div style="text-align:center;margin-top:14px"><button class="cal-hint" style="background:none;border:none;cursor:pointer" onclick="closeSheet()">취소</button></div>`);
@@ -5065,7 +5157,7 @@
       const f = ex
         ? { eventId: ex.eventId, category, type: ex.type, title: ex.title || '', startDate: ex.startDate, endDate: ex.endDate && ex.endDate !== ex.startDate ? ex.endDate : '', dept: ex.dept || '', region: ex.region || '', place: ex.place || '', desc: ex.desc || '',
             hostDept: ex.hostDept || '', contactName: ex.contactName || '', contactPhone: ex.contactPhone || '', highlight: !!ex.highlight, audience: ex.audience || '', method: ex.method || '', purpose: ex.purpose || '' }
-        : { category, type: category === '공식' ? '행사' : category, title: '', startDate: todayStr(), endDate: '', dept: '', region: '', place: '', desc: '',
+        : { category, type: category === '공식' ? '행사' : category, title: '', startDate: todayStr(), endDate: '', dept: category === '부서' ? calSt.view : '', region: '', place: '', desc: '',
             hostDept: '', contactName: MY_NAME || '', contactPhone: '', audience: '', method: '', purpose: '' };
       const withHost = category !== '내일정';   // 2026-10-15: 공식·부서 일정은 주관 부서와 문의처를 적는다
       const rep0 = !!ex && calIsRepeat(ex);
@@ -5085,10 +5177,10 @@
           <label class="cal-lbl">반복 끝나는 날 <span class="cal-req">*</span></label><input type="date" class="cal-inp" id="calNewUntil">
           <div class="cal-hint" id="calNewRepHint"></div>
         </div>
-        ${category === '부서' ? `<label class="cal-lbl">부서 <span class="cal-req">*</span></label>${calSegHtml('calNewDept', DEPTS5, f.dept)}
+        ${category === '부서' ? `<label class="cal-lbl">부서 <span class="cal-req">*</span></label>${f.dept ? `<div class="cal-inp" style="display:flex;align-items:center;font-weight:800;color:#2D9B6F;background:#F0FAF5">${esc(calViewName(f.dept))}</div>` : calSegHtml('calNewDept', DEPTS5.filter(calCanDept), f.dept)}
         <label class="cal-lbl">지역 <small>(선택 — 비우면 부서 전체 일정)</small></label>
         ${calSegHtml('calNewRegion', CAL_REGION_OPTS, f.region)}
-        <div class="cal-hint">달력에는 "부-1) 제목"처럼 부서·지역이 앞에 붙어요.</div>` : ''}
+        <div class="cal-hint">그 부서 탭 달력에 초록색으로 보이고, 지역을 고르면 "1지역) 제목"처럼 앞에 붙어요.</div>` : ''}
         ${category === '공식' ? `<label class="cal-hl-opt"><input type="checkbox" id="calNewHl" ${f.highlight ? 'checked' : ''}><span class="cal-hl-dot" style="margin:0"></span>강조 표시 <small>달력 일정 오른쪽 위에 빨간 불빛 점</small></label>` : ''}
         ${withHost ? `<label class="cal-lbl"><em class="cal-w">어디서</em>장소</label><input class="cal-inp" id="calNewPlace" maxlength="60" placeholder="예: 덕진동센터, 인후교회 앞" value="${esc(f.place)}">` : ''}
         ${withHost ? `<label class="cal-lbl"><em class="cal-w">누가</em>주관 부서 <span class="cal-req">*</span></label>
@@ -5103,7 +5195,7 @@
         </div>`);
       if (category === '공식') calBindSeg('calNewType', v => { f.type = v; });
       if (category === '부서') {
-        calBindSeg('calNewDept', v => { f.dept = v; });
+        if (document.getElementById('calNewDept')) calBindSeg('calNewDept', v => { f.dept = v; });
         // 2026-09-23: 같은 지역을 다시 누르면 해제 = "부서 전체" 일정으로 돌아간다.
         calBindSeg('calNewRegion', v => { f.region = (f.region === v) ? '' : v; });
       }
@@ -5127,7 +5219,7 @@
       $id('calNewWd').onclick = e => { const b = e.target.closest('button'); if (!b) return; const d = Number(b.dataset.v); wd.has(d) ? wd.delete(d) : wd.add(d); drawWd(); repHint(); };
       $id('calNewUntil').onchange = repHint; $id('calNewStart').addEventListener('change', repHint);
       if (rep0) { $id('calNewRepBox').style.display = ''; $id('calNewEndBox').style.visibility = 'hidden'; $id('calNewUntil').value = ex.repeatUntil; drawWd(); repHint(); }
-      document.getElementById('calNewBack').onclick = () => (ex ? calOpenEvent(ex) : calOpenAddCategoryPicker());
+      document.getElementById('calNewBack').onclick = () => (ex ? calOpenEvent(ex) : category === '부서' ? closeSheet() : calOpenAddCategoryPicker());
       document.getElementById('calNewSave').onclick = async () => {
         f.title = document.getElementById('calNewTitle').value.trim();
         f.startDate = document.getElementById('calNewStart').value;
@@ -7718,7 +7810,7 @@
     function tcTodayEvent() {
       try {
         const today = CAL_TODAY;
-        const evs = calSt.events.filter(e => calIsRepeat(e)
+        const evs = calSt.events.filter(calForMe).filter(e => calIsRepeat(e)
           ? (e.startDate <= today && today <= e.repeatUntil && (e.repeatDays || []).includes(calTodayDate.getDay()))
           : (e.startDate <= today && e.endDate >= today));
         return evs[0] || null;
@@ -7729,7 +7821,7 @@
       try {
         const today = CAL_TODAY;
         const sat = (() => { const d = new Date(calTodayDate); d.setDate(d.getDate() + (6 - d.getDay())); return calYmd(d.getFullYear(), d.getMonth(), d.getDate()); })();
-        const evs = calSt.events.filter(e => {
+        const evs = calSt.events.filter(calForMe).filter(e => {
           if (calIsRepeat(e)) {
             for (let i = 0; i <= 6; i++) {
               const d = new Date(calTodayDate); d.setDate(d.getDate() + i);
@@ -7998,7 +8090,8 @@
           </div>
           ${!people.length ? `<div class="gl-empty">아직 기록한 섭외자가 없어요.<br>오른쪽 아래 <b>＋</b> 버튼으로 첫 기록을 남기면 여기에 칸이 생겨요.</div>` : `
           <div class="er-grid">${people.map(p => { const st = stageTemp(p.stage); return `
-            <button type="button" class="er-tile${erSent(p.stage) ? ' sent' : ''}" onclick="erOpen('${esc(p.name)}')">
+            <div role="button" tabindex="0" class="er-tile${erSent(p.stage) ? ' sent' : ''}" onclick="erOpen('${esc(p.name)}')">
+              <button type="button" class="er-del" title="이 섭외자 삭제" aria-label="이 섭외자 삭제" onclick="event.stopPropagation();erDelAsk('${esc(p.name)}')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
               <span class="er-ava">${esc(p.name.charAt(0))}</span>
               <span class="er-nm">${esc(maskName(p.name))}</span>
               ${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(p.stage)}</span>` : ''}
@@ -8007,7 +8100,7 @@
               ${(n => n ? `<span class="er-un">미보고 ${n}</span>` : '')(p.list.filter(x => !(x.tgPosts || []).some(y => y.kind === 'post')).length)}
               <span class="er-dt">${esc(actFeedTimeText(p.last))}</span>
               ${erSent(p.stage) ? '<span class="er-badge">✍️ 사례</span>' : ''}
-            </button>`; }).join('')}</div>`}
+            </div>`; }).join('')}</div>`}
         </div>`;
     }
     function erDetailHtml(p) {
@@ -8155,6 +8248,36 @@
       renderHome(); document.getElementById('appSections').scrollTop = 0;
     };
     window.erToggleRow = function (id) { erOpenRows.has(id) ? erOpenRows.delete(id) : erOpenRows.add(id); renderHome(); };
+    // 2026-10-27(사용자): 그리드의 섭외자를 지우면 내 이력에서 완전히 사라진다 — 섭외자 정보·단계 이력·활동 기록·AI 피드백/개강 계획까지(되돌릴 수 없음).
+    //   서버 deleteTarget(targetId, 없으면 targetName). 이미 텔레그램 보고방에 올라간 글은 방에 그대로 남는다.
+    window.erDelAsk = function (name) {
+      const p = erPeople().find(x => x.name === name); if (!p) return;
+      openSheet(`
+        <div style="font-size:19px;font-weight:800;color:#DC2626">이 섭외자를 삭제할까요?</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px"><span class="er-ava">${esc(p.name.charAt(0))}</span><b style="font-size:17px">${esc(maskName(p.name))}</b>${p.stage ? `<span style="font-size:13px;color:#6B7280">${esc(p.stage)}</span>` : ''}</div>
+        <div style="font-size:13.5px;color:#4B5563;margin-top:12px;line-height:1.7">
+          · 활동 기록 <b>${p.list.length}건</b>과 교육 이력이 모두 지워져요<br>
+          · 섭외자 정보·단계 이력·단계향상 피드백·개강 계획·SWOT도 함께 지워져요<br>
+          · 이번 달·올해 활동 건수에서도 빠져요<br>
+          · <b style="color:#DC2626">완전히 지워져서 되돌릴 수 없어요</b>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px">
+          <button type="button" class="act-btn-ghost" style="flex:1" onclick="closeSheet()">취소</button>
+          <button type="button" id="erDelGo" style="flex:2;min-height:48px;border-radius:12px;border:0;background:#DC2626;color:#fff;font-size:15px;font-weight:800">영구 삭제</button>
+        </div>`);
+      document.getElementById('erDelGo').onclick = async () => {
+        const btn = document.getElementById('erDelGo'); btn.disabled = true; btn.textContent = '지우는 중...';
+        try {
+          const res = await callApi({ action: 'deleteTarget', memberId: App.memberId, targetId: (p.t && p.t.targetId) || '', targetName: p.name });
+          if (!res || res.error) throw new Error((res && res.error) || '삭제 실패');
+          closeSheet();
+          erSel = ''; erCell = '';
+          await refreshAfterSubmit();
+          renderHome();
+          toast(`${maskName(p.name)} 님을 지웠어요 (기록 ${res.deletedActivities || 0}건)`);
+        } catch (e) { toast('삭제 중 오류: ' + e.message, true); btn.disabled = false; btn.textContent = '영구 삭제'; }
+      };
+    };
     // 사례로 남기기: 서버(writeCaseDraft)가 이 사람 기록 전부로 사례 틀 초안 → 사례 탭 글쓰기 화면을 초안으로 연다(바로 올리지 않음)
     window.erWriteCase = async function (tid) {
       if (erCaseBusy) return;
@@ -8418,7 +8541,8 @@
     // 2026-10-25(사용자): '센터 인도 계획' → '내 센터 인도 계획', 섭외자별 교육 이력을 모아 보는 '내 교육 보고' 탭 추가
     // 2026-10-25(2차, 사용자): '내 활동'과 '내 교육 보고'가 겹침 → '내 활동 보고' 하나로(섭외자 그리드 + 사람별 교육 이력·피드백·보고·사례)
     // 10/25(3차): '내 센터 인도 계획' 탭 없앰 — 사람 화면의 '○월 개강 계획' 칸에서 목표·설계·지난 계획까지
-    const ACT_PAGES = [['attend', '내 교육 출석'], ['targets', '내 활동 보고'], ['edu', '내가 이수한 교육']];   // 순서: 출석·내 활동·센터 인도 계획·내가 이수한 교육(10/23 사용자: 표적 아이콘 뺌)   // 이수 교육 = 예전 교재 탭의 '이수교육'
+    // 10/27(사용자): '내가 이수한 교육' 탭 없앰, '내 활동 보고'가 맨 앞(메인 중 메인)·'내 교육 출석'은 그 오른쪽
+    const ACT_PAGES = [['targets', '내 활동 보고'], ['attend', '내 교육 출석']];
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
@@ -11646,7 +11770,7 @@ function tbSearchRender() {
       const chips = `<div class="l3 vd-chips lc-chips">${[['', '전체']].concat(LC_PARTS.map(p => [p, p === '우수복음방교육' ? '⭐ 우수복음방교육' : p])).map(([k, t]) =>
         `<button type="button" class="${lcState.part === k ? 'on' : ''}${k === '우수복음방교육' ? ' lc-best-chip' : ''}" data-lc-part="${esc(k)}">${esc(t)}</button>`).join('')}</div>`;
       body.innerHTML = `${chips}
-        <div class="lc-hero"><b>🎓 교사교육(인터넷강의) — 우수 강의를 차례대로</b><span>교사·교관님들의 좋은 강의를 강좌로 묶었어요. 한 강을 <b>90% 이상</b> 보면 이수되고, 모든 강을 마치면 <b>나의교실 › 내가 이수한 교육</b>에 남아요. 강마다 요약·녹취·교안·퀴즈도 함께 볼 수 있어요.</span></div>
+        <div class="lc-hero"><b>🎓 교사교육(인터넷강의) — 우수 강의를 차례대로</b><span>교사·교관님들의 좋은 강의를 강좌로 묶었어요. 한 강을 <b>90% 이상</b> 보면 이수되고, 모든 강을 마치면 그 강좌가 <b>이수</b>로 기록돼요. 강마다 요약·녹취·교안·퀴즈도 함께 볼 수 있어요.</span></div>
         ${going.length && !lcState.part ? `<div class="vd-sub">▶ 이어서 듣기</div><div class="lc-grid">${going.map(lcCardHtml).join('')}</div>` : ''}
         <div class="vd-head"><div><b>강좌 ${list.length}개</b><span>${lcState.part ? esc(lcState.part) + ' 강좌' : '우수 강의가 먼저 보여요'}</span></div>${adm ? '<button type="button" class="vd-add" data-lc-new="1">+ 강좌 만들기</button>' : ''}</div>
         ${list.length ? `<div class="lc-grid">${list.map(lcCardHtml).join('')}</div>`
