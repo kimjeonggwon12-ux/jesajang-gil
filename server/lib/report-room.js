@@ -384,6 +384,10 @@ export async function reportRooms(body) {
     }
     return { rooms: out };
   }
+  if (op === 'admins') {   // 방 관리자 목록(다른 봇이 있는지 보기용, 글 안 올림)
+    const j = await (await fetch(`https://api.telegram.org/bot${botToken()}/getChatAdministrators?chat_id=${encodeURIComponent(String(body.chatId || ''))}`)).json().catch(() => ({}));
+    return j.ok ? { admins: j.result.map((a) => ({ name: [a.user.first_name, a.user.last_name].filter(Boolean).join(' '), username: a.user.username || '', bot: a.user.is_bot })) } : { error: j.description };
+  }
   if (op === 'check') {   // 글을 올리지 않고 봇이 그 방에 있는지·글을 쓸 수 있는지만 본다
     // 앱의 봇 셋(교사광장·출석·활동 알림)을 모두 본다 — 다른 봇을 초대했는지도 알 수 있게
     const chatId = String(body.chatId || '');

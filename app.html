@@ -2759,6 +2759,18 @@
     .pz-qr-ov-t { font-size:clamp(22px, 4vw, 40px); font-weight:900; letter-spacing:-0.03em; color:#111; text-align:center; }
     .pz-qr-ov-s { font-size:clamp(15px, 2.2vw, 22px); color:#374151; text-align:center; line-height:1.5; word-break:keep-all; }
     .pz-qr-ov img { width:min(78vw, calc(100vh - 260px)); height:auto; image-rendering:pixelated; }
+    /* 2026-10-27 개인 핀번호 확인 화면(입장 직후 앱을 가림) */
+    .pin-ov { position:fixed; inset:0; z-index:10060; background:#F2FBF7; display:flex; align-items:center; justify-content:center; padding:20px; }
+    .pin-box { width:100%; max-width:360px; text-align:center; background:#fff; border-radius:20px; padding:28px 22px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
+    .pin-ic { font-size:40px; }
+    .pin-t { margin-top:6px; font-size:20px; font-weight:800; color:#111; }
+    .pin-sub { margin-top:6px; font-size:13.5px; line-height:1.6; color:#6B7280; word-break:keep-all; }
+    .pin-in { display:block; width:100%; height:52px; margin:16px 0 0; border:1.5px solid #CDEFE2; border-radius:12px; text-align:center; font-size:24px; letter-spacing:.4em; outline:none; background:#fff; }
+    .pin-in:focus { border-color:#00AE82; }
+    .pin-err { min-height:20px; margin-top:8px; font-size:13px; line-height:1.5; color:#DC2626; word-break:keep-all; }
+    .pin-go { width:100%; height:48px; margin-top:4px; border:none; border-radius:12px; background:#00AE82; color:#fff; font-size:16px; font-weight:800; cursor:pointer; }
+    .pin-go:disabled { opacity:.6; }
+    .pin-link { display:block; width:100%; margin-top:10px; border:none; background:none; color:#6B7280; font-size:13.5px; text-decoration:underline; cursor:pointer; }
     .pz-qr-ov-x { position:absolute; top:14px; right:14px; width:44px; height:44px; border:none; border-radius:50%; background:#F3F4F6; font-size:22px; cursor:pointer; }
     /* 연결 — 검색칸 + [필터] 하나로 접기 */
     .cn-fbar { display:flex; gap:8px; align-items:center; }
@@ -3483,12 +3495,13 @@
       // 2026-10-08: 출석 QR(#attend=)로 들어온 첫 화면 = '출석 전용' — 서버 요청을 출석 2번(모임 정보·제출)만.
       // 400명이 한꺼번에 찍으면 1인당 13번(나의교실·명단·알림…)씩 5,000번이 몰려 구글 동시 실행 한도(약 30)에 걸려 'Failed'.
       // 나머지는 출석 창을 닫을 때(attLeaveQrOnly) 불러옴.
-      if (/^#attend=/.test(location.hash || '')) { App.qrOnly = true; logVisitOnce(id, nm); enterFromHash(); return; }
+      if (/^#attend=/.test(location.hash || '')) { App.qrOnly = true; logVisitOnce(id, nm); enterFromHash(); pinGuard(id, nm); return; }
       loadMyRosterRow();   // 명단에서 내 직책·부서를 확인해 관리자 탭 노출 결정
       logVisitOnce(id, nm);
       enterFromHash();
       showInstallToastIfNeeded();
       setTimeout(pdWelcomeGuide, 900);   // 첫 화면이 그려진 뒤에
+      pinGuard(id, nm);   // 2026-10-27: 핀번호를 정한 사람이면 새 기기에서 핀 확인
     }
     // 2026-10-20: 앱 접속 횟수 — 이 창(탭)에서 처음 입장할 때 한 번만 센다(새로 고침은 안 셈). 관리자 테스트 링크는 안 셈.
     function logVisitOnce(id, nm) {
@@ -3850,7 +3863,9 @@
             ? '고유번호가 이 기기에 저장돼 있어요. 다음에 열 때도 입력 없이 바로 들어옵니다.'
             : '이 기기에는 고유번호가 저장돼 있지 않아요.'}
         </div>
-        <button class="kko-btn-outline" id="acct-home">🏠 홈으로 (표지부터 다시 시작)</button>
+        <button class="kko-btn-outline" id="acct-pin">🔒 핀번호 설정 (남이 내 번호로 못 들어오게)</button>
+        ${isAdmin() ? '<button class="kko-btn-outline" style="margin-top:8px" id="acct-pin-reset">🔓 교사 핀번호 초기화 (관리자)</button>' : ''}
+        <button class="kko-btn-outline" style="margin-top:8px" id="acct-home">🏠 홈으로 (표지부터 다시 시작)</button>
         ${pdIsOwnerDevice() ? '<button class="kko-btn-outline" style="margin-top:8px" id="acct-other">다른 번호로 입장 (관리자 기기 해제)</button>' : ''}
         <button class="kko-btn-main" style="margin-top:8px" id="acct-close">닫기</button>
       `);
@@ -3862,6 +3877,125 @@
       if (home) home.onclick = goToCover;
       const other = document.getElementById('acct-other');
       if (other) other.onclick = () => { pdSetOwnerDevice(false); goToCover(); };
+      const pinB = document.getElementById('acct-pin'); if (pinB) pinB.onclick = pinOpenSettings;
+      const pinR = document.getElementById('acct-pin-reset'); if (pinR) pinR.onclick = pinOpenReset;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 2026-10-27 개인 핀번호 (원하는 사람만, 관리자도 선택) — 사용자: "남이 내 고유번호·이름을 치고 들어올 수 있으니".
+    //  · 핀을 정한 사람이 이 기기에서 아직 핀을 확인하지 않았으면(또는 핀이 바뀌었으면) 입장 직후 핀 화면으로 가린다.
+    //  · 이 기기에서 확인한 것은 localStorage(podo_pin = {id, ver})에 — 같은 기기는 다시 묻지 않음.
+    //  · 서버(pinStatus)에 닿지 못하면 막지 않는다(핀 때문에 못 들어오는 일이 없게).
+    // ════════════════════════════════════════════════════════════════
+    const PD_PIN_KEY = 'podo_pin';
+    const pinNid = v => String(v || '').replace(/[^0-9]/g, '');
+    function pinLocal() { try { return JSON.parse(localStorage.getItem(PD_PIN_KEY) || 'null'); } catch (e) { return null; } }
+    function pinRemember(id, ver) { try { localStorage.setItem(PD_PIN_KEY, JSON.stringify({ id: pinNid(id), ver: ver || '' })); } catch (e) {} }
+    function pinCover(html) {
+      let ov = document.getElementById('pinCover');
+      if (!ov) { ov = document.createElement('div'); ov.id = 'pinCover'; ov.className = 'pin-ov'; document.body.appendChild(ov); }
+      ov.innerHTML = html;
+      return ov;
+    }
+    const pinUncover = () => { const ov = document.getElementById('pinCover'); if (ov) ov.remove(); };
+    async function pinGuard(id, nm) {
+      const local = pinLocal();
+      const known = local && local.id === pinNid(id);
+      // 이 기기에서 처음 보는 번호면 확인 끝날 때까지 화면을 가린다(남의 화면이 잠깐이라도 보이지 않게)
+      if (!known) pinCover('<div class="pin-box"><span class="loading loading-spinner"></span><div class="pin-sub" style="margin-top:12px">확인 중...</div></div>');
+      let st = null;
+      try { st = await callApi({ action: 'pinStatus', memberId: id }); } catch (e) {}
+      if (!st || st.error) { if (!known) pinUncover(); return; }
+      if (!st.hasPin) { pinRemember(id, ''); pinUncover(); return; }
+      if (known && local.ver === st.ver) { pinUncover(); return; }
+      pinAsk(id, nm);
+    }
+    function pinAsk(id, nm, msg) {
+      const ov = pinCover(`<div class="pin-box">
+          <div class="pin-ic">🔒</div>
+          <div class="pin-t">핀번호를 넣어 주세요</div>
+          <div class="pin-sub"><b>${esc(nm || '')}</b> 님은 핀번호를 정해 두셨어요.<br>이 기기에서 처음 한 번만 확인해요.</div>
+          <input id="pinIn" class="pin-in" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="숫자 4~6자리">
+          <div class="pin-err" id="pinErr">${esc(msg || '')}</div>
+          <button type="button" class="pin-go" id="pinGo">확인</button>
+          <button type="button" class="pin-link" id="pinOther">다른 번호로 입장</button>
+          <button type="button" class="pin-link" id="pinForgot">핀번호를 잊었어요</button>
+        </div>`);
+      const inp = ov.querySelector('#pinIn'), err = ov.querySelector('#pinErr'), go = ov.querySelector('#pinGo');
+      setTimeout(() => inp.focus(), 50);
+      const submit = async () => {
+        const pin = inp.value.trim();
+        if (!/^\d{4,6}$/.test(pin)) { err.textContent = '숫자 4~6자리를 넣어 주세요.'; return; }
+        go.disabled = true; go.textContent = '확인 중...';
+        let r = null;
+        try { r = await callApi({ action: 'verifyPin', memberId: id, pin }); } catch (e) { r = { error: '연결이 원활하지 않아요. 잠시 후 다시 해 주세요.' }; }
+        if (r && r.ok) { pinRemember(id, r.ver); pinUncover(); toast('확인됐어요. 이 기기는 다음부터 묻지 않아요.'); return; }
+        go.disabled = false; go.textContent = '확인'; inp.value = ''; inp.focus();
+        err.textContent = (r && r.error) || '핀번호가 맞지 않아요.';
+      };
+      go.onclick = submit;
+      inp.onkeydown = e => { if (e.key === 'Enter') submit(); };
+      ov.querySelector('#pinOther').onclick = () => { pdSetOwnerDevice(false); goToCover(); };
+      ov.querySelector('#pinForgot').onclick = () => { err.textContent = '교육·전도 담당 관리자에게 "핀번호 초기화"를 부탁해 주세요. 초기화되면 번호·이름만으로 들어와 다시 정할 수 있어요.'; };
+    }
+
+    /** 내 계정 → 핀번호 설정·바꾸기·끄기 */
+    async function pinOpenSettings() {
+      openSheet('<div style="text-align:center;padding:30px 0"><span class="loading loading-spinner"></span></div>');
+      let st = null;
+      try { st = await callApi({ action: 'pinStatus', memberId: App.memberId }); } catch (e) {}
+      const has = !!(st && st.hasPin);
+      const field = (id, ph) => `<input id="${id}" class="pin-in" style="margin:6px 0 0" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="${ph}">`;
+      openSheet(`
+        <div style="font-size:20px;font-weight:800;margin-bottom:6px">🔒 핀번호 ${has ? '바꾸기' : '정하기'}</div>
+        <div style="font-size:13.5px;color:#6B7280;line-height:1.6;margin-bottom:12px">
+          ${has ? '지금 핀번호가 정해져 있어요. 바꾸거나 끌 수 있어요.' : '핀번호를 정하면 <b>새 휴대폰·남의 기기</b>에서 내 번호로 들어올 때 핀번호를 한 번 더 물어요.<br>지금 이 기기는 다시 묻지 않아요. (원하는 사람만 — 안 정해도 돼요)'}
+        </div>
+        ${has ? field('pinOld', '지금 핀번호') : ''}
+        ${field('pinNew', '새 핀번호 (숫자 4~6자리)')}
+        ${field('pinNew2', '새 핀번호 한 번 더')}
+        <div class="pin-err" id="pinSetErr" style="text-align:left"></div>
+        <button type="button" class="kko-btn-main" id="pinSave" style="margin-top:6px">${has ? '바꾸기' : '정하기'}</button>
+        ${has ? '<button type="button" class="kko-btn-outline" id="pinOff" style="margin-top:8px">핀번호 끄기 (지금 핀번호 필요)</button>' : ''}
+        <button type="button" class="kko-btn-outline" style="margin-top:8px" onclick="closeSheet()">닫기</button>`);
+      const err = document.getElementById('pinSetErr');
+      const val = id => (document.getElementById(id) || {}).value || '';
+      document.getElementById('pinSave').onclick = async () => {
+        const p1 = val('pinNew').trim(), p2 = val('pinNew2').trim();
+        if (!/^\d{4,6}$/.test(p1)) { err.textContent = '새 핀번호는 숫자 4~6자리로 넣어 주세요.'; return; }
+        if (p1 !== p2) { err.textContent = '새 핀번호 두 번이 서로 달라요.'; return; }
+        const r = await callApi({ action: 'setPin', memberId: App.memberId, pin: p1, oldPin: val('pinOld').trim() }).catch(() => ({ error: '연결이 원활하지 않아요.' }));
+        if (!r || r.error) { err.textContent = (r && r.error) || '저장하지 못했어요.'; return; }
+        pinRemember(App.memberId, r.ver);
+        closeSheet(); toast(has ? '핀번호를 바꿨어요.' : '핀번호를 정했어요. 새 기기에서 들어올 때 물어봐요.');
+      };
+      const off = document.getElementById('pinOff');
+      if (off) off.onclick = async () => {
+        const old = val('pinOld').trim();
+        if (!old) { err.textContent = '끄려면 맨 위에 지금 핀번호를 넣어 주세요.'; return; }
+        const r = await callApi({ action: 'removePin', memberId: App.memberId, pin: old }).catch(() => ({ error: '연결이 원활하지 않아요.' }));
+        if (!r || r.error) { err.textContent = (r && r.error) || '끄지 못했어요.'; return; }
+        pinRemember(App.memberId, '');
+        closeSheet(); toast('핀번호를 껐어요.');
+      };
+    }
+
+    /** 관리자 → 핀을 잊은 교사의 핀 지우기 */
+    function pinOpenReset() {
+      openSheet(`
+        <div style="font-size:20px;font-weight:800;margin-bottom:6px">🔓 교사 핀번호 초기화</div>
+        <div style="font-size:13.5px;color:#6B7280;line-height:1.6;margin-bottom:12px">핀번호를 잊은 교사의 고유번호를 넣으면 핀번호가 지워져요. 그 교사는 번호·이름만으로 들어와 다시 정할 수 있어요.<br>(교육·전도 담당 관리자만 할 수 있어요)</div>
+        <input id="pinRid" class="pin-in" style="margin:0;letter-spacing:normal" inputmode="numeric" maxlength="20" placeholder="고유번호 (예: 00210118-00020)">
+        <div class="pin-err" id="pinRErr" style="text-align:left"></div>
+        <button type="button" class="kko-btn-main" id="pinRGo" style="margin-top:6px">초기화</button>
+        <button type="button" class="kko-btn-outline" style="margin-top:8px" onclick="closeSheet()">닫기</button>`);
+      document.getElementById('pinRGo').onclick = async () => {
+        const tid = document.getElementById('pinRid').value.trim(), err = document.getElementById('pinRErr');
+        if (!tid) { err.textContent = '고유번호를 넣어 주세요.'; return; }
+        const r = await callApi({ action: 'resetPin', memberId: App.memberId, targetId: tid }).catch(() => ({ error: '연결이 원활하지 않아요.' }));
+        if (!r || r.error) { err.textContent = (r && r.error) || '초기화하지 못했어요.'; return; }
+        closeSheet(); toast(r.had ? '핀번호를 지웠어요. 그 교사에게 다시 정하라고 알려 주세요.' : '그 번호는 핀번호가 정해져 있지 않아요.');
+      };
     }
 
     /**

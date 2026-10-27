@@ -23,6 +23,7 @@ import bot from './actions/bot.js';
 import cohorts from './actions/cohorts.js';
 import cohortBot from './actions/cohort-bot.js';
 import cohortSchedule from './actions/cohort-schedule.js';
+import pins from './actions/pins.js';
 
 export const actions = {
   ...roster,
@@ -49,4 +50,5 @@ export const actions = {
   ...cohorts,
   ...cohortBot,
   ...cohortSchedule,
+  ...pins,
 };
