@@ -347,7 +347,8 @@ export async function reportRooms(body) {
     const date = /^\d{4}-\d{2}-\d{2}$/.test(String(body.date || '')) ? String(body.date) : kstDate();
     const key = String(body.dept || '');
     const list = key.includes('#') ? await buildSummaryReports(date, key) : [...await buildDailyReports(date, key), ...(key ? [] : await buildSummaryReports(date))];
-    if (body.send) for (const r of list) await sendText(r.room.chat_id, r.html ? r.text : esc(r.text));
+    const pre = body.label ? `🧪 <b>${esc(String(body.label).slice(0, 60))}</b>\n` : '';   // 시험 보내기 표시(예: '샘플')
+    if (body.send) for (const r of list) await sendText(r.room.chat_id, pre + (r.html ? r.text : esc(r.text)));
     return { date, reports: list.map((r) => ({ dept: r.room.dept, title: r.room.title, count: r.count, text: r.text })), sent: !!body.send };
   }
   if (op === 'set') {
