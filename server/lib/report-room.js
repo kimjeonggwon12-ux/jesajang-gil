@@ -318,9 +318,10 @@ async function sendDaily(r, pre = '') {
       form.set('parse_mode', 'HTML');
       form.set('photo', new Blob([r.png], { type: 'image/png' }), 'summary.png');
       const j = await (await fetch(`https://api.telegram.org/bot${botToken()}/sendPhoto`, { method: 'POST', body: form })).json().catch(() => ({}));
-      if (j.ok) return j.result.message_id;
-      console.log('총합 사진 실패, 글로 보냄: ' + (j.description || ''));
-    } catch (e) { console.log('총합 사진 실패, 글로 보냄: ' + e.message); }
+      if (j.ok) { r.via = '사진'; return j.result.message_id; }
+      r.photoError = j.description || '';
+      console.log('총합 사진 실패, 글로 보냄: ' + r.photoError);
+    } catch (e) { r.photoError = e.message; console.log('총합 사진 실패, 글로 보냄: ' + e.message); }
   }
   return sendText(r.room.chat_id, pre + (r.html ? r.text : esc(r.text)));
 }
@@ -393,7 +394,7 @@ export async function reportRooms(body) {
     const list = key.includes('#') ? await buildSummaryReports(date, key) : [...await buildDailyReports(date, key), ...(key ? [] : await buildSummaryReports(date))];
     const pre = body.label ? `🧪 <b>${esc(String(body.label).slice(0, 60))}</b>\n` : '';   // 시험 보내기 표시(예: '샘플')
     if (body.send) for (const r of list) await sendDaily(r, pre);
-    return { date, reports: list.map((r) => ({ dept: r.room.dept, title: r.room.title, count: r.count, text: r.text })), sent: !!body.send };
+    return { date, reports: list.map((r) => ({ dept: r.room.dept, title: r.room.title, count: r.count, text: r.text, via: r.via || (body.send ? '글' : ''), photoError: r.photoError })), sent: !!body.send };
   }
   if (op === 'set') {
     const dept = String(body.dept || '').trim(), chatId = String(body.chatId || '').trim();
