@@ -254,10 +254,10 @@ export function summaryBoard(dept, date, orgs, actsByOrg) {
   // 사진 아래 설명(신청 현황 글 모양)
   const caption = [
     `📊 <b>${esc(title)}</b> (${day})`, '',
-    `📌 합계 · <b>${sum}건</b>`,
-    `🗂️ 보고 올라온 조직 · ${done}/${orgs.length}`, '',
-    '🧭 단계별 토탈',
-    ...SUMMARY_COLS.map(([l, e], i) => `   - ${e}${l} — ${total[i]}건`),
+    `📌 <b>합계</b> : <b>${sum}건</b>`,
+    `🗂️ <b>보고 올라온 조직</b> : ${done}/${orgs.length}`, '',
+    '🧭 <b>단계별 토탈</b>',
+    ...SUMMARY_COLS.map(([l, e], i) => `${e} <b>${l}</b> : ${total[i]}건`),
   ].join('\n');
   // 사진을 못 보낼 때의 글: 조직마다 줄을 바꿔 단계별 숫자
   const text = [
