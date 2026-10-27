@@ -449,8 +449,10 @@ export async function handleAttendUpdate(update) {
     return;
   }
   if (!msg || !msg.from || msg.from.is_bot) return;
+  // 10/27: 부녀회 지역장+교관방 — '일일보고' 주제에 누가 글을 쓰면 총합이 그 주제로 가게 번호를 배운다
+  if (msg.is_topic_message && (await (await import('../lib/report-room.js')).learnSummaryTopic(msg).catch(() => false))) return;
   const text = String(msg.text || msg.caption || '').trim();
-  if (/^\/?방번호/.test(text)) { await reply(msg, `이 방 번호: ${chat.id}`); return; }
+  if (/^\/?방번호/.test(text)) { await reply(msg, `이 방 번호: ${chat.id}${msg.is_topic_message ? ` · 주제 번호: ${msg.message_thread_id}` : ''}`); return; }
   const c = await cohortOfChat(chat.id);
   if (!c) return;
   let m;

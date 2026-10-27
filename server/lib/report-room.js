@@ -66,14 +66,16 @@ async function tg(method, body) {
 const replyTo = (id) => (id ? { reply_parameters: { message_id: Number(id), allow_sending_without_reply: true } } : {});
 
 /** 글 하나 보내기 → 보낸 글 번호(실패하면 Error). 4096자 넘으면 잘라서 앞부분만. 본문은 esc 로 이스케이프해서 넘길 것. */
+// 10/27: 주제(토픽)가 있는 방은 chat_id 를 '-100…/주제번호'로 적는다(부녀회 지역장+교관방의 '일일보고' 주제).
+const target = (chatId) => { const [id, th] = String(chatId).split('/'); return { chat_id: id, ...(th ? { message_thread_id: Number(th) } : {}) }; };
 async function sendText(chatId, text, reply) {
-  const res = await tg('sendMessage', { chat_id: chatId, text: String(text).slice(0, 4096), parse_mode: 'HTML', ...replyTo(reply) });
+  const res = await tg('sendMessage', { ...target(chatId), text: String(text).slice(0, 4096), parse_mode: 'HTML', ...replyTo(reply) });
   return res.message_id;
 }
 /** 사진 묶음(1~3장, R2 주소) → 첫 사진 글 번호. caption 은 첫 사진 아래에 붙는다(1024자까지). */
 async function sendAlbum(chatId, urls, caption, reply) {
   const media = urls.map((u, i) => ({ type: 'photo', media: u, ...(i === 0 && caption ? { caption, parse_mode: 'HTML' } : {}) }));
-  const res = await tg('sendMediaGroup', { chat_id: chatId, media, ...replyTo(reply) });
+  const res = await tg('sendMediaGroup', { ...target(chatId), media, ...replyTo(reply) });
   return res[0].message_id;
 }
 const visibleLen = (html) => html.replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt);/g, '_').length;
@@ -264,6 +266,20 @@ export async function buildSummaryReports(date, onlyKey = '') {
     const count = [...actsByOrg.values()].reduce((n, l) => n + l.length, 0);
     return { room, count, text: summaryText(dept, date, orgs, actsByOrg), html: true };
   });
+}
+
+/**
+ * 출석 봇이 받은 글 하나 — 총합 방('…#총합')에 주제 번호가 아직 없고, 그 글이 이름에 '일일보고'가 든 주제에서 왔으면
+ * 그 주제로 연결한다(봇 API 로는 주제 목록을 못 읽어서, 그 주제에 누가 글을 쓰면 번호를 안다). 연결했으면 true.
+ */
+export async function learnSummaryTopic(msg) {
+  const th = msg && msg.is_topic_message && msg.message_thread_id;
+  const name = String((msg && msg.reply_to_message && msg.reply_to_message.forum_topic_created && msg.reply_to_message.forum_topic_created.name) || '').replace(/\s/g, '');
+  if (!th || !name.includes('일일보고')) return false;
+  const rows = await run(db().from('report_rooms').select('dept, chat_id').eq('chat_id', String(msg.chat.id)).like('dept', '%#총합')).catch(() => []);
+  for (const r of rows) await run(db().from('report_rooms').update({ chat_id: `${msg.chat.id}/${th}` }).eq('dept', r.dept));
+  if (rows.length) await sendText(`${msg.chat.id}/${th}`, '✅ 이 주제(일일보고)로 매일 22시 지역별 일일 보고 총합이 올라와요.').catch(() => {});
+  return rows.length > 0;
 }
 
 /** 5분마다: 22시가 지나면 오늘 일일 보고를 방마다 한 번씩. */
