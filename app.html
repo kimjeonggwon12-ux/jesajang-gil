@@ -2748,6 +2748,18 @@
     .pz-ev-btns { display:flex; gap:8px; margin-top:12px; }
     .pz-ev-btns button { flex:1; height:40px; border-radius:11px; font-size:14px; font-weight:800; cursor:pointer; border:1.5px solid #00AE82; background:#fff; color:#00936E; }
     .pz-ev-btns button:first-child { background:#00AE82; color:#fff; }
+    /* 2026-10-27(사용자): 신청 받는 행사 오른쪽에 '앱 설치 QR' 카드(부서 모임 때 화면에 띄워 찍게) — 크기는 행사 카드와 같게, 누르면 크게 */
+    .pz-qr-row { display:flex; align-items:center; gap:16px; margin-top:10px; flex:1; }
+    .pz-qr-img { flex-shrink:0; width:150px; height:150px; padding:8px; border-radius:12px; background:#fff; border:1px solid #CDEFE2; display:flex; align-items:center; justify-content:center; }
+    .pz-qr-img img, .pz-qr-img canvas { width:100% !important; height:100% !important; image-rendering:pixelated; }
+    .pz-qr-txt { min-width:0; font-size:13.5px; line-height:1.55; color:#374151; word-break:keep-all; }
+    .pz-qr-txt b { display:block; margin-bottom:4px; font-size:17px; font-weight:800; color:#111; }
+    .pz-qr-zoom { display:inline-block; margin-top:8px; padding:4px 10px; border-radius:999px; background:#00AE82; color:#fff; font-size:12.5px; font-weight:800; }
+    .pz-qr-ov { position:fixed; inset:0; z-index:10050; background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:20px; cursor:pointer; }
+    .pz-qr-ov-t { font-size:clamp(22px, 4vw, 40px); font-weight:900; letter-spacing:-0.03em; color:#111; text-align:center; }
+    .pz-qr-ov-s { font-size:clamp(15px, 2.2vw, 22px); color:#374151; text-align:center; line-height:1.5; word-break:keep-all; }
+    .pz-qr-ov img { width:min(78vw, calc(100vh - 260px)); height:auto; image-rendering:pixelated; }
+    .pz-qr-ov-x { position:absolute; top:14px; right:14px; width:44px; height:44px; border:none; border-radius:50%; background:#F3F4F6; font-size:22px; cursor:pointer; }
     /* 연결 — 검색칸 + [필터] 하나로 접기 */
     .cn-fbar { display:flex; gap:8px; align-items:center; }
     .cn-fbar .kko-input { flex:1; min-width:0; margin:0 !important; }
@@ -4911,11 +4923,42 @@
           ${calPlanView(e, 'pz-ev-p')}
           <div class="pz-ev-btns"><button type="button" data-ev-go="staff">스탭·기능자 신청</button><button type="button" data-ev-go="att">참석자 신청</button></div>
         </div>`;
-      }).join('');
+      }).join('') + `<div class="pz-ev pz-qr" id="pzInstallQr" title="누르면 크게 보기">
+          <div class="pz-ev-top"><span class="pz-ev-tag">📲 교사광장 앱 설치 QR</span><span class="pz-ev-dd">부서 모임용</span></div>
+          <div class="pz-qr-row"><div class="pz-qr-img">${PZ_QR.src ? `<img src="${PZ_QR.src}" alt="교사광장 앱 설치 QR">` : '<span class="loading loading-spinner"></span>'}</div>
+            <div class="pz-qr-txt"><b>휴대폰 카메라로 찍어 주세요</b>교사광장이 열리면 오른쪽 위 <b style="display:inline;font-size:inherit;color:#E8590C">앱 설치</b>를 눌러 홈 화면에 설치해요.<br><span class="pz-qr-zoom">🔍 누르면 크게 보기</span></div></div>
+        </div>`;
+      const qc = document.getElementById('pzInstallQr'); if (qc) qc.onclick = pzQrZoom;
+      if (!PZ_QR.src) pzQrMake().then(() => { const im = document.querySelector('#pzInstallQr .pz-qr-img'); if (im && PZ_QR.src) im.innerHTML = `<img src="${PZ_QR.src}" alt="교사광장 앱 설치 QR">`; });
       box.querySelectorAll('[data-ev]').forEach(c => {
         const e = list[Number(c.dataset.ev)];
         c.onclick = ev => { const k = ev.target.closest('[data-ev-go]'); if (k) pzEvGo(e, k.dataset.evGo); else calOpenEvent(e); };
       });
+    }
+    // 앱 설치 QR — 주소는 교사광장 첫 화면(로그인 → 오른쪽 위 '앱 설치'). 한 번 만든 그림을 다시 쓴다.
+    const PZ_QR = { url: location.origin + '/', src: '' };
+    async function pzQrMake() {
+      try {
+        await attLoadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js');
+        const tmp = document.createElement('div');
+        new window.QRCode(tmp, { text: PZ_QR.url, width: 600, height: 600, correctLevel: window.QRCode.CorrectLevel.M });
+        const cv = tmp.querySelector('canvas');
+        PZ_QR.src = cv ? cv.toDataURL('image/png') : (tmp.querySelector('img') || {}).src || '';
+      } catch (e) {}
+    }
+    async function pzQrZoom() {
+      if (!PZ_QR.src) await pzQrMake();
+      if (!PZ_QR.src) { toast('QR을 만들지 못했어요. 인터넷 연결을 확인해 주세요.'); return; }
+      const ov = document.createElement('div');
+      ov.className = 'pz-qr-ov';
+      ov.innerHTML = `<button type="button" class="pz-qr-ov-x" aria-label="닫기">✕</button>
+        <div class="pz-qr-ov-t">📲 교사광장 앱 설치</div>
+        <img src="${PZ_QR.src}" alt="교사광장 앱 설치 QR">
+        <div class="pz-qr-ov-s">휴대폰 카메라로 찍으면 교사광장이 열려요.<br>로그인 후 오른쪽 위 <b style="color:#E8590C">앱 설치</b>를 눌러 주세요.</div>`;
+      document.body.appendChild(ov);
+      const close = () => ov.remove();
+      Back.open('pzqr', close);
+      ov.onclick = () => { Back.closed('pzqr'); close(); };
     }
     async function pzEvGo(e, kind) {
       calCur = e; calMine = { staff: null, attendees: [], totalAttendees: 0 };
