@@ -649,6 +649,12 @@
     .cal-dtabs button.main { flex:1.8 1 0; border-color:#BFD3F6; color:#2F6FDE; }
     .cal-dtabs button.on { background:#2D9B6F; border-color:#2D9B6F; color:#fff; }
     .cal-dtabs button.main.on { background:#2F6FDE; border-color:#2F6FDE; }
+    .cal-dtabs { padding-top:9px; }
+    .cal-dtabs button { position:relative; overflow:visible; }
+    .cal-dt-new { position:absolute; top:-8px; right:-3px; height:15px; padding:0 5px; display:inline-flex; align-items:center; border-radius:99px; overflow:hidden; font-style:normal;
+      background:linear-gradient(135deg,#FF3B5C,#FF8A00); border:1.5px solid #fff; color:#fff; font-size:8.5px; font-weight:900; line-height:1; box-shadow:0 2px 5px rgba(255,59,92,.45); animation:newBob 1.6s ease-in-out infinite; z-index:1; }
+    .cal-dt-new::after { content:''; position:absolute; top:0; left:-60%; width:40%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent); transform:skewX(-20deg); animation:newShine 2.4s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .cal-dt-new, .cal-dt-new::after { animation:none; } }
     .cal-dtab-note { font-size:12.5px; color:#6B7280; margin:-4px 0 10px; }
     .cal-dtab-note:empty { display:none; }
     .cal-legend { display:flex; gap:14px; font-size:12px; color:var(--color-text-sub); margin-top:8px; }
@@ -4624,7 +4630,9 @@
     const calCanDept = d => calSt.deptManager === 'all' || (!!d && calSt.deptManager === d);
     function calRenderViews() {
       const tabs = document.getElementById('calDeptTabs'); if (!tabs) return;
-      tabs.innerHTML = CAL_VIEWS.map(([v, l]) => `<button type="button" class="${v ? '' : 'main'}${v === calSt.view ? ' on' : ''}" data-cv="${v}" title="${l}">${v || l}</button>`).join('');
+      // 10/28(사용자): 탭마다 최근 3일 안에 새로 올라온 일정이 있으면 NEW — 열어 봐도 3일 동안은 그대로 둠
+      const hasNew = v => (calSt.events || []).some(e => calIsNew(e) && (v ? e.category === '부서' && calDeptOf(e) === v : e.category === '공식'));
+      tabs.innerHTML = CAL_VIEWS.map(([v, l]) => `<button type="button" class="${v ? '' : 'main'}${v === calSt.view ? ' on' : ''}" data-cv="${v}" title="${l}">${v || l}${hasNew(v) ? '<i class="cal-dt-new">NEW</i>' : ''}</button>`).join('');
       tabs.querySelectorAll('[data-cv]').forEach(b => { b.onclick = () => { calSt.view = b.dataset.cv; calRenderViews(); calDrawCalendar(); calRenderUpcoming(); }; });
       const v = calSt.view, nm = calViewName(v);
       document.getElementById('calDeptNote').innerHTML = v
