@@ -994,6 +994,11 @@
     .er-head-m { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
     .er-head-n { display:flex; align-items:center; gap:7px; font-size:22px; font-weight:900; color:#111; letter-spacing:-0.03em; }
     .er-head-i { font-size:12.5px; color:#6B7280; }
+    /* 10/28: 이름 오른쪽 [수정·재보고하기] — 가장 최근 기록을 그대로 불러와 고치기 */
+    .er-redo { flex-shrink:0; align-self:flex-start; height:38px; padding:0 13px; border-radius:11px; border:none; background:#FF7A00; color:#fff; font-size:13px; font-weight:800; font-family:inherit; white-space:nowrap; cursor:pointer; box-shadow:0 3px 10px rgba(255,122,0,.3); }
+    .er-redo:active { transform:scale(.96); }
+    .rp-edit-guide { margin-top:10px; padding:10px 12px; border-radius:12px; background:#FFF4E5; border:1px solid #FFD8A8; color:#7A4100; font-size:13px; line-height:1.55; }
+    .rp-edit-guide b { color:#C2410C; }
     .er-acts3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
     /* 10/25(3차): 옆으로 넘기는 칸 줄 + 누르면 아래로 펼침 */
     .er-cells { display:flex; gap:8px; overflow-x:auto; scroll-snap-type:x proximity; margin:0 -16px; padding:2px 16px 6px; scrollbar-width:none; }
@@ -2020,7 +2025,17 @@
     #sec-calendar .pz-wr-m b { font-size:14.5px; font-weight:800; }
     #sec-calendar .pz-wr-m small { font-size:12.5px; color:var(--dg-text-sub); }
     #sec-calendar .pz-wr-c { flex-shrink:0; font-size:13px; font-weight:800; color:var(--dg-text-sub); }   /* 교사 마당 안 탭(이달의 교사·이름 공모·질문하기·불편신고) */
-    #plazaDot, #storyDot, #joinDot { display:none; position:absolute; top:-2px; right:-4px; width:9px; height:9px; border-radius:50%; background:#E5322D; border:1.5px solid #fff; }
+    /* 10/28: 사례 탭 NEW 배지 — 누르고 싶게(빨강→주황 알약, 살짝 통통 + 반짝) */
+    #bottomTabBar .tab .tab-icon #storyDot, #storyDot { display:none; position:absolute; top:-5px !important; right:-6px !important; width:auto; height:17px; padding:0 6px; align-items:center; border-radius:99px;
+      background:linear-gradient(135deg,#FF3B5C,#FF8A00); border:1.5px solid #fff; color:#fff; font-size:9.5px; font-weight:900; letter-spacing:.02em; line-height:1; overflow:hidden;
+      box-shadow:0 2px 6px rgba(255,59,92,.45); animation:newBob 1.6s ease-in-out infinite; z-index:2; }
+    #storyDot::after, .new-badge::after { content:''; position:absolute; top:0; left:-60%; width:40%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent); transform:skewX(-20deg); animation:newShine 2.4s ease-in-out infinite; }
+    .new-badge { position:relative; display:inline-flex; align-items:center; height:18px; margin-left:5px; padding:0 7px; border-radius:99px; vertical-align:2px; overflow:hidden;
+      background:linear-gradient(135deg,#FF3B5C,#FF8A00); color:#fff; font-size:10px; font-weight:900; box-shadow:0 2px 6px rgba(255,59,92,.4); animation:newBob 1.6s ease-in-out infinite; }
+    @keyframes newBob { 0%,100% { transform:translateY(0) scale(1); } 50% { transform:translateY(-2px) scale(1.08); } }
+    @keyframes newShine { 0%,55% { left:-60%; } 100% { left:130%; } }
+    @media (prefers-reduced-motion: reduce) { #storyDot, .new-badge, #storyDot::after, .new-badge::after { animation:none; } }
+    #plazaDot, #joinDot { display:none; position:absolute; top:-2px; right:-4px; width:9px; height:9px; border-radius:50%; background:#E5322D; border:1.5px solid #fff; }
     /* 2026-10-19: 쪽 탭(전도부 게시판·교사 이야기·교사 마당)은 하단 탭(일정·광고 / 사례 / 참여)으로 옮김 — 다른 화면에 끼워 넣은 embed=plaza만 위 쪽 탭을 씀 */
     html:not(.embed-plaza) #sec-calendar #pzPills { display:none !important; }
     /* 2026-10-19: [+ 일정 추가]가 잘 안 보여서 — 초록 꽉 찬 단추 */
@@ -3125,7 +3140,7 @@
         <span class="tab-label">일정·광고</span>
       </button>
       <button role="tab" class="tab" data-tab="story" onclick="switchTab('story')" title="사례" aria-label="사례">
-        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 사례 = 말풍선 안 하트(전도 사례 나눔) --><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 13.2c-1.6-1.2-3.2-2.5-3.2-4.2a1.75 1.75 0 0 1 3.2-1 1.75 1.75 0 0 1 3.2 1c0 1.7-1.6 3-3.2 4.2z" fill="currentColor" stroke="none"/></svg><span id="storyDot"></span></span>
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 사례 = 말풍선 안 하트(전도 사례 나눔) --><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 13.2c-1.6-1.2-3.2-2.5-3.2-4.2a1.75 1.75 0 0 1 3.2-1 1.75 1.75 0 0 1 3.2 1c0 1.7-1.6 3-3.2 4.2z" fill="currentColor" stroke="none"/></svg><span id="storyDot">NEW</span></span>
         <span class="tab-label">사례</span>
       </button>
       <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="나의교실" aria-label="나의교실">
@@ -4353,7 +4368,7 @@
       if (!gnb) return;
       gnb.innerHTML = [...document.querySelectorAll('#bottomTabBar .tab')]
         .filter(b => getComputedStyle(b).display !== 'none')
-        .map(b => `<button type="button" class="${b.dataset.tab === App.currentTab ? 'on' : ''}" onclick="switchTab('${b.dataset.tab}')">${b.querySelector('.tab-label').textContent}</button>`).join('');
+        .map(b => `<button type="button" class="${b.dataset.tab === App.currentTab ? 'on' : ''}" onclick="switchTab('${b.dataset.tab}')">${b.querySelector('.tab-label').textContent}${b.dataset.tab === 'story' && document.getElementById('storyDot')?.style.display === 'flex' ? '<span class="new-badge">NEW</span>' : ''}</button>`).join('');
     }
     function pzLayout() {
       const wrap = document.querySelector('#sec-calendar .pz-wrap'), bar = document.querySelector('#sec-calendar .pz-appbar');
@@ -4504,7 +4519,8 @@
       function isNew(page, at) { const s = load(); const base = openedAt[page] || s[page]; return !!at && String(at) > String(base); }
       function count(page) { return tot(page) || 0; }
       function paint(fromPoll) {
-        [['board', 'plazaDot'], ['story', 'storyDot'], ['etc', 'joinDot']].forEach(([pg, id]) => { const d = document.getElementById(id); if (d) d.style.display = tot(pg) ? 'block' : 'none'; });
+        [['board', 'plazaDot'], ['story', 'storyDot'], ['etc', 'joinDot']].forEach(([pg, id]) => { const d = document.getElementById(id); if (d) d.style.display = tot(pg) ? (pg === 'story' ? 'flex' : 'block') : 'none'; });
+        if (typeof fillGnb === 'function') { fillGnb(document.getElementById('pzGnb')); fillGnb(document.getElementById('dkGnb')); }   // PC 위 메뉴 '사례' 옆 NEW
         if (window.pzRenderPills) pzRenderPills();
         ['board', 'story', 'etc'].forEach(pg => {
           const n = tot(pg);
@@ -4537,7 +4553,8 @@
           const r = await callApiOnce({ action: 'listPlazaPosts', memberId: MEMBER_ID, category: '', keyword: '', offset: 0, limit: 30 });
           if (!r || r.error) return;
           stories = r.rows || [];
-          ['story', 'etc', 'board'].forEach(pg => { cnt[pg === 'board' ? 'free' : pg] = stories.filter(p => !p.isMine && pageOfPost(p) === pg && isNew(pg, p.createdAt)).length; });
+          const today = nowKst().slice(0, 10);   // 10/28(사용자): 사례 NEW는 하루 주기 — 오늘 올라온 글 중 아직 안 본 것만(어제 안 본 글은 남기지 않음)
+          ['story', 'etc', 'board'].forEach(pg => { cnt[pg === 'board' ? 'free' : pg] = stories.filter(p => !p.isMine && pageOfPost(p) === pg && isNew(pg, p.createdAt) && (pg !== 'story' || String(p.createdAt).slice(0, 10) === today)).length; });
           if (PZ_TAB_PAGE[App.currentTab]) { opened(pzPage); return; }
           paint(fromPoll);
         } catch (e) {}
@@ -7162,6 +7179,7 @@
           <div>
             <div class="act-sheet-title">${f.editId ? '보고 기록 고치기' : '오늘 활동, 보고해볼까요?'}</div>
             <div class="act-sheet-sub">${f.editId ? '고쳐서 저장하면 보고방에 수정본이 바로 올라가요.' : '저장하면 보고방 문자 틀 그대로 보고방에 바로 올라가요.'}</div>
+            ${f.editId ? '<div class="rp-edit-guide">✍️ <b>지난번에 적은 내용이 그대로 들어 있어요.</b><br>바꿀 칸만 고치고 맨 아래 <b>[고친 내용 저장 · 재보고]</b>를 누르면, 나머지는 그대로 두고 고친 내용으로 다시 보고돼요.</div>' : ''}
           </div>
           <button type="button" class="act-sheet-close" onclick="closeSheet()" aria-label="닫기">✕</button>
         </div>
@@ -8284,7 +8302,7 @@
               ${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(p.stage)}</span>` : ''}
               ${erFlowHtml(p.stage)}
               <span class="er-ct"><b>${p.list.length}</b>회 기록${p.edu ? ` · 교육 ${p.edu}회` : ''}</span>
-              ${(n => n ? `<span class="er-un">미보고 ${n}</span>` : '')(p.list.filter(x => !(x.tgPosts || []).some(y => y.kind === 'post')).length)}
+              ${(last => last && !(last.tgPosts || []).some(y => y.kind === 'post') ? '<span class="er-un">미보고</span>' : '')(p.list[p.list.length - 1])}
               <span class="er-dt">${esc(actFeedTimeText(p.last))}</span>
               ${erSent(p.stage) ? '<span class="er-badge">✍️ 사례</span>' : ''}
             </div>`; }).join('')}</div>`}
@@ -8305,6 +8323,7 @@
               ${info ? `<div class="er-head-i">${esc(info)}</div>` : ''}
               ${erFlowHtml(p.stage)}
             </div>
+            ${(last => last ? `<button type="button" class="er-redo" onclick="rpOpenEdit(${Number(last.id)})" title="가장 최근 기록을 그대로 불러와 고친 뒤 다시 보고">✏️ 수정·재보고하기</button>` : '')(p.list[p.list.length - 1])}
           </div>
           ${erActsHtml(p)}
           ${lessons.length ? `<div class="er-sec">📚 누적 교육 제목 <span>${lessons.length}</span></div><ol class="er-lessons">${lessons.map(l => `<li>${esc(l)}</li>`).join('')}</ol>` : ''}
@@ -8358,8 +8377,9 @@
       const gm = t && t.goalCohort ? Number(t.goalCohort.slice(5)) : 0;
       const spin = '<span class="loading loading-spinner loading-xs"></span>';
       const cells = [
-        ['report', posted === p.list.length ? 'done' : 'warn', pfSvg('send'), posted === p.list.length ? '보고 완료' : '미보고',
-          posted === p.list.length ? `${pfMD(lastPost.at)} · ${posted}건` : `${p.list.length - posted}건 남음`],
+        // 10/28(사용자): 자동 보고라 미보고 건수는 세지 않음 — 가장 최근 기록이 올라갔으면 '보고 완료'
+        ['report', erPosted(a) ? 'done' : 'warn', pfSvg('send'), erPosted(a) ? '보고 완료' : '미보고',
+          erPosted(a) ? (lastPost ? pfMD(lastPost.at) : '') : '최근 기록'],
         ['fb', fbNow.loading ? 'busy' : fbs.length ? 'done' : 'ready', fbNow.loading ? spin : pfSvg('up'), '단계향상 피드백',
           fbNow.loading ? '읽는 중…' : fbs.length ? `${fbs.length}회 · ${pfMD(fbs[fbs.length - 1].aiFeedbackAt) || '받음'}` : '받기'],
         t && ['swot', t.swot ? 'done' : 'ready', erSvg('swot'), 'SWOT', t.swot ? `✓ 작성 ${pfMD(t.swotAt)}` : '미작성'],
