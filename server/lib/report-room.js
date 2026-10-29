@@ -83,14 +83,28 @@ const target = (chatId) => {
   const [id, th] = String(chatId).split('/'); return { chat_id: id, ...(th ? { message_thread_id: Number(th) } : {}) };
 };
 const tokenFor = (chatId) => (String(chatId) === TS_ROOM ? process.env.TEACHERSQUARE_BOT_TOKEN : botToken());
+// 10/30: 일반 그룹이 슈퍼그룹으로 바뀌면 옛 번호로는 못 보낸다(청년회 1지역·장년회 새신자) — 텔레그램이 알려 준 새 번호로 연결을 고치고 한 번 더.
+const MOVED = {};
+async function healed(chatId, send) {
+  try { return await send(chatId); }
+  catch (e) {
+    if (!e.migrateTo) throw e;
+    const [id, th] = String(chatId).split('/');
+    const next = String(e.migrateTo) + (th ? '/' + th : '');
+    MOVED[String(chatId)] = next;
+    await run(db().from('report_rooms').update({ chat_id: next }).eq('chat_id', id)).catch(() => {});
+    console.log(`보고방 번호 바뀜: ${chatId} → ${next}`);
+    return send(next);
+  }
+}
 async function sendText(chatId, text, reply) {
-  const res = await tg('sendMessage', { ...target(chatId), text: String(text).slice(0, 4096), parse_mode: 'HTML', ...replyTo(reply) }, tokenFor(chatId));
+  const res = await healed(chatId, (c) => tg('sendMessage', { ...target(c), text: String(text).slice(0, 4096), parse_mode: 'HTML', ...replyTo(reply) }, tokenFor(c)));
   return res.message_id;
 }
 /** 사진 묶음(1~3장, R2 주소) → 첫 사진 글 번호. caption 은 첫 사진 아래에 붙는다(1024자까지). */
 async function sendAlbum(chatId, urls, caption, reply) {
   const media = urls.map((u, i) => ({ type: 'photo', media: u, ...(i === 0 && caption ? { caption, parse_mode: 'HTML' } : {}) }));
-  const res = await tg('sendMediaGroup', { ...target(chatId), media, ...replyTo(reply) });
+  const res = await healed(chatId, (c) => tg('sendMediaGroup', { ...target(c), media, ...replyTo(reply) }));
   return res[0].message_id;
 }
 const visibleLen = (html) => html.replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt);/g, '_').length;
@@ -136,7 +150,7 @@ export async function postReport(row, room, kind) {
       msg = await sendText(room.chat_id, text, albumMsg);
     }
   } else msg = await sendText(room.chat_id, text, reply);
-  const next = posts.concat([{ chat: String(room.chat_id), msg, at: kstDateTime(), kind, ph }]);
+  const next = posts.concat([{ chat: MOVED[String(room.chat_id)] || String(room.chat_id), msg, at: kstDateTime(), kind, ph }]);
   await run(db().from('activities').update({ tg_posts: next }).eq('id', row.id));
   return next;
 }
@@ -443,7 +457,7 @@ export async function reportRooms(body) {
       const n = r.dept.includes('#') ? null : roster.filter((x) => String(x.dept || '').trim() === d && (!reg || regionRoomKey(x) === r.dept)).length;
       out.push({ dept: r.dept, title: r.title, chatId: r.chat_id, ok: !!chat.ok, error: chat.ok ? undefined : chat.description, forum: chat.ok ? !!chat.result.is_forum : undefined,
         topic: t.message_thread_id || null, bot: mem.ok ? mem.result.status : mem.description, canPost: mem.ok ? mem.result.can_send_messages !== false : false,
-        members: cnt.ok ? cnt.result : null, roster: n, lastPost: lastPost[String(r.chat_id)] || '', lastDaily: (logs.find((l) => l.ref_id === r.dept) || {}).date || '' });
+        members: cnt.ok ? cnt.result : null, countError: cnt.ok ? undefined : cnt.description, movedTo: (cnt.parameters && cnt.parameters.migrate_to_chat_id) ? String(cnt.parameters.migrate_to_chat_id) : undefined, roster: n, lastPost: lastPost[String(r.chat_id)] || '', lastDaily: (logs.find((l) => l.ref_id === r.dept) || {}).date || '' });
     }
     return { rooms: out };
   }
