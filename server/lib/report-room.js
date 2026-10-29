@@ -311,14 +311,15 @@ export async function buildSummaryReports(date, onlyKey = '') {
  * 출석 봇이 받은 글 하나 — 총합 방('…#총합')에 주제 번호가 아직 없고, 그 글이 이름에 '일일보고'가 든 주제에서 왔으면
  * 그 주제로 연결한다(봇 API 로는 주제 목록을 못 읽어서, 그 주제에 누가 글을 쓰면 번호를 안다). 연결했으면 true.
  */
+const TOPIC_OF_ROOM = { '청년회/06지역': '전도', '청년회/03지역': '보고' };   // 방 열쇠 → 주제 이름에 든 글자(띄어쓰기 빼고)
 export async function learnSummaryTopic(msg) {
   const th = msg && msg.is_topic_message && msg.message_thread_id;
   const name = String((msg && msg.reply_to_message && msg.reply_to_message.forum_topic_created && msg.reply_to_message.forum_topic_created.name) || '').replace(/\s/g, '');
-  // 10/29(사용자): 청년회 6지역 방처럼 주제가 있는 지역·부서 방은 '전도 활동' 주제로 — 활동 보고·22시 일일 보고가 그 주제에.
-  const kind = name.includes('일일보고') ? 'sum' : name.includes('전도') ? 'room' : '';
-  if (!th || !kind) return false;
+  // 10/29(사용자): 주제가 있는 지역 방은 정한 주제로 — 활동 보고·22시 일일 보고가 그 주제에(청년회 6지역 '전도 활동', 3지역 '보고방').
+  if (!th || !name) return false;
+  const kind = name.includes('일일보고') ? 'sum' : 'room';
   const rows = (await run(db().from('report_rooms').select('dept, chat_id').eq('chat_id', String(msg.chat.id))).catch(() => []))
-    .filter((r) => (kind === 'sum') === r.dept.includes('#총합') && r.dept !== '*');
+    .filter((r) => (kind === 'sum' ? r.dept.includes('#총합') : TOPIC_OF_ROOM[r.dept] && name.includes(TOPIC_OF_ROOM[r.dept])));
   for (const r of rows) await run(db().from('report_rooms').update({ chat_id: `${msg.chat.id}/${th}` }).eq('dept', r.dept));
   if (rows.length) await sendText(`${msg.chat.id}/${th}`, kind === 'sum'
     ? '✅ 이 주제(일일보고)로 매일 22시 지역별 일일 보고 총합이 올라와요.'
