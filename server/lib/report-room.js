@@ -416,6 +416,30 @@ export async function reportRooms(body) {
     }
     return { bots: out };
   }
+  if (op === 'audit') {   // 10/29: 방마다 연결 점검(글 안 올림) — 봇 상태·주제·방 인원·명단 인원·최근 보고·최근 22시 보고 {prefix?}
+    const pre = String(body.prefix || '');
+    const rooms = (await run(db().from('report_rooms').select('*').eq('active', true).order('dept'))).filter((r) => !pre || r.dept.startsWith(pre));
+    const roster = await loadRoster();
+    const acts = await run(db().from('activities').select('tg_posts, submitted_at').gte('submitted_at', `${kstDate().slice(0, 8)}01 00:00:00`).not('tg_posts', 'is', null));
+    const lastPost = {};
+    for (const a of acts) for (const p of a.tg_posts || []) if (!lastPost[p.chat] || p.at > lastPost[p.chat]) lastPost[p.chat] = p.at;
+    const logs = await run(db().from('cohort_summary_log').select('ref_id, date').eq('cohort_id', '#report-room').order('date', { ascending: false }).limit(500));
+    const out = [];
+    for (const r of rooms) {
+      const t = target(r.chat_id), token = tokenFor(r.chat_id);
+      const get = async (m, q) => (await fetch(`https://api.telegram.org/bot${token}/${m}?${new URLSearchParams(q)}`)).json().catch(() => ({}));
+      const chat = await get('getChat', { chat_id: t.chat_id });
+      const me = await get('getMe', {});
+      const mem = me.ok ? await get('getChatMember', { chat_id: t.chat_id, user_id: me.result.id }) : {};
+      const cnt = await get('getChatMemberCount', { chat_id: t.chat_id });
+      const [d, reg] = r.dept.split('#')[0].split('/');
+      const n = r.dept.includes('#') ? null : roster.filter((x) => String(x.dept || '').trim() === d && (!reg || regionRoomKey(x) === r.dept)).length;
+      out.push({ dept: r.dept, title: r.title, chatId: r.chat_id, ok: !!chat.ok, error: chat.ok ? undefined : chat.description, forum: chat.ok ? !!chat.result.is_forum : undefined,
+        topic: t.message_thread_id || null, bot: mem.ok ? mem.result.status : mem.description, canPost: mem.ok ? mem.result.can_send_messages !== false : false,
+        members: cnt.ok ? cnt.result : null, roster: n, lastPost: lastPost[String(r.chat_id)] || '', lastDaily: (logs.find((l) => l.ref_id === r.dept) || {}).date || '' });
+    }
+    return { rooms: out };
+  }
   if (op === 'setName') {   // 보고방에 들어간 봇(출석 봇)의 보이는 이름 — 10/23 사용자: "교사광장 도우미"
     const name = String(body.name || '').trim().slice(0, 64);
     if (!name) return { error: 'name 이 필요합니다.' };
