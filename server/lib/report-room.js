@@ -44,6 +44,11 @@ const WHOLE_SECTIONS = ['🟢상담1️⃣', '🟢상담2️⃣', '🔵복음방
 /** 이 보고를 올릴 방들: 내 방(roomForTeacher) + 내 방이 지역 방이고 상담 이상 건이면 부서 전체 방. */
 export async function roomsForReport(t, row) {
   const room = await roomForTeacher(t);
+  // 10/29(사용자): 전체 방엔 개별 보고는 상담1~복음방만 — 지역 방이 아직 없는 지역(장년회 13지역)도 같은 규칙(그 밖의 보고는 방이 생기면 그 방으로)
+  if (room && room.dept === String(t.dept || '').trim() && regionRoomKey(t) && !isCounselUp(row)) {
+    const sub = await run(db().from('report_rooms').select('dept').like('dept', `${room.dept}/%`).eq('active', true).limit(1)).catch(() => []);
+    if (sub.length) return [];
+  }
   if (!room || room.dept !== regionRoomKey(t) || !isCounselUp(row)) return room ? [room] : [];
   const whole = await roomForDept(String(t.dept || '').trim());
   return whole && whole.dept !== '*' && String(whole.chat_id) !== String(room.chat_id) ? [room, whole] : [room];
@@ -226,7 +231,9 @@ export async function buildDailyReports(date, onlyDept = '') {
 //   조직 = 그 부서의 지역 방들(지역 방과 같은 묶음·같은 건수: 섭외자-인도자 한 쌍을 한 건).
 //   10/27(사용자: "글 표는 보기 사납다"): 한글 문서 표처럼 사진 표(1열 = 14개 조직, 옆으로 단계 칸) + 아래 설명 글(신청 현황 글 모양).
 const SUMMARY_COLS = [['새찾기', '💜'], ['만남', '🟠'], ['상담1', '🟢'], ['상담2', '🟢'], ['복음방', '🔵'], ['센터소개', '🏛'], ['센터수강', '🎓']];
-const DEPT_ORDER = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
+// 10/29(사용자): 장년회 1~13지역·새신자 — 13지역은 방이 아직 없지만 총합 표엔 넣는다(방이 생기면 그대로 이어짐)
+const SUMMARY_EXTRA_ORGS = { '장년회': ['13지역'] };
+const DEPT_ORDER =['교역자', '자문회', '장년회', '부녀회', '청년회'];
 const deptRank = (key) => { const i = DEPT_ORDER.indexOf(key.split(/[#/]/)[0]); return i < 0 ? 9 : i; };
 const orgOrder = (r) => { const m = r.match(/^0*(\d+)/); return m ? [0, Number(m[1])] : [1, ['유아모', '새신자'].indexOf(r) + 1 || 9]; };
 const countPairs = (acts, items) => new Set(acts.filter((a) => (a.activities || []).some((x) => items.includes(x)))
@@ -294,7 +301,7 @@ export async function buildSummaryReports(date, onlyKey = '') {
   const byNid = new Map(teachers.map((t) => [t.nid, t]));
   return sums.map((room) => {
     const dept = room.dept.split('#')[0];
-    const orgs = all.filter((r) => r.dept.startsWith(dept + '/')).map((r) => r.dept.split('/')[1])
+    const orgs = [...new Set([...all.filter((r) => r.dept.startsWith(dept + '/')).map((r) => r.dept.split('/')[1]), ...(SUMMARY_EXTRA_ORGS[dept] || [])])]
       .sort((a, b) => { const p = orgOrder(a), q = orgOrder(b); return p[0] - q[0] || p[1] - q[1]; });
     const actsByOrg = new Map(orgs.map((o) => [o, []]));
     for (const a of acts) {

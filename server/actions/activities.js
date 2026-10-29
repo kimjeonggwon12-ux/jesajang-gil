@@ -88,7 +88,7 @@ async function autoReport(row, kind) {
     const teacher = await findTeacher(row.member_id);
     if (!teacher) return { reported: false };
     const rooms = await roomsForReport(teacher, row);   // 10/25: 지역 방 + 상담 이상 건이면 부서 전체 방
-    if (!rooms.length) return { reported: false, reportError: '부서 보고방이 아직 연결되지 않았어요.' };
+    if (!rooms.length) return { reported: false, reportError: '내 지역·부서 보고방이 아직 연결되지 않았어요.' };
     return await postToRooms(row, rooms, kind);
   } catch (e) {
     return { reported: false, reportError: e.message };
@@ -146,7 +146,7 @@ async function postActivityReport(body) {
   if (!row.report_text) return { error: '보고 문자가 없는 예전 기록이에요. 수정해서 저장하면 보고 문자가 생겨요.' };
   if ((row.tg_posts || []).some((p) => p.kind === 'post')) return { error: '이미 보고방에 올린 기록이에요. 고치면 수정본이 다시 올라가요.' };
   const rooms = await roomsForReport(await findTeacher(mid), row);
-  if (!rooms.length) return { error: '아직 내 부서 보고방이 연결되지 않았어요.' };
+  if (!rooms.length) return { error: '아직 내 지역·부서 보고방이 연결되지 않았어요.' };
   const sent = await postToRooms(row, rooms, 'post');
   return { ok: true, tgPosts: sent.tgPosts, room: sent.room };
 }
