@@ -314,10 +314,15 @@ export async function buildSummaryReports(date, onlyKey = '') {
 export async function learnSummaryTopic(msg) {
   const th = msg && msg.is_topic_message && msg.message_thread_id;
   const name = String((msg && msg.reply_to_message && msg.reply_to_message.forum_topic_created && msg.reply_to_message.forum_topic_created.name) || '').replace(/\s/g, '');
-  if (!th || !name.includes('일일보고')) return false;
-  const rows = await run(db().from('report_rooms').select('dept, chat_id').eq('chat_id', String(msg.chat.id)).like('dept', '%#총합')).catch(() => []);
+  // 10/29(사용자): 청년회 6지역 방처럼 주제가 있는 지역·부서 방은 '전도 활동' 주제로 — 활동 보고·22시 일일 보고가 그 주제에.
+  const kind = name.includes('일일보고') ? 'sum' : name.includes('전도') ? 'room' : '';
+  if (!th || !kind) return false;
+  const rows = (await run(db().from('report_rooms').select('dept, chat_id').eq('chat_id', String(msg.chat.id))).catch(() => []))
+    .filter((r) => (kind === 'sum') === r.dept.includes('#총합') && r.dept !== '*');
   for (const r of rows) await run(db().from('report_rooms').update({ chat_id: `${msg.chat.id}/${th}` }).eq('dept', r.dept));
-  if (rows.length) await sendText(`${msg.chat.id}/${th}`, '✅ 이 주제(일일보고)로 매일 22시 지역별 일일 보고 총합이 올라와요.').catch(() => {});
+  if (rows.length) await sendText(`${msg.chat.id}/${th}`, kind === 'sum'
+    ? '✅ 이 주제(일일보고)로 매일 22시 지역별 일일 보고 총합이 올라와요.'
+    : '✅ 이 주제로 교사들의 활동 보고와 매일 22시 일일 보고가 올라와요.').catch(() => {});
   return rows.length > 0;
 }
 
