@@ -12,7 +12,10 @@ const regionOf = (t) => { const m = String((t && t.region) || '').match(/^0*(\d+
 const guOf = (t) => { const m = String((t && (t.affiliation || t.note)) || '').match(/지역-(\d{1,2})/); return m ? m[1].padStart(2, '0') : ''; };   // '03지역-01구' → '01'
 // 텔레그램 해시태그 — 띄어쓰기·기호가 있으면 태그가 끊기므로 글자만 남긴다
 const tag = (s) => { const v = String(s || '').replace(/[^0-9A-Za-z가-힣_]/g, ''); return v ? '#' + v : ''; };
-export const regionRoomKey = (t) => (t && t.dept && t.region ? `${String(t.dept).trim()}/${String(t.region).trim()}` : '');
+// 10/29(사용자): 청년회 '기타' 방 = "기타(교문,새신자,회장단) 교사방" — 명단 지역 '새신자'도 기타 방으로(교회문화·회장단은 명단에서 이미 '기타').
+const REGION_ROOM_ALIAS = { '청년회/새신자': '청년회/기타' };
+const roomKeyOf = (dept, region) => { const k = `${String(dept).trim()}/${String(region).trim()}`; return REGION_ROOM_ALIAS[k] || k; };
+export const regionRoomKey = (t) => (t && t.dept && t.region ? roomKeyOf(t.dept, t.region) : '');
 
 /**
  * 이 부서의 보고방. 부서 방이 없으면 기본 방(dept '*')으로 — 10/23 사용자: "부서를 보고 맞는 방으로, 일단은 봇을 초대한 그 방으로".
@@ -223,6 +226,8 @@ export async function buildDailyReports(date, onlyDept = '') {
 //   조직 = 그 부서의 지역 방들(지역 방과 같은 묶음·같은 건수: 섭외자-인도자 한 쌍을 한 건).
 //   10/27(사용자: "글 표는 보기 사납다"): 한글 문서 표처럼 사진 표(1열 = 14개 조직, 옆으로 단계 칸) + 아래 설명 글(신청 현황 글 모양).
 const SUMMARY_COLS = [['새찾기', '💜'], ['만남', '🟠'], ['상담1', '🟢'], ['상담2', '🟢'], ['복음방', '🔵'], ['센터소개', '🏛'], ['센터수강', '🎓']];
+const DEPT_ORDER = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
+const deptRank = (key) => { const i = DEPT_ORDER.indexOf(key.split(/[#/]/)[0]); return i < 0 ? 9 : i; };
 const orgOrder = (r) => { const m = r.match(/^0*(\d+)/); return m ? [0, Number(m[1])] : [1, ['유아모', '새신자'].indexOf(r) + 1 || 9]; };
 const countPairs = (acts, items) => new Set(acts.filter((a) => (a.activities || []).some((x) => items.includes(x)))
   .map((a) => `${String(a.target_name || '').trim()}|${leaderName((a.report && a.report.team && a.report.team.leader) || '') || a.nid}`)
@@ -278,7 +283,9 @@ export function summaryBoard(dept, date, orgs, actsByOrg) {
 export async function buildSummaryReports(date, onlyKey = '') {
   const all = (await run(db().from('report_rooms').select('*').eq('active', true)));
   // '부녀회#총합' = 부서 대표 방, '부녀회#총합:활동현황' 처럼 뒤에 붙이면 같은 총합을 다른 방에도(10/27 교사광장 교사활동현황 방)
-  const sums = all.filter((r) => r.dept.includes('#총합') && (!onlyKey || r.dept === onlyKey));
+  // 10/29(사용자): 교사광장 활동 방처럼 여러 부서 총합이 한 방에 모이면 교자장부청 순서로
+  const sums = all.filter((r) => r.dept.includes('#총합') && (!onlyKey || r.dept === onlyKey))
+    .sort((a, b) => deptRank(a.dept) - deptRank(b.dept) || a.dept.localeCompare(b.dept));
   if (!sums.length) return [];
   const acts = await run(db().from('activities').select('id, member_id, nid, name, activities, target_name, report, submitted_at')
     .gte('submitted_at', `${date} 00:00:00`).lte('submitted_at', `${date} 23:59:59`).order('id'));
@@ -292,7 +299,8 @@ export async function buildSummaryReports(date, onlyKey = '') {
     const actsByOrg = new Map(orgs.map((o) => [o, []]));
     for (const a of acts) {
       const t = byNid.get(a.nid);
-      if (t && String(t.dept || '').trim() === dept && actsByOrg.has(String(t.region || '').trim())) actsByOrg.get(String(t.region).trim()).push(a);
+      const org = t && String(t.dept || '').trim() === dept ? regionRoomKey(t).split('/')[1] : '';
+      if (org && actsByOrg.has(org)) actsByOrg.get(org).push(a);
     }
     const count = [...actsByOrg.values()].reduce((n, l) => n + l.length, 0);
     return { room, count, ...summaryBoard(dept, date, orgs, actsByOrg), html: true };
@@ -461,7 +469,7 @@ export async function reportRoomsAdmin(body) {
   const slots = {};
   for (const t of roster) {
     const d = String(t.dept || '').trim(); if (!d) continue;
-    const r = String(t.region || '').trim();
+    const r = t.region ? regionRoomKey(t).split('/')[1] : '';   // 청년회 새신자 → 기타(같은 방)
     slots[d] = slots[d] || { dept: d, n: 0, regions: {} };
     slots[d].n++;
     if (r) slots[d].regions[r] = (slots[d].regions[r] || 0) + 1;

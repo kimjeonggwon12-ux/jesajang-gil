@@ -17229,7 +17229,7 @@ async function calAdmInit() {
         r.innerHTML = `
           <p class="rm-note">① 텔레그램 방에 <b>교사광장 도우미</b> 봇을 초대하고 ② 방 번호(-100…)를 받아 ③ 아래에서 부서·지역을 골라 연결하세요.
             연결하면 봇이 그 방에 확인 글을 올려요. 그 부서·지역 교사의 활동 보고가 그 방으로 가고, 매일 22시에 일일 보고가 모여 올라와요.
-            지역 방이 없으면 부서 방으로, 부서 방도 없으면 기본 방으로 가요. 지역 방에 올라간 보고 중 <b>상담1 이상</b>(상담1·상담2·복음방·센터소개·센터수강) 건은 <b>부서 전체 방</b>(지역 없이 연결한 방)에도 가요.</p>
+            지역 방이 없으면 부서 방으로, 부서 방도 없으면 기본 방으로 가요. 지역 방에 올라간 보고 중 <b>상담1 이상</b>(상담1·상담2·복음방) 건은 <b>부서 전체 방</b>(지역 없이 연결한 방)에도 가요.</p>
           <div class="rm-two">
             <label class="rm-f">부서<select onchange="roomsAdm.pick(this.value)">${deptOpts}</select></label>
             <label class="rm-f">지역<select onchange="roomsAdm.pickRegion(this.value)">${regionOpts}</select></label>
