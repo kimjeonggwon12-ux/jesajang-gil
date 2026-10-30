@@ -4,6 +4,9 @@ import { sendAlert, teacherInfo, teacherHead, row } from './alerts.js';
 
 // 점검용 시험 계정(ZZTEST…)의 저장은 실제 방에 알리지 않는다.
 const isTestMember = (memberId) => String(memberId || '').startsWith('ZZTEST');
+// 10/30(사용자): "활동 방에 개별 실시간 서머리는 올라오지 않게" — 저장마다 보내던 알림(활동·센터 인도·명함·도움 신청·광장 글·복음방/센터 도달)을 끈다.
+//   아침 7시·정오·저녁 10시 서머리(bot.js)만 올린다. 다시 켜려면 true.
+const INSTANT_ALERTS = false;
 
 const DETAIL_MAX = 80;
 const cut = (v) => {
@@ -65,7 +68,7 @@ function compose(action, body, result, head, memberId) {
 /** 저장 action 이 끝난 뒤 부른다. 알림이 실패해도 result 는 그대로 돌려준다. */
 export async function afterAction(action, body, result) {
   try {
-    if (!result?.ok) return result;
+    if (!INSTANT_ALERTS || !result?.ok) return result;
     const d = body.data || body;
     const memberId = body.memberId || d.memberId;
     if (isTestMember(memberId)) return result;
@@ -81,7 +84,7 @@ export async function afterAction(action, body, result) {
 /** 전도 대상자가 복음방·센터수강 단계에 처음 도달하면 알린다(대상자마다 한 번). */
 export async function onStageReached(memberId, targetId, fromStage, toStage) {
   try {
-    if (!toStage || toStage === fromStage || isTestMember(memberId)) return;
+    if (!INSTANT_ALERTS || !toStage || toStage === fromStage || isTestMember(memberId)) return;
     const reached = {
       복음방: ['🎯 <b>복음방 도달!</b>', '✨ 대상자가 복음방 단계에 도달했습니다', '복음방도달', `복음방|${targetId}`],
       센터수강: ['🏆 <b>센터 인도!</b>', '✨ 대상자가 센터에 등록됐습니다', '센터인도', `센터|${targetId}`],

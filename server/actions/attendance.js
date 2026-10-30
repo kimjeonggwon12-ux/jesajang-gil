@@ -621,7 +621,10 @@ async function attAutoSummary(body) {
   // 2026-10-25: 22시가 지나면 보고방(지역·부서 방)마다 오늘 일일 보고 취합
   let daily = [];
   try { daily = await (await import('../lib/report-room.js')).reportDailyTick(); } catch (e) { console.log('일일 보고 취합 오류: ' + e); }
-  return { ok: true, closed, cohort, daily };
+  // 2026-10-30: 교사광장 활동 방 정오·저녁 10시 서머리
+  let summary = {};
+  try { summary = await (await import('./bot.js')).summaryTick(); } catch (e) { console.log('정오·저녁 서머리 오류: ' + e); }
+  return { ok: true, closed, cohort, daily, summary };
 }
 
 export default {

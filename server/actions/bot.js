@@ -1,9 +1,10 @@
-// 교사광장 봇의 정기 서머리: 아침 7시(어제 활동), 저녁 9시(이번 달 참여율·등급 현황)
+// 교사광장 봇의 정기 서머리: 아침 7시(어제 활동), 정오(오늘 오전 교자장부청), 저녁 10시(오늘 교자장부청 + 이번 달 참여율·등급 현황), 밤 11시(명함·활동 기록·입장 현황)
+// 10/30(사용자): 활동 방엔 개별 실시간 알림은 올리지 않고(events.js INSTANT_ALERTS) 서머리 세 번만.
 import { db, run, selectAll } from '../lib/db.js';
-import { normId, kstDate, fmtTs } from '../lib/util.js';
+import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { sendAlert, alreadySent, logAlert, esc } from '../lib/alerts.js';
 import { afterAction, onStageReached } from '../lib/events.js';
-import { teachersByNid, rosterCounts } from './roster.js';
+import { teachersByNid, rosterCounts, loadRoster } from './roster.js';
 
 // [명단의 부서 이름, 알림에 쓰는 이름]
 const DEPTS = [['교역자', '교역자회'], ['자문회', '자문회'], ['장년회', '장년회'], ['부녀회', '부녀회'], ['청년회', '청년회']];
@@ -131,6 +132,91 @@ async function sendDailySummary({ date, force }) {
   }
 }
 
+// ── 정오·저녁 교자장부청 서머리 (10/30) ──
+// 단계 묶음 — 보고방 일일 보고(report-room.js DAILY_SECTIONS)와 같은 이름
+const STAGE_GROUPS = [['💜', '새찾기', ['섭외']], ['🟠', '만남', ['친분', '만남1', '만남2']], ['🟢', '상담', ['상담1', '상담2']], ['🔵', '복음방', ['복음방']], ['🏛', '센터', ['센터소개', '센터수강']]];
+
+/** 그날(지금까지) 활동을 교자장부청 + 전주교회 전체로 — 부서마다 참여 인원·기록 건수·단계별 건수. */
+async function composeDepts(day, title) {
+  const activities = await activitiesBetween(day, day);
+  const byNid = await teachersByNid(activities.map((a) => a.nid));
+  const blank = () => ({ people: new Set(), n: 0, stages: STAGE_GROUPS.map(() => 0) });
+  const stat = Object.fromEntries(DEPTS.map(([d]) => [d, blank()]));
+  const all = blank();
+  for (const a of activities) {
+    const items = a.activities.flatMap((x) => x.split(',')).map((x) => x.trim());
+    for (const s of [stat[byNid.get(a.nid)?.dept], all].filter(Boolean)) {
+      s.people.add(a.nid); s.n++;
+      STAGE_GROUPS.forEach(([, , list], i) => { if (items.some((x) => list.includes(x))) s.stages[i]++; });
+    }
+  }
+  const stageLine = (s) => { const t = STAGE_GROUPS.map(([e, l], i) => (s.stages[i] ? `${e}${l} ${s.stages[i]}` : '')).filter(Boolean).join(' · '); return t ? '   ' + t : ''; };
+  const lines = [title, `📅 ${day} (${weekdayOf(day)})`, ''];
+  for (const [dept, label] of DEPTS) {
+    const s = stat[dept];
+    lines.push(`🏢 <b>${label}</b>  ${s.n ? `참여 ${comma(s.people.size)}명 · 기록 ${comma(s.n)}건` : '기록 없음'}`);
+    const st = stageLine(s); if (st) lines.push(st);
+  }
+  lines.push('', `⛪ <b>전주교회 전체</b>  참여 ${comma(all.people.size)}명 · 기록 ${comma(all.n)}건`);
+  const st = stageLine(all); if (st) lines.push(st);
+  return { text: lines.join('\n'), total: all.n };
+}
+
+/** 정오 서머리: 오늘 0시~지금(12시) 교자장부청. 같은 날 한 번만. */
+async function sendNoonSummary({ date, force } = {}) {
+  const day = date || kstDate();
+  const key = force ? '' : 'noon_' + day;
+  if (key && await alreadySent(key)) return { ok: false, date: day, skipped: true };
+  const { text, total } = await composeDepts(day, '🕛 <b>정오 서머리</b> 🕛  오늘 오전 활동');
+  return { ok: await sendAlert(text, '정오서머리', key), date: day, total };
+}
+
+// ── 밤 11시 현황 (10/30) ── 사용자: "교자장부청별 명함 등록·활동 기록 참여자·입장 1회 이상 — 몇 명 중 몇 명"
+async function composeStatus(day) {
+  const [roster, cards, acts, visits] = await Promise.all([
+    loadRoster(),
+    selectAll(() => db().from('connect_cards').select('id, nid').neq('member_id', '').order('id')),
+    selectAll(() => db().from('activities').select('id, nid').order('id')),
+    selectAll(() => db().from('app_visits').select('nid, visits').gt('visits', 0).order('nid')),
+  ]);
+  const card = new Set(cards.map((c) => c.nid)), act = new Set(acts.map((a) => a.nid)), seen = new Set(visits.map((v) => v.nid));
+  const blank = () => ({ total: 0, card: 0, act: 0, seen: 0 });
+  const stat = Object.fromEntries(DEPTS.map(([d]) => [d, blank()]));
+  const all = blank();
+  for (const t of roster) {
+    const nid = normId(t.memberId);
+    for (const s of [stat[String(t.dept || '').trim()], all].filter(Boolean)) {
+      s.total++;
+      if (card.has(nid)) s.card++;
+      if (act.has(nid)) s.act++;
+      if (seen.has(nid)) s.seen++;
+    }
+  }
+  const cell = (n, total) => `${comma(n)} / ${comma(total)}명 (${percent(n, total)})`;
+  const block = (label, s) => [`🏢 <b>${label}</b> (교사 ${comma(s.total)}명)`,
+    `   🪪 명함 등록 ${cell(s.card, s.total)}`, `   📝 활동 기록 참여 ${cell(s.act, s.total)}`, `   📲 앱 입장 1회 이상 ${cell(s.seen, s.total)}`];
+  const lines = ['🌃 <b>밤 11시 교사광장 참여 현황</b>', `📅 ${day} (${weekdayOf(day)}) 기준 · 누적`, ''];
+  for (const [dept, label] of DEPTS) lines.push(...block(label, stat[dept]), '');
+  lines.push(...block('⛪ 전주교회 전체', all).map((l, i) => (i ? l : l.replace('🏢 ', ''))));
+  return lines.join('\n');
+}
+async function sendStatusSummary({ date, force } = {}) {
+  const day = date || kstDate();
+  const key = force ? '' : 'status_' + day;
+  if (key && await alreadySent(key)) return { ok: false, date: day, skipped: true };
+  return { ok: await sendAlert(await composeStatus(day), '참여현황', key), date: day };
+}
+
+/** 5분마다(attAutoSummary): 12시가 지나면 정오 서머리(오후 3시까지만 — 늦게 켜져도 밤에 '정오'가 나가지 않게), 22시 저녁 서머리, 23시 참여 현황. */
+export async function summaryTick() {
+  const hm = kstDateTime().slice(11, 16);
+  const out = {};
+  if (hm >= '12:00' && hm < '15:00') out.noon = await sendNoonSummary().catch((e) => ({ error: String(e) }));
+  if (hm >= '22:00') out.evening = await sendEveningSummary({ tick: true }).catch((e) => ({ error: String(e) }));
+  if (hm >= '23:00') out.status = await sendStatusSummary().catch((e) => ({ error: String(e) }));
+  return out;
+}
+
 // ── 저녁 서머리 ──
 
 /** 그달 1일~그날: 부서별 참여율(설명 글 + 그래프 재료)과 등급 현황 글. */
@@ -157,7 +243,7 @@ async function composeEvening(day) {
   }
 
   const month = Number(day.slice(5, 7));
-  const caption = ['🌙 <b>저녁 9시 서머리</b> 🌙',
+  const caption = ['🌙 <b>저녁 10시 서머리</b> 🌙',
     `📅 ${Number(day.slice(0, 4))}년 ${month}월 ${Number(day.slice(8, 10))}일 (${weekdayOf(day)}) 기준`, '',
     `📊 <b>부서별 참여율</b> (${month}월, 참여 / 전체)`];
   const labels = [], totals = [], joined = [];
@@ -238,15 +324,20 @@ async function sendChart(png, caption, dedupKey) {
   }
 }
 
-/** 저녁 서머리 두 통: ① 참여율 그래프(안 되면 글 막대) ② 등급 현황. */
-async function sendEveningSummary({ date, force }) {
+/** 저녁 서머리 세 통: ⓪ 오늘 교자장부청·교회 전체 ① 참여율 그래프(안 되면 글 막대) ② 등급 현황. */
+async function sendEveningSummary({ date, force, tick }) {
   try {
+    // 10/30: 22시로 옮김 — 21시에 도는 옛 예약(ts-evening-summary)은 건너뛰고 5분 틱(summaryTick)이 22시에 보낸다
+    if (!tick && !date && !force && kstDateTime().slice(11, 16) < '22:00') return { ok: false, skipped: true, reason: '22시 전' };
     const day = date || kstDate();
     const dedupKey = 'evening_' + day;
-    if (!force && await alreadySent(dedupKey)) return { ok: false, date: day, skipped: true };
+    if (!force && await alreadySent(dedupKey + '|0')) return { ok: false, date: day, skipped: true };
     const summary = await composeEvening(day);
+    const key0 = force ? '' : dedupKey + '|0';
     const key1 = force ? '' : dedupKey;
     const key2 = force ? '' : dedupKey + '|2';
+    const today = await composeDepts(day, '🌙 <b>저녁 10시 서머리</b> 🌙  오늘 하루 교자장부청 활동');
+    await sendAlert(today.text, '저녁서머리', key0);
     const chart = await participationChart(summary);
     let ok1 = chart ? await sendChart(chart, summary.caption, key1) : false;
     if (!ok1) ok1 = await sendAlert(summary.caption + '\n\n' + textBars(summary), '저녁서머리', key1);
@@ -262,11 +353,15 @@ async function sendEveningSummary({ date, force }) {
 
 const tsDailySummary = async (body) => (authorized(body) ? sendDailySummary({ date: body.date, force: !!body.force }) : { error: 'unauthorized' });
 const tsEveningSummary = async (body) => (authorized(body) ? sendEveningSummary({ date: body.date, force: !!body.force }) : { error: 'unauthorized' });
+const tsStatusSummary = async (body) => (authorized(body) ? sendStatusSummary({ date: body.date, force: !!body.force }) : { error: 'unauthorized' });
+const tsNoonSummary = async (body) => (authorized(body) ? sendNoonSummary({ date: body.date, force: !!body.force }) : { error: 'unauthorized' });
 
 /** 봇 설정 여부와 최근 알림 10건. preview 에 'daily'|'evening' 을 주면 보내지 않고 글만 만들어 돌려준다. */
 async function tsStatus(body) {
   if (!authorized(body)) return { error: 'unauthorized' };
   if (body.preview === 'daily') return { ok: true, ...(await composeDaily(body.date || kstDate(new Date(Date.now() - 24 * 3600 * 1000)))) };
+  if (body.preview === 'status') return { ok: true, text: await composeStatus(body.date || kstDate()) };
+  if (body.preview === 'noon' || body.preview === 'today') return { ok: true, ...(await composeDepts(body.date || kstDate(), body.preview === 'noon' ? '🕛 정오 서머리' : '🌙 오늘 하루')) };
   if (body.preview === 'evening') { const { caption, tiers } = await composeEvening(body.date || kstDate()); return { ok: true, caption, tiers }; }
   const recent = await run(db().from('alert_log').select('*').order('id', { ascending: false }).limit(10));
   return {
@@ -284,4 +379,4 @@ async function tsTest(body) {
 }
 
 export { composeDaily, composeEvening };
-export default { tsDailySummary, tsEveningSummary, tsStatus, tsTest };
+export default { tsDailySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest };
