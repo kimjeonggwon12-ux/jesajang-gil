@@ -719,6 +719,16 @@ async function deleteTargetInfo(body) {
   await run(db().from('target_ai_notes').delete().eq('id', Number(body.id)).eq('target_id', target.target_id).eq('kind', INFO_KIND));
   return { ok: true };
 }
+/** 10/30(사용자: "누적 교육 제목이 밖에 안 보인다"): 사람 화면에서 바로 누적 교육 제목 목록을 고친다(추가·빼기). */
+async function setTargetLessons(body) {
+  const target = await ownedTarget(body.memberId, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  const lessons = (Array.isArray(body.lessons) ? body.lessons : []).slice(-60)
+    .map((l) => ({ date: str(l && l.date).slice(0, 10) || kstDate(), title: str(l && l.title).slice(0, 120) })).filter((l) => l.title);
+  const p = { ...(target.report_profile || {}), lessons };
+  await run(db().from('targets').update({ report_profile: p, updated_at: kstDateTime() }).eq('target_id', target.target_id));
+  return { ok: true, lessons };
+}
 /** 모은 정보 + 그 사람 기록 전부로 AI 피드백: 이 사람은 어떤 사람인가 / 마음을 여는 열쇠 / 다음 만남 대화 주제 / 조심할 점 / 더 알아볼 것. */
 async function targetInfoFeedback(body) {
   const mid = str(body.memberId);
@@ -750,5 +760,5 @@ export default {
   getTargetStageDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
   getTargetJournal, deleteTarget, planCohortLead, swotAdvice, writeCaseDraft, getTargetFile,
-  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback,
+  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons,
 };
