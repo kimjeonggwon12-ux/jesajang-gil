@@ -604,19 +604,34 @@ async function getOrgSummary() {
 /** 옛 명함에 "활동 가능"으로 올려 둔 일정이 아직 유효한가(직접 정한 기간이 지났으면 아님). */
 const stillAvailable = (p, today) => p.available && !(p.schedule_type === '직접' && p.avail_to && p.avail_to < today);
 
+const CASE_CATEGORIES = ['사례', '성공사례', '실패사례'];   // plaza.js CATEGORY_ALIASES.사례 와 같게
+const CASE_RANK_DEPTS = ['장년회', '부녀회', '청년회'];
 /** 관리자 교사 명단: 명단 순서 그대로 교사별 활동·제안·명함 정보. */
 async function getTeacherListReport() {
   const now = new Date();
   const bounds = monthBounds(now);
   const today = kstDate(now);
   const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-  const [data, profiles, visits] = await Promise.all([
+  const [data, profiles, visits, cards, cases] = await Promise.all([
     loadTierData(),
     selectAll(() => db().from('teacher_profiles').select('*').order('id')),
     selectAll(() => db().from('app_visits').select('nid, visits, last_at').order('nid')),
+    selectAll(() => db().from('connect_cards').select('id, nid').neq('member_id', '').order('id')),
+    selectAll(() => db().from('plaza_posts').select('id, member_id').in('category', CASE_CATEGORIES).neq('status', '삭제').order('id')),
   ]);
   const profileOf = new Map(profiles.map((p) => [p.nid, p]));
   const visitOf = new Map(visits.map((v) => [v.nid, v]));   // 2026-10-20 앱 접속 횟수
+  // 10/30(사용자): 명함 등록 여부 · 사례 남긴 수 · 장부청 부서별 사례 1~3위
+  const hasCard = new Set(cards.map((c) => c.nid));
+  const caseCount = new Map();
+  for (const p of cases) { const k = normId(p.member_id); caseCount.set(k, (caseCount.get(k) || 0) + 1); }
+  const caseRank = new Map();
+  for (const dept of CASE_RANK_DEPTS) {
+    const ns = data.roster.filter((t) => String(t.dept || '').trim() === dept).map((t) => [normId(t.memberId), caseCount.get(normId(t.memberId)) || 0])
+      .filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+    // 건수가 같으면 같은 순위(1·1·3), 3위 안만
+    ns.forEach(([nid, n], i) => { const rank = ns.findIndex(([, m]) => m === n) + 1; if (rank <= 3) caseRank.set(nid, rank); });
+  }
 
   const rows = data.roster.map((person) => {
     const r = review(person, data, now);
@@ -634,6 +649,7 @@ async function getTeacherListReport() {
       } : null,
       affil: p ? p.affil : '', gender: p ? p.gender : '',
       visits: visitOf.get(r.nid)?.visits || 0, lastVisit: fmtTs(visitOf.get(r.nid)?.last_at),
+      card: hasCard.has(r.nid), cases: caseCount.get(r.nid) || 0, caseRank: caseRank.get(r.nid) || 0,
     };
   });
   return { rows };
