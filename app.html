@@ -1007,8 +1007,8 @@
     .er-flow i { flex:1; height:5px; border-radius:99px; background:#E5E7EB; }
     .er-flow i.done { background:#7FD8BF; } .er-flow i.now { background:#00AE82; }
     /* 10/30 센터 수강생: 게이지 = 개강→초등→중등→고등→수료(보라) */
-    .er-flow.course i.done { background:#C4B5FD; } .er-flow.course i.now { background:#7C3AED; }
-    .er-flow-lb { display:flex; gap:3px; margin-top:3px; } .er-flow-lb span { flex:1; text-align:center; font-size:11px; color:#6b7280; }
+    .er-flow.full { gap:2px; } .er-flow i.c.done { background:#C4B5FD; } .er-flow i.c.now { background:#7C3AED; }
+    .er-flow-now { margin-top:4px; font-size:12px; color:#6b7280; } .er-flow-now b { color:#111; }
     .er-enroll { color:#5B21B6; font-weight:700; }
     .er-cells .er-act.enroll { flex-basis:150px; } .er-act.enroll .er-act-i { background:#7C3AED; color:#fff; } .er-act.enroll > span:last-child { color:#6D28D9; }
     .er-act.enroll { background:#F3EEFF; border-color:#C4B5FD; } .er-act.enroll b { color:#5B21B6; font-size:13px; line-height:1.3; word-break:keep-all; }
@@ -8426,13 +8426,17 @@
     const erSent = st => st === '센터수강' || st === '센터소개';
     // 10/30(사용자): 센터 수강생은 단계 게이지를 수강 과정으로 — 개강 → 초등 → 중등 → 고등 → 수료
     const ER_COURSE_FLOW = ['개강', ...RP_COURSES];
-    function erFlowHtml(stage, prof) {
-      if (stage === '센터수강') {
-        const cur = ER_COURSE_FLOW.indexOf((prof && prof.course) || '개강');
-        return `<div class="er-flow course">${ER_COURSE_FLOW.map((n, i) => `<i class="${i < cur ? 'done' : i === cur ? 'now' : ''}" title="${esc(n)}"></i>`).join('')}</div>`;
-      }
-      const cur = GL_FLOW.findIndex(([, ss]) => ss.includes(stage));
-      return `<div class="er-flow">${GL_FLOW.map(([n], i) => `<i class="${i < cur ? 'done' : i === cur ? 'now' : ''}" title="${esc(n)}"></i>`).join('')}</div>`;
+    // 10/30(2차, 사용자): 게이지를 한 줄로 쭉 — 섭외 … 복음방 → 개강 준비(센터소개) → 개강(센터수강) → 초등 → 중등 → 고등 → 수료 (13칸, 개강부터 보라)
+    const ER_FULL_FLOW = ['섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '개강 준비', ...ER_COURSE_FLOW];
+    function erFlowIndex(stage, prof) {
+      if (stage === '센터수강') return 8 + Math.max(0, ER_COURSE_FLOW.indexOf((prof && prof.course) || '개강'));
+      if (stage === '센터소개') return 7;
+      return ER_FULL_FLOW.indexOf(stage);
+    }
+    function erFlowHtml(stage, prof, withLabel) {
+      const cur = erFlowIndex(stage, prof);
+      return `<div class="er-flow full">${ER_FULL_FLOW.map((n, i) => `<i class="${i >= 8 ? 'c ' : ''}${i < cur ? 'done' : i === cur ? 'now' : ''}" title="${esc(n)}"></i>`).join('')}</div>`
+        + (withLabel && cur >= 0 ? `<div class="er-flow-now">지금 <b>${esc(ER_FULL_FLOW[cur])}</b> · ${cur + 1}/${ER_FULL_FLOW.length}단계${cur < ER_FULL_FLOW.length - 1 ? ` · 다음 ${esc(ER_FULL_FLOW[cur + 1])}` : ' · 🎉'}</div>` : '');
     }
     // 수강 정보: 개강 월을 안 적었으면 개강 목표 월(goalCohort)로
     const erProf = t => { const p = (t && t.reportProfile) || {}; return { ...p, enroll: p.enroll || (t && t.goalCohort ? String(Number(t.goalCohort.slice(5))) : '') }; };
@@ -8477,8 +8481,7 @@
               <div class="er-head-n">${esc(maskName(p.name))}${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(erStageText(p.stage, prof))}</span>` : ''}</div>
               ${info ? `<div class="er-head-i">${esc(info)}</div>` : ''}
               ${p.stage === '센터수강' && rpEnrollLine(erProf(t)) ? `<div class="er-head-i er-enroll">🎓 ${esc(rpEnrollLine(erProf(t)))}</div>` : ''}
-              ${erFlowHtml(p.stage, prof)}
-              ${p.stage === '센터수강' ? `<div class="er-flow-lb">${ER_COURSE_FLOW.map(n => `<span>${n}</span>`).join('')}</div>` : ''}
+              ${erFlowHtml(p.stage, prof, true)}
             </div>
             ${(last => last ? `<button type="button" class="er-redo" onclick="rpOpenEdit(${Number(last.id)})" title="가장 최근 기록을 그대로 불러와 고친 뒤 다시 보고">✏️ 수정·재보고하기</button>` : '')(p.list[p.list.length - 1])}
           </div>
