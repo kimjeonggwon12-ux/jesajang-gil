@@ -1062,6 +1062,8 @@
     /* 10/30 파악한 정보 */
     .ei-new { display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:14px; background:#fff; border:1px solid #DDEFE8; }
     .ei-cats { display:flex; flex-wrap:wrap; gap:6px; }
+    .ei-cats-h { font-size:13px; font-weight:800; color:#374151; } .ei-cats-h span { font-weight:600; color:#6B7280; font-size:12px; }
+    .ei-tag { display:inline-block; margin-right:4px; padding:0 7px; border-radius:999px; background:#E6F7F1; color:#00875F; font-size:11.5px; }
     .ei-cat { padding:6px 10px; border-radius:999px; border:1px solid #E5E7EB; background:#fff; font-size:13px; font-weight:700; color:#374151; font-family:inherit; }
     .ei-cat.on { background:#00AE82; border-color:#00AE82; color:#fff; }
     .ei-text { width:100%; border:1px solid #D6DBD8; border-radius:12px; padding:10px 12px; font-size:16px; line-height:1.5; font-family:inherit; resize:vertical; }
@@ -8653,7 +8655,7 @@
     async function erInfoLoad(tid) {
       if (!tid) return;
       const cur = erInfo[tid] || {};
-      erInfo[tid] = { cat: '가족', filter: '', ...cur, loading: true };
+      erInfo[tid] = { sel: ['가족'], filter: '', ...cur, loading: true };
       try {
         const res = await callApi({ action: 'getTargetInfo', memberId, targetId: tid });
         if (res && res.error) throw new Error(res.error);
@@ -8666,18 +8668,21 @@
       const s = erInfo[t.targetId] || {};
       if (!s.items) return `<div class="er-o-h">파악한 정보</div><div class="er-o-note">${s.error ? '⚠️ ' + esc(s.error) : '<span class="loading loading-spinner loading-xs"></span> 불러오는 중…'}</div>`;
       const cats = s.cats || Object.keys(ER_INFO_IC), id = esc(t.targetId);
-      const count = c => s.items.filter(x => x.cat === c).length;
-      const shown = s.filter ? s.items.filter(x => x.cat === s.filter) : s.items;
-      return `<div class="er-o-h">파악한 정보 <span>${s.items.length}건 · 적을수록 AI가 이 사람을 더 잘 알아요</span></div>
+      const catsOf = x => x.cats || String(x.cat || '기타').split(',').map(c => c.trim());
+      const count = c => s.items.filter(x => catsOf(x).includes(c)).length;
+      const shown = s.filter ? s.items.filter(x => catsOf(x).includes(s.filter)) : s.items;
+      const sel = s.sel && s.sel.length ? s.sel : ['기타'];
+      return `<div class="er-o-h">파악한 정보 <span>${s.items.length}건 · 많이 기록할수록 AI가 이 사람을 더 잘 알아요</span></div>
         <div class="ei-new">
-          <div class="ei-cats">${cats.map(c => `<button type="button" class="ei-cat${s.cat === c ? ' on' : ''}" onclick="erInfoCat('${id}','${esc(c)}')">${ER_INFO_IC[c] || '📝'} ${esc(c)}</button>`).join('')}</div>
-          <textarea id="ei-text" class="ei-text" rows="3" maxlength="2000" oninput="erInfoDraft('${id}', this.value)" placeholder="${esc(ER_INFO_PH[s.cat] || '새로 알게 된 것을 적어 주세요')}">${esc(s.draft || '')}</textarea>
-          <button type="button" class="er-o-main" onclick="erInfoAdd('${id}')" ${s.busy ? 'disabled' : ''}>${s.busy ? '저장 중…' : `＋ ${esc(s.cat)} 정보 기록하기`}</button>
+          <div class="ei-cats-h">분류 <span>· 여러 개 함께 골라도 돼요</span></div>
+          <div class="ei-cats">${cats.map(c => `<button type="button" class="ei-cat${sel.includes(c) ? ' on' : ''}" onclick="erInfoCat('${id}','${esc(c)}')">${ER_INFO_IC[c] || '📝'} ${esc(c)}</button>`).join('')}</div>
+          <textarea id="ei-text" class="ei-text" rows="3" maxlength="2000" oninput="erInfoDraft('${id}', this.value)" placeholder="${esc(ER_INFO_PH[sel[sel.length - 1]] || '새로 알게 된 것을 적어 주세요')}">${esc(s.draft || '')}</textarea>
+          <button type="button" class="er-o-main" onclick="erInfoAdd('${id}')" ${s.busy ? 'disabled' : ''}>${s.busy ? '저장 중…' : `＋ ${esc(sel.join('·'))} 정보 기록하기`}</button>
         </div>
         <button type="button" class="ei-ai" onclick="erInfoAi('${id}')" ${s.fbBusy || !s.items.length ? 'disabled' : ''}>${s.fbBusy ? '<span class="loading loading-spinner loading-xs"></span> 모은 정보 읽는 중…' : `🤖 모은 정보 ${s.items.length}건으로 AI 피드백 ${s.feedback ? '다시 ' : ''}받기`}</button>
         ${s.feedback ? `<details class="er-o-card ei-fb" open><summary>🤖 AI 피드백 · ${esc(String(s.feedback.at || '').slice(5, 16).replace('-', '/'))}${s.feedback.basis ? ' · ' + esc(s.feedback.basis) : ''}</summary>${glMd(s.feedback.text)}</details>` : ''}
         ${s.items.length ? `<div class="ei-filter"><button type="button" class="${!s.filter ? 'on' : ''}" onclick="erInfoFilter('${id}','')">전체 ${s.items.length}</button>${cats.filter(count).map(c => `<button type="button" class="${s.filter === c ? 'on' : ''}" onclick="erInfoFilter('${id}','${esc(c)}')">${ER_INFO_IC[c] || ''} ${esc(c)} ${count(c)}</button>`).join('')}</div>
-        <div class="ei-list">${shown.map(x => `<div class="ei-item"><span class="ei-ic">${ER_INFO_IC[x.cat] || '📝'}</span><div class="ei-body"><div class="ei-meta"><b>${esc(x.cat)}</b> · ${esc(String(x.at || '').slice(5, 10).replace('-', '/'))}</div><div class="ei-tx">${esc(x.text)}</div></div><button type="button" class="ei-x" onclick="erInfoDel('${id}', ${Number(x.id)})" aria-label="지우기">✕</button></div>`).join('')}</div>`
+        <div class="ei-list">${shown.map(x => `<div class="ei-item"><span class="ei-ic">${ER_INFO_IC[catsOf(x)[0]] || '📝'}</span><div class="ei-body"><div class="ei-meta">${catsOf(x).map(c => `<b class="ei-tag">${esc(c)}</b>`).join('')} · ${esc(String(x.at || '').slice(5, 10).replace('-', '/'))}</div><div class="ei-tx">${esc(x.text)}</div></div><button type="button" class="ei-x" onclick="erInfoDel('${id}', ${Number(x.id)})" aria-label="지우기">✕</button></div>`).join('')}</div>`
         : '<div class="er-o-note">아직 적은 정보가 없어요. 대화하며 알게 된 가족·직장·관심사·고민 등을 한 줄씩 남겨 보세요. 개수 제한은 없어요.</div>'}`;
     }
     const ER_INFO_PH = { '가족': '예) 남편·고1 아들, 시어머니 모시고 삶', '직장·학업': '예) 병원 간호사, 3교대', '관심사·취미': '예) 등산, 요즘 캠핑에 관심', '고민·필요': '예) 아들 진로 고민이 큼',
@@ -8703,14 +8708,15 @@
       const list = erLessonList(tid); list.splice(i, 1); erLessonsSave(tid, list);
     };
     window.erInfoDraft = function (tid, v) { if (erInfo[tid]) erInfo[tid].draft = v; };   // 화면이 다시 그려져도 쓰던 글 유지
-    window.erInfoCat = function (tid, c) { const s = erInfo[tid]; if (!s) return; s.cat = c; renderHome(); const n = document.getElementById('ei-text'); if (n) n.focus(); };
+    // 10/30(사용자): 분류는 여러 개 함께(누르면 켜고 끄기, 하나는 남김)
+    window.erInfoCat = function (tid, c) { const s = erInfo[tid]; if (!s) return; const cur = s.sel || []; const next = cur.includes(c) ? cur.filter(x => x !== c) : cur.concat([c]); s.sel = next.length ? next : cur; renderHome(); const n = document.getElementById('ei-text'); if (n) n.focus(); };
     window.erInfoFilter = function (tid, c) { const s = erInfo[tid]; if (s) { s.filter = c; renderHome(); } };
     window.erInfoAdd = async function (tid) {
       const s = erInfo[tid], el = document.getElementById('ei-text'), text = el ? el.value.trim() : '';
       if (!s || !text) { toast('내용을 적어 주세요.', true); return; }
       s.busy = true; renderHome();
       try {
-        const res = await callApi({ action: 'addTargetInfo', memberId, targetId: tid, cat: s.cat, text });
+        const res = await callApi({ action: 'addTargetInfo', memberId, targetId: tid, cats: s.sel && s.sel.length ? s.sel : ['기타'], text });
         if (res && res.error) throw new Error(res.error);
         s.items.unshift(res.item); s.draft = ''; toast('기록했어요');
       } catch (e) { toast(e.message, true); s.draft = text; }

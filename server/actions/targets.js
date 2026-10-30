@@ -709,7 +709,7 @@ async function getKeyStageCount() {
 const INFO_KIND = '파악정보';
 const INFO_FB_KIND = 'AI 파악정보 피드백';
 const INFO_CATS = ['가족', '직장·학업', '관심사·취미', '고민·필요', '신앙 배경', '성격·성향', '일정·연락', '기타'];
-const infoRow = (n) => ({ id: n.id, cat: n.input || '기타', text: n.text, at: fmtTs(n.created_at), mine: true });
+const infoRow = (n) => ({ id: n.id, cat: n.input || '기타', cats: String(n.input || '기타').split(',').map((c) => c.trim()).filter(Boolean), text: n.text, at: fmtTs(n.created_at), mine: true });
 
 async function getTargetInfo(body) {
   const target = await ownedTarget(body.memberId, body.targetId);
@@ -723,7 +723,9 @@ async function addTargetInfo(body) {
   if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
   const text = str(body.text).slice(0, 2000);
   if (!text) return { error: '내용을 적어 주세요.' };
-  const cat = INFO_CATS.includes(str(body.cat)) ? str(body.cat) : '기타';
+  // 10/30(사용자): 한 정보에 분류 여러 개(종합) — cats 배열(옛 앱은 cat 하나). 저장은 '가족, 고민·필요'처럼
+  const picked = (Array.isArray(body.cats) ? body.cats : [body.cat]).map(str).filter((c) => INFO_CATS.includes(c));
+  const cat = [...new Set(picked)].join(', ') || '기타';
   const [row] = await run(db().from('target_ai_notes').insert({ target_id: target.target_id, member_id: str(body.memberId), kind: INFO_KIND, input: cat, text, created_at: kstDateTime() }).select('*'));
   return { ok: true, item: infoRow(row) };
 }
