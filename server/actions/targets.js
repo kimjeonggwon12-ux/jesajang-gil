@@ -67,12 +67,17 @@ export async function upsertTargetFromActivity(activity) {
   }
 }
 
-async function upsertTargetOnce({ memberId, name, roles, targetName, gender, ageGroup, stage, note, report, date }) {
+// 10/30(사용자): "센터수강을 기록했는데 단계 게이지는 그대로 만남" — 단계는 고른 단계·기록한 활동·지금 단계 중 가장 높은 것(자동으로 내리지 않음)
+const stageRank = (s) => TARGET_STAGES.indexOf(String(s || '').trim());
+export const highestStage = (...list) => list.flat().reduce((best, s) => (stageRank(s) > stageRank(best) ? String(s).trim() : best), '');
+
+async function upsertTargetOnce({ memberId, name, roles, targetName, gender, ageGroup, stage: picked, activities, note, report, date }) {
   const mid = str(memberId);
   if (!mid || !targetName) return;
   const now = kstDateTime();
   const mine = await run(db().from('targets').select('*').or(ownedBy(normId(mid))).order('id'));
   const existing = mine.find((t) => t.target_name.trim() === targetName);
+  const stage = highestStage(picked, activities || [], existing ? existing.stage : '') || picked;
 
   if (existing) {
     const patch = { ...roleAssignment(existing, roles, mid), updated_at: now };
@@ -173,6 +178,7 @@ export function cleanReport(v) {
     if (!v[k] || typeof v[k] !== 'object') continue;
     o[k] = Object.fromEntries(keys.map((x) => [x, str(v[k][x]).slice(0, 60)]));
   }
+  if (Array.isArray(v.lessons)) o.lessons = v.lessons.slice(-60).map((l) => ({ date: str(l && l.date).slice(0, 10), title: str(l && l.title).slice(0, 120) })).filter((l) => l.title);
   return o;
 }
 function mergeProfile(prev, report, date) {
@@ -181,11 +187,24 @@ function mergeProfile(prev, report, date) {
     if (report[k] === undefined) continue;
     p[k] = typeof report[k] === 'object' ? { ...(p[k] || {}), ...report[k] } : report[k];
   }
-  const lessons = Array.isArray(p.lessons) ? p.lessons.slice(-60) : [];
+  // 10/30: 앱에서 누적 교육 제목을 한 줄씩 고쳤으면(report.lessons) 그 목록으로 바꾼 뒤 오늘 제목을 붙인다
+  const lessons = Array.isArray(report.lessons) ? report.lessons.slice(-60) : Array.isArray(p.lessons) ? p.lessons.slice(-60) : [];
   const last = lessons[lessons.length - 1];
   if (report.lesson && !(last && last.title === report.lesson)) lessons.push({ date, title: report.lesson });
   p.lessons = lessons;
   return p;
+}
+
+/** 고친 기록의 활동이 지금 단계보다 높으면 섭외자 단계를 올린다(10/30). */
+export async function raiseStageFromActivity(memberId, targetName, activities, note) {
+  const mid = str(memberId);
+  const mine = await run(db().from('targets').select('id, target_id, stage, target_name').or(ownedBy(normId(mid))).order('id'));
+  const t = mine.find((x) => x.target_name.trim() === String(targetName || '').trim());
+  if (!t) return;
+  const next = highestStage(activities || [], t.stage);
+  if (!next || next === t.stage) return;
+  await run(db().from('targets').update({ stage: next, updated_at: kstDateTime() }).eq('id', t.id));
+  await appendHistory(mid, t.target_id, t.stage, next, note || '');
 }
 
 /** 고친 보고 기록 → 그 섭외자 프로필. 보낸 칸만 덮고, 누적 교육 제목은 이 기록(같은 날짜·옛 제목)의 제목만 바꾼다. */

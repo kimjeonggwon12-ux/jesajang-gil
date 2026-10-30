@@ -3,7 +3,7 @@ import { db, run, selectAll } from '../lib/db.js';
 import { normId, str, kstDate, kstDateTime, fmtTs, byDesc } from '../lib/util.js';
 import { notifyActivityChannel } from '../lib/telegram.js';
 import { afterAction } from '../lib/events.js';
-import { upsertTargetFromActivity, updateProfileFromEdit, TARGET_STAGES, cleanReport } from './targets.js';
+import { upsertTargetFromActivity, updateProfileFromEdit, raiseStageFromActivity, TARGET_STAGES, cleanReport } from './targets.js';
 import { findTeacher } from './roster.js';
 import { roomForTeacher, roomsForReport, postReport, reportRooms, reportRoomsAdmin } from '../lib/report-room.js';
 import { storeImage } from '../lib/images.js';
@@ -67,7 +67,7 @@ async function submitActivity(body) {
   const [row] = await run(db().from('activities').insert({ member_id: memberId, name, ...fields }).select('*'));
 
   if (targetName) {
-    await upsertTargetFromActivity({ memberId, name, roles, targetName, gender, ageGroup, stage, note, report, date: fields.submitted_at.slice(0, 10) });
+    await upsertTargetFromActivity({ memberId, name, roles, targetName, gender, ageGroup, stage, activities, note, report, date: fields.submitted_at.slice(0, 10) });
   }
 
   const label = activities.join(', ');
@@ -134,6 +134,7 @@ async function updateActivity(body) {
   if (fields.target_name && fields.report) {
     await updateProfileFromEdit(mid, fields.target_name, fields.report, fields.submitted_at.slice(0, 10), old.report && old.report.lesson);
   }
+  if (fields.target_name) await raiseStageFromActivity(mid, fields.target_name, [...(fields.activities || []), fields.target_stage], '').catch(() => {});
   const sent = await autoReport({ ...old, ...fields }, 'edit');   // 고칠 때마다 보고방에 수정본
   return { ok: true, editedAt, reposted: sent.reported, repostError: sent.reportError || '', room: sent.room };
 }

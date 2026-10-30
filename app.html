@@ -886,6 +886,13 @@
     .rp-team label > span { font-size:13.5px; font-weight:700; color:var(--dg-text); }
     .rp-team .act-input { min-height:42px; padding:9px 12px; }
     .rp-lessons { margin:0; padding-left:22px; font-size:14.5px; line-height:1.8; }
+    /* 10/30 누적 교육 제목: 한 줄씩 추가 */
+    .rp-ls { display:flex; flex-direction:column; gap:6px; }
+    .rp-ls-row { display:flex; align-items:center; gap:8px; } .rp-ls-row .act-input { flex:1; height:42px; margin:0; }
+    .rp-ls-n { flex:0 0 26px; height:26px; border-radius:50%; background:#E6F7F1; color:#00875F; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; }
+    .rp-ls-x { flex:0 0 34px; height:34px; border-radius:10px; border:1px solid #E5E7EB; background:#fff; color:#9CA3AF; font-size:14px; }
+    .rp-ls-row.today { padding:8px 10px; border-radius:10px; background:#F7FAF9; } .rp-ls-t { flex:1; font-size:14.5px; font-weight:700; } .rp-ls-row.today em { font-style:normal; font-size:12px; color:#6B7280; white-space:nowrap; }
+    .rp-ls-add { height:42px; border-radius:10px; border:1.5px dashed #00AE82; background:#fff; color:#00875F; font-weight:800; font-size:14.5px; }
     .tg-goal-sum { display:flex; flex-wrap:wrap; gap:6px; padding:2px var(--dg-pad) 4px; }
     .tg-goal-sum > * { font-size:12.5px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid #E5E7EB; background:#F9FAFB; color:#6B7280; }
     .tg-goal-sum > .on { background:#FFF4EC; border-color:#FFD2B3; color:#C2410C; }
@@ -7012,6 +7019,8 @@
       const r = f.rp, tier = rpTier(f.activityItem);
       const p = { tier, title: rpTitle(f.activityItem), age: r.age, faith: r.faith, recruitType: r.recruitType, time: r.time, nextDate: r.nextDate, request: r.request.trim(),
         phone4: r.phone4, team: r.team, checks: r.checks, stageMark: r.stageMark, plan: r.plan, eduTotal: r.eduTotal, eduWeekly: r.eduWeekly, lesson: f.extraTitle.trim() };
+      // 10/30: 누적 교육 제목을 손으로 고쳤으면 목록 통째로(새 기록일 때만 — 고치기는 그 기록 앞까지만 보이므로 보내지 않음)
+      if (f.rpLessonsEdited && !f.editId) p.lessons = (r.lessons || []).map(l => ({ date: (l && l.date) || f.date, title: String((l && l.title) || l || '').trim() })).filter(l => l.title);
       if (rpIsEnrolled(f)) Object.assign(p, { enroll: r.enroll, center: r.center, cohortNo: r.cohortNo, course: r.course }); else p.center = r.center;
       return p;
     }
@@ -7073,8 +7082,16 @@
             </div>`,
         lessons: `
         <div class="act-form-group">
-          <div class="act-step-label">📚 누적 교육 제목 <span class="rp-opt">· 제목을 적으면 자동으로 쌓여요</span></div>
-          ${lessons.length ? `<ol class="rp-lessons">${lessons.map(t => `<li>${esc(t)}</li>`).join('')}</ol>` : '<div class="rp-opt">아직 없어요. 위에 제목을 적어 주세요.</div>'}
+          <div class="act-step-label">📚 누적 교육 제목 <span class="rp-opt">· 이 섭외자에게 한 교육을 차례로</span></div>
+          ${f.editId ? `${lessons.length ? `<ol class="rp-lessons">${lessons.map(t => `<li>${esc(t)}</li>`).join('')}</ol>` : '<div class="rp-opt">아직 없어요.</div>'}
+            <div class="rp-opt" style="margin-top:6px">기록을 고칠 때는 목록을 바꿀 수 없어요. 이 기록의 제목만 위 '교육 제목'에서 고쳐 주세요.</div>`
+          : `<div class="rp-ls">
+            ${(r.lessons || []).map((l, i) => `<div class="rp-ls-row"><span class="rp-ls-n">${i + 1}</span>${rpIn('data-lesson', i, (l && l.title) || l || '', '교육 제목')}<button type="button" class="rp-ls-x" data-lesson-x="${i}" aria-label="이 제목 빼기">✕</button></div>`).join('')}
+            ${String(f.extraTitle || '').trim() && rpLessons(f).length > (r.lessons || []).filter(l => String((l && l.title) || l || '').trim()).length
+              ? `<div class="rp-ls-row today"><span class="rp-ls-n">${(r.lessons || []).length + 1}</span><span class="rp-ls-t">${esc(f.extraTitle.trim())}</span><em>오늘 · 위 '교육 제목'</em></div>` : ''}
+            <button type="button" class="rp-ls-add" id="rp-ls-add">＋ 제목 추가</button>
+          </div>
+          <div class="rp-opt" style="margin-top:6px">지난 교육은 [＋ 제목 추가]로 한 줄씩 적어 나가요. 오늘 교육은 위 '교육 제목'에 적으면 맨 아래에 붙어요.</div>`}
         </div>`,
         plan: `
         <div class="act-form-group">
@@ -7102,7 +7119,7 @@
     // 기록을 남긴 뒤·고치기를 마친 뒤 칸 비우기(역할은 다음 기록에도 그대로 둠)
     function rpResetForm(f) {
       if (f.editId) f.date = todayStr();
-      f.editId = null;
+      f.editId = null; f.rpLessonsEdited = false;
       f.targetName = ''; f.targetGender = ''; f.targetAgeGroup = ''; f.targetStage = ''; f.existingTargetId = ''; f.goalCohort = '';
       f.todayWork = ''; f.nextWork = '';
       f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
@@ -7163,6 +7180,18 @@
         if (k === 'age') el.onchange = () => { const g = rpAgeGroup(el.value); if (g) { f.targetAgeGroup = g; renderActivityFormSheet(); } };
         if (rpIsEnrolled(f) && (k === 'center' || k === 'cohortNo')) el.onchange = () => renderActivityFormSheet();   // 🎓 수강 줄 새로
       });
+      // 10/30(사용자): 누적 교육 제목 — 한 줄씩 추가·고치기·빼기(바꾸면 rpLessonsEdited → 서버가 목록을 통째로 바꿈)
+      document.querySelectorAll('[data-lesson]').forEach(el => {
+        const i = Number(el.dataset.lesson);
+        el.oninput = () => { const l = r.lessons[i]; r.lessons[i] = { date: (l && l.date) || f.date, title: el.value }; f.rpLessonsEdited = true; rpRefreshPreview(); };
+      });
+      document.querySelectorAll('[data-lesson-x]').forEach(b => { b.onclick = () => { r.lessons.splice(Number(b.dataset.lessonX), 1); f.rpLessonsEdited = true; renderActivityFormSheet(); }; });
+      const lsAdd = document.getElementById('rp-ls-add');
+      if (lsAdd) lsAdd.onclick = () => {
+        r.lessons = (r.lessons || []).filter(l => String((l && l.title) || l || '').trim());
+        r.lessons.push({ date: f.date, title: '' }); f.rpLessonsEdited = true; renderActivityFormSheet();
+        const ins = document.querySelectorAll('[data-lesson]'); if (ins.length) ins[ins.length - 1].focus();
+      };
       document.querySelectorAll('[data-rp-team]').forEach(el => {
         el.oninput = () => { r.team[el.dataset.rpTeam] = el.value; if (f.rpAuto) f.rpAuto[el.dataset.rpTeam] = false; rpRefreshPreview(); };
       });
@@ -8142,7 +8171,10 @@
       const f = home.form, sc = document.querySelector('#appSheetHost .sheet'), top = sc ? sc.scrollTop : 0;
       rpSyncSelf(f);
       if (rpTier(f.activityItem) === 'edu' && (!f.rp.eduTotal || f.rpTotalAuto)) { f.rp.eduTotal = String((f.rp.lessons || []).length + 1); f.rpTotalAuto = true; }
-      openSheet(`<div class="act-sheet-form">${activityFormHtml()}</div>`);
+      // 10/30(사용자): "뭘 쓰고 누를 때마다 팝업이 움직인다" — 이미 열린 양식이면 시트를 새로 열지 않고(열림 효과·뒤로 기록이 다시 생기던 것) 안쪽만 바꾼다
+      const box = document.querySelector('#appSheetHost .act-sheet-form');
+      if (box) box.innerHTML = activityFormHtml();
+      else openSheet(`<div class="act-sheet-form">${activityFormHtml()}</div>`);
       wireActivityForm();
       const sc2 = document.querySelector('#appSheetHost .sheet');
       if (sc2 && top) sc2.scrollTop = top;
@@ -8186,9 +8218,10 @@
       try { localStorage.setItem(GL_OPEN_KEY, JSON.stringify([...glOpen].slice(-200))); } catch (e) {}
     }
     window.glFold = function (id) { glSetOpen(id, glFolded(id)); renderHome(); };
-    function glMonths() {   // 이번 달부터 개강 3개: '2026-10', '2026-11', '2026-12'
+    // 10/30(사용자): "추후 더 할 수 있으니 향후 6개월까지" — 이번 달부터 6개월 뒤까지 7개('2026-10' … '2027-04')
+    function glMonths() {
       const [y, m] = todayStr().split('-').map(Number);
-      return [0, 1, 2].map(k => `${y + Math.floor((m - 1 + k) / 12)}-${String((m - 1 + k) % 12 + 1).padStart(2, '0')}`);
+      return [0, 1, 2, 3, 4, 5, 6].map(k => `${y + Math.floor((m - 1 + k) / 12)}-${String((m - 1 + k) % 12 + 1).padStart(2, '0')}`);
     }
     const glLabel = g => g ? `${Number(g.slice(5))}월 개강` : '';
     const glTarget = id => home.targets.find(t => t.targetId === id);
@@ -8234,7 +8267,7 @@
     }
     function goalPageHtml() {
       const ts = home.targets.filter(t => !t.completed), months = glMonths();
-      const groups = [...new Set(months.concat(ts.map(t => t.goalCohort).filter(Boolean)))].sort();
+      const groups = [...new Set(months.slice(0, 3).concat(ts.map(t => t.goalCohort).filter(Boolean)))].sort();   // 빈 달은 앞 3개만
       const rest = ts.filter(t => !t.goalCohort);
       return `<div class="gl-wrap">
           ${glBannerHtml(false)}
@@ -8314,7 +8347,10 @@
         list.sort((x, y) => String(x.submittedAt).localeCompare(String(y.submittedAt)));
         const t = home.targets.find(x => erKey(x.targetName) === name) || null;
         const edu = list.filter(a => erItems(a).some(i => rpTier(i) === 'edu')).length;
-        return { name, list, t, stage: (t && t.stage) || list[list.length - 1].targetStage || '', last: list[list.length - 1].submittedAt, edu };
+        // 10/30(사용자): 게이지는 가장 높은 단계 — 저장된 단계·기록마다의 단계·기록한 활동(센터수강 등) 중 최고
+        const cands = [t && t.stage, ...list.flatMap(a => [a.targetStage, ...erItems(a)])].filter(s => home.stages.includes(s));
+        const stage = cands.reduce((b, s) => (stageIndex(s) > stageIndex(b) ? s : b), cands[0] || '');
+        return { name, list, t, stage, last: list[list.length - 1].submittedAt, edu };
       }).sort((x, y) => String(y.last).localeCompare(String(x.last)));
     }
     const erSent = st => st === '센터수강' || st === '센터소개';
