@@ -5,6 +5,7 @@ import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { sendAlert, alreadySent, logAlert, esc } from '../lib/alerts.js';
 import { afterAction, onStageReached } from '../lib/events.js';
 import { teachersByNid, rosterCounts, loadRoster } from './roster.js';
+import { progressPng } from '../lib/progress-image.js';
 
 // [명단의 부서 이름, 알림에 쓰는 이름]
 const DEPTS = [['교역자', '교역자회'], ['자문회', '자문회'], ['장년회', '장년회'], ['부녀회', '부녀회'], ['청년회', '청년회']];
@@ -198,13 +199,32 @@ async function composeStatus(day) {
   const lines = ['🌃 <b>밤 11시 교사광장 참여 현황</b>', `📅 ${day} (${weekdayOf(day)}) 기준 · 누적`, ''];
   for (const [dept, label] of DEPTS) lines.push(...block(label, stat[dept]), '');
   lines.push(...block('⛪ 전주교회 전체', all).map((l, i) => (i ? l : l.replace('🏢 ', ''))));
-  return lines.join('\n');
+  // 10/30(사용자): 옆으로 뻗는 채움 막대 사진(조직마다 막대 = 전체 인원, 채운 만큼 = 해당 인원) + 짧은 설명
+  const orgs = [...DEPTS.map(([d, label]) => [label, stat[d]]), ['전주교회 전체', all]];
+  let png = null;
+  try {
+    png = progressPng({
+      title: '교사광장 참여 현황', sub: `${day} (${weekdayOf(day)}) 기준 · 누적 · 막대 끝 = 그 조직 전체 교사`,
+      labels: orgs.map(([l]) => l), totals: orgs.map(([, s]) => s.total), sumLabel: '전주교회 전체',
+      panels: [
+        { title: '명함 등록', color: '#00AE82', values: orgs.map(([, s]) => s.card) },
+        { title: '활동 기록 참여', color: '#2F6BFF', values: orgs.map(([, s]) => s.act) },
+        { title: '앱 입장 1회 이상', color: '#F08A00', values: orgs.map(([, s]) => s.seen) },
+      ],
+    });
+  } catch (e) { console.log('[교사광장 봇] 참여 현황 그림 오류 ' + e); }
+  const caption = ['🌃 <b>교사광장 참여 현황</b>', `📅 ${day} (${weekdayOf(day)}) 기준 · 누적`, '',
+    ...orgs.map(([l, s]) => `${l === '전주교회 전체' ? '⛪' : '🏢'} <b>${l}</b> ${comma(s.total)}명 — 명함 ${comma(s.card)} · 기록 ${comma(s.act)} · 입장 ${comma(s.seen)}`)].join('\n');
+  return { text: lines.join('\n'), caption, png };
 }
 async function sendStatusSummary({ date, force } = {}) {
   const day = date || kstDate();
   const key = force ? '' : 'status_' + day;
   if (key && await alreadySent(key)) return { ok: false, date: day, skipped: true };
-  return { ok: await sendAlert(await composeStatus(day), '참여현황', key), date: day };
+  const r = await composeStatus(day);
+  let ok = r.png ? await sendChart(r.png, r.caption, key, '참여현황') : false;
+  if (!ok) ok = await sendAlert(r.text, '참여현황', key);   // 사진을 못 보내면 글로
+  return { ok, date: day, photo: !!r.png };
 }
 
 /** 5분마다(attAutoSummary): 12시가 지나면 정오 서머리(오후 3시까지만 — 늦게 켜져도 밤에 '정오'가 나가지 않게), 22시 저녁 서머리, 23시 참여 현황. */
@@ -305,7 +325,7 @@ function textBars({ labels, totals, joined }) {
 }
 
 /** 그래프 사진 + 설명을 보낸다. 같은 중복키로 이미 보냈으면 다시 보내지 않는다. */
-async function sendChart(png, caption, dedupKey) {
+async function sendChart(png, caption, dedupKey, kind = '저녁서머리') {
   try {
     if (await alreadySent(dedupKey)) return true;
     if (!process.env.TEACHERSQUARE_BOT_TOKEN || !process.env.TEACHERSQUARE_CHAT_ID) return false;
@@ -316,7 +336,7 @@ async function sendChart(png, caption, dedupKey) {
     form.set('photo', new Blob([png], { type: 'image/png' }), 'participation.png');
     const r = await fetch(`https://api.telegram.org/bot${process.env.TEACHERSQUARE_BOT_TOKEN}/sendPhoto`, { method: 'POST', body: form });
     if (!r.ok) console.log(`[교사광장 봇] 사진 전송 실패 ${r.status} ${(await r.text()).slice(0, 300)}`);
-    await logAlert('저녁서머리', '[그래프] ' + caption, r.ok, dedupKey);
+    await logAlert(kind, '[그래프] ' + caption, r.ok, dedupKey);
     return r.ok;
   } catch (e) {
     console.log('[교사광장 봇] 사진 전송 오류 ' + e);
@@ -360,7 +380,7 @@ const tsNoonSummary = async (body) => (authorized(body) ? sendNoonSummary({ date
 async function tsStatus(body) {
   if (!authorized(body)) return { error: 'unauthorized' };
   if (body.preview === 'daily') return { ok: true, ...(await composeDaily(body.date || kstDate(new Date(Date.now() - 24 * 3600 * 1000)))) };
-  if (body.preview === 'status') return { ok: true, text: await composeStatus(body.date || kstDate()) };
+  if (body.preview === 'status') { const r = await composeStatus(body.date || kstDate()); return { ok: true, text: r.text, caption: r.caption, photo: !!r.png }; }
   if (body.preview === 'noon' || body.preview === 'today') return { ok: true, ...(await composeDepts(body.date || kstDate(), body.preview === 'noon' ? '🕛 정오 서머리' : '🌙 오늘 하루')) };
   if (body.preview === 'evening') { const { caption, tiers } = await composeEvening(body.date || kstDate()); return { ok: true, caption, tiers }; }
   const recent = await run(db().from('alert_log').select('*').order('id', { ascending: false }).limit(10));
