@@ -3,7 +3,7 @@ import { db, run, selectAll } from '../lib/db.js';
 import { normId, str, kstDate, kstDateTime, fmtTs, byDesc } from '../lib/util.js';
 import { notifyActivityChannel } from '../lib/telegram.js';
 import { afterAction } from '../lib/events.js';
-import { upsertTargetFromActivity, updateProfileFromEdit, raiseStageFromActivity, TARGET_STAGES, cleanReport } from './targets.js';
+import { upsertTargetFromActivity, updateProfileFromEdit, raiseStageFromActivity, renameTargetForOwner, TARGET_STAGES, cleanReport } from './targets.js';
 import { findTeacher } from './roster.js';
 import { roomForTeacher, roomsForReport, postReport, reportRooms, reportRoomsAdmin } from '../lib/report-room.js';
 import { storeImage } from '../lib/images.js';
@@ -130,6 +130,9 @@ async function updateActivity(body) {
     ? { ...fields, report: fields.report && { ...fields.report, photos: (old.report && old.report.photos) || [] } }
     : await withPhotos(fields, body.photos);
   const editedAt = kstDateTime();
+  // 10/30: 섭외자 이름을 고쳤으면 섭외자·내 다른 기록 이름도 함께(이 기록 저장 전에 — 아래 프로필·단계는 새 이름으로 찾는다)
+  const oldName = String(old.target_name || '').trim();
+  if (oldName && fields.target_name && fields.target_name.trim() !== oldName) await renameTargetForOwner(mid, oldName, fields.target_name.trim()).catch(() => {});
   await run(db().from('activities').update({ ...fields, edited_at: editedAt }).eq('id', old.id));
   if (fields.target_name && fields.report) {
     await updateProfileFromEdit(mid, fields.target_name, fields.report, fields.submitted_at.slice(0, 10), old.report && old.report.lesson);

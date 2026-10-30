@@ -195,6 +195,20 @@ function mergeProfile(prev, report, date) {
   return p;
 }
 
+/**
+ * 10/30(사용자): 수정·재보고에서 섭외자 이름을 고치면 — 내 담당 섭외자 이름과, 내가 그 이름으로 남긴 다른 기록 이름도 함께 바꾼다.
+ * 새 이름의 섭외자가 이미 따로 있으면 섭외자 행은 건드리지 않는다(둘이 섞이지 않게) — 이 기록 이름만 바뀐다.
+ */
+export async function renameTargetForOwner(memberId, oldName, newName) {
+  const mid = str(memberId), from = str(oldName), to = str(newName);
+  if (!mid || !from || !to || from === to) return;
+  const mine = await run(db().from('targets').select('id, target_name').or(ownedBy(normId(mid))).order('id'));
+  const src = mine.find((x) => x.target_name.trim() === from);
+  if (!src || mine.some((x) => x.target_name.trim() === to)) return;
+  await run(db().from('targets').update({ target_name: to, updated_at: kstDateTime() }).eq('id', src.id));
+  await run(db().from('activities').update({ target_name: to }).eq('nid', normId(mid)).eq('target_name', from));
+}
+
 /** 고친 기록의 활동이 지금 단계보다 높으면 섭외자 단계를 올린다(10/30). */
 export async function raiseStageFromActivity(memberId, targetName, activities, note) {
   const mid = str(memberId);

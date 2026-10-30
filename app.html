@@ -840,6 +840,8 @@
       box-shadow:var(--dg-shadow-fab); z-index:30; cursor:pointer; transition:transform .12s ease;
     }
     #sec-activity .act-fab:active { transform:scale(0.92); }
+    /* 10/30(사용자): 동그란 ＋ 단추 → 광장 '글쓰기'처럼 글자 단추 */
+    #sec-activity .act-fab { width:auto; height:52px; padding:0 20px; border-radius:26px; font-size:15px; font-weight:800; white-space:nowrap; font-family:inherit; }
 
     /* ── Phase 3·4: 바텀시트 작성 폼(#appSheetHost에 렌더되므로 전역 클래스) */
     .act-sheet-form { display:flex; flex-direction:column; gap:14px; letter-spacing:-0.02em; }
@@ -887,6 +889,7 @@
     .rp-team .act-input { min-height:42px; padding:9px 12px; }
     .rp-lessons { margin:0; padding-left:22px; font-size:14.5px; line-height:1.8; }
     /* 10/30 임시 저장 */
+    .rp-rename { margin-top:6px; padding:8px 12px; border-radius:10px; background:#FFF7E6; color:#92400E; font-size:13px; line-height:1.5; }
     .rp-draft-save { width:100%; height:46px; margin:8px 0 2px; border-radius:12px; border:1.5px dashed #94A3B8; background:#F8FAFC; color:#334155; font-size:14.5px; font-weight:800; font-family:inherit; }
     .rp-draft-save span { font-size:12px; font-weight:600; color:#64748B; }
     .rp-drafts { margin-top:10px; padding:10px 12px; border-radius:12px; background:#F8FAFC; border:1px solid #E2E8F0; }
@@ -1016,8 +1019,7 @@
     /* 10/30 사람 화면 누적 교육 제목 바로 추가 */
     .er-ls { display:flex; flex-direction:column; gap:8px; }
     .er-lessons li span { flex:1; } .er-lessons li { display:list-item; } .er-ls-x { float:right; border:none; background:transparent; color:#9CA3AF; font-size:13px; padding:0 4px; }
-    .er-ls-add { display:flex; gap:6px; } .er-ls-add .act-input { flex:1; height:42px; margin:0; }
-    .er-ls-add button { flex:0 0 auto; padding:0 14px; border-radius:10px; border:none; background:#00AE82; color:#fff; font-weight:800; font-size:14px; font-family:inherit; }
+    .er-ls-edit { align-self:flex-start; padding:7px 12px; border-radius:10px; border:1px solid #CDEFE3; background:#fff; color:#00875F; font-weight:800; font-size:13px; font-family:inherit; }
     .er-enroll { color:#5B21B6; font-weight:700; }
     .er-cells .er-act.enroll { flex-basis:150px; } .er-act.enroll .er-act-i { background:#7C3AED; color:#fff; } .er-act.enroll > span:last-child { color:#6D28D9; }
     .er-act.enroll { background:#F3EEFF; border-color:#C4B5FD; } .er-act.enroll b { color:#5B21B6; font-size:13px; line-height:1.3; word-break:keep-all; }
@@ -7056,7 +7058,7 @@
       const p = { tier, title: rpTitle(f.activityItem), age: r.age, faith: r.faith, recruitType: r.recruitType, time: r.time, nextDate: r.nextDate, request: r.request.trim(),
         phone4: r.phone4, team: r.team, checks: r.checks, stageMark: r.stageMark, plan: r.plan, eduTotal: r.eduTotal, eduWeekly: r.eduWeekly, lesson: f.extraTitle.trim() };
       // 10/30: 누적 교육 제목을 손으로 고쳤으면 목록 통째로(새 기록일 때만 — 고치기는 그 기록 앞까지만 보이므로 보내지 않음)
-      if (f.rpLessonsEdited && !f.editId) p.lessons = (r.lessons || []).map(l => ({ date: (l && l.date) || f.date, title: String((l && l.title) || l || '').trim() })).filter(l => l.title);
+      if (f.rpLessonsEdited) p.lessons = (r.lessons || []).map(l => ({ date: (l && l.date) || f.date, title: String((l && l.title) || l || '').trim() })).filter(l => l.title);
       if (rpIsEnrolled(f)) Object.assign(p, { enroll: r.enroll, center: r.center, cohortNo: r.cohortNo, course: r.course }); else p.center = r.center;
       return p;
     }
@@ -7119,9 +7121,7 @@
         lessons: `
         <div class="act-form-group">
           <div class="act-step-label">📚 누적 교육 제목 <span class="rp-opt">· 이 섭외자에게 한 교육을 차례로</span></div>
-          ${f.editId ? `${lessons.length ? `<ol class="rp-lessons">${lessons.map(t => `<li>${esc(t)}</li>`).join('')}</ol>` : '<div class="rp-opt">아직 없어요.</div>'}
-            <div class="rp-opt" style="margin-top:6px">기록을 고칠 때는 목록을 바꿀 수 없어요. 이 기록의 제목만 위 '교육 제목'에서 고쳐 주세요.</div>`
-          : `<div class="rp-ls">
+          ${`<div class="rp-ls">
             ${(r.lessons || []).map((l, i) => `<div class="rp-ls-row"><span class="rp-ls-n">${i + 1}</span>${rpIn('data-lesson', i, (l && l.title) || l || '', '교육 제목')}<button type="button" class="rp-ls-x" data-lesson-x="${i}" aria-label="이 제목 빼기">✕</button></div>`).join('')}
             ${String(f.extraTitle || '').trim() && rpLessons(f).length > (r.lessons || []).filter(l => String((l && l.title) || l || '').trim()).length
               ? `<div class="rp-ls-row today"><span class="rp-ls-n">${(r.lessons || []).length + 1}</span><span class="rp-ls-t">${esc(f.extraTitle.trim())}</span><em>오늘 · 위 '교육 제목'</em></div>` : ''}
@@ -7177,7 +7177,7 @@
       if (!f.items.length && f.activityItem) f.items = [f.activityItem];
       f.photos = Array.isArray(rep.photos) ? rep.photos.slice(0, 3) : [];
       f.existingTargetId = t ? t.targetId : '';
-      f.targetName = a.targetName || ''; f.targetGender = a.targetGender || ''; f.targetAgeGroup = a.targetAgeGroup || ''; f.targetStage = a.targetStage || '';
+      f.targetName = a.targetName || ''; f.editOrigName = String(a.targetName || '').trim(); f.targetGender = a.targetGender || ''; f.targetAgeGroup = a.targetAgeGroup || ''; f.targetStage = a.targetStage || '';
       f.goalCohort = (t && t.goalCohort) || '';
       f.todayWork = a.todayWork || ''; f.nextWork = a.nextWork || '';
       f.extraTitle = rep.lesson || a.gospelSubject || a.consultTitle || '';
@@ -7187,7 +7187,8 @@
       const at = base.lessons.findIndex(l => l && l.date === f.date && l.title === rep.lesson);
       const own = Object.fromEntries(['center', 'enroll', 'cohortNo', 'course', 'age', 'faith', 'recruitType', 'phone4', 'stageMark', 'time', 'nextDate', 'eduTotal', 'eduWeekly'].filter(k => rep[k] !== undefined).map(k => [k, rep[k]]));
       f.rp = { ...base, ...own,
-        lessons: at >= 0 ? base.lessons.slice(0, at) : base.lessons.filter(l => !l || l.title !== rep.lesson),
+        // 10/30(사용자): 수정·재보고에서도 새 글과 같은 구조로 누적 교육 제목을 고칠 수 있게 — 이 기록의 제목만 빼고 전부(이 기록 제목은 '오늘'로 붙음)
+        lessons: at >= 0 ? base.lessons.filter((_, i) => i !== at) : base.lessons.filter(l => !l || l.title !== rep.lesson),
         team: { ...base.team, ...(rep.team || {}) }, checks: { ...base.checks, ...(rep.checks || {}) }, plan: { ...base.plan, ...(rep.plan || {}) },
         request: rep.request !== undefined ? rep.request : (a.note || '') };
       renderActivityFormSheet();
@@ -7355,9 +7356,13 @@
             ${existingTargets.length ? `
             <select id="af-existing" class="act-input" style="appearance:auto">
               <option value="">이전에 만난 분 고르기 (또는 아래에 새로 입력)</option>
-              ${existingTargets.map(t => `<option value="${esc(t.targetId)}" ${f.existingTargetId === t.targetId ? 'selected' : ''}>${esc(maskName(t.targetName))} · ${esc(t.stage || '-')}</option>`).join('')}
+              ${existingTargets.map(t => `<option value="${esc(t.targetId)}" ${f.existingTargetId === t.targetId ? 'selected' : ''}>${esc(t.targetName)} · ${esc(t.stage || '-')}</option>`).join('')}
             </select>` : ''}
-            <input type="text" id="af-tname" placeholder="이름" class="act-input" value="${esc(f.targetName)}">
+            <div>
+              <div class="act-field-label">이름 <span class="rp-opt">· 실명으로 적어요 (내가 쓸 때만 보이고, 다른 화면에선 가려져요)</span></div>
+              <input type="text" id="af-tname" placeholder="예) 홍길동" class="act-input" value="${esc(f.targetName)}">
+              ${f.editId && f.editOrigName && f.targetName.trim() && f.targetName.trim() !== f.editOrigName ? `<div class="rp-rename">✏️ <b>${esc(f.editOrigName)}</b> → <b>${esc(f.targetName.trim())}</b> 으로 바뀌어요. 이 사람의 다른 기록·섭외자 칸 이름도 함께 바뀌어요.</div>` : ''}
+            </div>
             <div>
               <div class="act-field-label">성별</div>
               <div class="act-chip-wrap">${GENDER_OPTIONS.map(g => `<button type="button" class="act-chip-btn af-gender-chip ${f.targetGender === g ? 'on' : ''}" data-gender="${esc(g)}">${esc(g)}</button>`).join('')}</div>
@@ -7546,6 +7551,7 @@
         });
         if (res && res.error) throw new Error(res.error);
         if (editId) {
+          if (f.editOrigName && erSel === erKey(f.editOrigName) && targetNameTrimmed) erSel = erKey(targetNameTrimmed);   // 이름을 바꿨으면 보던 사람 화면도 새 이름으로
           rpResetForm(f);
           closeSheet();
           await refreshAfterSubmit();
@@ -8239,9 +8245,7 @@
           </div>
           <div data-ap="edu"><div id="lcEduCard"></div><div class="act-edu-prep">🚧 <b>아래 교육 이수 내용은 준비 중이에요.</b><br>교육 과정과 이수 기록을 정리해서 곧 보여 드릴게요.</div><div id="actEduBody" class="p-4"></div></div>
         </div>
-        <button type="button" id="act-fab" class="act-fab" title="활동 기록 남기기" aria-label="활동 기록 남기기">
-          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
+        <button type="button" id="act-fab" class="act-fab" title="새 보고 쓰기" aria-label="새 보고 쓰기">✍️ 새 보고 쓰기</button>
       `;
     }
     // 당근마켓 스타일: 작성 폼은 화면에 항상 펼쳐두지 않고 FAB→바텀시트로. openSheet()가 항상
@@ -8500,8 +8504,8 @@
           ${erActsHtml(p)}
           ${t ? `<div class="er-sec">📚 누적 교육 제목 <span>${lessons.length}</span></div>
           <div class="er-ls">
-            ${lessons.length ? `<ol class="er-lessons">${lessons.map((l, i) => `<li><span>${esc(l)}</span><button type="button" class="er-ls-x" onclick="erLessonDel('${esc(t.targetId)}', ${i})" aria-label="빼기">✕</button></li>`).join('')}</ol>` : '<div class="er-o-note">아직 없어요. 이 사람에게 한 교육 제목을 차례로 적어 두세요.</div>'}
-            <div class="er-ls-add"><input type="text" id="er-ls-in" class="act-input" maxlength="120" placeholder="${lessons.length + 1}번째 교육 제목"><button type="button" onclick="erLessonAdd('${esc(t.targetId)}')">＋ 추가</button></div>
+            ${lessons.length ? `<ol class="er-lessons">${lessons.map(l => `<li>${esc(l)}</li>`).join('')}</ol>` : '<div class="er-o-note">아직 없어요. 기록 양식의 \'누적 교육 제목\'에 적으면 여기에 그대로 보여요.</div>'}
+            ${(last => last ? `<button type="button" class="er-ls-edit" onclick="rpOpenEdit(${Number(last.id)})">✏️ 기록 양식에서 고치기</button>` : '')(p.list[p.list.length - 1])}
           </div>` : ''}
           <div class="er-sec">🗂 교육 이력 <span>${p.list.length}회</span></div>
           <div class="er-table">
