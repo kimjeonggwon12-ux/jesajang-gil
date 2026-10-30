@@ -886,6 +886,15 @@
     .rp-team label > span { font-size:13.5px; font-weight:700; color:var(--dg-text); }
     .rp-team .act-input { min-height:42px; padding:9px 12px; }
     .rp-lessons { margin:0; padding-left:22px; font-size:14.5px; line-height:1.8; }
+    /* 10/30 임시 저장 */
+    .rp-draft-save { width:100%; height:46px; margin:8px 0 2px; border-radius:12px; border:1.5px dashed #94A3B8; background:#F8FAFC; color:#334155; font-size:14.5px; font-weight:800; font-family:inherit; }
+    .rp-draft-save span { font-size:12px; font-weight:600; color:#64748B; }
+    .rp-drafts { margin-top:10px; padding:10px 12px; border-radius:12px; background:#F8FAFC; border:1px solid #E2E8F0; }
+    .rp-drafts summary { cursor:pointer; font-size:14px; font-weight:800; color:#334155; } .rp-drafts summary span { font-size:12px; font-weight:600; color:#64748B; }
+    .rp-dr { display:flex; gap:6px; margin-top:6px; } .rp-dr.on .rp-dr-open { border-color:#00AE82; background:#E6F7F1; }
+    .rp-dr-open { flex:1; display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:8px 10px; border-radius:10px; border:1px solid #E2E8F0; background:#fff; text-align:left; font-family:inherit; }
+    .rp-dr-open b { font-size:14px; color:#111; } .rp-dr-open span { font-size:12px; color:#64748B; }
+    .rp-dr-x { flex:0 0 36px; border-radius:10px; border:1px solid #E2E8F0; background:#fff; color:#94A3B8; }
     /* 10/30 누적 교육 제목: 한 줄씩 추가 */
     .rp-ls { display:flex; flex-direction:column; gap:6px; }
     .rp-ls-row { display:flex; align-items:center; gap:8px; } .rp-ls-row .act-input { flex:1; height:42px; margin:0; }
@@ -1039,6 +1048,24 @@
     .er-o-main:disabled { opacity:.75; }
     .er-o-card { padding:12px 14px; border-radius:12px; background:#fff; border:1px solid #DDEFE8; font-size:14px; line-height:1.6; color:#1F2937; }
     .er-o-card.plan { background:#FFFAF5; border-color:#FDE2CC; }
+    /* 10/30 파악한 정보 */
+    .ei-new { display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:14px; background:#fff; border:1px solid #DDEFE8; }
+    .ei-cats { display:flex; flex-wrap:wrap; gap:6px; }
+    .ei-cat { padding:6px 10px; border-radius:999px; border:1px solid #E5E7EB; background:#fff; font-size:13px; font-weight:700; color:#374151; font-family:inherit; }
+    .ei-cat.on { background:#00AE82; border-color:#00AE82; color:#fff; }
+    .ei-text { width:100%; border:1px solid #D6DBD8; border-radius:12px; padding:10px 12px; font-size:16px; line-height:1.5; font-family:inherit; resize:vertical; }
+    .ei-ai { height:46px; border-radius:12px; border:1.5px solid #7C3AED; background:#F5F0FF; color:#5B21B6; font-size:14.5px; font-weight:800; font-family:inherit; }
+    .ei-ai:disabled { opacity:.6; }
+    .ei-fb { background:#FBF8FF; border-color:#E4D8FF; } .ei-fb summary { color:#6D28D9; }
+    .ei-filter { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; }
+    .ei-filter button { flex:0 0 auto; padding:5px 10px; border-radius:999px; border:1px solid #E5E7EB; background:#fff; font-size:12.5px; font-weight:700; color:#4B5563; font-family:inherit; }
+    .ei-filter button.on { background:#111827; border-color:#111827; color:#fff; }
+    .ei-list { display:flex; flex-direction:column; gap:6px; }
+    .ei-item { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:12px; background:#fff; border:1px solid #EEF1EF; }
+    .ei-ic { font-size:20px; line-height:1.2; } .ei-body { flex:1; min-width:0; }
+    .ei-meta { font-size:12px; color:#6B7280; } .ei-meta b { color:#00875F; }
+    .ei-tx { font-size:14.5px; line-height:1.55; color:#111827; white-space:pre-wrap; word-break:break-word; }
+    .ei-x { flex:0 0 28px; height:28px; border-radius:8px; border:none; background:transparent; color:#9CA3AF; }
     .er-o-card summary { cursor:pointer; font-size:13px; font-weight:800; color:#00875F; } .er-o-card.plan summary { color:#C2410C; }
     .er-o-card[open] summary { margin-bottom:8px; }
     .er-o-sit { margin-bottom:8px; padding:8px 10px; border-radius:8px; background:#F1F5F9; font-size:12.5px; color:#475569; white-space:pre-wrap; }
@@ -7119,7 +7146,7 @@
     // 기록을 남긴 뒤·고치기를 마친 뒤 칸 비우기(역할은 다음 기록에도 그대로 둠)
     function rpResetForm(f) {
       if (f.editId) f.date = todayStr();
-      f.editId = null; f.rpLessonsEdited = false;
+      f.editId = null; f.rpLessonsEdited = false; f.draftId = null;
       f.targetName = ''; f.targetGender = ''; f.targetAgeGroup = ''; f.targetStage = ''; f.existingTargetId = ''; f.goalCohort = '';
       f.todayWork = ''; f.nextWork = '';
       f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
@@ -7233,6 +7260,34 @@
       });
     }
 
+    // ── 보고 전 임시 저장 (10/30) ── 사용자: "임시 저장 기능 — 자유롭게 저장해 두고 필요할 때만 올라가게".
+    //   이 기기(localStorage)에 양식 그대로 저장 → 양식 맨 위 목록에서 불러와 이어 쓰고, [보고 기록 남기기]를 눌러야만 보고방에 올라간다.
+    const RP_DRAFT_KEY = () => 'ts_rp_drafts_' + (App.memberId || memberId || '');
+    const RP_DRAFT_SKIP = ['loading', 'editId', 'draftId'];
+    function rpDrafts() { try { return JSON.parse(localStorage.getItem(RP_DRAFT_KEY()) || '[]'); } catch (e) { return []; } }
+    function rpDraftsSave(list) {
+      try { localStorage.setItem(RP_DRAFT_KEY(), JSON.stringify(list.slice(0, 30))); return true; }
+      catch (e) {   // 사진 때문에 저장 공간이 모자라면 사진 빼고 다시
+        try { localStorage.setItem(RP_DRAFT_KEY(), JSON.stringify(list.slice(0, 30).map((d, i) => i ? { ...d, form: { ...d.form, photos: [] } } : d))); return true; } catch (e2) { return false; }
+      }
+    }
+    function rpDraftRemove(id) { rpDraftsSave(rpDrafts().filter(d => d.id !== id)); }
+    function rpDraftSaveNow(f) {
+      const form = JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(f).filter(([k]) => !RP_DRAFT_SKIP.includes(k)))));
+      const id = f.draftId || 'd' + Date.now();
+      const list = rpDrafts().filter(d => d.id !== id);
+      list.unshift({ id, at: new Date().toISOString(), name: String(f.targetName || '').trim(), item: (f.items && f.items.length ? f.items : [f.activityItem]).filter(Boolean).join(', '), form });
+      if (!rpDraftsSave(list)) { toast('임시 저장 공간이 부족해요. 오래된 임시 저장을 지워 주세요.', true); return; }
+      f.draftId = id;
+      toast('임시 저장했어요 💾 보고방에는 올라가지 않았어요');
+    }
+    function rpDraftListHtml(f) {
+      const list = rpDrafts(); if (!list.length) return '';
+      const when = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+      return `<details class="rp-drafts"${f.draftId ? '' : ' open'}><summary>💾 임시 저장 ${list.length}건 <span>· 눌러서 이어 쓰기</span></summary>
+        ${list.map(d => `<div class="rp-dr${d.id === f.draftId ? ' on' : ''}"><button type="button" class="rp-dr-open" data-draft="${esc(d.id)}"><b>${esc(d.name || '이름 없음')}</b><span>${esc(d.item || '활동 미선택')} · ${when(d.at)}</span></button><button type="button" class="rp-dr-x" data-draft-x="${esc(d.id)}" aria-label="임시 저장 지우기">✕</button></div>`).join('')}
+      </details>`;
+    }
     function activityFormHtml() {
       const f = home.form;
       const itemOptions = activityOptionsForRoles(f.roles);
@@ -7248,6 +7303,7 @@
             <div class="act-sheet-title">${f.editId ? '보고 기록 고치기' : '오늘 활동, 보고해볼까요?'}</div>
             <div class="act-sheet-sub">${f.editId ? '고쳐서 저장하면 보고방에 수정본이 바로 올라가요.' : '저장하면 보고방 문자 틀 그대로 보고방에 바로 올라가요.'}</div>
             ${f.editId ? '<div class="rp-edit-guide">✍️ <b>지난번에 적은 내용이 그대로 들어 있어요.</b><br>바꿀 칸만 고치고 맨 아래 <b>[고친 내용 저장 · 재보고]</b>를 누르면, 나머지는 그대로 두고 고친 내용으로 다시 보고돼요.</div>' : ''}
+            ${f.editId ? '' : rpDraftListHtml(f)}
           </div>
           <button type="button" class="act-sheet-close" onclick="closeSheet()" aria-label="닫기">✕</button>
         </div>
@@ -7344,6 +7400,7 @@
           : f.editId
           ? `<b>고친 내용을 저장하면 ‘${esc(room.title)}’에 재보고됩니다.</b><br>처음 보고 글에 답장으로 ‘✏️ 수정본’이 올라가요.`
           : `<b>저장하면 ‘${esc(room.title)}’에 바로 보고됩니다.</b><br>맨 위에 내 이름이 보고자로 붙어요.`}</span></div>`)(home.monthlyActRes && home.monthlyActRes.reportRoom)}
+        ${f.editId ? '' : `<button type="button" id="af-draft" class="rp-draft-save">💾 임시 저장 <span>· 보고방에 올리지 않고 이 기기에 저장${f.draftId ? ' (덮어쓰기)' : ''}</span></button>`}
         <div class="act-submit-row">
           <button id="af-submit" class="act-btn-primary" ${f.loading ? 'disabled' : ''}>${f.loading ? '저장하는 중...' : f.editId ? (home.monthlyActRes && home.monthlyActRes.reportRoom ? '고친 내용 저장 · 재보고' : '고친 내용 저장') : '보고 기록 남기기'}</button>
           <button id="af-aicoach" class="act-btn-ghost">AI 코칭</button>
@@ -7428,6 +7485,18 @@
 
       const submitBtn = document.getElementById('af-submit');
       if (submitBtn) submitBtn.onclick = submitActivityForm;
+      const draftBtn = document.getElementById('af-draft');
+      if (draftBtn) draftBtn.onclick = () => { rpDraftSaveNow(f); renderActivityFormSheet(); };
+      document.querySelectorAll('[data-draft]').forEach(b => {
+        b.onclick = () => {
+          const d = rpDrafts().find(x => x.id === b.dataset.draft); if (!d) return;
+          Object.assign(f, JSON.parse(JSON.stringify(d.form)), { draftId: d.id, editId: null, loading: false });
+          renderActivityFormSheet(); toast('임시 저장을 불러왔어요. 다 쓰면 [보고 기록 남기기]로 올려 주세요.');
+        };
+      });
+      document.querySelectorAll('[data-draft-x]').forEach(b => {
+        b.onclick = () => { if (!confirm('이 임시 저장을 지울까요?')) return; rpDraftRemove(b.dataset.draftX); if (f.draftId === b.dataset.draftX) f.draftId = null; renderActivityFormSheet(); };
+      });
       const aiBtn = document.getElementById('af-aicoach');
       if (aiBtn) aiBtn.onclick = goToAiCoaching;
     }
@@ -7477,6 +7546,7 @@
         }
         const rpMsg = res.reported ? ' 보고방에도 올렸어요 📤' : res.reportError ? ' (보고방에는 못 올렸어요: ' + res.reportError + ')' : '';   // 10/23: 저장하면 보고방 자동 올림
         const submittedItem = f.activityItem, goal = targetNameTrimmed && !rpIsEnrolled(f) ? f.goalCohort : '';   // 수강생은 개강 목표 없음
+        if (f.draftId) rpDraftRemove(f.draftId);   // 임시 저장에서 불러와 올린 것이면 임시 저장 목록에서 뺀다
         rpResetForm(f);
         // 당근 스타일: 등록 성공하면 바텀시트를 닫고 피드(대시보드)로 돌아가 새 기록을 바로 보여줌.
         closeSheet();
@@ -8467,6 +8537,9 @@
         // 10/28(사용자): 자동 보고라 미보고 건수는 세지 않음 — 가장 최근 기록이 올라갔으면 '보고 완료'
         ['report', erPosted(a) ? 'done' : 'warn', pfSvg('send'), erPosted(a) ? '보고 완료' : '미보고',
           erPosted(a) ? (lastPost ? pfMD(lastPost.at) : '') : '최근 기록'],
+        // 10/30(사용자): 파악한 정보 — 무제한 기록, 모아서 AI 피드백
+        t && (inf => ['info', inf.items && inf.items.length ? 'done' : 'ready', '🗂', '파악한 정보',
+          inf.loading && !inf.items ? '확인 중…' : inf.items && inf.items.length ? `${inf.items.length}건${inf.feedback ? ' · AI 받음' : ''}` : '기록하기'])(erInfo[t.targetId] || {}),
         ['fb', fbNow.loading ? 'busy' : fbs.length ? 'done' : 'ready', fbNow.loading ? spin : pfSvg('up'), '단계향상 피드백',
           fbNow.loading ? '읽는 중…' : fbs.length ? `${fbs.length}회 · ${pfMD(fbs[fbs.length - 1].aiFeedbackAt) || '받음'}` : '받기'],
         t && ['swot', t.swot ? 'done' : 'ready', erSvg('swot'), 'SWOT', t.swot ? `✓ 작성 ${pfMD(t.swotAt)}` : '미작성'],
@@ -8504,6 +8577,7 @@
       }
       if (!t) return '';
       if (k === 'swot') { swSt.id = t.targetId; return swEditorHtml(t); }
+      if (k === 'info') return erInfoBodyHtml(t);
       if (k === 'plan' && p.stage === '센터수강') {   // 10/30: 수강생 — 개강·센터·기수·과정을 보여 주고 고치기는 최근 기록에서
         const prof = erProf(t), last = p.list[p.list.length - 1];
         const cur = ER_COURSE_FLOW.indexOf(prof.course || '개강');
@@ -8545,13 +8619,81 @@
     // 다른 화면(기록 저장·대상자 상세)에서 이 사람의 칸으로 바로
     window.erGo = function (name, cell) {
       home.view = 'dashboard'; actPage = 'targets'; erSel = erKey(name); erCell = cell || '';
-      const t = home.targets.find(x => erKey(x.targetName) === erSel); if (t) erLoadFile(t.targetId);
+      const t = home.targets.find(x => erKey(x.targetName) === erSel); if (t) { erLoadFile(t.targetId); erInfoLoad(t.targetId); }
       renderHome(); document.getElementById('appSections').scrollTop = 0;
     };
     window.erFbRun = key => runActivityAiFeedback(key);
+    // ── 파악한 정보 (10/30) ── 사용자: "파악한 정보를 기록하게, 무제한으로, 페이지를 잘 만들고, 그게 모여서 AI 피드백이 나오게".
+    //   서버 getTargetInfo/addTargetInfo/deleteTargetInfo/targetInfoFeedback(target_ai_notes '파악정보'). 모든 AI 피드백·계획이 이 정보를 같이 읽는다.
+    const erInfo = {};   // targetId → { loading, items, cats, feedback, cat, filter, busy, fbBusy, error }
+    const ER_INFO_IC = { '가족': '👨‍👩‍👧', '직장·학업': '💼', '관심사·취미': '🎯', '고민·필요': '💭', '신앙 배경': '⛪', '성격·성향': '🙂', '일정·연락': '📅', '기타': '📝' };
+    async function erInfoLoad(tid) {
+      if (!tid) return;
+      const cur = erInfo[tid] || {};
+      erInfo[tid] = { cat: '가족', filter: '', ...cur, loading: true };
+      try {
+        const res = await callApi({ action: 'getTargetInfo', memberId, targetId: tid });
+        if (res && res.error) throw new Error(res.error);
+        Object.assign(erInfo[tid], { items: res.items || [], cats: res.cats || Object.keys(ER_INFO_IC), feedback: res.feedback, error: '' });
+      } catch (e) { erInfo[tid].error = e.message; }
+      erInfo[tid].loading = false;
+      renderHome();
+    }
+    function erInfoBodyHtml(t) {
+      const s = erInfo[t.targetId] || {};
+      if (!s.items) return `<div class="er-o-h">파악한 정보</div><div class="er-o-note">${s.error ? '⚠️ ' + esc(s.error) : '<span class="loading loading-spinner loading-xs"></span> 불러오는 중…'}</div>`;
+      const cats = s.cats || Object.keys(ER_INFO_IC), id = esc(t.targetId);
+      const count = c => s.items.filter(x => x.cat === c).length;
+      const shown = s.filter ? s.items.filter(x => x.cat === s.filter) : s.items;
+      return `<div class="er-o-h">파악한 정보 <span>${s.items.length}건 · 적을수록 AI가 이 사람을 더 잘 알아요</span></div>
+        <div class="ei-new">
+          <div class="ei-cats">${cats.map(c => `<button type="button" class="ei-cat${s.cat === c ? ' on' : ''}" onclick="erInfoCat('${id}','${esc(c)}')">${ER_INFO_IC[c] || '📝'} ${esc(c)}</button>`).join('')}</div>
+          <textarea id="ei-text" class="ei-text" rows="3" maxlength="2000" oninput="erInfoDraft('${id}', this.value)" placeholder="${esc(ER_INFO_PH[s.cat] || '새로 알게 된 것을 적어 주세요')}">${esc(s.draft || '')}</textarea>
+          <button type="button" class="er-o-main" onclick="erInfoAdd('${id}')" ${s.busy ? 'disabled' : ''}>${s.busy ? '저장 중…' : `＋ ${esc(s.cat)} 정보 기록하기`}</button>
+        </div>
+        <button type="button" class="ei-ai" onclick="erInfoAi('${id}')" ${s.fbBusy || !s.items.length ? 'disabled' : ''}>${s.fbBusy ? '<span class="loading loading-spinner loading-xs"></span> 모은 정보 읽는 중…' : `🤖 모은 정보 ${s.items.length}건으로 AI 피드백 ${s.feedback ? '다시 ' : ''}받기`}</button>
+        ${s.feedback ? `<details class="er-o-card ei-fb" open><summary>🤖 AI 피드백 · ${esc(String(s.feedback.at || '').slice(5, 16).replace('-', '/'))}${s.feedback.basis ? ' · ' + esc(s.feedback.basis) : ''}</summary>${glMd(s.feedback.text)}</details>` : ''}
+        ${s.items.length ? `<div class="ei-filter"><button type="button" class="${!s.filter ? 'on' : ''}" onclick="erInfoFilter('${id}','')">전체 ${s.items.length}</button>${cats.filter(count).map(c => `<button type="button" class="${s.filter === c ? 'on' : ''}" onclick="erInfoFilter('${id}','${esc(c)}')">${ER_INFO_IC[c] || ''} ${esc(c)} ${count(c)}</button>`).join('')}</div>
+        <div class="ei-list">${shown.map(x => `<div class="ei-item"><span class="ei-ic">${ER_INFO_IC[x.cat] || '📝'}</span><div class="ei-body"><div class="ei-meta"><b>${esc(x.cat)}</b> · ${esc(String(x.at || '').slice(5, 10).replace('-', '/'))}</div><div class="ei-tx">${esc(x.text)}</div></div><button type="button" class="ei-x" onclick="erInfoDel('${id}', ${Number(x.id)})" aria-label="지우기">✕</button></div>`).join('')}</div>`
+        : '<div class="er-o-note">아직 적은 정보가 없어요. 대화하며 알게 된 가족·직장·관심사·고민 등을 한 줄씩 남겨 보세요. 개수 제한은 없어요.</div>'}`;
+    }
+    const ER_INFO_PH = { '가족': '예) 남편·고1 아들, 시어머니 모시고 삶', '직장·학업': '예) 병원 간호사, 3교대', '관심사·취미': '예) 등산, 요즘 캠핑에 관심', '고민·필요': '예) 아들 진로 고민이 큼',
+      '신앙 배경': '예) 어릴 때 교회 다님, 지금은 무교', '성격·성향': '예) 꼼꼼하고 질문이 많음', '일정·연락': '예) 화·목 저녁만 가능, 카톡 선호', '기타': '새로 알게 된 것을 적어 주세요' };
+    window.erInfoDraft = function (tid, v) { if (erInfo[tid]) erInfo[tid].draft = v; };   // 화면이 다시 그려져도 쓰던 글 유지
+    window.erInfoCat = function (tid, c) { const s = erInfo[tid]; if (!s) return; s.cat = c; renderHome(); const n = document.getElementById('ei-text'); if (n) n.focus(); };
+    window.erInfoFilter = function (tid, c) { const s = erInfo[tid]; if (s) { s.filter = c; renderHome(); } };
+    window.erInfoAdd = async function (tid) {
+      const s = erInfo[tid], el = document.getElementById('ei-text'), text = el ? el.value.trim() : '';
+      if (!s || !text) { toast('내용을 적어 주세요.', true); return; }
+      s.busy = true; renderHome();
+      try {
+        const res = await callApi({ action: 'addTargetInfo', memberId, targetId: tid, cat: s.cat, text });
+        if (res && res.error) throw new Error(res.error);
+        s.items.unshift(res.item); s.draft = ''; toast('기록했어요');
+      } catch (e) { toast(e.message, true); s.draft = text; }
+      s.busy = false; renderHome();
+    };
+    window.erInfoDel = async function (tid, id) {
+      const s = erInfo[tid]; if (!s || !confirm('이 정보를 지울까요?')) return;
+      try {
+        const res = await callApi({ action: 'deleteTargetInfo', memberId, targetId: tid, id });
+        if (res && res.error) throw new Error(res.error);
+        s.items = s.items.filter(x => x.id !== id); renderHome();
+      } catch (e) { toast(e.message, true); }
+    };
+    window.erInfoAi = async function (tid) {
+      const s = erInfo[tid]; if (!s || s.fbBusy) return;
+      s.fbBusy = true; renderHome();
+      try {
+        const res = await callApi({ action: 'targetInfoFeedback', memberId, targetId: tid });
+        if (res && res.error) throw new Error(res.error);
+        s.feedback = { text: res.text, at: res.at, basis: res.basis };
+      } catch (e) { toast(e.message, true); }
+      s.fbBusy = false; renderHome();
+    };
     window.erOpen = function (name) {
       erSel = name; erCell = '';
-      const t = name && home.targets.find(x => erKey(x.targetName) === name); if (t) erLoadFile(t.targetId);
+      const t = name && home.targets.find(x => erKey(x.targetName) === name); if (t) { erLoadFile(t.targetId); erInfoLoad(t.targetId); }
       renderHome(); document.getElementById('appSections').scrollTop = 0;
     };
     window.erToggleRow = function (id) { erOpenRows.has(id) ? erOpenRows.delete(id) : erOpenRows.add(id); renderHome(); };

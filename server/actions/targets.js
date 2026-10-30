@@ -340,6 +340,7 @@ async function planCohortLead(body) {
     '',
     '[지금까지의 기록 전부 — 오래된 것부터]',
     '■ 활동 기록', ...d.acts,
+    '■ 교사가 파악한 정보(가족·직장·관심사·고민 등)', ...(d.info.length ? d.info : ['(없음)']),
     '■ 단계 변경 이력', ...d.history,
     '■ AI 상담·교관 답변', ...d.coaching,
     '■ 이전에 받은 AI 계획·피드백', ...d.notes,
@@ -403,6 +404,7 @@ async function swotAdvice(body) {
     '',
     '[참고: 이 사람에 대한 지금까지의 기록 — 오래된 것부터]',
     '■ 활동 기록', ...d.acts,
+    '■ 교사가 파악한 정보(가족·직장·관심사·고민 등)', ...(d.info.length ? d.info : ['(없음)']),
     '■ 단계 변경 이력', ...d.history,
     '■ AI 상담·교관 답변', ...d.coaching,
     '■ 이전에 받은 AI 계획·피드백', ...d.notes,
@@ -471,6 +473,7 @@ async function writeCaseDraft(body) {
     '',
     '[지금까지의 기록 전부 — 오래된 것부터]',
     '■ 활동 기록', ...d.acts,
+    '■ 교사가 파악한 정보(가족·직장·관심사·고민 등)', ...(d.info.length ? d.info : ['(없음)']),
     '■ 단계 변경 이력', ...d.history,
     '■ AI 상담·교관 답변', ...d.coaching,
     '■ 이전에 받은 AI 계획·피드백', ...d.notes,
@@ -556,12 +559,16 @@ async function coachingAbout(target, mid) {
 }
 
 export async function targetDossier(target, mid) {
-  const [acts, history, notes, coach] = await Promise.all([
+  const [acts, history, allNotes, coach] = await Promise.all([
     activitiesAbout(target),
     run(db().from('target_history').select('*').eq('target_id', target.target_id).order('id')),
     run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).order('id')).catch(() => []),
     coachingAbout(target, mid),
   ]);
+  // 10/30: 교사가 파악한 정보(INFO_KIND)는 AI 기록과 따로 — 모든 AI 프롬프트에 '■ 교사가 파악한 정보'로 들어간다
+  const info = allNotes.filter((n) => n.kind === INFO_KIND);
+  const notes = allNotes.filter((n) => n.kind !== INFO_KIND);
+  const infoLines = info.map((n) => `- ${day(n.created_at)} [${n.input || '기타'}] ${cut(n.text, 1500)}`);
 
   const actLines = acts.sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1)).map((a) => '- ' + [
     day(a.submitted_at), a.roles.length && `[${a.roles.join('·')}]`, a.activities.join(', '), a.target_stage && `(단계: ${a.target_stage})`,
@@ -576,8 +583,8 @@ export async function targetDossier(target, mid) {
 
   return {
     acts: keepNewest(actLines, 30000), history: keepNewest(histLines, 4000),
-    coaching: keepNewest(coachLines, 15000), notes: keepNewest(noteLines, 12000),
-    basis: `활동 ${acts.length}건 · 단계 이력 ${history.length}건 · AI상담·교관 ${coach.length}건 · 이전 AI 기록 ${notes.length}건 종합`,
+    coaching: keepNewest(coachLines, 15000), notes: keepNewest(noteLines, 12000), info: keepNewest(infoLines, 20000),
+    basis: `활동 ${acts.length}건 · 파악 정보 ${info.length}건 · 단계 이력 ${history.length}건 · AI상담·교관 ${coach.length}건 · 이전 AI 기록 ${notes.length}건 종합`,
   };
 }
 
@@ -683,8 +690,65 @@ async function getKeyStageCount() {
   return { gospel: by['복음방'] || 0, centerIntro: by['센터소개'] || 0, centerAttend: by['센터수강'] || 0 };
 }
 
+// ── 파악한 정보 (2026-10-30) ── 사용자: "파악한 정보를 기록하게, 무제한으로, 페이지를 잘 만들고, 그게 모여서 AI 피드백이 나오게".
+//   target_ai_notes 에 kind '파악정보'(input = 분류, text = 내용)로 한 줄씩 — 개수 제한 없음. 모든 AI(단계향상·개강 계획·SWOT·사례)가 읽는다.
+const INFO_KIND = '파악정보';
+const INFO_FB_KIND = 'AI 파악정보 피드백';
+const INFO_CATS = ['가족', '직장·학업', '관심사·취미', '고민·필요', '신앙 배경', '성격·성향', '일정·연락', '기타'];
+const infoRow = (n) => ({ id: n.id, cat: n.input || '기타', text: n.text, at: fmtTs(n.created_at), mine: true });
+
+async function getTargetInfo(body) {
+  const target = await ownedTarget(body.memberId, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  const rows = await run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).in('kind', [INFO_KIND, INFO_FB_KIND]).order('id'));
+  const fb = rows.filter((n) => n.kind === INFO_FB_KIND).pop();
+  return { ok: true, cats: INFO_CATS, items: rows.filter((n) => n.kind === INFO_KIND).map(infoRow).reverse(), feedback: fb ? { text: fb.text, at: fmtTs(fb.created_at), basis: fb.input } : null };
+}
+async function addTargetInfo(body) {
+  const target = await ownedTarget(body.memberId, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  const text = str(body.text).slice(0, 2000);
+  if (!text) return { error: '내용을 적어 주세요.' };
+  const cat = INFO_CATS.includes(str(body.cat)) ? str(body.cat) : '기타';
+  const [row] = await run(db().from('target_ai_notes').insert({ target_id: target.target_id, member_id: str(body.memberId), kind: INFO_KIND, input: cat, text, created_at: kstDateTime() }).select('*'));
+  return { ok: true, item: infoRow(row) };
+}
+async function deleteTargetInfo(body) {
+  const target = await ownedTarget(body.memberId, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  await run(db().from('target_ai_notes').delete().eq('id', Number(body.id)).eq('target_id', target.target_id).eq('kind', INFO_KIND));
+  return { ok: true };
+}
+/** 모은 정보 + 그 사람 기록 전부로 AI 피드백: 이 사람은 어떤 사람인가 / 마음을 여는 열쇠 / 다음 만남 대화 주제 / 조심할 점 / 더 알아볼 것. */
+async function targetInfoFeedback(body) {
+  const mid = str(body.memberId);
+  const target = await ownedTarget(mid, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  const d = await targetDossier(target, mid);
+  if (!d.info.length) return { error: '파악한 정보를 한 줄 이상 적어 주세요.' };
+  const prompt = [
+    '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 교사가 한 사람(섭외자)에 대해 파악한 정보를 모아 이 사람을 깊이 이해하고 다음 단계로 이끌 피드백을 주세요.',
+    `- 섭외자: ${target.gender || ''} ${target.age_group || ''} / 지금 단계: ${target.stage || '섭외'}${target.goal_cohort ? ` / 목표: ${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : ''}`,
+    '',
+    '■ 교사가 파악한 정보(가장 중요)', ...d.info,
+    '■ 활동 기록', ...d.acts,
+    '■ 단계 변경 이력', ...d.history,
+    '■ AI 상담·교관 답변', ...d.coaching,
+    '',
+    '규칙: 파악한 정보에 적힌 사실을 근거로, 이 사람에게만 맞는 말로 짧고 구체적으로. 일반론·지어낸 사실 금지. 실명 대신 "그분".',
+    '반드시 아래 5개 마크다운 제목을 그대로 쓰고 다른 제목은 추가하지 마세요:',
+    '## 🧑 이 사람은 이런 분이에요', '## 🔑 마음을 여는 열쇠', '## 💬 다음 만남 대화 주제 (3가지)', '## ⚠️ 조심할 점', '## 🔍 더 알아보면 좋을 것',
+  ].join('\n');
+  const text = await askAiModels(prompt, PLAN_MODELS);
+  if (text.startsWith('⚠️')) return { error: text.replace(/^⚠️\s*/, '') };
+  const basis = `파악 정보 ${d.info.length}건 종합`;
+  await addTargetAiNote(target.target_id, mid, INFO_FB_KIND, basis, text);
+  return { ok: true, text, at: fmtTs(kstDateTime()), basis };
+}
+
 export default {
   getTargetStageDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
   getTargetJournal, deleteTarget, planCohortLead, swotAdvice, writeCaseDraft, getTargetFile,
+  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback,
 };
