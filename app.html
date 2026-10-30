@@ -990,6 +990,14 @@
     .er-flow { display:flex; gap:3px; width:100%; }
     .er-flow i { flex:1; height:5px; border-radius:99px; background:#E5E7EB; }
     .er-flow i.done { background:#7FD8BF; } .er-flow i.now { background:#00AE82; }
+    /* 10/30 센터 수강생: 게이지 = 개강→초등→중등→고등→수료(보라) */
+    .er-flow.course i.done { background:#C4B5FD; } .er-flow.course i.now { background:#7C3AED; }
+    .er-flow-lb { display:flex; gap:3px; margin-top:3px; } .er-flow-lb span { flex:1; text-align:center; font-size:11px; color:#6b7280; }
+    .er-enroll { color:#5B21B6; font-weight:700; }
+    .rp-enroll-line { margin-top:4px; padding:8px 12px; border-radius:10px; background:#F3EEFF; color:#5B21B6; font-weight:700; font-size:14px; }
+    .er-course { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:6px 0 4px; }
+    .er-course span { padding:4px 10px; border-radius:999px; background:#F3F4F6; color:#6b7280; font-size:13px; font-weight:700; }
+    .er-course span.done { background:#EDE9FE; color:#6D28D9; } .er-course span.now { background:#7C3AED; color:#fff; } .er-course i { color:#c4c4c4; font-style:normal; }
     .er-ct { font-size:12px; color:#4B5563; } .er-ct b { font-size:14px; color:#00875F; }
     .er-dt { font-size:11px; color:#9CA3AF; }
     .er-del { position:absolute; right:8px; bottom:8px; display:flex; align-items:center; justify-content:center; width:30px; height:30px; padding:0; border-radius:9px; border:1px solid #FECACA; background:#FEF2F2; color:#DC2626; cursor:pointer; }
@@ -6893,10 +6901,10 @@
     const RP_RECRUIT = ['가족', '친척', '지인', '직장', '이웃', '학교', '길거리', 'SNS', '기타'];
     const RP_WEEKLY = ['주 1회', '주 2회', '주 3회'];
     // home.form 초기값에서 먼저 부르므로 함수 선언(끌어올림)으로 둔다
-    function rpEmpty() { return { center: '', enroll: '', age: '', phone4: '', faith: '', recruitType: '', stageMark: '', checks: {}, team: {}, time: '', eduTotal: '', eduWeekly: '', nextDate: '', request: '', plan: {}, lessons: [] }; }
+    function rpEmpty() { return { center: '', enroll: '', cohortNo: '', course: '', age: '', phone4: '', faith: '', recruitType: '', stageMark: '', checks: {}, team: {}, time: '', eduTotal: '', eduWeekly: '', nextDate: '', request: '', plan: {}, lessons: [] }; }
     function rpFromTarget(t) {
       const p = (t && t.reportProfile) || {};
-      return { ...rpEmpty(), center: p.center || '', enroll: p.enroll || '', age: p.age || '', phone4: p.phone4 || '', faith: p.faith || '', recruitType: p.recruitType || '',
+      return { ...rpEmpty(), center: p.center || '', enroll: p.enroll || '', cohortNo: p.cohortNo || '', course: p.course || '', age: p.age || '', phone4: p.phone4 || '', faith: p.faith || '', recruitType: p.recruitType || '',
         stageMark: p.stageMark || '', checks: { ...(p.checks || {}) }, team: { ...(p.team || {}) }, eduWeekly: p.eduWeekly || '',
         plan: { ...(p.plan || {}) }, lessons: Array.isArray(p.lessons) ? p.lessons.slice() : [] };
     }
@@ -6928,6 +6936,15 @@
       return Array.from({ length: 12 }, (_, k) => String((m - 1 - k + 12) % 12 + 1));
     }
     const rpEnrollText = v => v === 'none' ? '해당 없음' : v ? `${v}월 수강자` : '';
+    // 10/30(사용자): 센터 수강생 = "○월 개강 ○○센터 ○○○기 수강 중" + 수강 과정(초등→중등→고등→수료). 단계 게이지·개강 칸도 이 기준.
+    const RP_COURSES = ['초등', '중등', '고등', '수료'];
+    const rpCenterName = c => { const v = String(c || '').trim(); return !v ? '' : /센터$/.test(v) ? v : v + '센터'; };
+    function rpEnrollLine(p, withCourse = true) {
+      p = p || {};
+      const parts = [p.enroll && p.enroll !== 'none' ? `${p.enroll}월 개강` : '', rpCenterName(p.center), p.cohortNo ? `${String(p.cohortNo).replace(/기$/, '')}기` : ''].filter(Boolean);
+      if (!parts.length) return '';
+      return `${parts.join(' ')} 수강 중${withCourse && p.course ? ` (${p.course}${p.course === '수료' ? '' : ' 과정'})` : ''}`;
+    }
     const rpMD = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${Number(d.slice(5, 7))}월 ${Number(d.slice(8))}일` : '';
     const rpSlash = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? `${Number(d.slice(5, 7))}/${Number(d.slice(8))}` : '';
     const rpDash = v => { const ls = String(v || '').split('\n').map(x => x.trim()).filter(Boolean); return ls.length ? ls.map(x => '-' + x).join('\n') : '-'; };
@@ -6956,7 +6973,7 @@
     function rpReportText(f) {
       const r = f.rp, item = f.activityItem, ck = k => (r.checks || {})[k] || '';
       const gm = Number((f.goalCohort || f.date || todayStr()).slice(5, 7));
-      const head = rpIsEnrolled(f) ? `수강 기수 : ${rpEnrollText(r.enroll)}` : `${gm}월 목표 센터 : ${r.center || ''}`;
+      const head = rpIsEnrolled(f) ? `수강 : ${rpEnrollLine(r) || rpEnrollText(r.enroll)}` : `${gm}월 목표 센터 : ${r.center || ''}`;
       const lessons = rpLessons(f);
       const line = '━━━━━━━━━━━━━━';
       const li = (k, v) => `• ${k} : ${v == null ? '' : v}`;
@@ -6992,7 +7009,7 @@
       const r = f.rp, tier = rpTier(f.activityItem);
       const p = { tier, title: rpTitle(f.activityItem), age: r.age, faith: r.faith, recruitType: r.recruitType, time: r.time, nextDate: r.nextDate, request: r.request.trim(),
         phone4: r.phone4, team: r.team, checks: r.checks, stageMark: r.stageMark, plan: r.plan, eduTotal: r.eduTotal, eduWeekly: r.eduWeekly, lesson: f.extraTitle.trim() };
-      if (rpIsEnrolled(f)) p.enroll = r.enroll; else p.center = r.center;
+      if (rpIsEnrolled(f)) Object.assign(p, { enroll: r.enroll, center: r.center, cohortNo: r.cohortNo, course: r.course }); else p.center = r.center;
       return p;
     }
     function rpRefreshPreview() {
@@ -7022,8 +7039,15 @@
             </div>
             <div><div class="act-field-label">신앙</div>${rpPick('faith', RP_FAITH, r.faith)}</div>
             <div><div class="act-field-label">섭외유형</div>${rpPick('recruitType', RP_RECRUIT, r.recruitType)}</div>
-            ${rpIsEnrolled(f) ? `<div><div class="act-field-label">수강 기수 <span class="rp-opt">· 몇 월 수강자인가요?</span></div>
-              <div class="act-chip-scroll"><button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === 'none' ? 'on' : ''}" data-v="none">해당 없음</button>${rpEnrollMonths().map(v => `<button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === v ? 'on' : ''}" data-v="${v}">${v}월</button>`).join('')}</div></div>`
+            ${rpIsEnrolled(f) ? `<div><div class="act-field-label">개강 <span class="rp-opt">· 몇 월 개강반인가요?</span></div>
+              <div class="act-chip-scroll"><button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === 'none' ? 'on' : ''}" data-v="none">해당 없음</button>${rpEnrollMonths().map(v => `<button type="button" class="act-chip-btn rp-enroll-btn ${r.enroll === v ? 'on' : ''}" data-v="${v}">${v}월</button>`).join('')}</div></div>
+            <div class="rp-row2">
+              <div><div class="act-field-label">수강 센터</div>${rpIn('data-rp', 'center', r.center, '예) 덕진2')}</div>
+              <div><div class="act-field-label">기수 <span class="rp-opt">· 숫자</span></div>${rpIn('data-rp', 'cohortNo', r.cohortNo, '예) 431', 'inputmode="numeric" maxlength="6"')}</div>
+            </div>
+            <div><div class="act-field-label">수강 과정 <span class="rp-opt">· 지금 어디까지</span></div>
+              <div class="act-chip-wrap">${RP_COURSES.map(v => `<button type="button" class="act-chip-btn rp-pick-btn ${r.course === v ? 'on' : ''}" data-k="course" data-v="${v}">${v}</button>`).join('')}</div></div>
+            ${rpEnrollLine(r) ? `<div class="rp-enroll-line">🎓 ${esc(rpEnrollLine(r))}</div>` : ''}`
               : `<div><div class="act-field-label">목표 센터명</div>${rpIn('data-rp', 'center', r.center, '예) 덕진2 센터')}</div>`}`,
         checks: `
         <div class="act-form-group">
@@ -7105,7 +7129,7 @@
       // 섭외자 프로필 위에 이 기록 때 적은 칸을 덮는다. 누적 교육 제목은 이 기록 앞까지만.
       const base = t ? rpFromTarget(t) : rpEmpty();
       const at = base.lessons.findIndex(l => l && l.date === f.date && l.title === rep.lesson);
-      const own = Object.fromEntries(['center', 'enroll', 'age', 'faith', 'recruitType', 'phone4', 'stageMark', 'time', 'nextDate', 'eduTotal', 'eduWeekly'].filter(k => rep[k] !== undefined).map(k => [k, rep[k]]));
+      const own = Object.fromEntries(['center', 'enroll', 'cohortNo', 'course', 'age', 'faith', 'recruitType', 'phone4', 'stageMark', 'time', 'nextDate', 'eduTotal', 'eduWeekly'].filter(k => rep[k] !== undefined).map(k => [k, rep[k]]));
       f.rp = { ...base, ...own,
         lessons: at >= 0 ? base.lessons.slice(0, at) : base.lessons.filter(l => !l || l.title !== rep.lesson),
         team: { ...base.team, ...(rep.team || {}) }, checks: { ...base.checks, ...(rep.checks || {}) }, plan: { ...base.plan, ...(rep.plan || {}) },
@@ -7134,6 +7158,7 @@
         const k = el.dataset.rp;
         el.oninput = () => { r[k] = el.value; if (k === 'eduTotal') f.rpTotalAuto = false; rpRefreshPreview(); };
         if (k === 'age') el.onchange = () => { const g = rpAgeGroup(el.value); if (g) { f.targetAgeGroup = g; renderActivityFormSheet(); } };
+        if (rpIsEnrolled(f) && (k === 'center' || k === 'cohortNo')) el.onchange = () => renderActivityFormSheet();   // 🎓 수강 줄 새로
       });
       document.querySelectorAll('[data-rp-team]').forEach(el => {
         el.oninput = () => { r.team[el.dataset.rpTeam] = el.value; if (f.rpAuto) f.rpAuto[el.dataset.rpTeam] = false; rpRefreshPreview(); };
@@ -8290,10 +8315,18 @@
       }).sort((x, y) => String(y.last).localeCompare(String(x.last)));
     }
     const erSent = st => st === '센터수강' || st === '센터소개';
-    function erFlowHtml(stage) {
+    // 10/30(사용자): 센터 수강생은 단계 게이지를 수강 과정으로 — 개강 → 초등 → 중등 → 고등 → 수료
+    const ER_COURSE_FLOW = ['개강', ...RP_COURSES];
+    function erFlowHtml(stage, prof) {
+      if (stage === '센터수강') {
+        const cur = ER_COURSE_FLOW.indexOf((prof && prof.course) || '개강');
+        return `<div class="er-flow course">${ER_COURSE_FLOW.map((n, i) => `<i class="${i < cur ? 'done' : i === cur ? 'now' : ''}" title="${esc(n)}"></i>`).join('')}</div>`;
+      }
       const cur = GL_FLOW.findIndex(([, ss]) => ss.includes(stage));
       return `<div class="er-flow">${GL_FLOW.map(([n], i) => `<i class="${i < cur ? 'done' : i === cur ? 'now' : ''}" title="${esc(n)}"></i>`).join('')}</div>`;
     }
+    // 단계 칩 글자: 수강생은 과정까지(센터수강 · 중등)
+    const erStageText = (stage, prof) => stage === '센터수강' && prof && prof.course ? `센터수강 · ${prof.course}` : stage;
     function erPageHtml() {
       const people = erPeople();
       if (erSel) { const p = people.find(x => x.name === erSel); if (p) return erDetailHtml(p); erSel = ''; }
@@ -8310,8 +8343,8 @@
               <button type="button" class="er-del" title="이 섭외자 삭제" aria-label="이 섭외자 삭제" onclick="event.stopPropagation();erDelAsk('${esc(p.name)}')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
               <span class="er-ava">${esc(p.name.charAt(0))}</span>
               <span class="er-nm">${esc(maskName(p.name))}</span>
-              ${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(p.stage)}</span>` : ''}
-              ${erFlowHtml(p.stage)}
+              ${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(erStageText(p.stage, p.t && p.t.reportProfile))}</span>` : ''}
+              ${erFlowHtml(p.stage, p.t && p.t.reportProfile)}
               <span class="er-ct"><b>${p.list.length}</b>회 기록${p.edu ? ` · 교육 ${p.edu}회` : ''}</span>
               ${(last => last && !(last.tgPosts || []).some(y => y.kind === 'post') ? '<span class="er-un">미보고</span>' : '')(p.list[p.list.length - 1])}
               <span class="er-dt">${esc(actFeedTimeText(p.last))}</span>
@@ -8330,9 +8363,11 @@
           <div class="er-head">
             <span class="er-ava lg">${esc(p.name.charAt(0))}</span>
             <div class="er-head-m">
-              <div class="er-head-n">${esc(maskName(p.name))}${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(p.stage)}</span>` : ''}</div>
+              <div class="er-head-n">${esc(maskName(p.name))}${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(erStageText(p.stage, prof))}</span>` : ''}</div>
               ${info ? `<div class="er-head-i">${esc(info)}</div>` : ''}
-              ${erFlowHtml(p.stage)}
+              ${p.stage === '센터수강' && rpEnrollLine(prof) ? `<div class="er-head-i er-enroll">🎓 ${esc(rpEnrollLine(prof))}</div>` : ''}
+              ${erFlowHtml(p.stage, prof)}
+              ${p.stage === '센터수강' ? `<div class="er-flow-lb">${ER_COURSE_FLOW.map(n => `<span>${n}</span>`).join('')}</div>` : ''}
             </div>
             ${(last => last ? `<button type="button" class="er-redo" onclick="rpOpenEdit(${Number(last.id)})" title="가장 최근 기록을 그대로 불러와 고친 뒤 다시 보고">✏️ 수정·재보고하기</button>` : '')(p.list[p.list.length - 1])}
           </div>
@@ -8394,10 +8429,15 @@
         ['fb', fbNow.loading ? 'busy' : fbs.length ? 'done' : 'ready', fbNow.loading ? spin : pfSvg('up'), '단계향상 피드백',
           fbNow.loading ? '읽는 중…' : fbs.length ? `${fbs.length}회 · ${pfMD(fbs[fbs.length - 1].aiFeedbackAt) || '받음'}` : '받기'],
         t && ['swot', t.swot ? 'done' : 'ready', erSvg('swot'), 'SWOT', t.swot ? `✓ 작성 ${pfMD(t.swotAt)}` : '미작성'],
-        t && ['plan', gst.busy ? 'busy' : t.goalPlan ? 'done' : 'ready', gst.busy ? spin : pfSvg('route'), gm ? `${gm}월 개강 계획` : '개강 계획',
-          gst.busy ? '설계 중…' : t.goalPlan ? `설계 ${pfMD(t.goalPlanAt)}` : gm ? '설계받기' : '목표 정하기'],
+        // 10/30(사용자): 순서 = 보고 · 단계향상 피드백 · SWOT · HEARTS · 개강 계획 · 사례
         t && ['hearts', file.loading ? 'busy' : (file.hearts || []).length ? 'done' : 'off', file.loading ? spin : erSvg('heart'), 'HEARTS',
           file.loading ? '확인 중…' : (file.hearts || []).length ? `완료 · ${file.hearts.length}건` : '미완료'],
+        // 10/30(사용자): 센터 수강생은 개강 칸에 "○월 개강 ○○센터 수강 중"(목표 정하기 대신)
+        t && (p.stage === '센터수강'
+          ? ['plan', 'done', pfSvg('route'), esc(rpEnrollLine(t.reportProfile, false) || '센터 수강 중'),
+            esc((t.reportProfile || {}).course ? `${t.reportProfile.course}${t.reportProfile.course === '수료' ? '' : ' 과정'}` : rpEnrollLine(t.reportProfile) ? '수강 중' : '개강·센터·기수 적기')]
+          : ['plan', gst.busy ? 'busy' : t.goalPlan ? 'done' : 'ready', gst.busy ? spin : pfSvg('route'), gm ? `${gm}월 개강 계획` : '개강 계획',
+            gst.busy ? '설계 중…' : t.goalPlan ? `설계 ${pfMD(t.goalPlanAt)}` : gm ? '설계받기' : '목표 정하기']),
         t && ['case', `case${erSent(p.stage) ? ' hot' : ''}${erCaseBusy === t.targetId ? ' busy' : ''}`, erCaseBusy === t.targetId ? spin : pfSvg('doc'), '사례로 남기기',
           erCaseBusy === t.targetId ? 'AI 초안 쓰는 중…' : erSent(p.stage) ? '센터 보냄 · AI 초안' : 'AI 초안'],
       ].filter(Boolean);
@@ -8423,6 +8463,14 @@
       }
       if (!t) return '';
       if (k === 'swot') { swSt.id = t.targetId; return swEditorHtml(t); }
+      if (k === 'plan' && p.stage === '센터수강') {   // 10/30: 수강생 — 개강·센터·기수·과정을 보여 주고 고치기는 최근 기록에서
+        const prof = t.reportProfile || {}, last = p.list[p.list.length - 1];
+        const cur = ER_COURSE_FLOW.indexOf(prof.course || '개강');
+        return `<div class="er-o-h">센터 수강 <span>${esc(rpEnrollLine(prof, false) || '개강·센터·기수를 아직 안 적었어요')}</span></div>
+          <div class="er-course">${ER_COURSE_FLOW.map((n, i) => `<span class="${i < cur ? 'done' : i === cur ? 'now' : ''}">${n}</span>`).join('<i>›</i>')}</div>
+          <div class="er-o-note">센터수강 기록을 남길 때 개강 월·수강 센터·기수·수강 과정을 고르면 여기와 단계 게이지가 바뀌어요.</div>
+          ${last ? `<button type="button" class="er-o-main" onclick="rpOpenEdit(${Number(last.id)})">✏️ 최근 기록에서 수강 정보 고치기</button>` : ''}`;
+      }
       if (k === 'plan') {
         const id = esc(t.targetId), gst = glSt[t.targetId] || {}, file = erFile[t.targetId] || {};
         const past = (file.plans || []).filter(x => x.text !== t.goalPlan);

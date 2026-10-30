@@ -17,13 +17,21 @@ const generateContent = (body) => callAi(body.payload, body.model);
  * 하루 20회인 AI상담 모델 대신 개강 인도 계획과 같은 모델을 쓴다. */
 // 2026-10-23(사용자): 기록 카드의 'AI 피드백'이 약하다 → 'AI 다음 단계 피드백'. 이 기록만이 아니라 그 섭외자의
 //   모든 기록·단계 이력·교관 답·이전 AI 기록(targetDossier)을 같이 주고, 다음 단계·이번 주 할 일·멘트·조심할 점으로 답하게 한다.
+const COURSES = ['초등', '중등', '고등', '수료'];
 async function getActivityFeedback(body) {
   const target = await ownedTarget(body.memberId, body.targetId);
   const stage = String(body.stage || (target && target.stage) || '미상');
   const i = TARGET_STAGES.indexOf(stage);
-  const next = i >= 0 && i < TARGET_STAGES.length - 1 ? TARGET_STAGES[i + 1] : '';
+  let next = i >= 0 && i < TARGET_STAGES.length - 1 ? TARGET_STAGES[i + 1] : '';
   const d = target ? await targetDossier(target, str(body.memberId)) : null;
-  const goal = target && target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '아직 정하지 않음';
+  let goal = target && target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '아직 정하지 않음';
+  // 10/30(사용자): 센터 수강생은 단계 향상 = 수강 과정(초등→중등→고등→수료) 정착
+  if (stage === '센터수강') {
+    const p = (target && target.report_profile) || {};
+    const k = COURSES.indexOf(p.course || '');
+    next = k >= 0 && k < COURSES.length - 1 ? `${COURSES[k + 1]} 과정` : k < 0 ? '초등 과정 정착' : '';
+    goal = `${p.enroll ? p.enroll + '월 개강 ' : ''}${p.center || '센터'}${p.cohortNo ? ' ' + p.cohortNo + '기' : ''} 수강 중${p.course ? '(' + p.course + ')' : ''} — 빠지지 않고 수료까지`;
+  }
   const prompt = [
     '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 아래 섭외자를 지금 단계에서 바로 다음 단계로 올리기 위한 피드백을 주세요.',
     `- 섭외자: ${String(body.targetName || '대상자')} / 지금 단계: ${stage}${next ? ` / 다음 단계: ${next}` : ''} / 목표: ${goal}`,

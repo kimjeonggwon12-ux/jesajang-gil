@@ -160,9 +160,10 @@ async function getTargets(body) {
 }
 
 // ── 활동 보고 틀 (2026-10-23) ── app.html rpPayload 와 같은 칸. 섭외자마다 잘 안 바뀌는 칸은 targets.report_profile 에 모은다.
-const RP_TEXT = { tier: 10, title: 60, center: 60, enroll: 4, age: 3, faith: 30, recruitType: 30, phone4: 4, time: 30, nextDate: 10, request: 500, eduTotal: 3, eduWeekly: 10, lesson: 120, stageMark: 4 };
+// 10/30(사용자): 센터 수강생은 "○월 개강 ○○센터 ○○○기" + 수강 과정(course: 초등·중등·고등·수료)
+const RP_TEXT = { tier: 10, title: 60, center: 60, enroll: 4, cohortNo: 8, course: 10, age: 3, faith: 30, recruitType: 30, phone4: 4, time: 30, nextDate: 10, request: 500, eduTotal: 3, eduWeekly: 10, lesson: 120, stageMark: 4 };
 const RP_MAPS = { team: ['leader', 'mentor', 'teacher', 'counselor', 'helper', 'leaf', 'comm'], checks: ['affil', 'mapal', 'bible', 'record'], plan: ['mapal', 'teacherIntro', 'bibleRoom', 'centerIntro', 'interview'] };
-const RP_PROFILE_KEYS = ['center', 'enroll', 'age', 'faith', 'recruitType', 'phone4', 'eduWeekly', 'stageMark', 'team', 'checks', 'plan'];
+const RP_PROFILE_KEYS = ['center', 'enroll', 'cohortNo', 'course', 'age', 'faith', 'recruitType', 'phone4', 'eduWeekly', 'stageMark', 'team', 'checks', 'plan'];
 /** 앱이 보낸 보고 칸 → 정해진 칸만, 길이 제한. 보내지 않은 칸은 빠진다(프로필의 기존 값을 지우지 않게). */
 export function cleanReport(v) {
   if (!v || typeof v !== 'object') return null;
