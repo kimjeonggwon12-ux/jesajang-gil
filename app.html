@@ -1040,6 +1040,9 @@
     /* 10/28: 이름 오른쪽 [수정·재보고하기] — 가장 최근 기록을 그대로 불러와 고치기 */
     .er-redo { flex-shrink:0; align-self:flex-start; height:38px; padding:0 13px; border-radius:11px; border:none; background:#FF7A00; color:#fff; font-size:13px; font-weight:800; font-family:inherit; white-space:nowrap; cursor:pointer; box-shadow:0 3px 10px rgba(255,122,0,.3); }
     .er-redo:active { transform:scale(.96); }
+    .er-head-r { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+    .er-rep { height:30px; padding:0 10px; border-radius:999px; border:1px solid #BFEBDD; background:#E6F7F1; color:#00875F; font-size:12.5px; font-weight:800; font-family:inherit; white-space:nowrap; }
+    .er-rep.warn { border-color:#FCD34D; background:#FFFBEB; color:#B45309; } .er-rep.open { box-shadow:0 0 0 3px #BFEBDD; }
     .rp-edit-guide { margin-top:10px; padding:10px 12px; border-radius:12px; background:#FFF4E5; border:1px solid #FFD8A8; color:#7A4100; font-size:13px; line-height:1.55; }
     .rp-edit-guide b { color:#C2410C; }
     .er-acts3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
@@ -8509,7 +8512,7 @@
               ${p.stage === '센터수강' && rpEnrollLine(erProf(t)) ? `<div class="er-head-i er-enroll">🎓 ${esc(rpEnrollLine(erProf(t)))}</div>` : ''}
               ${erFlowHtml(p.stage, prof, true)}
             </div>
-            ${(last => last ? `<button type="button" class="er-redo" onclick="rpOpenEdit(${Number(last.id)})" title="가장 최근 기록을 그대로 불러와 고친 뒤 다시 보고">✏️ 수정·재보고하기</button>` : '')(p.list[p.list.length - 1])}
+            ${(last => last ? `<div class="er-head-r">${erReportChip(p)}<button type="button" class="er-redo" onclick="rpOpenEdit(${Number(last.id)})" title="가장 최근 기록을 그대로 불러와 고친 뒤 다시 보고">✏️ 수정·재보고하기</button></div>` : '')(p.list[p.list.length - 1])}
           </div>
           ${erActsHtml(p)}
           ${t ? erMasterHtml(p) : ''}
@@ -8559,6 +8562,12 @@
         erFile[tid] = { hearts: res.hearts || [], plans: res.plans || [] };
       } catch (e) { erFile[tid] = { error: e.message, hearts: [], plans: [] }; }
       renderHome();
+    }
+    // 10/30(사용자): '보고 완료'는 칸 줄에서 빼 이름 옆 [수정·재보고하기] 위에 작게 — 누르면 보고 이력이 칸 아래에 펼쳐진다
+    function erReportChip(p) {
+      const a = p.list[p.list.length - 1]; if (!a) return '';
+      const post = (a.tgPosts || []).find(y => y.kind === 'post');
+      return `<button type="button" class="er-rep${post ? '' : ' warn'}${erCell === 'report' ? ' open' : ''}" onclick="erCellOpen('report')">${post ? `📤 보고 완료 ${pfMD(post.at)}` : '⚠️ 미보고'}</button>`;
     }
     function erActsHtml(p) {
       const t = p.t, a = p.list[p.list.length - 1], key = activityRowKey(a), fbNow = home.aiFeedback[key] || {};
