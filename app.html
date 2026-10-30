@@ -1040,7 +1040,9 @@
     /* 10/28: 이름 오른쪽 [수정·재보고하기] — 가장 최근 기록을 그대로 불러와 고치기 */
     .er-redo { flex-shrink:0; align-self:flex-start; height:38px; padding:0 13px; border-radius:11px; border:none; background:#FF7A00; color:#fff; font-size:13px; font-weight:800; font-family:inherit; white-space:nowrap; cursor:pointer; box-shadow:0 3px 10px rgba(255,122,0,.3); }
     .er-redo:active { transform:scale(.96); }
-    .er-head-r { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+    .er-gauge { margin:10px 0 4px; }
+    .er-head-r { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:6px 0 4px; }
+    .er-head-r .er-rep, .er-head-r .er-redo { width:100%; height:40px; font-size:14px; border-radius:12px; align-self:auto; }
     .er-rep { height:30px; padding:0 10px; border-radius:999px; border:1px solid #BFEBDD; background:#E6F7F1; color:#00875F; font-size:12.5px; font-weight:800; font-family:inherit; white-space:nowrap; }
     .er-rep.warn { border-color:#FCD34D; background:#FFFBEB; color:#B45309; } .er-rep.open { box-shadow:0 0 0 3px #BFEBDD; }
     .rp-edit-guide { margin-top:10px; padding:10px 12px; border-radius:12px; background:#FFF4E5; border:1px solid #FFD8A8; color:#7A4100; font-size:13px; line-height:1.55; }
@@ -8510,10 +8512,11 @@
               <div class="er-head-n">${esc(maskName(p.name))}${p.stage ? `<span class="er-st" style="background:${st.bg};color:${st.text};border-color:${st.border}">${esc(erStageText(p.stage, prof))}</span>` : ''}</div>
               ${info ? `<div class="er-head-i">${esc(info)}</div>` : ''}
               ${p.stage === '센터수강' && rpEnrollLine(erProf(t)) ? `<div class="er-head-i er-enroll">🎓 ${esc(rpEnrollLine(erProf(t)))}</div>` : ''}
-              ${erFlowHtml(p.stage, prof, true)}
             </div>
-            ${(last => last ? `<div class="er-head-r">${erReportChip(p)}<button type="button" class="er-redo" onclick="rpOpenEdit(${Number(last.id)})" title="가장 최근 기록을 그대로 불러와 고친 뒤 다시 보고">✏️ 수정·재보고하기</button></div>` : '')(p.list[p.list.length - 1])}
           </div>
+          <!-- 10/30(사용자): 폰에서 오른쪽 단추 때문에 게이지 글자가 겹침 → 게이지는 화면 폭 전체로, 단추 두 개는 그 아래 한 줄에 나란히 -->
+          <div class="er-gauge">${erFlowHtml(p.stage, prof, true)}</div>
+          ${(last => last ? `<div class="er-head-r">${erReportChip(p)}<button type="button" class="er-redo" onclick="rpOpenEdit(${Number(last.id)})" title="가장 최근 기록을 그대로 불러와 고친 뒤 다시 보고">✏️ 재보고</button></div>` : '')(p.list[p.list.length - 1])}
           ${erActsHtml(p)}
           ${t ? erMasterHtml(p) : ''}
           ${t ? `<div class="er-sec">📚 누적 교육 제목 <span>${lessons.length}</span></div>
