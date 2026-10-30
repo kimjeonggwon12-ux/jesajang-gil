@@ -581,7 +581,7 @@ export async function targetDossier(target, mid) {
   ]);
   // 10/30: 교사가 파악한 정보(INFO_KIND)는 AI 기록과 따로 — 모든 AI 프롬프트에 '■ 교사가 파악한 정보'로 들어간다
   const info = allNotes.filter((n) => n.kind === INFO_KIND);
-  const notes = allNotes.filter((n) => n.kind !== INFO_KIND);
+  const notes = allNotes.filter((n) => n.kind !== INFO_KIND && n.kind !== MASTER_KIND);
   const infoLines = info.map((n) => `- ${day(n.created_at)} [${n.input || '기타'}] ${cut(n.text, 1500)}`);
 
   const actLines = acts.sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1)).map((a) => '- ' + [
@@ -597,7 +597,7 @@ export async function targetDossier(target, mid) {
 
   return {
     acts: keepNewest(actLines, 30000), history: keepNewest(histLines, 4000),
-    coaching: keepNewest(coachLines, 15000), notes: keepNewest(noteLines, 12000), info: keepNewest(infoLines, 20000),
+    coaching: keepNewest(coachLines, 15000), notes: keepNewest(noteLines, 12000), info: keepNewest(infoLines, 20000), actN: acts.length, coachN: coach.length,
     basis: `활동 ${acts.length}건 · 파악 정보 ${info.length}건 · 단계 이력 ${history.length}건 · AI상담·교관 ${coach.length}건 · 이전 AI 기록 ${notes.length}건 종합`,
   };
 }
@@ -714,9 +714,10 @@ const infoRow = (n) => ({ id: n.id, cat: n.input || '기타', cats: String(n.inp
 async function getTargetInfo(body) {
   const target = await ownedTarget(body.memberId, body.targetId);
   if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
-  const rows = await run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).in('kind', [INFO_KIND, INFO_FB_KIND]).order('id'));
+  const rows = await run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).in('kind', [INFO_KIND, INFO_FB_KIND, MASTER_KIND]).order('id'));
   const fb = rows.filter((n) => n.kind === INFO_FB_KIND).pop();
-  return { ok: true, cats: INFO_CATS, items: rows.filter((n) => n.kind === INFO_KIND).map(infoRow).reverse(), feedback: fb ? { text: fb.text, at: fmtTs(fb.created_at), basis: fb.input } : null };
+  const ms = rows.filter((n) => n.kind === MASTER_KIND).pop();
+  return { ok: true, cats: INFO_CATS, items: rows.filter((n) => n.kind === INFO_KIND).map(infoRow).reverse(), feedback: fb ? { text: fb.text, at: fmtTs(fb.created_at), basis: fb.input } : null, master: ms ? { text: ms.text, at: fmtTs(ms.created_at), basis: ms.input } : null };
 }
 async function addTargetInfo(body) {
   const target = await ownedTarget(body.memberId, body.targetId);
@@ -734,6 +735,45 @@ async function deleteTargetInfo(body) {
   if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
   await run(db().from('target_ai_notes').delete().eq('id', Number(body.id)).eq('target_id', target.target_id).eq('kind', INFO_KIND));
   return { ok: true };
+}
+// ── 종합 피드백 (2026-10-30) ── 사용자: "파악 정보·단계 향상·SWOT·HEARTS·개강 계획 피드백을 모두 취합해 받을 수 있게, 쌓일수록 모두 취합되게".
+//   부를 때마다 그 사람에 대해 쌓인 것 전부(targetDossier + SWOT 표·SWOT AI·지금 개강 계획)를 다시 읽어 한 번에 정리. 결과는 kind 'AI 종합 피드백'.
+const MASTER_KIND = 'AI 종합 피드백';
+const swotText = (sw) => (sw ? [['강점', sw.s], ['약점', sw.w], ['기회', sw.o], ['위협', sw.t]].map(([k, v]) => `${k}: ${String(v || '').replace(/\n+/g, ' / ') || '-'}`).join('\n') : '');
+async function targetMasterFeedback(body) {
+  const mid = str(body.memberId);
+  const target = await ownedTarget(mid, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  const [d, notes] = await Promise.all([
+    targetDossier(target, mid),
+    run(db().from('target_ai_notes').select('kind').eq('target_id', target.target_id)).catch(() => []),
+  ]);
+  const n = (k) => notes.filter((x) => x.kind === k).length;
+  const src = { info: n(INFO_KIND), stage: n('AI 단계향상 피드백'), swot: target.swot ? 1 : 0, hearts: d.coachN || 0, plan: n('개강 인도 계획') };
+  if (!d.acts.length && !src.info) return { error: '아직 모을 기록이 없어요. 활동 기록이나 파악한 정보를 먼저 남겨 주세요.' };
+  const goal = target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '아직 정하지 않음';
+  const prompt = [
+    '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 한 섭외자에 대해 지금까지 쌓인 모든 기록과 여러 AI·교관 피드백을 하나로 취합해, 교사가 이것 하나만 보면 되는 종합 피드백을 주세요.',
+    `- 섭외자: ${target.gender || ''} ${target.age_group || ''} / 지금 단계: ${target.stage || '섭외'} / 목표: ${goal}`,
+    '',
+    '■ 교사가 파악한 정보', ...(d.info.length ? d.info : ['(없음)']),
+    '■ 활동 기록', ...d.acts,
+    '■ 단계 변경 이력', ...d.history,
+    '■ SWOT 표', swotText(target.swot) || '(없음)',
+    '■ SWOT AI 제안', target.swot_ai ? cut(target.swot_ai, 3000) : '(없음)',
+    '■ 지금 개강 인도 계획', target.goal_plan ? cut(target.goal_plan, 4000) : '(없음)',
+    '■ HEARTS(AI상담)·교관 답변', ...d.coaching,
+    '■ 이전에 받은 AI 피드백(단계향상·개강 계획·파악 정보 등)', ...d.notes,
+    '',
+    '규칙: 여러 피드백이 겹치는 핵심은 하나로 묶고, 서로 다른 조언은 지금 단계에 맞는 쪽으로 정리하세요. 기록에 있는 사실만 근거로, 이 사람에게만 맞는 말로 짧고 구체적으로. 실명 대신 "그분".',
+    '반드시 아래 6개 마크다운 제목을 그대로 쓰고 다른 제목은 추가하지 마세요:',
+    '## 🧭 한눈에 보는 지금', '## 🧩 지금까지의 피드백 종합', '## 🎯 다음 단계로 가는 통합 전략', '## ✅ 이번 주 할 일 (3가지, 언제까지)', '## 🗓 개강까지 로드맵', '## ⚠️ 조심할 점',
+  ].join('\n');
+  const text = await askAiModels(prompt, PLAN_MODELS);
+  if (text.startsWith('⚠️')) return { error: text.replace(/^⚠️\s*/, '') };
+  const basis = `활동 ${d.actN || 0}건 · 파악 정보 ${src.info}건 · 단계향상 ${src.stage}회 · SWOT ${src.swot ? '있음' : '없음'} · HEARTS·교관 ${src.hearts}건 · 개강 계획 ${src.plan}회 취합`;
+  await addTargetAiNote(target.target_id, mid, MASTER_KIND, basis, text);
+  return { ok: true, text, at: fmtTs(kstDateTime()), basis, src };
 }
 /** 10/30(사용자: "누적 교육 제목이 밖에 안 보인다"): 사람 화면에서 바로 누적 교육 제목 목록을 고친다(추가·빼기). */
 async function setTargetLessons(body) {
@@ -776,5 +816,5 @@ export default {
   getTargetStageDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
   getTargetJournal, deleteTarget, planCohortLead, swotAdvice, writeCaseDraft, getTargetFile,
-  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons,
+  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons, targetMasterFeedback,
 };

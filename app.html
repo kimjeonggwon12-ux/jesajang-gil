@@ -1059,6 +1059,12 @@
     .er-o-main:disabled { opacity:.75; }
     .er-o-card { padding:12px 14px; border-radius:12px; background:#fff; border:1px solid #DDEFE8; font-size:14px; line-height:1.6; color:#1F2937; }
     .er-o-card.plan { background:#FFFAF5; border-color:#FDE2CC; }
+    /* 10/30 종합 피드백 */
+    .ms-card { margin-top:12px; padding:14px; border-radius:16px; background:linear-gradient(135deg,#F5F0FF,#EEF7FF); border:1.5px solid #D9CCFF; display:flex; flex-direction:column; gap:10px; }
+    .ms-h { font-size:16px; font-weight:900; color:#3B1D8F; } .ms-h span { margin-left:4px; font-size:12px; font-weight:700; color:#6B7280; }
+    .ms-src { display:flex; flex-wrap:wrap; gap:6px; } .ms-src span { padding:4px 9px; border-radius:999px; background:#fff; border:1px solid #E4DCFB; font-size:12.5px; color:#4B5563; } .ms-src b { color:#5B21B6; }
+    .ms-btn { height:48px; border-radius:12px; border:none; background:linear-gradient(135deg,#7C3AED,#4F46E5); color:#fff; font-size:15px; font-weight:800; font-family:inherit; } .ms-btn:disabled { opacity:.75; }
+    .ms-out { background:#fff; border-color:#E4DCFB; } .ms-out summary { color:#5B21B6; } .ms-out summary i { font-style:normal; font-weight:600; font-size:11.5px; color:#6B7280; margin-left:4px; }
     /* 10/30 파악한 정보 */
     .ei-new { display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:14px; background:#fff; border:1px solid #DDEFE8; }
     .ei-cats { display:flex; flex-wrap:wrap; gap:6px; }
@@ -8504,6 +8510,7 @@
             ${(last => last ? `<button type="button" class="er-redo" onclick="rpOpenEdit(${Number(last.id)})" title="가장 최근 기록을 그대로 불러와 고친 뒤 다시 보고">✏️ 수정·재보고하기</button>` : '')(p.list[p.list.length - 1])}
           </div>
           ${erActsHtml(p)}
+          ${t ? erMasterHtml(p) : ''}
           ${t ? `<div class="er-sec">📚 누적 교육 제목 <span>${lessons.length}</span></div>
           <div class="er-ls">
             ${lessons.length ? `<ol class="er-lessons">${lessons.map(l => `<li>${esc(l)}</li>`).join('')}</ol>` : '<div class="er-o-note">아직 없어요. 기록 양식의 \'누적 교육 제목\'에 적으면 여기에 그대로 보여요.</div>'}
@@ -8659,7 +8666,7 @@
       try {
         const res = await callApi({ action: 'getTargetInfo', memberId, targetId: tid });
         if (res && res.error) throw new Error(res.error);
-        Object.assign(erInfo[tid], { items: res.items || [], cats: res.cats || Object.keys(ER_INFO_IC), feedback: res.feedback, error: '' });
+        Object.assign(erInfo[tid], { items: res.items || [], cats: res.cats || Object.keys(ER_INFO_IC), feedback: res.feedback, master: res.master || erInfo[tid].master, error: '' });
       } catch (e) { erInfo[tid].error = e.message; }
       erInfo[tid].loading = false;
       renderHome();
@@ -8706,6 +8713,30 @@
     window.erLessonDel = function (tid, i) {
       if (!confirm('이 교육 제목을 뺄까요?')) return;
       const list = erLessonList(tid); list.splice(i, 1); erLessonsSave(tid, list);
+    };
+    // ── 종합 피드백 (10/30) ── 사용자: "파악 정보·단계향상·SWOT·HEARTS·개강 계획 피드백을 모두 취합해 받게, 쌓일수록 모두 취합되게".
+    //   서버 targetMasterFeedback 이 부를 때마다 그 사람에 대해 쌓인 것 전부를 다시 읽는다. 마지막 결과는 getTargetInfo.master.
+    function erMasterHtml(p) {
+      const t = p.t, s = erInfo[t.targetId] || {}, file = erFile[t.targetId] || {}, m = s.master;
+      const src = [['🗂', '파악 정보', s.items ? s.items.length : '…'], ['📈', '단계향상', p.list.filter(x => x.aiFeedback).length], ['🔲', 'SWOT', t.swot ? '✓' : '–'],
+        ['❤️', 'HEARTS', file.hearts ? file.hearts.length : '…'], ['🧭', '개강 계획', file.plans ? file.plans.length : (t.goalPlan ? 1 : 0)], ['📝', '기록', p.list.length]];
+      return `<div class="ms-card">
+        <div class="ms-h">🧠 종합 피드백 <span>쌓인 기록·피드백을 전부 모아 하나로</span></div>
+        <div class="ms-src">${src.map(([i, l, n]) => `<span>${i} ${l} <b>${n}</b></span>`).join('')}</div>
+        <button type="button" class="ms-btn" onclick="erMasterRun('${esc(t.targetId)}')" ${s.msBusy ? 'disabled' : ''}>${s.msBusy ? '<span class="loading loading-spinner loading-xs"></span> 전부 모아 읽는 중… (30초쯤)' : m ? '🔄 지금까지 쌓인 것으로 다시 취합하기' : '🧠 모두 취합해 종합 피드백 받기'}</button>
+        ${m ? `<details class="er-o-card ms-out"${s.msOpen ? ' open' : ''} ontoggle="erMasterFold('${esc(t.targetId)}', this.open)"><summary>📋 ${esc(String(m.at || '').slice(5, 16).replace('-', '/'))} 종합 피드백${m.basis ? ` <i>${esc(m.basis)}</i>` : ''}</summary>${glMd(m.text)}</details>` : ''}
+      </div>`;
+    }
+    window.erMasterFold = function (tid, open) { if (erInfo[tid]) erInfo[tid].msOpen = open; };
+    window.erMasterRun = async function (tid) {
+      const s = erInfo[tid] || (erInfo[tid] = {}); if (s.msBusy) return;
+      s.msBusy = true; renderHome();
+      try {
+        const res = await callApi({ action: 'targetMasterFeedback', memberId, targetId: tid });
+        if (res && res.error) throw new Error(res.error);
+        s.master = { text: res.text, at: res.at, basis: res.basis }; s.msOpen = true;
+      } catch (e) { toast(e.message, true); }
+      s.msBusy = false; renderHome();
     };
     window.erInfoDraft = function (tid, v) { if (erInfo[tid]) erInfo[tid].draft = v; };   // 화면이 다시 그려져도 쓰던 글 유지
     // 10/30(사용자): 분류는 여러 개 함께(누르면 켜고 끄기, 하나는 남김)
