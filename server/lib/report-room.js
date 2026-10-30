@@ -41,8 +41,17 @@ export const isCounselUp = (row) => (row && row.activities || []).some((a) => CO
 // 부서 전체 방 일일 보고에는 상담1~복음방 칸만(지역 방에서 넘어온 건은 그 단계 항목만 남긴다)
 const WHOLE_SECTIONS = ['🟢상담1️⃣', '🟢상담2️⃣', '🔵복음방'];
 
-/** 이 보고를 올릴 방들: 내 방(roomForTeacher) + 내 방이 지역 방이고 상담 이상 건이면 부서 전체 방. */
+// 10/30(사용자): "교사로 기록한 건만 전체 방에 정상으로, 인도자·그 외는 전체 방에 안 올림 — 교자장부청 다. 교사 아닌 건도 앱 기록·지역 방은 정상."
+//   전체 방 = 부서 방·기본 방(dept 에 '/' 없음). 지역 방('부서/지역')은 역할과 상관없이 올린다.
+export const isTeacherRole = (row) => (row && row.roles || []).includes('교사');
+const isRegionRoom = (room) => String(room.dept || '').includes('/');
+
+/** 이 보고를 올릴 방들: 내 방(roomForTeacher) + 내 방이 지역 방이고 상담 이상 건이면 부서 전체 방. 교사 역할이 아니면 지역 방만. */
 export async function roomsForReport(t, row) {
+  const rooms = await roomsByStage(t, row);
+  return isTeacherRole(row) ? rooms : rooms.filter(isRegionRoom);
+}
+async function roomsByStage(t, row) {
   const room = await roomForTeacher(t);
   // 10/29(사용자): 전체 방엔 개별 보고는 상담1~복음방만 — 지역 방이 아직 없는 지역(장년회 13지역)도 같은 규칙(그 밖의 보고는 방이 생기면 그 방으로)
   if (room && room.dept === String(t.dept || '').trim() && regionRoomKey(t) && !isCounselUp(row)) {
@@ -235,7 +244,8 @@ export async function buildDailyReports(date, onlyDept = '') {
     const title = region ? regionOf({ region }) || region : deptLabelOf(room.dept);
     // 아래에 지역 방이 있는 부서 전체 방(= 개강 인도 준비 방)은 상담1~복음방 칸만
     const whole = !region && rooms.some((r) => r.dept.startsWith(room.dept + '/'));
-    const shown = whole ? list.filter(isCounselUp) : list;
+    // 부서 전체 방(지역 방 아닌 방)은 교사 역할 기록만 — 개별 보고와 같은 규칙(10/30)
+    const shown = region ? list : list.filter((a) => isTeacherRole(a) && (!whole || isCounselUp(a)));
     return { room, count: shown.length, text: dailyText(title, date, shown, newSet, byNid, whole ? WHOLE_SECTIONS : null) };
   });
 }
