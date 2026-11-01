@@ -3564,11 +3564,15 @@
       pdEnterWithSpinner(OWNER_ID, OWNER_NAME, '관리자 모드로 입장 중...');
     }
 
+    // 11/1: 고유번호를 잘못 넣고 입장한 사람 → 바른 번호(폰에 저장된 번호를 저절로 고침). server/lib/id-alias.js 와 같이 맞출 것.
+    const ID_FIX = { '00271029000649': '0027102900064' };   // 부녀회 8지역 강정순
+    const pdFixId = id => ID_FIX[String(id || '').replace(/[^0-9]/g, '')] || id;
     function pdLoadSaved() {
       try {
         const raw = localStorage.getItem(PD_KEY);
         if (!raw) return null;
         const v = JSON.parse(raw);
+        if (v && v.memberId && pdFixId(v.memberId) !== v.memberId) { v.memberId = pdFixId(v.memberId); pdSave(v.memberId, v.name); }
         return (v && v.memberId && v.name) ? v : null;
       } catch (e) { return null; }
     }
@@ -3581,6 +3585,7 @@
 
     /** 실제 입장 — 세션 변수 4개를 채우고 앱 화면으로 전환한다(기존 로직 그대로). */
     function pdEnter(id, nm, keepCover) {   // keepCover: 표지를 바로 숨기지 않음(부른 쪽이 걷어 냄)
+      if (pdFixId(id) !== id) { id = pdFixId(id); pdSave(id, nm); }   // 잘못 넣은 번호로 다시 쳐서 들어와도 바른 번호로
       try { document.querySelector('meta[name="theme-color"]').content = '#00AE82'; } catch (e) {}   // 표지(책상 색) → 앱(초록)
       App.memberId = id; App.name = nm;
       MEMBER_ID = id; MY_NAME = nm; memberId = id; name = nm;

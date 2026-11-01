@@ -1,6 +1,7 @@
 // 단일 진입점: POST { action, ... } — 기존 Apps Script 웹앱과 같은 약속.
 // 아직 옮기지 않은 action 은 LEGACY_URL(Apps Script)로 그대로 넘긴다.
 import { actions } from '../server/registry.js';
+import { fixMemberIds } from '../server/lib/id-alias.js';
 
 async function readBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -31,7 +32,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') return res.status(200).json({ status: '제사장의 길 API 서버가 작동 중입니다.' });
 
   try {
-    const body = await readBody(req);
+    const body = fixMemberIds(await readBody(req));
     const action = body.action || 'generateContent';
     const fn = actions[action];
     const result = fn ? await fn(body) : await forwardToLegacy({ ...body, action });
