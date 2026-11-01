@@ -727,13 +727,18 @@ async function getTeacherListReport() {
     const r = review(person, data, now);
     const p = profileOf.get(r.nid);
     const actTypes = {};
-    const groups = {}, groupsMonth = {};   // 교사광장 일일보고 묶음(ACTIVITY_GROUPS)별 누적 · 이번 달
+    const groups = {}, groupsMonth = {}, groupsPrev = {};   // 교사광장 일일보고 묶음(ACTIVITY_GROUPS)별 누적 · 이번 달 · 지난 달(엑셀용)
+    const prev = monthBounds(new Date(now.getFullYear(), now.getMonth() - 1, 15));
+    let prevCount = 0;
     for (const a of r.acts) {
       actTypes[a.type] = (actTypes[a.type] || 0) + 1;
+      const inPrev = a.date >= prev.start && a.date <= prev.end;
+      if (inPrev) prevCount++;
       const g = GROUP_OF.get(a.type);
       if (!g) continue;
       groups[g] = (groups[g] || 0) + 1;
       if (a.date >= bounds.start && a.date <= bounds.end) groupsMonth[g] = (groupsMonth[g] || 0) + 1;
+      if (inPrev) groupsPrev[g] = (groupsPrev[g] || 0) + 1;
     }
     return {
       memberId: person.memberId, monthlyCount: countIn(r.acts, bounds),
@@ -747,7 +752,7 @@ async function getTeacherListReport() {
       affil: p ? p.affil : '', gender: p ? p.gender : '',
       visits: visitOf.get(r.nid)?.visits || 0, lastVisit: fmtTs(visitOf.get(r.nid)?.last_at),
       card: hasCard.has(r.nid), cases: caseCount.get(r.nid) || 0, caseRank: caseRank.get(r.nid) || 0,
-      groups, groupsMonth, attend1m: attendOf.get(r.nid) || 0,
+      groups, groupsMonth, groupsPrev, prevCount, attend1m: attendOf.get(r.nid) || 0,
     };
   });
   return { rows, groups: ACTIVITY_GROUPS.map(([g]) => g) };

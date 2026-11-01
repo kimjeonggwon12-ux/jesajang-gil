@@ -6,6 +6,7 @@ import backup from './actions/backup.js';
 import activities from './actions/activities.js';
 import targets from './actions/targets.js';
 import tiers from './actions/tiers.js';
+import teacherExport from './actions/teacher-export.js';
 import chat from './actions/chat.js';
 import courses from './actions/courses.js';
 import education from './actions/education.js';
@@ -33,6 +34,7 @@ export const actions = {
   ...activities,
   ...targets,
   ...tiers,
+  ...teacherExport,
   ...chat,
   ...courses,
   ...education,
