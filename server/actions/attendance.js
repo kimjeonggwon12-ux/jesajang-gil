@@ -624,7 +624,10 @@ async function attAutoSummary(body) {
   // 2026-10-30: 교사광장 활동 방 정오·저녁 10시 서머리
   let summary = {};
   try { summary = await (await import('./bot.js')).summaryTick(); } catch (e) { console.log('정오·저녁 서머리 오류: ' + e); }
-  return { ok: true, closed, cohort, daily, summary };
+  // 2026-11-01: 하루 한 번 휴교사 ↔ 활동교사 자동 전환(한 달 기록 기준)
+  let tier = null;
+  try { tier = await (await import('./tiers.js')).autoRestTick(); } catch (e) { console.log('등급 자동 전환 오류: ' + e); }
+  return { ok: true, closed, cohort, daily, summary, tier };
 }
 
 export default {

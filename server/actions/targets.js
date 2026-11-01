@@ -640,7 +640,7 @@ async function deleteTarget(body) {
 
 const ROLES = ['인도자', '교사', '섬김이', '협력교사'];
 // 협력교사는 대상자를 맡지 않으므로 올해 협력 활동을 항목별로 센다. ⚠️ app.html COOP_ACTIVITY_OPTIONS 와 같이 맞출 것.
-const COOP_ITEMS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사'];
+const COOP_ITEMS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
 
 /** 진행 중인 대상자마다 { stage, roles } — roles 는 담당자들이 그 대상자 활동에 적은 역할 + 담당 배정. */
 async function openTargetsWithRoles() {

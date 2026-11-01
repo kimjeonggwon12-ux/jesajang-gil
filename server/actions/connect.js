@@ -10,7 +10,7 @@ const DEPTS = ['교', '자', '장', '부', '청'];
 // ⚠️ app.html 의 역할·항목 목록과 같이 맞출 것.
 const HELP_ROLES = ['인도자', '교사', '섬김이', '협력교사'];
 const HELP_ITEMS = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '동행교사', '센터소개', '센터수강'];
-const HELP_COOP_ITEMS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사'];
+const HELP_COOP_ITEMS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
 const HELP_TYPES_LEGACY = ['동행 교사 필요', '복음방 진행자 필요', '상담 도움 필요', '기타'];
 
 const CARD_ROLES = [...HELP_ROLES, ...HELP_ITEMS, ...HELP_COOP_ITEMS.filter((i) => !HELP_ITEMS.includes(i)),

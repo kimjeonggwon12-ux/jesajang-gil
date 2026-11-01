@@ -1494,6 +1494,9 @@
     #sec-admin .tl-act b { color: var(--color-primary); font-weight: 800; }
     #sec-admin .tl-visit b { color: #2F6BFF; font-weight: 800; }   /* 2026-10-20 접속 횟수 */
     /* 10/30 명함 등록 · 사례 순위 뱃지 */
+    .tl-pot { display:inline-block; margin-left:4px; padding:0 6px; border-radius:999px; background:#fff4d6; color:#9a6b00; font-size:11px; font-weight:700; white-space:nowrap; }
+    .tl-grp { font-size:12px; white-space:nowrap; }
+    .tl-table th.tl-grp { font-size:11px; }
     .tl-card.on { display:inline-block; padding:1px 7px; border-radius:999px; background:#e3f6ef; color:#00875f; font-size:12px; font-weight:700; white-space:nowrap; }
     .tl-rank { display:inline-block; margin-left:4px; padding:1px 7px; border-radius:999px; font-size:12px; font-weight:800; white-space:nowrap; vertical-align:middle; }
 
@@ -6480,11 +6483,16 @@
     // 이름 없이 돕는 봉사라서 전용 9항목으로 고정. 협력은 다른 역할과 함께 고를 수 없다(항목 체계가 달라서).
     // Code.gs COOP_ACTIVITY_OPTIONS와 반드시 같이 맞출 것.
     const COOP_ROLE = '협력교사';
-    const COOP_ACTIVITY_OPTIONS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사'];
+    // 11/1(사용자): 소분류에 없던 교사 활동 — 내부(식구) 복음방 · 전도 행사 지원, 동호회(=동아리)는 모든 역할에서 고를 수 있게.
+    //   ⚠️ server/actions/tiers.js ACTIVITY_GROUPS(교사 명단 묶음 열)와 같이 맞출 것.
+    const EXTRA_ACTIVITY_OPTIONS = ['동아리', '식구 복음방', '전도 행사 지원'];
+    const COOP_ACTIVITY_OPTIONS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
     function activityOptionsForRoles(roles) {
       if (roles.includes(COOP_ROLE)) return COOP_ACTIVITY_OPTIONS;
-      return roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r)) ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS;
+      return (roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r)) ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS).concat(EXTRA_ACTIVITY_OPTIONS);
     }
+    // 칩에만 보이는 이름(저장값은 그대로) — 교사광장 일일보고 항목 말로
+    const ACT_CHIP_LABEL = { '섭외': '섭외·찾기', '동아리': '동호회', '동행교사': '동행 복음방' };
     const ROLE_SHORT_LABEL = { '인도자': '인도', '교사': '교사', '섬김이': '섬김', '협력교사': '협력' };
     function roleShortLabel(role) { return ROLE_SHORT_LABEL[role] || role; }
     const REACTION_OPTIONS = ['긍정적', '중립', '부정적'];
@@ -6749,12 +6757,12 @@
     const TIER_GUIDE = {
       '휴교사': {
         who: '지금은 잠시 쉬어가는 중이에요.',
-        why: '최근 3개월 활동이 5건 미만이면 휴교사가 됩니다. 5건을 채우면 바로 활동교사로 돌아와요.',
+        why: '한 달 동안 활동 기록이 없으면 휴교사가 됩니다. 활동 기록을 하나라도 남기면 바로 활동교사로 돌아와요. (출석만으로는 바뀌지 않아요)',
         goal: '활동교사로 복귀하기'
       },
       '활동교사': {
         who: '복음방 교사로 활동하고 계세요.',
-        why: '최근 1년 안에 센터 등록 1명을 이루면 정교사가 됩니다.',
+        why: '최근 1년 안에 센터 등록 1명을 이루면 정교사가 됩니다. 한 달 동안 활동 기록이 없으면 휴교사로 바뀌니 꾸준히 기록해 주세요.',
         goal: '정교사 되기'
       },
       '정교사': {
@@ -6934,6 +6942,8 @@
     const rpTier = item => RP_TIER[item] || 'basic';
     // 10/25(사용자): "상담부터는 교육 보고, 그 이전(섭외~만남2)은 일반 전도 보고" — 칸은 모두 같고 제목만 다르다.
     function rpTitle(item) {
+      if (item === '식구 복음방' || item === '전도 행사 지원') return `${item} 보고`;
+      if (item === '동아리') return '동호회 활동 보고';
       if (COOP_ACTIVITY_OPTIONS.includes(item)) return `협력 활동 보고(${item})`;
       if (item === '센터수강') return '센터 수강 관리 보고';
       if (item === '센터소개') return '센터 소개 보고';
@@ -7352,7 +7362,8 @@
         <div class="act-form-group">
           <div class="act-step-label">어떤 활동을 하셨나요? <span style="font-weight:500;color:var(--dg-text-sub)">· 여러 개 가능</span></div>
           ${f.roles.length
-            ? `<div class="act-chip-scroll">${itemOptions.map(o => `<button type="button" class="act-chip-btn af-item-chip ${f.items.includes(o) ? 'on' : ''}" data-item="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+            ? `<div class="act-chip-scroll">${itemOptions.map(o => `<button type="button" class="act-chip-btn af-item-chip ${f.items.includes(o) ? 'on' : ''}" data-item="${esc(o)}">${esc(ACT_CHIP_LABEL[o] || o)}</button>`).join('')}</div>
+               <div class="rp-opt" style="margin-top:6px">예) 찾기 활동·전단지·좌판 → <b>섭외·찾기</b> · 사랑이 피드백 → <b>피드백</b> · 동호회(외부·내부) → <b>동호회</b> · 내부 복음방 → <b>식구 복음방</b> · 센터 관리 → <b>센터소개·센터수강</b></div>
                ${f.activityItem ? `<div class="rp-tier rp-tier-${tier}"><b>[${esc(rpTitle(f.activityItem))}]</b>${f.items.length > 1 ? ` <span class="rp-opt">· ${esc(f.items.join(', '))} 중 ${esc(f.activityItem)} 기준</span>` : ''} ${RP_TIER_NOTE[tier]}</div>` : ''}`
             : `<div style="font-size:13.5px;color:var(--dg-text-sub)">역할을 먼저 골라주시면 보여드릴게요</div>`}
         </div>
@@ -7574,7 +7585,8 @@
           toast(res.reposted ? '수정했어요. 보고방에 수정본을 올렸어요 📤' : res.repostError ? '수정했어요. 다만 보고방에는 못 올렸어요: ' + res.repostError : '수정했어요 ✏️', !!res.repostError);
           return;
         }
-        const rpMsg = res.reported ? ' 보고방에도 올렸어요 📤' : res.reportError ? ' (보고방에는 못 올렸어요: ' + res.reportError + ')' : '';   // 10/23: 저장하면 보고방 자동 올림
+        const rpMsg = (res.reported ? ' 보고방에도 올렸어요 📤' : res.reportError ? ' (보고방에는 못 올렸어요: ' + res.reportError + ')' : '')   // 10/23: 저장하면 보고방 자동 올림
+          + (res.tierNow ? ' 🌱 활동교사로 바뀌었어요!' : '');   // 11/1: 휴교사가 기록을 남기면 바로 활동교사
         const submittedItem = f.activityItem, goal = targetNameTrimmed && !rpIsEnrolled(f) ? f.goalCohort : '';   // 수강생은 개강 목표 없음
         if (f.draftId) rpDraftRemove(f.draftId);   // 임시 저장에서 불러와 올린 것이면 임시 저장 목록에서 뺀다
         rpResetForm(f);
@@ -14319,7 +14331,16 @@ function mergeTeacherReport() {
     if (!r) return;
     t.monthlyCount = r.monthlyCount; t.lastActivityDate = r.lastActivityDate; t.conditionText = r.conditionText;
     t.actTotal = r.actTotal || 0; t.actTypes = r.actTypes || {}; t.leads1y = r.leads1y || 0; t.suggestion = r.suggestion; t.apply = r.apply; t.affilSel = r.affil; t.genderSel = r.gender; t.visits = r.visits || 0; t.lastVisit = r.lastVisit || ''; t.card = !!r.card; t.cases = r.cases || 0; t.caseRank = r.caseRank || 0; t._rep = true;
+    t.groups = r.groups || {}; t.groupsMonth = r.groupsMonth || {}; t.attend1m = r.attend1m || 0;
   });
+}
+// 11/1(사용자): 교사광장 일일보고 항목 묶음 — 활동 소분류는 그대로, 맞는 묶음으로 센다(server/actions/tiers.js ACTIVITY_GROUPS 와 같은 순서·이름).
+const TL_GROUPS = [['피드백', '피드백', '사랑이 피드백'], ['섭외', '섭외', '섭외·찾기 활동(전단지·좌판 등)'], ['만남·교육', '만남·교육', '친분·만남·상담·복음방'],
+  ['동행 복음방', '동행복', '동행 복음방(동행교사)'], ['식구 복음방', '식구복', '내부(식구) 복음방'], ['동호회', '동호회', '동호회(외부·내부) = 동아리'],
+  ['협력', '협력', '잎사귀·만남 동행·밭보기·육상담·부스담당·은사·멘토교사'], ['센터 관리', '센터', '센터 관리 활동(센터소개·센터수강)'], ['전도 행사 지원', '행사', '전도 행사 지원']];
+// 휴교사인데 최근 한 달 출석이 있으면 '잠재 활동' — 등급은 활동 기록으로만 바뀐다
+function tlPotential(t) {
+  return t._rep && t.tier === '휴교사' && t.attend1m > 0 ? `<span class="tl-pot" title="최근 한 달 출석 ${esc(t.attend1m)}번 — 활동 기록을 남기면 활동교사로 바뀌어요">잠재</span>` : '';
 }
 // 앱에서 기록한 활동 요약 — "상담1 3 · 만남1 2" 형태(많은 순, 상위 3개 + 나머지 개수).
 function actSummaryText(t, max) {
@@ -14579,6 +14600,7 @@ function teacherSheetHtml(t, extra) {
         ${t.position ? `<span class="badge badge-outline">${esc(t.position)}</span>` : ''}
         ${loaded && t.actTotal > 0 ? `<span class="tls-chip leaf">활동 기록 ${esc(t.actTotal)}건</span>` : ''}
         ${loaded && t.cases > 0 ? `<span class="tls-chip">사례 ${esc(t.cases)}건</span>` : ''}${loaded ? caseRankBadge(t) : ''}
+        ${loaded && t.attend1m > 0 ? `<span class="tls-chip" title="활동 기록·등급에는 안 들어가요">${t.tier === '휴교사' ? '잠재 활동 · ' : ''}최근 한 달 출석 ${esc(t.attend1m)}번</span>` : ''}
         ${loaded && t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'}">등급 제안 → ${esc(t.suggestion.suggestedTier)}</span>` : ''}
       </div>
 
@@ -14601,6 +14623,9 @@ function teacherSheetHtml(t, extra) {
         ${tlKV('승급·강등 조건', loaded ? esc(t.conditionText || '-') : wait)}
         ${loaded && t.suggestion ? tlKV('제안 사유', esc(t.suggestion.reason || '-')) : ''}
       </div>
+      ${loaded ? `<div class="tls-sec-t">활동 항목별 <span style="font-weight:500;color:var(--dg-text-sub)">· 이번 달 / 누적</span></div>
+      <div class="tls-grid">${TL_GROUPS.map(([g, , full]) => tlKV(g, `<span title="${esc(full)}"><b>${esc((t.groupsMonth || {})[g] || 0)}</b> / ${esc((t.groups || {})[g] || 0)}건</span>`)).join('')}</div>
+      <div class="text-[11px] text-base-content/40 mt-1">활동 기록을 남기면 바로 활동교사, 한 달 동안 기록이 없으면 휴교사로 바뀌어요(정교사·우수교사는 1년 심사). 출석은 잠재 활동으로만 봐요.</div>` : ''}
 
       <div class="tls-sec-t">연결 현황</div>
       ${connectBlock}
@@ -14735,8 +14760,10 @@ function teacherListSectionHtml() {
             <th>이름</th><th>지역</th><th>등급</th>
             <th title="내 명함 등록 여부">명함</th>
             <th title="이번 달 활동 기록 건수">활동 기록</th>
+            ${TL_GROUPS.map(([, short, full]) => `<th class="tl-more tl-grp" title="이번 달 ${esc(full)}">${esc(short)}</th>`).join('')}
             <th title="교사 이야기(사례)에 남긴 글 수 — 부서별 1~3위 뱃지">사례</th>
             <th title="앱에 들어온 횟수(10/20 이전은 앱에 기록을 남긴 날 수)">접속</th>
+            <th title="최근 한 달 QR 출석 횟수 — 잠재 활동(활동 기록·등급에는 안 들어가요)">출석</th>
             <th class="tl-more">등급 제안</th><th class="tl-more">직책</th>
             <th class="tl-more" title="최근 1년 센터 등록">센등</th>
             <th class="tl-more">활동 신청</th>
@@ -14747,11 +14774,13 @@ function teacherListSectionHtml() {
                 <td><input type="checkbox" class="tl-check checkbox checkbox-xs" data-mid="${esc(t.memberId)}" ${state.tlChecked.has(t.memberId) ? 'checked' : ''}></td>
                 <td class="font-medium">${esc(t.name)}${caseRankBadge(t)}</td>
                 <td>${esc(t.region || '-')}</td>
-                <td><span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'} badge-sm">${esc(t.tier || '-')}</span></td>
+                <td class="whitespace-nowrap"><span class="badge ${TIER_BADGE[t.tier] || 'badge-ghost'} badge-sm">${esc(t.tier || '-')}</span>${tlPotential(t)}</td>
                 <td class="text-center">${!t._rep ? '…' : (t.card ? '<span class="tl-card on" title="명함 등록함">등록</span>' : '<span class="text-base-content/30">-</span>')}</td>
                 <td class="text-center tl-act">${!t._rep ? '…' : (t.monthlyCount > 0 ? `<b>${esc(t.monthlyCount)}</b>건` : '<span class="text-base-content/30">0</span>')}</td>
+                ${TL_GROUPS.map(([g]) => `<td class="tl-more tl-grp text-center">${!t._rep ? '…' : ((t.groupsMonth || {})[g] ? `<b>${esc(t.groupsMonth[g])}</b>` : '<span class="text-base-content/30">0</span>')}</td>`).join('')}
                 <td class="text-center">${!t._rep ? '…' : (t.cases > 0 ? `<b>${esc(t.cases)}</b>건` : '<span class="text-base-content/30">0</span>')}</td>
                 <td class="text-center tl-visit" title="${t.lastVisit ? '마지막 ' + esc(t.lastVisit.slice(0, 16)) : ''}">${!t._rep ? '…' : (t.visits > 0 ? `<b>${esc(t.visits)}</b>번` : '<span class="text-base-content/30">0</span>')}</td>
+                <td class="text-center">${!t._rep ? '…' : (t.attend1m > 0 ? `<b>${esc(t.attend1m)}</b>번` : '<span class="text-base-content/30">0</span>')}</td>
                 <td class="tl-more">${!t._rep ? '…' : (t.suggestion ? `<span class="badge ${TIER_BADGE[t.suggestion.suggestedTier] || 'badge-ghost'} badge-sm">→ ${esc(t.suggestion.suggestedTier)}</span>` : '<span class="text-base-content/30">-</span>')}</td>
                 <td class="tl-more">${t.position ? `<span class="badge badge-outline badge-sm">${esc(t.position)}</span>` : ''}</td>
                 <!-- 2026-09-23: 센등은 이제 교사명단(getRoster)의 '센터등록' 열에서 바로 옴.
@@ -14760,7 +14789,7 @@ function teacherListSectionHtml() {
                 <td class="tl-more text-center font-bold" style="color:#00AE82">${t.regLeads != null ? esc(t.regLeads) : (t._rep ? esc(t.leads1y || 0) : '…')}</td>
                 <td class="tl-more">${!t._rep ? '…' : (t.apply ? `<span class="font-medium" style="color:#00AE82">${esc(applyText(t.apply))}</span>` : '<span class="text-base-content/40">없음</span>')}</td>
               </tr>`).join('')}
-            ${rows.length === 0 ? `<tr><td colspan="12" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
+            ${rows.length === 0 ? `<tr><td colspan="${13 + TL_GROUPS.length}" class="text-center text-base-content/40 py-6">조건에 맞는 교사가 없습니다.</td></tr>` : ''}
           </tbody>
         </table>
       </div>
@@ -15404,7 +15433,7 @@ const ROLE_PARTS_DASH = ['인도자', '교사', '섬김이', '협력교사'];
 // 2026-10-02: 협력교사는 전용 9항목(나의 교실 COOP_ACTIVITY_OPTIONS와 동일) — 역할별 표는 roleItemsDash(role),
 // 역할 무관 합산(강세 항목·AI 분석)은 두 체계를 합친 ROLE_ACTIVITY_ITEMS_DASH를 쓴다.
 const BASE_ACTIVITY_ITEMS_DASH = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '동행교사', '센터소개', '센터수강'];
-const COOP_ACTIVITY_ITEMS_DASH = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사'];
+const COOP_ACTIVITY_ITEMS_DASH = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
 const ROLE_ACTIVITY_ITEMS_DASH = BASE_ACTIVITY_ITEMS_DASH.concat(COOP_ACTIVITY_ITEMS_DASH.filter(i => !BASE_ACTIVITY_ITEMS_DASH.includes(i)));
 function roleItemsDash(role) { return role === '협력교사' ? COOP_ACTIVITY_ITEMS_DASH : BASE_ACTIVITY_ITEMS_DASH; }
 function _emptyRoleCounts() {

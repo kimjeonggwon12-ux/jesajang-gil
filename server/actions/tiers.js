@@ -5,19 +5,36 @@ import { TEACHER_TIERS, toRosterRow, findTeacher, loadRoster, rosterCounts, teac
 import { ROLE_OPTIONS, emptyRoleCounts } from './activities.js';
 import { TARGET_STAGES } from './targets.js';
 
-// ── 휴교사 ↔ 활동교사: 최근 3개월 활동이 5건 미만이면 휴교사, 휴교사가 5건 이상이면 복귀 ──
-const REST_MONTHS = 3;
-const REST_MIN_TOTAL = 5;
+// ── 휴교사 ↔ 활동교사 ── 11/1(사용자): "기록을 하면 활동교사로 전환, 한 달 동안 기록이 없으면 휴교사로 강등" — 승인 없이 자동.
+//   (옛 규칙: 최근 3개월 5건 미만 → 휴교사 제안 + 승인.) 정교사·우수교사는 센터인도 1년 심사 그대로.
+//   출석(QR)은 '잠재 활동'으로 명단에만 보이고 등급에는 안 친다.
+const REST_MONTHS = 1;
+const REST_MIN_TOTAL = 1;
+const AUTO_RULE_START = '2026-11-01';   // 이 날부터 한 달을 센다 — 그 전부터 기록 없던 사람을 첫날 한꺼번에 내리지 않게
 // ⚠️ app.html 의 활동 항목 목록과 같이 맞출 것.
 const ROLE_ACTIVITY_OPTIONS = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
 const TEACHER_ONLY_ACTIVITY = '동행교사';
-const COOP_ACTIVITY_OPTIONS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사'];
+// 11/1(사용자): 소분류에 없던 교사 활동 — 내부(식구) 복음방 · 전도 행사 지원. 동호회는 협력의 '동아리'를 모든 역할에 연다.
+const COOP_ACTIVITY_OPTIONS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
 const REST_ACTIVITY_TYPES = new Set([
   '전도 섭외', '전도 대상자 만남', '피드백', '상담 교육', '복음방 교사 교육',
   '복음방 이전 상담 활동', '동행 교사', '선교센터 섬김이', '선교센터 교사로 출석', '선교센터 인도자',
   '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강', '동행교사',
-  '동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사',
+  '동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '식구 복음방', '전도 행사 지원',
 ]);
+// 11/1(사용자): 교사광장 일일보고 항목으로 묶어 센다 — 소분류는 그대로 두고 맞는 묶음에 들어간다. 순서 = 명단 열 순서.
+const ACTIVITY_GROUPS = [
+  ['피드백', ['피드백']],                                   // 사랑이 피드백
+  ['섭외', ['섭외', '전도 섭외']],                          // 찾기 활동 · 전단지 · 좌판
+  ['만남·교육', ['친분', '만남1', '만남2', '상담1', '상담2', '복음방', '전도 대상자 만남', '상담 교육', '상담 활동', '복음방 교사 교육', '복음방 이전 상담 활동']],
+  ['동행 복음방', ['동행교사', '동행 교사']],
+  ['식구 복음방', ['식구 복음방']],                          // 내부 복음방
+  ['동호회', ['동아리']],                                   // 외부·내부
+  ['협력', ['잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사']],
+  ['센터 관리', ['센터소개', '센터수강', '선교센터 섬김이', '선교센터 교사로 출석', '선교센터 인도자']],
+  ['전도 행사 지원', ['전도 행사 지원']],
+];
+const GROUP_OF = new Map(ACTIVITY_GROUPS.flatMap(([g, items]) => items.map((i) => [i, g])));
 // 2026-09-04 개편 이전 활동 이름 → 지금 이름
 const ACTIVITY_TYPE_ALIASES = {
   '상담': '상담 활동',
@@ -147,10 +164,6 @@ function changedAtOf(person) {
 function evalTier(currentTier, acts, leads, changedAt, asOf) {
   const yearAgo = monthsAgo(asOf, LEAD_WINDOW_MONTHS);
   const recentLeads = leads.filter((d) => d >= yearAgo && d <= asOf).length;
-  const restCount = () => {
-    const cutoff = monthsAgo(asOf, REST_MONTHS);
-    return acts.filter((a) => REST_ACTIVITY_TYPES.has(a.type) && a.date >= cutoff && a.date <= asOf).length;
-  };
   /** 심사 주기가 돌아왔으면 그 기간의 신규 센터인도 수, 아니면 null. */
   const reviewLeads = () => {
     const due = !changedAt || asOf.getTime() >= addMonths(changedAt, REVIEW_MONTHS).getTime();
@@ -164,9 +177,7 @@ function evalTier(currentTier, acts, leads, changedAt, asOf) {
   if (currentTier === '활동교사') {
     if (recentLeads >= PROMO_EXCELLENT_MIN_LEADS) return toExcellent;
     if (recentLeads >= PROMO_ACTIVE_MIN_LEADS) return { tier: '정교사', reason: `최근 1년 센터인도 ${recentLeads}명 → 정교사 승급` };
-    const n = restCount();
-    if (n < REST_MIN_TOTAL) return { tier: '휴교사', reason: `최근 ${REST_MONTHS}개월 활동 ${n}건(5건 미만) → 휴교사 전환` };
-    return null;
+    return null;   // 휴교사 전환은 autoRestTiers 가 승인 없이 한다
   }
   if (currentTier === '정교사') {
     if (recentLeads >= PROMO_EXCELLENT_MIN_LEADS) return toExcellent;
@@ -182,12 +193,7 @@ function evalTier(currentTier, acts, leads, changedAt, asOf) {
     if (n === 1) return { tier: '정교사', reason: '1년 심사: 신규 센터인도 1명 → 정교사로 강등' };
     return { tier: '활동교사', reason: '1년 심사: 신규 센터인도 0명 → 활동교사로 강등' };
   }
-  if (currentTier === '휴교사') {
-    const n = restCount();
-    if (n >= REST_MIN_TOTAL) return { tier: '활동교사', reason: `최근 ${REST_MONTHS}개월 활동 ${n}건 → 활동교사로 복귀` };
-    return null;
-  }
-  return null;   // 알 수 없는 등급값 — 판정 대상 아님
+  return null;   // 휴교사(기록하면 바로 활동교사 — autoRestTiers)·알 수 없는 등급값은 제안 없음
 }
 
 /** 한 사람의 심사 재료 + 제안. */
@@ -385,6 +391,85 @@ async function bulkChangeTier(body) {
   return { ok: true, changed: changed.map(({ key, ...c }) => c), failed, approver };
 }
 
+// ── 휴교사 ↔ 활동교사 자동 전환(11/1) ──
+
+const AUTO_APPROVER = '자동(활동 기록)';
+
+/** 여러 사람의 등급을 한꺼번에 바꾸고 이력을 남긴다. changes = [{ t(teachers 행), tier, reason }] */
+async function writeTierChanges(changes) {
+  if (!changes.length) return;
+  const today = kstDate();
+  for (const tier of TEACHER_TIERS) {
+    const ids = changes.filter((c) => c.tier === tier).map((c) => c.t.member_id);
+    for (let i = 0; i < ids.length; i += 200) await run(db().from('teachers').update({ tier, tier_changed_at: today }).in('member_id', ids.slice(i, i + 200)));
+  }
+  const history = changes.map((c) => ({ changed_on: today, member_id: c.t.member_id, name: c.t.name, prev_tier: c.t.tier, new_tier: c.tier, reason: c.reason, approver1: AUTO_APPROVER }));
+  for (let i = 0; i < history.length; i += 200) await run(db().from('tier_history').insert(history.slice(i, i + 200)));
+  forgetRoster();
+}
+
+/** 활동 기록을 남긴 휴교사는 그 자리에서 활동교사로(submitActivity 가 부른다). */
+export async function promoteOnRecord(memberId) {
+  const nid = normId(memberId);
+  if (!nid || nid === '0') return null;
+  const [t] = await run(db().from('teachers').select('member_id, nid, name, tier').eq('nid', nid).limit(1));
+  if (!t || t.tier !== '휴교사') return null;
+  await writeTierChanges([{ t, tier: '활동교사', reason: '활동 기록 → 활동교사 전환' }]);
+  return '활동교사';
+}
+
+/**
+ * 하루 한 번(attAutoSummary): 최근 한 달 기록이 있는 휴교사 → 활동교사, 한 달 동안 기록이 없는 활동교사 → 휴교사.
+ * 한 달은 AUTO_RULE_START 와 마지막 등급 변경일 중 늦은 날부터 센다(막 활동교사가 된 사람에게도 한 달은 준다).
+ * dryRun 이면 바꾸지 않고 명단만.
+ */
+async function autoRestTiers({ dryRun = false } = {}) {
+  const now = new Date();
+  const monthAgo = monthsAgo(now, REST_MONTHS);
+  const [teachers, activities] = await Promise.all([
+    selectAll(() => db().from('teachers').select('member_id, nid, name, dept, tier, tier_changed_at').order('sort_order')),
+    loadActivities(),
+  ]);
+  const lastOf = new Map();
+  for (const a of activities) {
+    if (!a.submitted_at || a.nid === '0') continue;
+    const d = new Date(a.submitted_at);
+    if (!isNaN(d.getTime()) && (!lastOf.has(a.nid) || d > lastOf.get(a.nid))) lastOf.set(a.nid, d);
+  }
+  const start = new Date(AUTO_RULE_START + 'T00:00:00');
+  const changes = [];
+  for (const t of teachers) {
+    const last = lastOf.get(t.nid);
+    const recent = last && last >= monthAgo;
+    if (t.tier === '휴교사' && recent) changes.push({ t, tier: '활동교사', reason: `최근 한 달 활동 기록(${fmtDate(last)}) → 활동교사 전환` });
+    if (t.tier === '활동교사' && !recent) {
+      const changed = t.tier_changed_at ? new Date(t.tier_changed_at + 'T00:00:00') : null;
+      const from = changed && changed > start ? changed : start;
+      if (from <= monthAgo) changes.push({ t, tier: '휴교사', reason: `한 달 동안 활동 기록 없음${last ? `(마지막 ${fmtDate(last)})` : ''} → 휴교사 전환` });
+    }
+  }
+  if (!dryRun) await writeTierChanges(changes);
+  const pick = (tier) => changes.filter((c) => c.tier === tier).map((c) => ({ memberId: c.t.member_id, name: c.t.name, dept: c.t.dept }));
+  return { ok: true, dryRun, toActive: pick('활동교사'), toRest: pick('휴교사') };
+}
+
+/** 5분 틱에서 부른다 — 하루 한 번만(alert_log 키 tierAuto:날짜). */
+export async function autoRestTick() {
+  const key = 'tierAuto:' + kstDate();
+  const hit = await run(db().from('alert_log').select('id').eq('dedup_key', key).limit(1));
+  if (hit.length) return null;
+  const r = await autoRestTiers();
+  await run(db().from('alert_log').insert({ sent_at: kstDateTime().slice(0, 16), kind: '등급자동', summary: `활동교사 전환 ${r.toActive.length}명 · 휴교사 전환 ${r.toRest.length}명`, ok: true, dedup_key: key }));
+  return { toActive: r.toActive.length, toRest: r.toRest.length };
+}
+
+/** 관리용(운영 키): { action:'tierAutoRest', key, dryRun:true } — 오늘 바뀔 사람 미리 보기 또는 바로 돌리기. */
+async function tierAutoRest(body) {
+  const cronKey = process.env.TEACHERSQUARE_CRON_KEY;
+  if (!cronKey || String(body.key) !== cronKey) return { error: 'key' };
+  return autoRestTiers({ dryRun: body.dryRun !== false });
+}
+
 // ── 현황 화면 ──
 
 /** 지역장 화면: 같은 지역 교사들의 이번 달 활동·등급·제안. */
@@ -481,7 +566,7 @@ function aggregate(rows) {
   return { totalTeachers: rows.length, tierCounts, activeCount, monthlyActivityCount, promotionCount };
 }
 
-/** "최근 3개월 활동 n건 · 최근 12개월 센터인도 n명" */
+/** "최근 1개월 활동 n건 · 최근 12개월 센터인도 n명" */
 function conditionText(acts, leads, asOf) {
   const from3 = monthsAgo(asOf, REST_MONTHS);
   const n = acts.filter((a) => a.date >= from3 && REST_ACTIVITY_TYPES.has(a.type)).length;
@@ -612,13 +697,18 @@ async function getTeacherListReport() {
   const bounds = monthBounds(now);
   const today = kstDate(now);
   const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-  const [data, profiles, visits, cards, cases] = await Promise.all([
+  const monthAgo = monthsAgo(now, REST_MONTHS);
+  const [data, profiles, visits, cards, cases, attends] = await Promise.all([
     loadTierData(),
     selectAll(() => db().from('teacher_profiles').select('*').order('id')),
     selectAll(() => db().from('app_visits').select('nid, visits, last_at').order('nid')),
     selectAll(() => db().from('connect_cards').select('id, nid').neq('member_id', '').order('id')),
     selectAll(() => db().from('plaza_posts').select('id, member_id').in('category', CASE_CATEGORIES).neq('status', '삭제').order('id')),
+    // 11/1(사용자): 출석은 '잠재 활동' — 활동 기록·등급에는 안 치고 명단에만 최근 한 달 출석 수
+    selectAll(() => db().from('attend_records').select('id, nid, at').gte('at', kstDateTime(monthAgo)).order('id')),
   ]);
+  const attendOf = new Map();
+  for (const a of attends) attendOf.set(a.nid, (attendOf.get(a.nid) || 0) + 1);
   const profileOf = new Map(profiles.map((p) => [p.nid, p]));
   const visitOf = new Map(visits.map((v) => [v.nid, v]));   // 2026-10-20 앱 접속 횟수
   // 10/30(사용자): 명함 등록 여부 · 사례 남긴 수 · 장부청 부서별 사례 1~3위
@@ -637,7 +727,14 @@ async function getTeacherListReport() {
     const r = review(person, data, now);
     const p = profileOf.get(r.nid);
     const actTypes = {};
-    for (const a of r.acts) actTypes[a.type] = (actTypes[a.type] || 0) + 1;
+    const groups = {}, groupsMonth = {};   // 교사광장 일일보고 묶음(ACTIVITY_GROUPS)별 누적 · 이번 달
+    for (const a of r.acts) {
+      actTypes[a.type] = (actTypes[a.type] || 0) + 1;
+      const g = GROUP_OF.get(a.type);
+      if (!g) continue;
+      groups[g] = (groups[g] || 0) + 1;
+      if (a.date >= bounds.start && a.date <= bounds.end) groupsMonth[g] = (groupsMonth[g] || 0) + 1;
+    }
     return {
       memberId: person.memberId, monthlyCount: countIn(r.acts, bounds),
       leads1y: r.leads.filter((d) => d >= oneYearAgo).length, actTotal: r.acts.length, actTypes,
@@ -650,9 +747,10 @@ async function getTeacherListReport() {
       affil: p ? p.affil : '', gender: p ? p.gender : '',
       visits: visitOf.get(r.nid)?.visits || 0, lastVisit: fmtTs(visitOf.get(r.nid)?.last_at),
       card: hasCard.has(r.nid), cases: caseCount.get(r.nid) || 0, caseRank: caseRank.get(r.nid) || 0,
+      groups, groupsMonth, attend1m: attendOf.get(r.nid) || 0,
     };
   });
-  return { rows };
+  return { rows, groups: ACTIVITY_GROUPS.map(([g]) => g) };
 }
 
 /** 옛 연결 기능의 누적 숫자(명함 수, 모집 글 수, 성사 건수). */
@@ -799,6 +897,6 @@ async function getChurchTopRegions() {
 
 export default {
   checkTierChanges, getSettlementReport, registerLeaveReason, approveTierChange, applyTierChange, deleteApprovalRow,
-  bulkChangeTier, getDistrictView, getMyTierStatus, getMyCenterLeads, getAllCenterLeads,
+  bulkChangeTier, tierAutoRest, getDistrictView, getMyTierStatus, getMyCenterLeads, getAllCenterLeads,
   getDistrictReport, getOrgSummary, getTopRegions, getChurchTopRegions, getTeacherListReport, getConnectStats,
 };
