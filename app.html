@@ -16626,9 +16626,10 @@ async function calAdmInit() {
           + '<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">' + (c.active ? '<span class="cs-tag">열림</span>' : '<span class="cs-tag no">닫힘</span>') + (unread ? '<span class="cs-tag new">새 서류 ' + unread + '</span>' : '')
           + '<span style="font-size:12.5px;color:#6b7772">' + (c.staff.length ? '받는 사람 ' + c.staff.map(x => esc(x.role + ' ' + x.name)).join(', ') : '받는 사람(강사·전도사) 없음') + '</span></div>'
           + '<div style="margin-top:8px;font-size:14px;font-weight:800">📥 받은 서류 ' + docs.length + '건' + (docs.length ? ' <small style="font-weight:500;color:#6b7772">— ' + byOrg.filter(([, l]) => l.length).map(([o, l]) => o + ' ' + l.length).join(' · ') + '</small>' : '') + '</div>'
-          + byOrg.filter(([o, l]) => l.length || o !== '기타').map(([o, l]) => '<div class="cs-coh"><div class="cs-coh-h">' + esc(o) + ' <small style="font-weight:500;color:#6b7772">' + l.length + '건</small></div>'
+          + byOrg.filter(([, l]) => l.length).map(([o, l]) => '<div class="cs-coh"><div class="cs-coh-h">' + esc(o) + ' <small style="font-weight:500;color:#6b7772">' + l.length + '건</small></div>'
             + (l.length ? l.map(r => '<button type="button" class="cs-dl" onclick="centerAdm.open(' + r.id + ')"><b>' + esc(r.targetName) + '</b><span>교사 ' + esc(r.teacherName) + (r.region ? ' · ' + esc(r.region) : '') + ' · ' + esc(r.sentAt.slice(5, 16)) + ' 받음</span>'
               + (r.centerReadAt ? '' : '<span class="cs-tag new" style="flex:0 0 auto">새 서류</span>') + '📂</button>').join('') : '<div style="font-size:12.5px;color:#9aa5a0;margin-top:4px">아직 없음</div>') + '</div>').join('')
+          + (byOrg.some(([o, l]) => !l.length && o !== '기타') ? '<div style="font-size:12.5px;color:#9aa5a0;margin-top:8px">아직 없음 · ' + byOrg.filter(([o, l]) => !l.length && o !== '기타').map(([o]) => o).join(' · ') + '</div>' : '')
           + '</div>';
       }
       function centersHtml() {
