@@ -66,6 +66,14 @@ try {
   const st = await a.getCenterSendState({ ...T, targetId: tid });
   assert.equal(st.referral.status, '전달'); assert.match(st.referral.centerLabel, /ZZ시험센터/);
   console.log('✓ 요청 → 지역장 승인 → 센터 전달 → 센터 서류 열람');
+  // 기수 삭제: 전도부만, 받은 서류는 '승인'(보내기 대기)으로 돌아감
+  assert.match((await a.deleteCenter({ ...L, id: centerId })).error, /전도부/);
+  assert.ok((await a.getCenterDesk(HQ)).inbox.some((r) => r.id === rid));   // 전도부는 모든 기수의 받은 서류를 봄
+  assert.equal((await a.deleteCenter({ ...HQ, id: centerId })).moved, 1);
+  assert.equal((await a.getCenterSendState({ ...T, targetId: tid })).referral.status, '승인');
+  assert.match((await a.deleteCenter({ ...HQ, id: centerId })).error, /이미/);
+  centerId = null;
+  console.log('✓ 기수 삭제 → 서류는 센터 보내기 대기로');
   console.log('센터 보내기 점검 통과');
 } finally {
   await run(db().from('center_referrals').delete().eq('target_id', tid));

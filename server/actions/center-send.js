@@ -166,7 +166,8 @@ async function getCenterDesk(body) {
   const counts = new Map();
   for (const r of all) if (r.status === '전달' && r.center_id) counts.set(r.center_id, (counts.get(r.center_id) || 0) + 1);
   const desk = all.filter((r) => inScope(acc, r)).map((r) => toRow(r, byId));
-  const inbox = all.filter((r) => r.status === '전달' && acc.centers.includes(r.center_id)).map((r) => toRow(r, byId));
+  // 11/2: 전도부는 모든 센터·기수의 받은 서류를 기수별로 본다(센터·기수 관리)
+  const inbox = all.filter((r) => r.status === '전달' && (acc.hq || acc.centers.includes(r.center_id))).map((r) => toRow(r, byId));
   return {
     me: { name: acc.name, position: acc.position, hq: acc.hq, scopes: acc.scopes, centers: acc.centers, canDecide: acc.hq || acc.scopes.length > 0 },
     rows: desk, inbox,
@@ -294,6 +295,20 @@ async function saveCenter(body) {
   return { ok: true, id: c.id };
 }
 
+/** 기수 지우기(전도부). 이미 받은 서류는 지우지 않고 '승인'(센터 보내기 대기)으로 돌려 다른 기수로 다시 보낼 수 있게 한다. */
+async function deleteCenter(body) {
+  const acc = await accessOf(body.memberId);
+  if (!acc.hq) return { error: '기수 삭제는 전도부(교육·전도 담당 관리자)만 할 수 있어요.' };
+  const id = Number(body.id);
+  const [c] = await run(db().from('centers').select('id').eq('id', id).limit(1));
+  if (!c) return { error: '이미 지워진 기수예요.' };
+  const moved = await run(db().from('center_referrals')
+    .update({ status: '승인', center_id: null, sent_at: null, sent_by: '', sent_by_id: '', send_note: '', center_read_at: null })
+    .eq('center_id', id).select('id'));
+  await run(db().from('centers').delete().eq('id', id));
+  return { ok: true, moved: moved.length };
+}
+
 /** 강사·전도사 지정용: 이름(또는 번호)으로 명단에서 찾기. */
 async function findCenterStaff(body) {
   const acc = await accessOf(body.memberId);
@@ -310,5 +325,5 @@ async function findCenterStaff(body) {
 export default {
   getCenterSendState, requestCenterApproval, cancelCenterRequest,
   getCenterDesk, getCenterSendBadge, getCenterReferral, decideCenterReferral, sendToCenter, reopenCenterReferral,
-  saveCenter, findCenterStaff,
+  saveCenter, deleteCenter, findCenterStaff,
 };
