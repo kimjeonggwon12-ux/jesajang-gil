@@ -342,7 +342,11 @@ export async function buildSummaryReports(date, onlyKey = '') {
  * 출석 봇이 받은 글 하나 — 총합 방('…#총합')에 주제 번호가 아직 없고, 그 글이 이름에 '일일보고'가 든 주제에서 왔으면
  * 그 주제로 연결한다(봇 API 로는 주제 목록을 못 읽어서, 그 주제에 누가 글을 쓰면 번호를 안다). 연결했으면 true.
  */
-const TOPIC_OF_ROOM = { '청년회/06지역': '전도', '청년회/03지역': '보고' };   // 방 열쇠 → 주제 이름에 든 글자(띄어쓰기 빼고)
+// 11/2(사용자): 부녀회 회장단 방(회장단1구역) — 지역 없이 부서 전체 총합(지역장+교관방과 같은 내용)을 '전도활동방' 주제로
+// 방 열쇠 → 주제 이름에 든 글자(띄어쓰기 빼고)
+const TOPIC_OF_ROOM = { '청년회/06지역': '전도', '청년회/03지역': '보고', '부녀회#총합:회장단': '전도활동' };
+/** 정한 주제가 있는 방인데 아직 주제 번호를 모르면(그 주제에 아무도 글을 안 씀) 보내지 않는다 — 일반 주제로 새지 않게. */
+export const topicPending = (room) => !!TOPIC_OF_ROOM[room.dept] && !String(room.chat_id).includes('/'); 
 export async function learnSummaryTopic(msg) {
   const th = msg && msg.is_topic_message && msg.message_thread_id;
   const name = String((msg && msg.reply_to_message && msg.reply_to_message.forum_topic_created && msg.reply_to_message.forum_topic_created.name) || '').replace(/\s/g, '');
@@ -350,11 +354,16 @@ export async function learnSummaryTopic(msg) {
   if (!th || !name) return false;
   const kind = name.includes('일일보고') ? 'sum' : 'room';
   const rows = (await run(db().from('report_rooms').select('dept, chat_id').eq('chat_id', String(msg.chat.id))).catch(() => []))
-    .filter((r) => (kind === 'sum' ? r.dept.includes('#총합') : TOPIC_OF_ROOM[r.dept] && name.includes(TOPIC_OF_ROOM[r.dept])));
+    .filter((r) => (TOPIC_OF_ROOM[r.dept] ? name.includes(TOPIC_OF_ROOM[r.dept]) : kind === 'sum' && r.dept.includes('#총합')));
   for (const r of rows) await run(db().from('report_rooms').update({ chat_id: `${msg.chat.id}/${th}` }).eq('dept', r.dept));
-  if (rows.length) await sendText(`${msg.chat.id}/${th}`, kind === 'sum'
-    ? '✅ 이 주제(일일보고)로 매일 22시 지역별 일일 보고 총합이 올라와요.'
+  const sums = rows.filter((r) => r.dept.includes('#총합'));
+  if (rows.length) await sendText(`${msg.chat.id}/${th}`, sums.length
+    ? `✅ 이 주제로 매일 22시 ${esc(deptLabelOf(sums[0].dept.split('#')[0]))} 지역별 일일 보고 총합이 올라와요.`
     : '✅ 이 주제로 교사들의 활동 보고와 매일 22시 일일 보고가 올라와요.').catch(() => {});
+  // 11/2: 주제를 처음 배운 총합 방에는 오늘 총합을 샘플로 한 번 올린다
+  for (const r of sums) {
+    for (const rep of await buildSummaryReports(kstDate(), r.dept)) await sendDaily(rep, '🧪 <b>샘플</b> — 지역장+교관방과 같은 내용\n').catch((e) => console.log('샘플 실패: ' + e.message));
+  }
   return rows.length > 0;
 }
 
@@ -386,6 +395,7 @@ export async function reportDailyTick() {
   for (const r of [...await buildDailyReports(date), ...await buildSummaryReports(date)]) {
     const { room, count } = r;
     if (!count) continue;   // 그날 기록이 하나도 없는 방은 보내지 않는다(빈 보고로 방을 채우지 않게)
+    if (topicPending(room)) continue;   // 정한 주제 번호를 아직 모름
     const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#report-room', kind: '일일보고', ref_id: room.dept, date, sent_at: kstDateTime() });
     if (error) continue;   // 이미 보냄
     try { await sendDaily(r); sent.push(room.dept); }
