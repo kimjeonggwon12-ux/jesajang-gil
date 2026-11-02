@@ -347,9 +347,13 @@ export async function buildSummaryReports(date, onlyKey = '') {
  */
 // 11/2(사용자): 부녀회 회장단 방(회장단1구역) — 지역 없이 부서 전체 총합(지역장+교관방과 같은 내용)을 '전도활동방' 주제로
 // 방 열쇠 → 주제 이름에 든 글자(띄어쓰기 빼고)
-const TOPIC_OF_ROOM = { '청년회/06지역': '전도', '청년회/03지역': '보고', '부녀회#총합:회장단': '전도활동', '부녀회/기타': '전도활동', '부녀회/기타#출결': '출결' };
+const TOPIC_OF_ROOM = { '청년회/06지역': '전도', '청년회/03지역': '보고', '부녀회#총합:회장단': '전도활동', '부녀회/기타': '전도활동', '부녀회/기타#출결': '출결',
+  // 11/2(사용자): 교역자 방이 주제 방으로 바뀜(공지·기본(교사어플)…) — 보고는 '기본(교사어플)' 주제로
+  '교역자': '교사어플' };
+// 주제 번호를 배우기 전에도 지금처럼 일반 주제로 계속 보내는 방(이미 보고가 오가던 방이라 끊기지 않게)
+const TOPIC_FALLBACK_OK = ['교역자'];
 /** 정한 주제가 있는 방인데 아직 주제 번호를 모르면(그 주제에 아무도 글을 안 씀) 보내지 않는다 — 일반 주제로 새지 않게. */
-export const topicPending = (room) => !!TOPIC_OF_ROOM[room.dept] && !String(room.chat_id).includes('/'); 
+export const topicPending = (room) => !!TOPIC_OF_ROOM[room.dept] && !TOPIC_FALLBACK_OK.includes(room.dept) && !String(room.chat_id).includes('/'); 
 export async function learnSummaryTopic(msg) {
   const th = msg && msg.is_topic_message && msg.message_thread_id;
   const name = String((msg && msg.reply_to_message && msg.reply_to_message.forum_topic_created && msg.reply_to_message.forum_topic_created.name) || '').replace(/\s/g, '');
@@ -525,7 +529,7 @@ export async function reportRooms(body) {
       const me = await tg('getMe', {});
       const chat = await tg('getChat', { chat_id: chatId });
       const member = me.ok ? await tg('getChatMember', { chat_id: chatId, user_id: me.result.id }) : {};
-      out.push({ bot: me.result && me.result.username, chat: chat.ok ? { title: chat.result.title, type: chat.result.type, forum: !!chat.result.is_forum } : chat.description,
+      out.push({ bot: me.result && me.result.username, readsAll: me.result && me.result.can_read_all_group_messages, chat: chat.ok ? { title: chat.result.title, type: chat.result.type, forum: !!chat.result.is_forum } : chat.description,
         member: member.ok ? { status: member.result.status, canPost: member.result.can_send_messages !== false } : member.description });
     }
     return { bots: out };

@@ -8675,17 +8675,18 @@
         // 10/30(사용자): 순서 = 보고 · 단계향상 피드백 · SWOT · HEARTS · 개강 계획 · 사례
         t && ['hearts', file.loading ? 'busy' : (file.hearts || []).length ? 'done' : 'off', file.loading ? spin : erSvg('heart'), 'HEARTS',
           file.loading ? '확인 중…' : (file.hearts || []).length ? `완료 · ${file.hearts.length}건` : '미완료'],
+        // 11/2(사용자): 센터 보내기 — 지역장 승인 요청부터는 보고 체계
+        // 11/2(사용자): 복음방이 아니면 확실히 거부 — 칸부터 '복음방 아님 · 보낼 수 없음'
+        t && (cs => erCenterBlocked(p, cs) ? ['center', 'off', '🚫', '센터 보내기', '복음방 아님 · 보낼 수 없음']
+          : ['center', cs.referral ? (cs.referral.status === '반려' ? 'ready' : 'done') : 'ready', '📮', '센터 보내기',
+          cs.loading && !cs.loaded ? '확인 중…' : cs.referral ? ({ '요청': '지역장 승인 대기', '승인': '승인 · 센터 보내는 중', '전달': '센터 전달됨', '반려': '반려됨 · 다시 요청' }[cs.referral.status] || cs.referral.status) : '지역장 승인 요청'])(erCenter[t.targetId] || {}),
+        // 11/2(사용자): 센터 보내기 다음에 개강·수강 중 칸, 그 오른쪽에 사례로 남기기
         // 10/30(사용자): 센터 수강생은 개강 칸에 "○월 개강 ○○센터 수강 중"(목표 정하기 대신)
         t && (p.stage === '센터수강'
           ? ['plan', 'done enroll', '🎓', esc(rpEnrollLine(erProf(t), false) || '센터 수강 중'),
             esc((t.reportProfile || {}).course ? `${t.reportProfile.course}${t.reportProfile.course === '수료' ? '' : ' 과정'}` : (t.reportProfile || {}).center ? '수강 중' : '센터·기수 적기')]
           : ['plan', gst.busy ? 'busy' : t.goalPlan ? 'done' : 'ready', gst.busy ? spin : pfSvg('route'), gm ? `${gm}월 개강 계획` : '개강 계획',
             gst.busy ? '설계 중…' : t.goalPlan ? `설계 ${pfMD(t.goalPlanAt)}` : gm ? '설계받기' : '목표 정하기']),
-        // 11/2(사용자): 센터 보내기 — 지역장 승인 요청부터는 보고 체계
-        // 11/2(사용자): 복음방이 아니면 확실히 거부 — 칸부터 '복음방 아님 · 보낼 수 없음'
-        t && (cs => erCenterBlocked(p, cs) ? ['center', 'off', '🚫', '센터 보내기', '복음방 아님 · 보낼 수 없음']
-          : ['center', cs.referral ? (cs.referral.status === '반려' ? 'ready' : 'done') : 'ready', '📮', '센터 보내기',
-          cs.loading && !cs.loaded ? '확인 중…' : cs.referral ? ({ '요청': '지역장 승인 대기', '승인': '승인 · 센터 보내는 중', '전달': '센터 전달됨', '반려': '반려됨 · 다시 요청' }[cs.referral.status] || cs.referral.status) : '지역장 승인 요청'])(erCenter[t.targetId] || {}),
         t && ['case', `case${erSent(p.stage) ? ' hot' : ''}${erCaseBusy === t.targetId ? ' busy' : ''}`, erCaseBusy === t.targetId ? spin : pfSvg('doc'), '사례로 남기기',
           erCaseBusy === t.targetId ? 'AI 초안 쓰는 중…' : erSent(p.stage) ? '센터 보냄 · AI 초안' : 'AI 초안'],
       ].filter(Boolean);
