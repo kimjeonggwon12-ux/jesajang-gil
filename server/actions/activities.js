@@ -74,10 +74,10 @@ async function submitActivity(body) {
   await notifyActivityChannel(`[활동등록] ${name || '이름미상'}님이 ${label}을(를) 등록했습니다${roles.length ? ` (${roles.join('/')})` : ''}`);
 
   const sent = await autoReport(row, 'post');   // 10/23: 기록을 남기면 보고방에 바로 올림
-  // 11/1(사용자): 기록을 남기면 휴교사 → 활동교사(한 달 기록 없으면 tiers.js autoRestTick 이 휴교사로)
-  let tierNow = null;
-  try { tierNow = await (await import('./tiers.js')).promoteOnRecord(memberId); } catch (e) { console.log('활동교사 전환 오류: ' + e); }
-  return afterAction('submitActivity', body, { ok: true, submittedAt: fields.submitted_at, ...sent, ...(tierNow ? { tierNow } : {}) });
+  // 11/2(사용자): 휴교사는 최근 한 달 기록 4회 이상이면 활동교사(한 달 기록 없으면 tiers.js autoRestTick 이 휴교사로)
+  let tier = null;
+  try { tier = await (await import('./tiers.js')).promoteOnRecord(memberId); } catch (e) { console.log('활동교사 전환 오류: ' + e); }
+  return afterAction('submitActivity', body, { ok: true, submittedAt: fields.submitted_at, ...sent, ...(tier || {}) });
 }
 
 /**

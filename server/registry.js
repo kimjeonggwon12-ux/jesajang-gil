@@ -25,6 +25,7 @@ import cohorts from './actions/cohorts.js';
 import cohortBot from './actions/cohort-bot.js';
 import cohortSchedule from './actions/cohort-schedule.js';
 import pins from './actions/pins.js';
+import centerSend from './actions/center-send.js';
 
 export const actions = {
   ...roster,
@@ -53,4 +54,5 @@ export const actions = {
   ...cohortBot,
   ...cohortSchedule,
   ...pins,
+  ...centerSend,
 };

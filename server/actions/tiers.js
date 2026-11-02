@@ -8,8 +8,10 @@ import { TARGET_STAGES } from './targets.js';
 // ── 휴교사 ↔ 활동교사 ── 11/1(사용자): "기록을 하면 활동교사로 전환, 한 달 동안 기록이 없으면 휴교사로 강등" — 승인 없이 자동.
 //   (옛 규칙: 최근 3개월 5건 미만 → 휴교사 제안 + 승인.) 정교사·우수교사는 센터인도 1년 심사 그대로.
 //   출석(QR)은 '잠재 활동'으로 명단에만 보이고 등급에는 안 친다.
+//   11/2(사용자): 휴교사 → 활동교사는 "내 활동 기록이 4회 이상"이면(최근 한 달 기록 건수, 지금부터 적용). 강등(한 달 기록 없음)은 그대로.
 const REST_MONTHS = 1;
 const REST_MIN_TOTAL = 1;
+export const ACTIVE_MIN_RECORDS = 4;
 const AUTO_RULE_START = '2026-11-01';   // 이 날부터 한 달을 센다 — 그 전부터 기록 없던 사람을 첫날 한꺼번에 내리지 않게
 // ⚠️ app.html 의 활동 항목 목록과 같이 맞출 것.
 const ROLE_ACTIVITY_OPTIONS = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
@@ -408,18 +410,30 @@ async function writeTierChanges(changes) {
   forgetRoster();
 }
 
-/** 활동 기록을 남긴 휴교사는 그 자리에서 활동교사로(submitActivity 가 부른다). */
+/** 최근 한 달 동안 남긴 활동 기록 건수(기록 한 번 = 1회, 항목 수와 상관없이). */
+async function recentRecordCount(nid) {
+  const from = kstDateTime(monthsAgo(new Date(), REST_MONTHS));
+  const rows = await run(db().from('activities').select('id').eq('nid', nid).gte('submitted_at', from));
+  return rows.length;
+}
+
+/**
+ * 활동 기록을 남긴 휴교사: 최근 한 달 기록이 ACTIVE_MIN_RECORDS(4)회 이상이면 그 자리에서 활동교사로(submitActivity 가 부른다).
+ * 돌려주는 값: { tierNow?: '활동교사', restCount, restGoal } — 휴교사가 아니면 null.
+ */
 export async function promoteOnRecord(memberId) {
   const nid = normId(memberId);
   if (!nid || nid === '0') return null;
   const [t] = await run(db().from('teachers').select('member_id, nid, name, tier').eq('nid', nid).limit(1));
   if (!t || t.tier !== '휴교사') return null;
-  await writeTierChanges([{ t, tier: '활동교사', reason: '활동 기록 → 활동교사 전환' }]);
-  return '활동교사';
+  const n = await recentRecordCount(nid);
+  if (n < ACTIVE_MIN_RECORDS) return { restCount: n, restGoal: ACTIVE_MIN_RECORDS };
+  await writeTierChanges([{ t, tier: '활동교사', reason: `최근 한 달 활동 기록 ${n}회 → 활동교사 전환` }]);
+  return { tierNow: '활동교사', restCount: n, restGoal: ACTIVE_MIN_RECORDS };
 }
 
 /**
- * 하루 한 번(attAutoSummary): 최근 한 달 기록이 있는 휴교사 → 활동교사, 한 달 동안 기록이 없는 활동교사 → 휴교사.
+ * 하루 한 번(attAutoSummary): 최근 한 달 기록이 4회 이상인 휴교사 → 활동교사, 한 달 동안 기록이 없는 활동교사 → 휴교사.
  * 한 달은 AUTO_RULE_START 와 마지막 등급 변경일 중 늦은 날부터 센다(막 활동교사가 된 사람에게도 한 달은 준다).
  * dryRun 이면 바꾸지 않고 명단만.
  */
@@ -430,18 +444,21 @@ async function autoRestTiers({ dryRun = false } = {}) {
     selectAll(() => db().from('teachers').select('member_id, nid, name, dept, tier, tier_changed_at').order('sort_order')),
     loadActivities(),
   ]);
-  const lastOf = new Map();
+  const lastOf = new Map(), recentN = new Map();
   for (const a of activities) {
     if (!a.submitted_at || a.nid === '0') continue;
     const d = new Date(a.submitted_at);
-    if (!isNaN(d.getTime()) && (!lastOf.has(a.nid) || d > lastOf.get(a.nid))) lastOf.set(a.nid, d);
+    if (isNaN(d.getTime())) continue;
+    if (!lastOf.has(a.nid) || d > lastOf.get(a.nid)) lastOf.set(a.nid, d);
+    if (d >= monthAgo) recentN.set(a.nid, (recentN.get(a.nid) || 0) + 1);
   }
   const start = new Date(AUTO_RULE_START + 'T00:00:00');
   const changes = [];
   for (const t of teachers) {
     const last = lastOf.get(t.nid);
     const recent = last && last >= monthAgo;
-    if (t.tier === '휴교사' && recent) changes.push({ t, tier: '활동교사', reason: `최근 한 달 활동 기록(${fmtDate(last)}) → 활동교사 전환` });
+    const n = recentN.get(t.nid) || 0;
+    if (t.tier === '휴교사' && n >= ACTIVE_MIN_RECORDS) changes.push({ t, tier: '활동교사', reason: `최근 한 달 활동 기록 ${n}회 → 활동교사 전환` });
     if (t.tier === '활동교사' && !recent) {
       const changed = t.tier_changed_at ? new Date(t.tier_changed_at + 'T00:00:00') : null;
       const from = changed && changed > start ? changed : start;
@@ -534,6 +551,10 @@ async function getMyTierStatus(body) {
     memberId: person.memberId, name: person.name, dept: person.dept || '', region: person.region || '',
     tier, tierChangedAt: person.tierChangedAt || '',
     monthlyCount: countIn(acts, monthBounds(now)), monthlyGoal: REST_MIN_TOTAL,
+    // 11/2: 휴교사 → 활동교사 진행도(최근 한 달 기록 건수 / 4회), 활동교사 → 휴교사까지 남은 날
+    recentRecords: activities.filter((a) => a.submitted_at && new Date(a.submitted_at) >= monthsAgo(now, REST_MONTHS)).length,
+    activeGoal: ACTIVE_MIN_RECORDS,
+    restInDays: tier === '활동교사' && last ? Math.max(0, Math.ceil((addMonths(last, REST_MONTHS).getTime() - now.getTime()) / 86400000)) : null,
     leadCount: leads.filter((d) => d >= yearAgo && d <= now).length, leadGoal: next.leadGoal, nextTier: next.nextTier,
     lastActivityDate: fmtDate(last), daysSinceLastActivity: last ? Math.floor((now.getTime() - last.getTime()) / 86400000) : null,
     suggestion: result ? { suggestedTier: result.tier, reason: result.reason } : null,
