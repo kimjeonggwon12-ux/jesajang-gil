@@ -207,6 +207,8 @@ export async function loadRecords(filter) {
 
 // 2026-10-15: 출석은 명단에 있는 사람만 — 고유번호 13자리 + 이름이 명단(교사·관리자)과 맞아야 한다.
 const nameKey = (s) => String(s == null ? '' : s).replace(/\s/g, '');
+export const GUEST_POSITION = '비교사';
+const GUEST_DEPT = { 교역자: '교역자', 자문: '자문회', 장년: '장년회', 부녀: '부녀회', 청년: '청년회' };
 const BAD_LOGIN = '명단에 없는 분입니다. 정확한 이름과 고유번호(13자리)로 입장해 주시기 바랍니다.';
 
 /**
@@ -222,7 +224,11 @@ async function checkIdentity(memberId, name, checkName = true, cohortId = '') {
     // 2026-10-16: 교육 과정에 연결된 모임은 그 과정 교육생이면 명단 밖이어도 받는다(교회를 부서 자리에).
     const cm = cohortId ? await cohortMember(cohortId, memberId, checkName ? name : null) : null;
     if (cm && (!checkName || typed)) return { person: { name: cm.name, dept: cm.church, position: '교육생', region: '', rosterDept: '' } };
-    return { badLogin: true, error: BAD_LOGIN };
+    if (cohortId) return { badLogin: true, error: BAD_LOGIN };
+    // 2026-11-02: 교사 등록이 안 된 분(비교사, 예: 화요전도단) — 막지 않고 교자장부청 부서·지역·이름을 직접 적어 출석.
+    // 고른 부서·지역으로 그 지역 출석에 같이 집계된다(마감 엑셀·교자장부청 수·지역별 현황).
+    if (checkName && !typed) return { badLogin: true, error: BAD_LOGIN };
+    return { guest: true, person: { name: clip(name, 40), dept: '', position: GUEST_POSITION, region: '', rosterDept: '' } };
   }
   if (checkName && !(typed && [teacher?.name, admin?.name].some((n) => n && nameKey(n) === typed))) return { badLogin: true, error: BAD_LOGIN };
   return {
@@ -246,6 +252,15 @@ async function getAttendMeeting(body) {
   ]);
   if (who.badLogin) return { badLogin: true, error: who.error };
   const p = who.person;
+  if (who.guest) {
+    // 같은 이름의 교사가 명단에 있으면 "번호를 잘못 넣은 교사"일 수 있어 화면에서 알려 준다.
+    const same = p.name ? await run(db().from('teachers').select('dept, region').eq('name', p.name).limit(3)) : [];
+    return {
+      meeting: toPublic(m), mine: mineRows[0] ? toRecord(mineRows[0]) : null,
+      me: { guest: true, name: p.name, position: GUEST_POSITION, sameName: same.map((t) => [t.dept, t.region].filter(Boolean).join(' ')),
+        late: m.date === kstDate() ? lateText(m, kstDateTime()) : '' },
+    };
+  }
   const org = orgFromDept(p.rosterDept || p.dept);
   const district = districtFromRegion(org, p.region);
   return {
@@ -305,6 +320,20 @@ function readPicks(m, body) {
   return { pickOrg, pickDistrict, dept24 };
 }
 
+/** 비교사가 적은 교자장부청 부서·지역·이름. 빠졌으면 { error }. */
+function readGuest(body) {
+  const org = String(body.guestOrg || '');
+  if (!PICK_ORGS.includes(org)) return { error: '교자장부청 부서를 골라 주세요.' };
+  let district = '';
+  if (ORGS_WITH_DISTRICT.includes(org)) {
+    district = cleanDistrict(org, body.guestDistrict);
+    if (district === '') return { error: '지역을 골라 주세요.' };
+  }
+  const name = clip(String(body.name || '').replace(/\s/g, ''), 20);
+  if (!name) return { error: '이름을 써 주세요.' };
+  return { org, district, name };
+}
+
 async function submitAttendance(body) {
   const mid = clip(body.memberId, 40);
   if (!mid) return { error: '로그인 정보가 없습니다.' };
@@ -334,6 +363,12 @@ async function submitAttendance(body) {
   const picks = readPicks(m, body);
   if (picks.error) return (await alreadyDone()) || picks;
   const person = who.person;
+  if (who.guest) {
+    const g = readGuest(body);
+    if (g.error) return (await alreadyDone()) || g;
+    person.name = g.name; person.dept = GUEST_DEPT[g.org];
+    picks.pickOrg = g.org; picks.pickDistrict = g.district;
+  }
   // 고르지 않았으면 명단의 소속·지역을 넣는다.
   if (!picks.pickOrg) {
     picks.pickOrg = fixedPickOrg(m) || orgFromDept(person.rosterDept || person.dept);

@@ -6,7 +6,7 @@ import { workbookFiles } from '../lib/xlsx-multi.js';
 import { zip } from '../lib/zip.js';
 import { sendAttendFile, sendAttendPhoto, sendAttendText } from '../lib/attend-bot.js';
 import { isAdmin } from './roster.js';
-import { loadMeetings, findMeeting, loadRecords, lateText, pickText, isTestMeeting, slotOf, slotLabel } from './attendance.js';
+import { loadMeetings, findMeeting, loadRecords, lateText, pickText, isTestMeeting, slotOf, slotLabel, GUEST_POSITION } from './attendance.js';
 
 const ORGS = ['교역자', '자문회', '장년회', '부녀회', '청년회', '기타'];
 const EVENING_FROM = '15:00';   // 이 시각부터 출석한 사람은 '저녁'
@@ -78,6 +78,13 @@ function matchPerson(rec, dir) {
   let person = dir.byId.get(normId(rec.memberId)) || null;
   if (person && person.name && rec.name && person.name !== rec.name) person = null;
   if (person) return { person, note: '' };
+  // 2026-11-02: 비교사(교사 명단에 없어 부서·지역을 직접 적은 분) — 이름으로 교사를 찾지 않고 적은 부서·지역 그대로
+  if (rec.position === GUEST_POSITION) {
+    const dept = ORG_OF_PICK[rec.pickOrg] || '';
+    const d = rec.pickDistrict;
+    const region = d === '' || d == null ? '' : (/^\d+$/.test(String(d)) ? Number(d) + '지역' : String(d));
+    return { person: { id: formatId(rec.memberId), name: rec.name, dept, position: GUEST_POSITION, region, teacherDept: dept }, note: '비교사(부서·지역 직접 기입)', guest: true };
+  }
 
   let candidates = dir.byName.get(rec.name) || [];
   const tail = String(rec.memberId).replace(/\D/g, '').slice(-5);
@@ -112,7 +119,7 @@ export async function closingData(m) {
   const lateCount = {};
   const rows = [];
   for (const r of records) {
-    const { person, note: matchNote } = matchPerson(r, dir);
+    const { person, note: matchNote, guest } = matchPerson(r, dir);
     const id = person ? person.id : formatId(r.memberId);
     // 2026-10-15: 타임이 여러 개인 모임은 온 타임 이름(오전·오후·저녁), 아니면 15시 기준 오전/저녁
     const slot = slotOf(meetingOf.get(r.meetingId), r.at.slice(11, 16));
@@ -137,8 +144,8 @@ export async function closingData(m) {
       position: r.position || person?.position || (person ? '교사' : ''),
       org, pick: pickText({ pickOrg: r.pickOrg, pickDistrict: r.pickDistrict, dept24: '' }), dept24: r.dept24,
       at: r.at, late, title: meetingOf.get(r.meetingId)?.title || '', meetingId: r.meetingId, note, dup,
-      teacherDept: person?.teacherDept || '', region: person?.region || '',
-      fixed: !!note && !dup && !note.includes('⚠️') && !note.includes('확인 필요'),
+      teacherDept: person?.teacherDept || '', region: person?.region || '', guest: !!guest,
+      fixed: !guest && !!note && !dup && !note.includes('⚠️') && !note.includes('확인 필요'),
     });
   }
   return { meetings, rows, box, sessions: Object.keys(box).sort(), lateCount };   // '오전' < '저녁'
@@ -203,7 +210,7 @@ function sheetRows(title, data, sessions) {
   const headRow = rows.length;
   rows.push(['번호', '구분', '이름', '고유번호', '부서', '직책', '소속·지역', '24부서', '출석시각', '출석 상태', '모임', '비고'].map((h) => cell(h, STYLE.head)));
   for (const r of mine) {
-    const noteStyle = r.dup ? STYLE.dup : (r.note ? (r.fixed ? STYLE.fixed : STYLE.warn) : STYLE.text);
+    const noteStyle = r.dup ? STYLE.dup : (r.guest ? STYLE.text : (r.note ? (r.fixed ? STYLE.fixed : STYLE.warn) : STYLE.text));
     rows.push([cell(r.no, STYLE.cell), cell(r.session, STYLE.cell), cell(r.name, STYLE.cell), cell(r.id, STYLE.cell), cell(r.dept, STYLE.cell),
       cell(r.position, STYLE.cell), cell(r.pick || r.org, STYLE.cell), cell(r.dept24, STYLE.cell), cell(r.at.slice(11), STYLE.cell),
       cell(r.late, /지각/.test(r.late) ? STYLE.warn : STYLE.cell), cell(r.title, STYLE.text), cell(r.note, noteStyle)]);
@@ -231,9 +238,10 @@ async function closingFile(m) {
 
   const people = data.rows.filter((r) => !r.dup).length;
   const fixedCount = data.rows.filter((r) => r.fixed).length;
-  const checkCount = data.rows.filter((r) => !r.dup && r.note && !r.fixed).length;
+  const checkCount = data.rows.filter((r) => !r.dup && r.note && !r.fixed && !r.guest).length;
+  const guestCount = data.rows.filter((r) => !r.dup && r.guest).length;
   const dupCount = data.rows.length - people;
-  const caption = `📎 ${title}\n${boxText(data)}` + (fixedCount ? `\n✏️ 번호 수정 ${fixedCount}명` : '') +
+  const caption = `📎 ${title}\n${boxText(data)}` + (guestCount ? `\n🙋 비교사 ${guestCount}명(부서·지역 직접 기입, 위 수에 포함)` : '') + (fixedCount ? `\n✏️ 번호 수정 ${fixedCount}명` : '') +
     (checkCount ? `\n⚠️ 확인 필요 ${checkCount}명` : '') + (dupCount ? `\n🔁 중복 출석 ${dupCount}건(인원에서 뺌)` : '');
   return { bytes, fileName, caption, data };
 }
@@ -260,7 +268,8 @@ async function regionStats(data) {
   const stats = new Map(CHART_DEPTS.map((d) => [d, new Map()]));
   const cellOf = (dept, region) => {
     const regions = stats.get(dept);
-    if (!regions.has(region)) regions.set(region, { total: 0, people: new Set(), bySession: {} });
+    region = regionLabel(region);   // '03지역'(명단)·'3지역'(비교사)을 한 칸으로
+    if (!regions.has(region)) regions.set(region, { total: 0, people: new Set(), guests: new Set(), bySession: {} });
     return regions.get(region);
   };
   for (const t of roster) if (stats.has(t.dept)) cellOf(t.dept, t.region || '기타').total++;
@@ -270,6 +279,7 @@ async function regionStats(data) {
     if (!stats.has(r.teacherDept)) { outside[r.org] ||= new Set(); outside[r.org].add(normId(r.id) + '|' + r.name); continue; }
     const c = cellOf(r.teacherDept, r.region || '기타');
     const key = normId(r.id);
+    if (r.guest) { c.guests.add(key + '|' + r.name); continue; }   // 비교사: 그 지역에 같이 세되 교사 재적 대비 참석률에서는 뺀다
     c.people.add(key);
     (c.bySession[r.session] ||= new Set()).add(key);
   }
@@ -314,21 +324,23 @@ export async function regionCharts(m, data) {
   const charts = [];
   for (const dept of CHART_DEPTS) {
     if (only && only !== dept) continue;
-    const regions = [...stats.get(dept)].filter(([, c]) => c.total > 0 || c.people.size > 0).sort(([a], [b]) => regionCompare(a, b));
+    const regions = [...stats.get(dept)].filter(([, c]) => c.total > 0 || c.people.size > 0 || c.guests.size > 0).sort(([a], [b]) => regionCompare(a, b));
     const came = regions.reduce((n, [, c]) => n + c.people.size, 0);
-    if (!came) continue;
+    const guests = regions.reduce((n, [, c]) => n + c.guests.size, 0);
+    if (!came && !guests) continue;
     const total = regions.reduce((n, [, c]) => n + c.total, 0);
     const title = `${dept} 지역별 교사 교육 참석 현황`;
-    const subtitle = `${when} · 전체 ${pct(came, total)}% (${came}명 / 재적 ${total}명)`;
+    const subtitle = `${when} · 전체 ${pct(came, total)}% (${came}명 / 재적 ${total}명)${guests ? ` + 비교사 ${guests}명` : ''}`;
     const labels = regions.map(([r]) => regionLabel(r));
     const counts = regions.map(([, c]) => c.people.size);
     const rates = regions.map(([, c]) => pct(c.people.size, c.total));
     const lines = regions.map(([r, c], i) => {
       const split = both ? ` · ${data.sessions.map((s) => `${s} ${c.bySession[s]?.size || 0}`).join('·')}` : '';
-      return `${regionLabel(r)} ${counts[i]}/${c.total}명 (${rates[i]}%)${split}`;
+      return `${regionLabel(r)} ${counts[i]}/${c.total}명 (${rates[i]}%)${c.guests.size ? ` + 비교사 ${c.guests.size}명` : ''}${split}`;
     });
     const extra = outside[dept]?.size ? `\n※ 교사명단에서 못 찾은 출석자 ${outside[dept].size}명은 위 수에서 뺌` : '';
-    const caption = `📊 ${title}\n📅 ${when}\n✅ 전체 ${pct(came, total)}% (${came}명 / 재적 ${total}명)\n\n${lines.join('\n')}${extra}`;
+    const guestLine = guests ? `\n🙋 비교사 ${guests}명 — 지역별 줄 끝에 따로(교사 재적 대비 참석률에는 넣지 않음)` : '';
+    const caption = `📊 ${title}\n📅 ${when}\n✅ 전체 ${pct(came, total)}% (${came}명 / 재적 ${total}명)${guestLine}\n\n${lines.join('\n')}${extra}`;
     charts.push({ dept, caption, png: await chartPng(title, subtitle, labels, rates, counts) });
   }
   return charts;

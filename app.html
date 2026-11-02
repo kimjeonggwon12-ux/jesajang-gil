@@ -2268,6 +2268,11 @@
     .att-opt.on { border-color:#00AE82; background:#E3F6EF; color:#00936E; }
     .att-result { text-align:center; padding:22px 0 10px; font-size:16px; }
     /* 2026-10-15: 명단과 이름·고유번호가 안 맞을 때 — 다시 입력하는 칸(attRenderRelogin) */
+    .att-guest { margin-top:12px; padding:14px; border-radius:14px; background:#F0FBF7; border:1.5px solid #A7E3CF; }
+    .att-guest-h { font-size:16px; font-weight:800; color:#065F46; }
+    .att-guest-p { margin-top:4px; font-size:14px; line-height:1.5; color:#334155; }
+    .att-guest-warn { margin-top:10px; padding:10px 12px; border-radius:10px; background:#FFF7ED; border:1px solid #FDBA74; font-size:13px; line-height:1.5; color:#9A3412; }
+    .att-guest-link { margin-left:4px; padding:0; border:0; background:none; color:#C2410C; font:inherit; font-weight:800; text-decoration:underline; cursor:pointer; }
     .att-relogin { margin-top:6px; padding:14px; border-radius:14px; background:#FFF5F5; border:1.5px solid #F5C2C2; }
     .att-relogin p { margin:0 0 10px; font-size:14px; line-height:1.5; color:#7F1D1D; font-weight:600; }
     .att-relogin label { display:block; margin:10px 0 4px; font-size:13px; font-weight:800; color:#333; }
@@ -9374,10 +9379,13 @@
       attSt.pick = { org: ATT_PICK_ORGS.some(([v]) => v === org) ? org : '', district: '', dept24: '', orgEtc: '', districtEtc: '', dept24Etc: '' };
       const rd = String(r.region || '').replace(/\D/g, '');
       if (attDistricts(attSt.pick.org).includes(String(Number(rd)))) attSt.pick.district = String(Number(rd));
+      // 2026-11-02: 비교사(교사 명단에 없는 분) — 지난번에 적은 부서·지역·이름을 미리 채움
+      let gs = {}; try { gs = JSON.parse(localStorage.getItem(ATT_GUEST_KEY) || '{}') || {}; } catch (e) {}
+      attSt.guest = { org: gs.org || '', district: gs.district || '', name: (attSt.cur && attSt.cur.me && attSt.cur.me.name) || gs.name || App.name || '' };
       attRenderForm();
       // 2026-10-09: 소속·지역은 고르지 않음(서버가 교사명단으로 채움). 설문이 없는 모임은 QR을 찍으면 바로 출석 완료.
       const c = attSt.cur;
-      if (c && !c.error && !c.mine && c.meeting && c.meeting.open && !(c.meeting.questions || []).length) attSubmit();
+      if (c && !c.error && !c.mine && c.meeting && c.meeting.open && !(c.meeting.questions || []).length && !(c.me && c.me.guest)) attSubmit();
     }
     // 2026-10-09: 내 부서·지역·직책(교사명단 기준) — 참석자가 고르지 않고 보기만
     function attWhoHtml(rec) {
@@ -9435,6 +9443,23 @@
         attOpen(attSt.meetingId, attSt.method, true);
       };
     }
+    // 2026-11-02: 교사 등록이 안 된 분(비교사, 예: 화요전도단) — 교자장부청 부서·지역·이름을 적으면 그 지역 출석으로 같이 집계
+    const ATT_GUEST_KEY = 'att_guest';
+    function attGuestHtml(c) {
+      const g = attSt.guest || {}, ds = attDistricts(g.org), same = (c.me && c.me.sameName) || [];
+      return `<div class="att-guest">
+        <div class="att-guest-h">🙋 교사 명단에 없는 분이에요</div>
+        <div class="att-guest-p">교자장부청 <b>부서와 지역</b>을 고르고 <b>이름</b>을 쓰면, 그 지역 출석으로 똑같이 집계돼요.</div>
+        ${same.length ? `<div class="att-guest-warn">교사 명단에 같은 이름(${esc(same.join(', '))})이 있어요. 교사라면 고유번호가 틀렸을 수 있어요. <button type="button" class="att-guest-link" id="attGuestRelogin">고유번호 다시 넣기</button></div>` : ''}
+        <div class="att-q"><div class="att-q-l">교자장부청 부서 <i>*</i></div>
+          <div class="att-opts">${ATT_PICK_ORGS.map(([v, l]) => `<button type="button" class="att-opt ${g.org === v ? 'on' : ''}" data-att-gorg="${v}">${l}</button>`).join('')}</div></div>
+        ${ds.length ? `<div class="att-q"><div class="att-q-l">지역 <i>*</i></div>
+          <div class="att-org-chips">${ds.map(d => `<button type="button" class="att-opt ${String(g.district) === d ? 'on' : ''}" data-att-gdist="${esc(d)}">${esc(attDistrictLabel(d))}</button>`).join('')}</div></div>`
+          : g.org === '교역자' ? '<div class="att-muted" style="margin-top:6px">교역자는 지역 구분 없이 한 부서로 집계돼요.</div>' : ''}
+        <div class="att-q"><div class="att-q-l">이름 <i>*</i></div>
+          <input class="cal-inp" id="attGuestName" maxlength="20" autocomplete="name" placeholder="예: 홍길동" value="${esc(g.name || '')}"></div>
+      </div>`;
+    }
     function attRenderForm() {
       const host = document.getElementById('attSheet'); if (!host || !attSt.cur) return;
       const c = attSt.cur;
@@ -9453,8 +9478,9 @@
       }
       if (!m.open) { host.innerHTML = head + `<div class="att-result"><div class="att-big">⏰</div><b>${esc(m.reason)}</b></div>`; return; }
       const a = attSt.ans;
-      host.innerHTML = head + `<div class="att-who">👤 ${esc(App.name)} 님으로 출석합니다</div>
-        ${attWhoHtml(null)}
+      const guest = !!(c.me && c.me.guest);
+      host.innerHTML = head + (guest ? attGuestHtml(c) : `<div class="att-who">👤 ${esc(App.name)} 님으로 출석합니다</div>
+        ${attWhoHtml(null)}`) + `
         ${c.me && c.me.late && /지각/.test(c.me.late) ? `<div class="att-late is-late" style="margin-top:8px">지금 출석하면 ${esc(c.me.late)}이에요.</div>` : ''}
         ${(m.questions || []).map(q => `<div class="att-q"><div class="att-q-l">${esc(q.label)}${q.required ? ' <i>*</i>' : ''}${q.type === 'multi' ? ' <small>(여러 개 선택)</small>' : ''}</div>
           ${q.type === 'text' ? `<textarea class="cal-inp" data-att-text="${esc(q.id)}" maxlength="500" placeholder="입력해 주세요">${esc(a[q.id] || '')}</textarea>`
@@ -9474,17 +9500,33 @@
       host.querySelectorAll('[data-att-etc]').forEach(t => { t.oninput = () => { p[t.dataset.attEtc] = t.value; }; });
       host.querySelectorAll('[data-att-pdept]').forEach(b => { b.onclick = () => { p.dept24 = p.dept24 === b.dataset.attPdept ? '' : b.dataset.attPdept; attRenderForm(); }; });
       document.getElementById('attSubmit').onclick = attSubmit;
+      if (guest) {
+        const g = attSt.guest;
+        host.querySelectorAll('[data-att-gorg]').forEach(b => { b.onclick = () => { g.org = b.dataset.attGorg; g.district = ''; attRenderForm(); }; });
+        host.querySelectorAll('[data-att-gdist]').forEach(b => { b.onclick = () => { g.district = b.dataset.attGdist; attRenderForm(); }; });
+        const nm = document.getElementById('attGuestName'); if (nm) nm.oninput = () => { g.name = nm.value; };
+        const re = document.getElementById('attGuestRelogin'); if (re) re.onclick = () => attRenderRelogin(host, '교사 명단의 이름과 고유번호를 다시 확인해 주세요.');
+      }
     }
     async function attSubmit() {
       const m = attSt.cur.meeting, a = attSt.ans, p = attSt.pick;
       // 2026-10-09: 소속·지역·24부서는 고르지 않음 — 빈 값으로 보내면 서버가 교사명단 부서·지역으로 채움
       const miss = (m.questions || []).find(q => q.required && (!a[q.id] || (Array.isArray(a[q.id]) ? !a[q.id].length : !String(a[q.id]).trim())));
       if (miss) { toast(`"${miss.label}" 항목에 답해 주세요.`, true); return; }
+      const guest = !!(attSt.cur.me && attSt.cur.me.guest), g = attSt.guest || {};
+      if (guest) {
+        g.name = String(g.name || '').replace(/\s/g, '');
+        if (!g.org) { toast('교자장부청 부서를 골라 주세요.', true); return; }
+        if (attDistricts(g.org).length && !g.district) { toast('지역을 골라 주세요.', true); return; }
+        if (!g.name) { toast('이름을 써 주세요.', true); return; }
+        try { localStorage.setItem(ATT_GUEST_KEY, JSON.stringify({ org: g.org, district: g.district, name: g.name })); } catch (e) {}
+      }
       if (attSt.busy) return; attSt.busy = true;
       const btn = document.getElementById('attSubmit'); if (btn) { btn.disabled = true; btn.textContent = '제출 중...'; }
       // v3: 동시 접속 400명 대비 — 서버가 busy(lock 획득 실패)를 반환하면 최대 5회 재시도
       const attPayload = { action: 'submitAttendance', meetingId: m.meetingId, memberId: App.memberId, name: App.name, answers: a, method: attSt.method,
-        pickOrg: '', pickDistrict: '', dept24: '' };
+        pickOrg: '', pickDistrict: '', dept24: '',
+        ...(guest ? { guest: true, name: g.name, guestOrg: g.org, guestDistrict: g.district } : {}) };
       try {
         // 2026-10-08: 연결 실패(Failed)·서버 혼잡(retry)까지 자동 재시도(attApi, 최대 약 1분)
         const res = await attApi(attPayload, n => { if (btn) btn.textContent = `접속이 몰려 순서대로 처리하고 있어요... (${n})`; });
