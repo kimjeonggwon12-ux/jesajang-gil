@@ -2268,6 +2268,12 @@
     .att-opt.on { border-color:#00AE82; background:#E3F6EF; color:#00936E; }
     .att-result { text-align:center; padding:22px 0 10px; font-size:16px; }
     /* 2026-10-15: 명단과 이름·고유번호가 안 맞을 때 — 다시 입력하는 칸(attRenderRelogin) */
+    .edu-roster-box { margin:10px 12px 4px; border:1px solid #e3e8e5; border-radius:14px; background:#fff; }
+    .edu-roster-box > summary { cursor:pointer; padding:14px 16px; font-size:16px; font-weight:800; list-style:none; }
+    .edu-roster-box > summary::-webkit-details-marker { display:none; }
+    .edu-roster-box > summary::after { content:'▾'; float:right; color:#6b7772; }
+    .edu-roster-box[open] > summary::after { content:'▴'; }
+    .edu-roster-box > summary small { font-size:12.5px; font-weight:500; color:#6b7772; margin-left:6px; }
     .att-guest { margin-top:12px; padding:14px; border-radius:14px; background:#F0FBF7; border:1.5px solid #A7E3CF; }
     .att-guest-h { font-size:16px; font-weight:800; color:#065F46; }
     .att-guest-p { margin-top:4px; font-size:14px; line-height:1.5; color:#334155; }
@@ -3199,21 +3205,23 @@
           <!-- 2026-10-04: 부서별 활동 관리를 맨 앞·기본 화면으로(맨 위 '부서별 참여 현황' 그래프를 바로 보고 공유하도록) -->
           <button type="button" class="kko-tab kko-tab-active" data-subtab="dist" onclick="adminSwitchSubTab('dist')">활동</button>
           <button type="button" class="kko-tab" data-subtab="edu" onclick="adminSwitchSubTab('edu')">교사</button>
-          <button type="button" class="kko-tab" data-subtab="connectAdmin" onclick="adminSwitchSubTab('connectAdmin')">연결</button>
+          <button type="button" class="kko-tab" data-subtab="connectAdmin" onclick="adminSwitchSubTab('connectAdmin')" style="display:none">연결</button>   <!-- 11/2(사용자): 탭은 숨김, 연결 관리 기능·서버는 그대로 -->
           <button type="button" class="kko-tab" data-subtab="calAdmin" onclick="adminSwitchSubTab('calAdmin')">행사</button>
           <button type="button" class="kko-tab" data-subtab="attend" onclick="adminSwitchSubTab('attend')">출석</button>
-          <button type="button" class="kko-tab" data-subtab="roster" onclick="adminSwitchSubTab('roster')">명단</button>   <!-- 2026-10-12 명단 관리 -->
-          <button type="button" class="kko-tab" data-subtab="center" onclick="adminSwitchSubTab('center')">센터 보내기</button>   <!-- 2026-11-02 지역장 승인 → 센터(기수)로 보내기 -->
+          <!-- 11/2(사용자): 명단은 '교사' 탭 맨 위 '교사명단'으로 옮김 -->
+          <button type="button" class="kko-tab" data-subtab="center" onclick="adminSwitchSubTab('center')">지역장 승인</button>   <!-- 2026-11-02 지역장 승인 → 센터(기수)로 보내기 -->
+          <button type="button" class="kko-tab" data-subtab="centerMgmt" onclick="adminSwitchSubTab('centerMgmt')">선교센터</button>   <!-- 2026-11-02 센터 기수별 받은 수강생·전도사 배정 -->
           <button type="button" class="kko-tab" data-subtab="rooms" onclick="adminSwitchSubTab('rooms')">보고방</button>   <!-- 2026-10-25 부서·지역 텔레그램 보고방 연결 -->
           <button type="button" class="kko-tab" data-subtab="cohort" onclick="adminSwitchSubTab('cohort')" style="display:none">교육 관리</button>   <!-- 2026-10-16 교육생·교육 과정(7777만) -->
-          <button type="button" class="kko-tab" data-subtab="centerMgmt" onclick="adminSwitchSubTab('centerMgmt')">센터 기수 관리</button>   <!-- 2026-11-02 센터 기수별 받은 수강생·전도사 배정 -->
         </div>
         <div id="admin-pane-cohort" class="admin-pane"><div id="cohortAdmRoot" class="ra"></div></div>
-        <div id="admin-pane-roster" class="admin-pane"><div id="rosterAdmRoot" class="ra"></div></div>
         <div id="admin-pane-rooms" class="admin-pane"><div id="roomsAdmRoot" class="ra"></div></div>
         <div id="admin-pane-center" class="admin-pane"><div id="centerAdmRoot" class="ra"></div></div>
         <div id="admin-pane-centerMgmt" class="admin-pane"><div id="centerMgmtRoot" class="ra"></div></div>
-        <div id="admin-pane-edu" class="admin-pane"><div id="eduRoot"></div></div>
+        <div id="admin-pane-edu" class="admin-pane">
+          <details id="eduRosterBox" class="edu-roster-box" ontoggle="if(this.open&&!this.dataset.on){this.dataset.on='1';rosterAdm.mount()}"><summary>📋 교사명단 <small>찾기·고치기·추가·엑셀 반영</small></summary><div id="rosterAdmRoot" class="ra"></div></details>
+          <div id="eduRoot"></div>
+        </div>
         <div id="admin-pane-dist" class="admin-pane"><div id="distRoot"></div></div>
         <div id="admin-pane-connectAdmin" class="admin-pane">
           <div id="cnAdmRoot"><div class="text-center py-16"><span class="loading loading-spinner"></span></div></div>
@@ -16494,6 +16502,8 @@ async function calAdmInit() {
         .cs-coh{margin-top:10px;padding:10px;border-radius:12px;background:#f6f8f7}
         .cs-coh-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-weight:800}
         .cs-dl{display:flex;align-items:center;gap:8px;width:100%;margin-top:6px;padding:9px 10px;border:1px solid #e3e8e5;border-radius:10px;background:#fff;text-align:left;font-size:14px}
+        .cs-target{margin-top:4px;padding:14px;border-radius:14px;background:#e9f8f2;border:1.5px solid #9fdcc6}.cs-target-h{font-size:16px;font-weight:800;margin-bottom:8px;color:#065f46}.cs-target-h span{color:#00875f}
+        .cs-chip.big{min-height:52px;padding:8px 16px;font-size:16px}
         .cs-ev-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:8px}
         .cs-ev{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1.5px solid #e3e8e5;border-radius:12px;background:#fff;text-align:left}
         .cs-ev b{font-size:14px}.cs-ev em{font-style:normal;font-size:20px;font-weight:800;color:#00875f}.cs-ev small{font-size:11.5px;color:#6b7772;line-height:1.3}
@@ -16589,44 +16599,50 @@ async function calAdmInit() {
       }
       const errHtml = () => (st.err ? '<div class="ra-note" style="color:#b03a2e">⚠️ ' + esc(st.err) + '</div>' : '');
 
-      // ── 센터 보내기(지역장·교관) ──
+      // 11/2(사용자): 안내 단계 그림 없이 — ① 보낼 센터 기수(크게) ② 대기자 ③ [지역장 승인][지역장 승인 반려] ④ 보낸 건 보기·반려 건 보기
       function renderSend() {
         const d = st.data, me = d.me;
         if (!me.canDecide) {
-          root().innerHTML = '<div class="cs-empty">센터 보내기는 <b>지역장·교관</b>(자기 지역 요청 승인)과 <b>전도부</b>가 써요.' + (me.centers.length ? '<br>센터 강사·전도사는 <b>센터 기수 관리</b> 탭에서 받은 수강생을 봐요.' : '') + '<br>교사는 <b>나의 활동 → 섭외자 화면 → 📮 센터 보내기</b>에서 지역장 승인을 요청해요.</div>';
+          root().innerHTML = '<div class="cs-empty">지역장 승인은 <b>지역장·교관</b>(자기 지역)과 <b>전도부</b>가 써요.' + (me.centers.length ? '<br>센터 강사·전도사는 <b>선교센터</b> 탭에서 받은 수강생을 봐요.' : '') + '<br>교사는 <b>나의 활동 → 섭외자 화면 → 📮 센터 보내기</b>에서 지역장 승인을 요청해요.</div>';
           return;
         }
         const scope = me.hq ? '전도부 · 전체' : me.scopes.map(s => s.dept + (s.region ? ' ' + s.region : ' 전체') + ' ' + s.role).join(', ');
         const open = d.centers.filter(c => c.active);
         if (!open.some(c => c.id === st.toId)) st.toId = open.length === 1 ? open[0].id : 0;
         const to = open.find(c => c.id === st.toId);
-        const tabs = [['decide', '승인 요청', rowsOf('decide').length], ['sent', '보낸 건', 0], ['rejected', '반려', 0]];
-        let h = '<div style="font-size:18px;font-weight:800;margin:4px 2px 8px">📮 센터 보내기 <small style="font-size:13px;font-weight:500;color:#6b7772">' + esc(scope) + '</small></div>'
-          + csFlowHtml(st.tab === 'decide' ? 2 : st.tab === 'sent' ? 3 : -1, CYCLE)
-          // 센터 기수가 맨 위(바깥)에
-          + '<div class="cs-bar" style="margin-top:10px"><div class="cs-pick"><b>🏫 보낼 센터 기수</b>'
-          + (open.length ? '<div class="cs-chips">' + open.map(c => '<button type="button" class="cs-chip ' + (st.toId === c.id ? 'on' : '') + '" onclick="centerAdm.toCohort(' + c.id + ')">' + esc(csName(c)) + '<small>' + esc(csMonth(c)) + ' · 받은 ' + (c.received || 0) + '명</small></button>').join('') + '</div>'
-            : '<div class="ra-note">아직 열린 센터 기수가 없어요. 전도부에 이번 개강 센터 기수(예: 덕진센터 165기)를 만들어 달라고 해 주세요.</div>')
-          + '</div></div>'
-          + '<div class="cs-tabs">' + tabs.map(([k, l, c]) => '<button type="button" class="' + (st.tab === k ? 'on' : '') + '" onclick="centerAdm.tab(\'' + k + '\')">' + l + (c ? '<em>' + c + '</em>' : '') + '</button>').join('') + '</div>'
-          + errHtml();
-        const list = rowsOf(st.tab);
-        if (st.tab === 'decide') {
-          h += '<div style="margin:6px 2px 4px;font-size:14px;font-weight:800">' + (to ? '<span style="color:#00875f">' + esc(csName(to)) + '</span>로 보낼 대기자를 체크하세요' : '먼저 위에서 센터 기수를 고르고, 대기자를 체크하세요') + '</div>';
-          h += list.length ? list.map(r => rowHtml(r, true)).join('') : '<div class="cs-empty">승인을 기다리는 대기자가 없어요.</div>';
-          if (list.length) {
-            const k = st.sel.size;
-            h += '<div class="cs-bar">'
-              + (st.rejecting ? '<textarea id="csNote" placeholder="반려 사유(꼭 써 주세요 — 교사에게 보여요)" oninput="centerAdm.note(this.value)">' + esc(st.note || '') + '</textarea>' : '')
-              + '<div style="display:flex;gap:8px;width:100%;flex-wrap:wrap">'
-              + '<button type="button" class="ra-btn ' + (st.sure ? 'sure-ok' : '') + '" style="flex:2 1 220px;height:auto;min-height:48px;white-space:normal;line-height:1.3" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.approve()">'
-              + (!k ? '✅ 지역장 승인' : !to ? '✅ 지역장 승인 (센터 기수를 먼저 고르세요)' : st.sure ? '❓ ' + esc(csName(to)) + '로 보내기를 승인하시겠습니까?<br><small>한 번 더 누르면 ' + k + '명 승인·보내기</small>' : '✅ 지역장 승인 (' + k + '명 → ' + esc(csName(to)) + ')') + '</button>'
-              + '<button type="button" class="ra-btn warn" style="flex:1 1 120px;height:auto;min-height:48px" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.reject()">' + (st.rejecting ? '사유 쓰고 ' + k + '명 반려' : '반려') + '</button>'
-              + '</div></div>';
-          }
-        } else {
-          h += list.length ? list.map(r => rowHtml(r, false)).join('') : '<div class="cs-empty">' + (st.tab === 'sent' ? '아직 센터로 보낸 건이 없어요.' : '반려한 건이 없어요.') + '</div>';
+        let h = '<div style="font-size:18px;font-weight:800;margin:4px 2px 10px">✅ 지역장 승인 <small style="font-size:13px;font-weight:500;color:#6b7772">' + esc(scope) + '</small></div>';
+        if (st.tab !== 'decide') {
+          const list = rowsOf(st.tab);
+          h += '<button type="button" class="ra-btn line" onclick="centerAdm.tab(\'decide\')">‹ 승인 대기로</button>'
+            + '<div style="font-size:16px;font-weight:800;margin:14px 2px 6px">' + (st.tab === 'sent' ? '📤 보낸 건 ' : '↩️ 반려 건 ') + list.length + '건</div>' + errHtml()
+            + (list.length ? list.map(r => rowHtml(r, false)).join('') : '<div class="cs-empty">' + (st.tab === 'sent' ? '아직 센터로 보낸 건이 없어요.' : '반려한 건이 없어요.') + '</div>');
+          root().innerHTML = h;
+          return;
         }
+        // ① 보낼 센터 기수 — 크게
+        h += '<div class="cs-target"><div class="cs-target-h">🏫 보낼 센터 기수' + (to ? ' <span>→ ' + esc(csName(to)) + '</span>' : '') + '</div>'
+          + (open.length ? '<div class="cs-chips">' + open.map(c => '<button type="button" class="cs-chip big ' + (st.toId === c.id ? 'on' : '') + '" onclick="centerAdm.toCohort(' + c.id + ')">' + esc(csName(c)) + '<small>' + esc(csMonth(c)) + ' · 받은 ' + (c.received || 0) + '명</small></button>').join('') + '</div>'
+            : '<div class="ra-note">아직 열린 센터 기수가 없어요. 전도부에 이번 개강 센터 기수(예: 덕진센터 165기)를 만들어 달라고 해 주세요.</div>')
+          + '</div>' + errHtml();
+        // ② 대기자
+        const list = rowsOf('decide'), k = st.sel.size;
+        h += '<div style="margin:14px 2px 6px;font-size:15px;font-weight:800">승인 대기자 ' + list.length + '명' + (list.length ? ' <small style="font-weight:500;color:#6b7772">— 체크하고 아래에서 승인·반려</small>' : '') + '</div>';
+        h += list.length ? list.map(r => rowHtml(r, true)).join('') : '<div class="cs-empty">승인을 기다리는 대기자가 없어요.</div>';
+        // ③ 지역장 승인 / 지역장 승인 반려
+        if (list.length) {
+          h += '<div class="cs-bar">'
+            + (st.rejecting ? '<textarea id="csNote" placeholder="반려 사유(꼭 써 주세요 — 교사에게 보여요)" oninput="centerAdm.note(this.value)">' + esc(st.note || '') + '</textarea>' : '')
+            + '<div style="display:flex;gap:8px;width:100%;flex-wrap:wrap">'
+            + '<button type="button" class="ra-btn ' + (st.sure ? 'sure-ok' : '') + '" style="flex:1 1 200px;height:auto;min-height:52px;white-space:normal;line-height:1.3;font-size:16px" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.approve()">'
+            + (st.sure && to ? '❓ ' + esc(csName(to)) + '로 보내기를 승인하시겠습니까?<br><small>한 번 더 누르면 ' + k + '명 승인</small>' : '✅ 지역장 승인' + (k ? ' (' + k + '명)' : '')) + '</button>'
+            + '<button type="button" class="ra-btn warn" style="flex:1 1 200px;height:auto;min-height:52px;font-size:16px" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.reject()">' + (st.rejecting ? '사유 쓰고 ' + k + '명 반려' : '지역장 승인 반려' + (k ? ' (' + k + '명)' : '')) + '</button>'
+            + '</div></div>';
+        }
+        // ④ 보낸 건 보기
+        const nSent = rowsOf('sent').length, nRej = rowsOf('rejected').length;
+        h += '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'
+          + '<button type="button" class="ra-btn line" style="flex:1 1 160px" onclick="centerAdm.tab(\'sent\')">📤 보낸 건 보기 (' + nSent + ')</button>'
+          + '<button type="button" class="ra-btn line" style="flex:1 1 160px" onclick="centerAdm.tab(\'rejected\')">↩️ 반려 건 보기 (' + nRej + ')</button></div>';
         root().innerHTML = h;
       }
 
@@ -16635,7 +16651,7 @@ async function calAdmInit() {
         const d = st.data, me = d.me;
         const cs = d.centers.filter(c => me.hq || me.centers.includes(c.id));
         if (!cs.length) {
-          root().innerHTML = '<div class="cs-empty">' + (me.hq ? '아직 만든 센터 기수가 없어요.<br><br><button type="button" class="ra-btn" onclick="centerAdm.edit(0)">+ 새 센터 기수</button>' : '센터 기수 관리는 <b>전도부</b>와 그 기수의 <b>강사·전도사</b>가 써요.') + '</div>';
+          root().innerHTML = '<div class="cs-empty">' + (me.hq ? '아직 만든 센터 기수가 없어요.<br><br><button type="button" class="ra-btn" onclick="centerAdm.edit(0)">+ 새 센터 기수</button>' : '선교센터는 <b>전도부</b>와 그 기수의 <b>강사·전도사</b>가 써요.') + '</div>';
           return;
         }
         if (!cs.some(c => c.id === st.mId)) st.mId = cs[0].id;
@@ -16645,7 +16661,7 @@ async function calAdmInit() {
         const evs = c.staff.filter(s => s.role === '전도사');
         const keyOf = r => r.assigneeId || '';
         const shown = byOrg.filter(r => !st.who || (st.who === 'none' ? !keyOf(r) : keyOf(r) === st.who));
-        let h = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 2px 8px"><div style="font-size:18px;font-weight:800">🏫 센터 기수 관리</div>'
+        let h = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 2px 8px"><div style="font-size:18px;font-weight:800">🏫 선교센터</div>'
           + (me.hq ? '<button type="button" class="ra-btn" style="height:38px" onclick="centerAdm.edit(0)">+ 새 센터 기수</button>' : '') + '</div>'
           + '<div class="cs-chips">' + cs.map(x => '<button type="button" class="cs-chip ' + (x.id === c.id ? 'on' : '') + '" onclick="centerAdm.mPick(' + x.id + ')">' + esc(csName(x)) + '<small>' + esc(csMonth(x)) + ' · ' + d.inbox.filter(r => r.centerId === x.id).length + '명' + (x.active ? '' : ' · 닫힘') + '</small></button>').join('') + '</div>'
           + errHtml()
