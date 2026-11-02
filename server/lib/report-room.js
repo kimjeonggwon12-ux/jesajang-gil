@@ -426,6 +426,7 @@ export async function postRollCalls(meeting, records) {
 }
 /** 출결 주제를 처음 배웠을 때: 최근 2주 안에 멤버가 출석한 가장 최근 모임 하나를 샘플로. dryRun 이면 글만 돌려준다. */
 const sendTextReal = (chat, text) => sendText(chat, text);
+export const sendRoomText = (chat, text) => sendText(chat, text);   // 11/3 방별 출석 서머리(room-attendance.js)
 export async function rollCallSample(key, dryRun = false) {
   const [room] = await run(db().from('report_rooms').select('*').eq('dept', key).limit(1));
   if (!room || (!dryRun && topicPending(room))) return null;
@@ -514,6 +515,15 @@ export async function reportRooms(body) {
       out.push({ env: ck, bot: me.result && me.result.username, title: j.ok ? j.result.title : j.description, forum: j.ok ? !!j.result.is_forum : undefined, attBotIn: !!att.ok });
     }
     return { rooms: out };
+  }
+  if (op === 'roomAtt') {   // 11/3 화요전도단 방별 출석 서머리 — 미리 보기(send 면 샘플로 모든 방에)
+    const { findMeeting } = await import('../actions/attendance.js');
+    const ra = await import('./room-attendance.js');
+    const m = await findMeeting(String(body.meetingId || ''));
+    if (!m) return { error: '모임 없음' };
+    const phase = body.phase === '최종' ? '최종' : '오전';
+    if (!body.send) return { posts: (await ra.buildRoomAttendance(m, phase)).map((p) => ({ dept: p.room.dept, chat: p.room.chat_id, text: p.text })) };
+    return { sent: await ra.postRoomAttendance(m, phase, body.prefix != null ? String(body.prefix) : '🧪 <b>샘플</b>\n') };
   }
   if (op === 'roll') return { text: await rollCallSample(String(body.dept || '부녀회/기타#출결'), !body.send) };   // 11/2 멤버 출결 취합 미리 보기(send 면 그 방에)
   if (op === 'admins') {   // 방 관리자 목록(다른 봇이 있는지 보기용, 글 안 올림)
