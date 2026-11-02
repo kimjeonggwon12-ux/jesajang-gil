@@ -14,10 +14,15 @@ if (process.argv[2] === 'setup') {
     const tid = 'zztest-' + randomUUID();
     await run(db().from('targets').insert({ target_id: tid, creator_id: T.memberId, teacher_name: T.name, target_name: nm, stage: '복음방', created_at: kstDateTime(), updated_at: kstDateTime() }));
     await run(db().from('activities').insert({ member_id: T.memberId, name: T.name, submitted_at: kstDateTime(), activities: ['복음방'], roles: ['교사'], target_name: nm, target_stage: '복음방', today_work: '복음방 3과 진행' }));
-    if (nm === '김영희') await a.requestCenterApproval({ ...T, targetId: tid, note: '11월 개강 희망' });
+    await a.requestCenterApproval({ ...T, targetId: tid, note: '11월 개강 희망' });
   }
-  const c = await a.saveCenter({ ...HQ, name: 'ZZ시험센터', cohortNo: '1기', openMonth: '2026-11', staff: [{ ...L, role: '강사' }] });
-  console.log('setup ok', c);
+  const c1 = await a.saveCenter({ ...HQ, centerName: 'ZZ시험센터', cohortNo: '1기', openMonth: '2026-11', staff: [{ ...L, role: '강사' }] });
+  const c2 = await a.saveCenter({ ...HQ, centerName: 'ZZ시험센터', cohortNo: '2기', openMonth: '2026-12', staff: [{ ...L, role: '강사' }] });
+  const desk = await a.getCenterDesk(L);
+  const rids = desk.rows.filter((r) => r.status === '요청').map((r) => r.id);
+  await a.decideCenterReferral({ ...L, ids: rids, decision: '승인' });
+  if (process.argv[3] === 'send1') await a.sendToCenter({ ...L, ids: [rids[0]], centerId: c1.id });
+  console.log('setup ok', c1, c2, rids);
 } else {
   const ts = await run(db().from('targets').select('target_id').in('creator_id', ids));
   const tids = ts.map((t) => t.target_id);
