@@ -66,6 +66,15 @@ try {
   const st = await a.getCenterSendState({ ...T, targetId: tid });
   assert.equal(st.referral.status, '전달'); assert.match(st.referral.centerLabel, /ZZ시험센터/);
   console.log('✓ 요청 → 지역장 승인 → 센터 전달 → 센터 서류 열람');
+  // 담긴 건 빼기(센터 강사) → 지역장 승인 전 대기, 다른 지역장은 못 뺌
+  assert.match((await a.reopenCenterReferral({ ...X, id: rid })).error, /처리할 수 있는/);
+  assert.ok((await a.reopenCenterReferral({ ...S, id: rid, note: '서류 보완' })).ok);
+  let back = (await a.getCenterSendState({ ...T, targetId: tid })).referral;
+  assert.equal(back.status, '요청'); assert.match(back.decideNote, /^센터에서 뺌 — 시험강사.*서류 보완/);
+  assert.ok(!(await a.getCenterDesk(S)).inbox.some((r) => r.id === rid));
+  assert.equal((await a.decideCenterReferral({ ...L, ids: [rid], decision: '승인' })).done, 1);
+  assert.equal((await a.sendToCenter({ ...L, ids: [rid], centerId })).done, 1);
+  console.log('✓ 센터에서 빼기 → 승인 전 대기 → 다시 승인·보내기');
   // 기수 삭제: 전도부만, 받은 서류는 '승인'(보내기 대기)으로 돌아감
   assert.match((await a.deleteCenter({ ...L, id: centerId })).error, /전도부/);
   assert.ok((await a.getCenterDesk(HQ)).inbox.some((r) => r.id === rid));   // 전도부는 모든 기수의 받은 서류를 봄

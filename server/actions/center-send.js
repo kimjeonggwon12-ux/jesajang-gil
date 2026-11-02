@@ -256,12 +256,16 @@ async function sendToCenter(body) {
 /** 승인 건을 잘못 보냈거나 다시 판단할 때: 전달·승인 → 요청으로 되돌림(전도부·같은 범위 지역장·교관). */
 async function reopenCenterReferral(body) {
   const acc = await accessOf(body.memberId);
-  const [r] = await run(db().from('center_referrals').select('id, dept, region, status, target_id').eq('id', Number(body.id)).limit(1));
-  if (!r || !inScope(acc, r)) return { error: '처리할 수 있는 건이 아니에요.' };
+  const [r] = await run(db().from('center_referrals').select('id, dept, region, status, target_id, center_id').eq('id', Number(body.id)).limit(1));
+  // 11/2(사용자): 센터에 담긴 건도 빼서(반려) 지역장 승인 전 대기로 — 그 기수의 강사·전도사도 뺄 수 있다
+  const centerStaff = r && r.status === '전달' && acc.centers.includes(r.center_id);
+  if (!r || !(inScope(acc, r) || centerStaff)) return { error: '처리할 수 있는 건이 아니에요.' };
   if (!['승인', '전달', '반려'].includes(r.status)) return { error: '되돌릴 수 없는 상태예요.' };
   const open = await run(db().from('center_referrals').select('id').eq('target_id', r.target_id).in('status', OPEN).neq('id', r.id).limit(1));
   if (open.length) return { error: '이 섭외자에 진행 중인 다른 요청이 있어요.' };
-  await run(db().from('center_referrals').update({ status: '요청', center_id: null, sent_at: null, sent_by: '', sent_by_id: '', center_read_at: null }).eq('id', r.id));
+  const note = str(body.note).slice(0, 300);
+  const why = r.status === '전달' ? `센터에서 뺌 — ${signer(acc)}${note ? ': ' + note : ''}` : note ? `되돌림 — ${signer(acc)}: ${note}` : '';
+  await run(db().from('center_referrals').update({ status: '요청', center_id: null, sent_at: null, sent_by: '', sent_by_id: '', center_read_at: null, ...(why ? { decide_note: why } : {}) }).eq('id', r.id));
   return { ok: true };
 }
 

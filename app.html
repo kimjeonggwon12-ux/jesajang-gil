@@ -16558,8 +16558,9 @@ async function calAdmInit() {
           + (r.decidedBy ? ' · 승인 ' + esc(r.decidedBy) + ' ' + esc(r.decidedAt.slice(5, 16)) : '') + (r.centerLabel ? '<br>🏫 ' + esc(r.centerLabel) + ' · ' + esc(r.sentBy) + ' ' + esc(r.sentAt.slice(5, 16)) + (r.centerReadAt ? ' · 센터 열람 ' + esc(r.centerReadAt.slice(5, 16)) : ' · 센터 미열람') : '') + '</div>'
           + (r.requestNote ? '<div class="note">💬 ' + esc(r.requestNote) + (r.hopeCenter ? '\n희망: ' + esc(r.hopeCenter) : '') + '</div>' : r.hopeCenter ? '<div class="note">희망: ' + esc(r.hopeCenter) + '</div>' : '')
           + (r.status === '반려' && r.decideNote ? '<div class="note">반려 사유: ' + esc(r.decideNote) + '</div>' : '')
+          + (r.status === '요청' && /^(센터에서 뺌|되돌림)/.test(r.decideNote || '') ? '<div class="note">↩️ ' + esc(r.decideNote) + '</div>' : '')
           + '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="ra-btn line" style="height:36px;font-size:14px" onclick="centerAdm.open(' + r.id + ')">📂 서류 보기</button>'
-          + (st.data.me.canDecide && st.tab !== 'inbox' && r.status !== '요청' ? '<button type="button" class="ra-btn warn" style="height:36px;font-size:14px" onclick="centerAdm.reopen(' + r.id + ', this)">요청 상태로 되돌리기</button>' : '') + '</div>'
+          + (st.data.me.canDecide && st.tab !== 'inbox' && r.status !== '요청' ? '<button type="button" class="ra-btn warn" style="height:36px;font-size:14px" onclick="centerAdm.reopen(' + r.id + ', this)">' + (r.status === '전달' ? '센터에서 빼기' : '승인 전 대기로 되돌리기') + '</button>' : '') + '</div>'
           + '</div></div>';
       }
       function render() {
@@ -16627,8 +16628,10 @@ async function calAdmInit() {
           + '<span style="font-size:12.5px;color:#6b7772">' + (c.staff.length ? '받는 사람 ' + c.staff.map(x => esc(x.role + ' ' + x.name)).join(', ') : '받는 사람(강사·전도사) 없음') + '</span></div>'
           + '<div style="margin-top:8px;font-size:14px;font-weight:800">📥 받은 서류 ' + docs.length + '건' + (docs.length ? ' <small style="font-weight:500;color:#6b7772">— ' + byOrg.filter(([, l]) => l.length).map(([o, l]) => o + ' ' + l.length).join(' · ') + '</small>' : '') + '</div>'
           + byOrg.filter(([, l]) => l.length).map(([o, l]) => '<div class="cs-coh"><div class="cs-coh-h">' + esc(o) + ' <small style="font-weight:500;color:#6b7772">' + l.length + '건</small></div>'
-            + (l.length ? l.map(r => '<button type="button" class="cs-dl" onclick="centerAdm.open(' + r.id + ')"><b>' + esc(r.targetName) + '</b><span>교사 ' + esc(r.teacherName) + (r.region ? ' · ' + esc(r.region) : '') + ' · ' + esc(r.sentAt.slice(5, 16)) + ' 받음</span>'
-              + (r.centerReadAt ? '' : '<span class="cs-tag new" style="flex:0 0 auto">새 서류</span>') + '📂</button>').join('') : '<div style="font-size:12.5px;color:#9aa5a0;margin-top:4px">아직 없음</div>') + '</div>').join('')
+            + (l.length ? l.map(r => '<div style="display:flex;gap:6px;align-items:stretch"><button type="button" class="cs-dl" onclick="centerAdm.open(' + r.id + ')"><b>' + esc(r.targetName) + '</b><span>교사 ' + esc(r.teacherName) + (r.region ? ' · ' + esc(r.region) : '') + ' · ' + esc(r.sentAt.slice(5, 16)) + ' 받음</span>'
+              + (r.centerReadAt ? '' : '<span class="cs-tag new" style="flex:0 0 auto">새 서류</span>') + '📂</button>'
+              // 11/2: 담긴 건 빼기(반려) → 지역장 승인 전 대기로
+              + '<button type="button" class="ra-btn warn" style="height:auto;margin-top:6px;padding:0 10px;font-size:13px;flex:0 0 auto" onclick="centerAdm.reopen(' + r.id + ', this)">빼기</button></div>').join('') : '<div style="font-size:12.5px;color:#9aa5a0;margin-top:4px">아직 없음</div>') + '</div>').join('')
           + (byOrg.some(([o, l]) => !l.length && o !== '기타') ? '<div style="font-size:12.5px;color:#9aa5a0;margin-top:8px">아직 없음 · ' + byOrg.filter(([o, l]) => !l.length && o !== '기타').map(([o]) => o).join(' · ') + '</div>' : '')
           + '</div>';
       }
@@ -16702,8 +16705,8 @@ async function calAdmInit() {
           if (res) { st.form = null; render(); }
         },
         async reopen(id, btn) {
-          if (!btn.classList.contains('sure')) { btn.classList.add('sure'); btn.textContent = '한 번 더 누르면 되돌려요'; return; }
-          await act({ action: 'reopenCenterReferral', id }, () => '요청 상태로 되돌렸어요');
+          if (!btn.classList.contains('sure')) { btn.classList.add('sure'); btn.textContent = '한 번 더 누르면 빼요(승인 전 대기로)'; return; }
+          await act({ action: 'reopenCenterReferral', id }, () => '빼서 지역장 승인 전 대기로 돌렸어요');
         },
         async open(id) {
           root().innerHTML = '<div class="cs-empty"><span class="loading loading-spinner"></span> 서류 여는 중…</div>';
