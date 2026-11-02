@@ -1051,7 +1051,9 @@
     /* 10/25(3차): 옆으로 넘기는 칸 줄 + 누르면 아래로 펼침 */
     /* 10/30(사용자): 칸이 옆으로 넘어가 한 번에 안 보임 → 폰은 3칸×2줄, 넓은 화면은 한 줄 6칸 */
     .er-cells { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; padding:2px 0 6px; }
-    @media (min-width:600px) { .er-cells { grid-template-columns:repeat(6, minmax(0, 1fr)); } }
+    /* 11/2: 센터 보내기 칸이 늘어 7칸 — 폰 4×2(아주 좁으면 3열), 넓은 화면 한 줄 7칸 */
+    @media (min-width:380px) { .er-cells { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+    @media (min-width:600px) { .er-cells { grid-template-columns:repeat(7, minmax(0, 1fr)); } }
     .er-cells::-webkit-scrollbar { display:none; }
     .er-cells .er-act { min-width:0; }
     .er-act.open { box-shadow:0 0 0 3px #BFEBDD; transform:translateY(-1px); }
@@ -8192,12 +8194,14 @@
       return '';
     }
     // 11/2: 지역장·교관 = 승인·보낼 건, 센터 강사·전도사 = 새 서류 — 누르면 관리자 > 센터 보내기
+    const csBadge = { at: 0, v: null };
     function centerBadgeBannerHtml() {
-      if (home.centerBadge === undefined) {
-        home.centerBadge = null;
-        callApi({ action: 'getCenterSendBadge', memberId }).then(r => { if (r && !r.error) { home.centerBadge = r; if (r.toDecide || r.toSend || r.unread) renderHome(); } }).catch(() => {});
+      // 화면 상태(home)와 따로 기억 — 첫 화면을 불러오는 동안 home 이 다시 채워져도 잃지 않게. 1분 지나면 새로.
+      if (!csBadge.at || Date.now() - csBadge.at > 60000) {
+        csBadge.at = Date.now();
+        callApi({ action: 'getCenterSendBadge', memberId }).then(r => { if (r && !r.error) { const had = csBadge.v; csBadge.v = r; if (JSON.stringify(had) !== JSON.stringify(r)) renderHome(); } }).catch(() => {});
       }
-      const b = home.centerBadge; if (!b || !(b.toDecide || b.toSend || b.unread)) return '';
+      const b = csBadge.v; if (!b || !(b.toDecide || b.toSend || b.unread)) return '';
       const parts = [b.toDecide && '승인 요청 <b>' + b.toDecide + '건</b>', b.toSend && '센터로 보낼 건 <b>' + b.toSend + '건</b>', b.unread && '센터에 새 서류 <b>' + b.unread + '건</b>'].filter(Boolean).join(' · ');
       return '<div style="padding:14px var(--dg-pad) 0"><div onclick="switchTab(\'admin\');setTimeout(()=>adminSwitchSubTab(\'center\'),50)" class="flex items-center gap-3 cursor-pointer" style="border-radius:var(--dg-radius-md);padding:14px 16px;background:#E8F1FF">'
         + '<span style="font-size:22px">📮</span><div class="flex-1 min-w-0" style="font-size:14.5px;font-weight:700;color:#1E3A8A">' + parts + '</div><span style="font-size:13px;font-weight:700;color:#1D4ED8;white-space:nowrap">처리 ›</span></div></div>';
@@ -8776,7 +8780,7 @@
     // 다른 화면(기록 저장·대상자 상세)에서 이 사람의 칸으로 바로
     window.erGo = function (name, cell) {
       home.view = 'dashboard'; actPage = 'targets'; erSel = erKey(name); erCell = cell || '';
-      const t = home.targets.find(x => erKey(x.targetName) === erSel); if (t) { erLoadFile(t.targetId); erInfoLoad(t.targetId); }
+      const t = home.targets.find(x => erKey(x.targetName) === erSel); if (t) { erLoadFile(t.targetId); erInfoLoad(t.targetId); erCenterLoad(t.targetId); }
       renderHome(); document.getElementById('appSections').scrollTop = 0;
     };
     window.erFbRun = key => runActivityAiFeedback(key);
@@ -16421,7 +16425,17 @@ async function calAdmInit() {
         .cs-row .note{margin-top:6px;font-size:13.5px;background:#f6f8f7;border-radius:8px;padding:6px 8px;white-space:pre-wrap}
         .cs-tag{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:2px 8px;margin-left:6px;background:#e3f6ef;color:#00875f;vertical-align:middle}
         .cs-tag.wait{background:#fff4cc;color:#8a6200}.cs-tag.no{background:#fde8e6;color:#b03a2e}.cs-tag.new{background:#ff5a4f;color:#fff}
-        .cs-bar{position:sticky;bottom:0;background:#fff;border-top:1px solid #e3e8e5;padding:10px 0;margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+        .ra{max-width:760px;margin:0 auto;padding:14px 12px 40px}
+        .ra-in{flex:1;min-width:160px;height:44px;border:1px solid #d6dbd8;border-radius:10px;padding:0 12px;font-size:16px;background:#fff}
+        .ra-btn{height:44px;padding:0 16px;border-radius:10px;border:1px solid #00AE82;background:#00AE82;color:#fff;font-weight:700;font-size:15px;white-space:nowrap}
+        .ra-btn.line{background:#fff;color:#00875f}
+        .ra-btn.warn{background:#fff;color:#c0392b;border-color:#e3b5ae}
+        .ra-btn.warn.sure{background:#c0392b;color:#fff;border-color:#c0392b}
+        .ra-btn:disabled{opacity:.5}
+        .ra-note{margin:12px 2px;color:#6b7772;font-size:14px;line-height:1.5}
+        .ra-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .ra-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+        .cs-bar{background:#f6f8f7;border-radius:12px;padding:10px;margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
         .cs-bar select,.cs-bar textarea,.cs-f input,.cs-f select,.cs-f textarea{border:1px solid #d6dbd8;border-radius:10px;padding:8px 10px;font-size:15px;background:#fff}
         .cs-bar select{height:44px;flex:1;min-width:180px}.cs-bar textarea{width:100%;min-height:60px}
         .cs-f{display:block;margin-top:10px;font-size:13px;font-weight:700;color:#4b5651}
@@ -16442,7 +16456,10 @@ async function calAdmInit() {
       if (!snap) return '<div class="cs-empty">서류 내용이 없어요.</div>';
       const t = snap.target || {}, p = t.profile || {}, te = snap.teacher || {}, sec = snap.sections || {};
       const kv = (k, v) => v ? '<span>' + esc(k) + '</span><div>' + esc(v) + '</div>' : '';
-      const block = (title, lines) => '<h4>' + title + ' <small style="font-weight:500;color:#7b8781">' + ((lines || []).length) + '줄</small></h4><div class="blk">' + ((lines || []).length ? esc(lines.join('\n')) : '(없음)') + '</div>';
+      const block = (title, raw) => {
+        const lines = (raw || []).filter(l => !/^-?\s*\(?없음\)?$/.test(String(l).trim()));
+        return '<h4>' + title + ' <small style="font-weight:500;color:#7b8781">' + lines.length + '건</small></h4><div class="blk">' + (lines.length ? esc(lines.join('\n')) : '(없음)') + '</div>';
+      };
       const sw = t.swot;
       return '<div class="cs-doc">'
         + '<h4>👤 섭외자</h4><div class="blk kv">' + kv('이름', t.name) + kv('성별·나이대', [t.gender, t.ageGroup, p.age && p.age + '세'].filter(Boolean).join(' · ')) + kv('지금 단계', t.stage)
@@ -16463,7 +16480,7 @@ async function calAdmInit() {
       const st = { data: null, tab: '', sel: new Set(), doc: null, form: null, busy: false, err: '', staffQ: '', staffHits: [] };
       const root = () => document.getElementById('centerAdmRoot');
       const call = payload => callApi({ ...payload, memberId: App.memberId, name: App.name });
-      const CYCLE = '🔁 <b>전도 순환</b> — 매월 말 개강에 맞춰 교자장부청(교사·자문회·장년회·부녀회·청년회)의 활동 기록이 지역장 승인을 거쳐 그 달 개강 센터 기수로 이어지고, 센터 수강·수료 소식이 다시 교사의 활동 기록(센터수강·사례)으로 돌아옵니다.';
+      const CYCLE = '🔁 <b>전도 순환</b> — 매월 말 개강에 맞춰 교자장부청(교역자·자문회·장년회·부녀회·청년회)의 활동 기록이 지역장 승인을 거쳐 그 달 개강 센터 기수로 이어지고, 센터 수강·수료 소식이 다시 교사의 활동 기록(센터수강·사례)으로 돌아옵니다.';
       async function load() {
         csCss();
         if (!st.data) root().innerHTML = '<div class="cs-empty"><span class="loading loading-spinner"></span></div>';
