@@ -20,7 +20,7 @@ if (process.argv[2] === 'setup') {
   const c2 = await a.saveCenter({ ...HQ, centerName: 'ZZ시험센터', cohortNo: '2기', openMonth: '2026-12', staff: [{ ...L, role: '강사' }] });
   const desk = await a.getCenterDesk(L);
   const rids = desk.rows.filter((r) => r.status === '요청').map((r) => r.id);
-  await a.decideCenterReferral({ ...L, ids: rids, decision: '승인' });
+  if (process.argv[3] !== 'pending') await a.decideCenterReferral({ ...L, ids: rids, decision: '승인' });
   if (process.argv[3] === 'send1') await a.sendToCenter({ ...L, ids: [rids[0]], centerId: c1.id });
   console.log('setup ok', c1, c2, rids);
 } else {

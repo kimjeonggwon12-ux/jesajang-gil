@@ -3206,11 +3206,13 @@
           <button type="button" class="kko-tab" data-subtab="center" onclick="adminSwitchSubTab('center')">센터 보내기</button>   <!-- 2026-11-02 지역장 승인 → 센터(기수)로 보내기 -->
           <button type="button" class="kko-tab" data-subtab="rooms" onclick="adminSwitchSubTab('rooms')">보고방</button>   <!-- 2026-10-25 부서·지역 텔레그램 보고방 연결 -->
           <button type="button" class="kko-tab" data-subtab="cohort" onclick="adminSwitchSubTab('cohort')" style="display:none">교육 관리</button>   <!-- 2026-10-16 교육생·교육 과정(7777만) -->
+          <button type="button" class="kko-tab" data-subtab="centerMgmt" onclick="adminSwitchSubTab('centerMgmt')">센터 기수 관리</button>   <!-- 2026-11-02 센터 기수별 받은 수강생·전도사 배정 -->
         </div>
         <div id="admin-pane-cohort" class="admin-pane"><div id="cohortAdmRoot" class="ra"></div></div>
         <div id="admin-pane-roster" class="admin-pane"><div id="rosterAdmRoot" class="ra"></div></div>
         <div id="admin-pane-rooms" class="admin-pane"><div id="roomsAdmRoot" class="ra"></div></div>
         <div id="admin-pane-center" class="admin-pane"><div id="centerAdmRoot" class="ra"></div></div>
+        <div id="admin-pane-centerMgmt" class="admin-pane"><div id="centerMgmtRoot" class="ra"></div></div>
         <div id="admin-pane-edu" class="admin-pane"><div id="eduRoot"></div></div>
         <div id="admin-pane-dist" class="admin-pane"><div id="distRoot"></div></div>
         <div id="admin-pane-connectAdmin" class="admin-pane">
@@ -8208,7 +8210,7 @@
       }
       const b = csBadge.v; if (!b || !(b.toDecide || b.toSend || b.unread)) return '';
       const parts = [b.toDecide && '승인 요청 <b>' + b.toDecide + '건</b>', b.toSend && '센터로 보낼 건 <b>' + b.toSend + '건</b>', b.unread && '센터에 새 서류 <b>' + b.unread + '건</b>'].filter(Boolean).join(' · ');
-      return '<div style="padding:14px var(--dg-pad) 0"><div onclick="switchTab(\'admin\');setTimeout(()=>adminSwitchSubTab(\'center\'),50)" class="flex items-center gap-3 cursor-pointer" style="border-radius:var(--dg-radius-md);padding:14px 16px;background:#E8F1FF">'
+      return '<div style="padding:14px var(--dg-pad) 0"><div onclick="switchTab(\'admin\');setTimeout(()=>adminSwitchSubTab(\'' + (b.toDecide || b.toSend ? 'center' : 'centerMgmt') + '\'),50)" class="flex items-center gap-3 cursor-pointer" style="border-radius:var(--dg-radius-md);padding:14px 16px;background:#E8F1FF">'
         + '<span style="font-size:22px">📮</span><div class="flex-1 min-w-0" style="font-size:14.5px;font-weight:700;color:#1E3A8A">' + parts + '</div><span style="font-size:13px;font-weight:700;color:#1D4ED8;white-space:nowrap">처리 ›</span></div></div>';
     }
     function encouragementBannerHtml() {
@@ -16048,12 +16050,14 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         else if (tab === 'attend') attAdmLoad();
         else if (tab === 'roster') rosterAdm.mount();
         else if (tab === 'rooms') roomsAdm.mount();
-        else if (tab === 'center') centerAdm.mount();
+        else if (tab === 'center') centerAdm.mount('send');
+        else if (tab === 'centerMgmt') centerAdm.mount('mgmt');
         else if (tab === 'cohort') cohortAdm.mount();
       }
       else if (tab === 'attend') attAdmLoad();   // 다시 들어올 때마다 최신 출석 인원
       else if (tab === 'cohort') cohortAdm.mount();   // 다시 들어올 때마다 최신(보던 과정이면 그 과정)
-      else if (tab === 'center') centerAdm.load();     // 다시 들어올 때마다 최신 요청 건
+      else if (tab === 'center') centerAdm.mount('send');     // 다시 들어올 때마다 최신 요청 건
+      else if (tab === 'centerMgmt') centerAdm.mount('mgmt');
     }
     // ════════════════════════════════════════════════════════════════
     // [ADMIN] connect-admin.html(3️⃣연결 현황 관리) + calendar-admin.html(4️⃣캘린더 관리) 병합.
@@ -16490,6 +16494,13 @@ async function calAdmInit() {
         .cs-coh{margin-top:10px;padding:10px;border-radius:12px;background:#f6f8f7}
         .cs-coh-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-weight:800}
         .cs-dl{display:flex;align-items:center;gap:8px;width:100%;margin-top:6px;padding:9px 10px;border:1px solid #e3e8e5;border-radius:10px;background:#fff;text-align:left;font-size:14px}
+        .cs-ev-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:8px}
+        .cs-ev{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1.5px solid #e3e8e5;border-radius:12px;background:#fff;text-align:left}
+        .cs-ev b{font-size:14px}.cs-ev em{font-style:normal;font-size:20px;font-weight:800;color:#00875f}.cs-ev small{font-size:11.5px;color:#6b7772;line-height:1.3}
+        .cs-ev.on{border-color:#00AE82;background:#e9f8f2}
+        .cs-st{border-top:1px solid #eef1ef;padding-top:2px}.cs-st-acts{display:flex;gap:6px;margin:6px 0 4px;flex-wrap:wrap}
+        .cs-st-acts select{flex:1;min-width:150px;height:36px;border:1px solid #d6dbd8;border-radius:10px;padding:0 8px;font-size:14px;background:#fff}
+        .ra-btn.sure-ok{background:#0b7a55;border-color:#0b7a55}
         .cs-dl b{flex:0 0 auto}.cs-dl span{flex:1;color:#6b7772;font-size:12.5px}
         .cs-f{display:block;margin-top:10px;font-size:13px;font-weight:700;color:#4b5651}
         .cs-f input,.cs-f select,.cs-f textarea{display:block;width:100%;margin-top:4px;font-weight:400}
@@ -16530,122 +16541,143 @@ async function calAdmInit() {
     }
 
     const centerAdm = (() => {
-      const st = { data: null, tab: '', sel: new Set(), doc: null, form: null, busy: false, err: '', staffQ: '', staffHits: [], toName: '', toId: 0, note: '' };
-      const root = () => document.getElementById('centerAdmRoot');
+      // 11/2(사용자) 개편 — 두 화면이 같은 자료를 쓴다.
+      //   'send' = 관리자 › 센터 보내기(지역장·교관): 맨 위 센터 기수 → 대기자 체크 → [지역장 승인](한 번 더 눌러 확인) = 승인과 동시에 그 기수로 / [반려](사유 필수)
+      //   'mgmt' = 관리자 › 센터 기수 관리(전도부·센터 강사·전도사): 기수별 받은 수강생, 교자장부청 필터, 전도사 배정·전도사별 그리드
+      const st = { data: null, mode: 'send', tab: 'decide', sel: new Set(), doc: null, form: null, busy: false, err: '', staffQ: '', staffHits: [],
+        toId: 0, sure: false, rejecting: false, mId: 0, org: '', who: '', addQ: '', addHits: null };
+      const root = () => document.getElementById(st.mode === 'mgmt' ? 'centerMgmtRoot' : 'centerAdmRoot');
       const call = payload => callApi({ ...payload, memberId: App.memberId, name: App.name });
-      const CYCLE = '🔁 <b>전도 순환</b> — 매월 말 개강에 맞춰 교자장부청(교역자·자문회·장년회·부녀회·청년회)의 활동 기록이 지역장 승인을 거쳐 그 달 개강 센터 기수로 이어지고, 센터 수강·수료 소식이 다시 교사의 활동 기록(센터수강·사례)으로 돌아옵니다.';
+      const CYCLE = '🔁 <b>전도 순환</b> — 교자장부청의 활동 기록이 지역장 승인과 함께 그 달 개강 센터 기수로 이어지고, 센터 수강·수료 소식이 다시 교사의 활동 기록(센터수강·사례)으로 돌아옵니다.';
+      const CS_ORGS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
+      const csOrgOf = r => CS_ORGS.find(o => String(r.dept || '').includes(o.replace('회', ''))) || '기타';
+      const csName = c => [c.name, c.cohortNo].filter(Boolean).join(' ');
+      const csMonth = c => (c.openDate ? c.openDate.slice(5).replace('-', '/') + ' 개강' : c.openMonth ? Number(c.openMonth.slice(5)) + '월 개강' : '개강일 미정');
+      const smallBtn = (cls, label, onclick) => '<button type="button" class="ra-btn ' + cls + '" style="height:34px;font-size:13.5px;padding:0 10px" onclick="' + onclick + '">' + label + '</button>';
       async function load() {
         csCss();
-        if (!st.data) root().innerHTML = '<div class="cs-empty"><span class="loading loading-spinner"></span></div>';
+        if (!st.data && root()) root().innerHTML = '<div class="cs-empty"><span class="loading loading-spinner"></span></div>';
         const res = await call({ action: 'getCenterDesk' });
+        if (!root()) return;
         if (!res || res.error) { root().innerHTML = '<div class="cs-empty">⚠️ ' + esc((res && res.error) || '불러오지 못했어요') + '</div>'; return; }
         st.data = res;
-        if (!st.tab) st.tab = res.me.canDecide ? 'decide' : res.inbox.length || res.me.centers.length ? 'inbox' : res.me.hq ? 'centers' : 'decide';
         render();
       }
       const rowsOf = tab => {
         const d = st.data; if (!d) return [];
-        if (tab === 'inbox') return d.inbox;
-        const want = { decide: '요청', send: '승인', sent: '전달', rejected: '반려' }[tab];
-        return d.rows.filter(r => r.status === want);
+        if (tab === 'decide') return d.rows.filter(r => r.status === '요청' || r.status === '승인');
+        return d.rows.filter(r => r.status === ({ sent: '전달', rejected: '반려' }[tab]));
       };
       function rowHtml(r, pick) {
-        const tag = { '요청': '<span class="cs-tag wait">승인 대기</span>', '승인': '<span class="cs-tag">승인됨</span>', '전달': '<span class="cs-tag">센터 전달</span>', '반려': '<span class="cs-tag no">반려</span>' }[r.status] || '';
-        const unread = st.tab === 'inbox' && !r.centerReadAt ? '<span class="cs-tag new">새 서류</span>' : '';
+        const tag = { '요청': '<span class="cs-tag wait">승인 대기</span>', '승인': '<span class="cs-tag">승인됨 · 보내기 전</span>', '전달': '<span class="cs-tag">센터 전달</span>', '반려': '<span class="cs-tag no">반려</span>' }[r.status] || '';
         return '<div class="cs-row">' + (pick ? '<input type="checkbox" ' + (st.sel.has(r.id) ? 'checked' : '') + ' onchange="centerAdm.pick(' + r.id + ', this.checked)">' : '')
-          + '<div class="m"><b>' + esc(r.targetName) + '</b>' + tag + unread
+          + '<div class="m"><b>' + esc(r.targetName) + '</b>' + tag
           + '<div class="sub">교사 ' + esc(r.teacherName) + ' · ' + esc([r.dept, r.region].filter(Boolean).join(' ')) + ' · 요청 때 단계 ' + esc(r.stage || '-') + '<br>요청 ' + esc(r.requestedAt.slice(0, 16))
-          + (r.decidedBy ? ' · 승인 ' + esc(r.decidedBy) + ' ' + esc(r.decidedAt.slice(5, 16)) : '') + (r.centerLabel ? '<br>🏫 ' + esc(r.centerLabel) + ' · ' + esc(r.sentBy) + ' ' + esc(r.sentAt.slice(5, 16)) + (r.centerReadAt ? ' · 센터 열람 ' + esc(r.centerReadAt.slice(5, 16)) : ' · 센터 미열람') : '') + '</div>'
+          + (r.decidedBy && r.status !== '요청' ? ' · 승인 ' + esc(r.decidedBy) + ' ' + esc(r.decidedAt.slice(5, 16)) : '') + (r.centerLabel ? '<br>🏫 ' + esc(r.centerLabel) + ' · ' + esc(r.sentBy) + ' ' + esc(r.sentAt.slice(5, 16)) + (r.centerReadAt ? ' · 센터 열람 ' + esc(r.centerReadAt.slice(5, 16)) : ' · 센터 미열람') : '') + '</div>'
           + (r.requestNote ? '<div class="note">💬 ' + esc(r.requestNote) + (r.hopeCenter ? '\n희망: ' + esc(r.hopeCenter) : '') + '</div>' : r.hopeCenter ? '<div class="note">희망: ' + esc(r.hopeCenter) + '</div>' : '')
           + (r.status === '반려' && r.decideNote ? '<div class="note">반려 사유: ' + esc(r.decideNote) + '</div>' : '')
           + (r.status === '요청' && /^(센터에서 뺌|되돌림)/.test(r.decideNote || '') ? '<div class="note">↩️ ' + esc(r.decideNote) + '</div>' : '')
           + '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="ra-btn line" style="height:36px;font-size:14px" onclick="centerAdm.open(' + r.id + ')">📂 서류 보기</button>'
-          + (st.data.me.canDecide && st.tab !== 'inbox' && r.status !== '요청' ? '<button type="button" class="ra-btn warn" style="height:36px;font-size:14px" onclick="centerAdm.reopen(' + r.id + ', this)">' + (r.status === '전달' ? '센터에서 빼기' : '승인 전 대기로 되돌리기') + '</button>' : '') + '</div>'
+          + (r.status === '전달' || r.status === '반려' ? '<button type="button" class="ra-btn warn" style="height:36px;font-size:14px" onclick="centerAdm.reopen(' + r.id + ', this)">' + (r.status === '전달' ? '센터에서 빼기' : '승인 전 대기로 되돌리기') + '</button>' : '') + '</div>'
           + '</div></div>';
       }
       function render() {
-        const d = st.data; if (!d) return;
+        if (!st.data || !root()) return;
         if (st.doc) return renderDoc();
         if (st.form) return renderForm();
-        const me = d.me, n = t => rowsOf(t).length;
-        const tabs = [];
-        if (me.canDecide) tabs.push(['decide', '승인 요청', n('decide')], ['send', '센터 보내기', n('send')], ['sent', '보낸 건', 0], ['rejected', '반려', 0]);
-        // 11/2: 전도부는 '센터·기수 관리'에서 기수별 받은 서류까지 본다 — 받은 서류 탭은 강사·전도사(받는 사람)용
-        if (me.centers.length && !me.hq) tabs.push(['inbox', '받은 서류', d.inbox.filter(r => !r.centerReadAt).length]);
-        if (me.hq) tabs.push(['centers', '센터·기수 관리', 0]);
-        if (st.tab === 'inbox' && me.hq) st.tab = 'centers';
-        const scope = me.hq ? '전도부 · 전체' : me.scopes.map(s => s.dept + (s.region ? ' ' + s.region : ' 전체') + ' ' + s.role).join(', ');
-        let body = '';
-        if (!tabs.length) body = '<div class="cs-empty">센터 보내기는 <b>지역장·교관</b>(자기 지역 요청 승인·보내기), <b>센터 강사·전도사</b>(받은 서류), <b>전도부</b>(센터·기수 만들기)가 써요.<br>교사는 <b>나의 활동 → 섭외자 화면 → 📮 센터 보내기</b>에서 지역장 승인을 요청해요.</div>';
-        else if (st.tab === 'centers') body = centersHtml();
-        else if (st.tab === 'inbox') body = inboxHtml();
-        else if (st.tab === 'send') body = sendHtml();
-        else {
-          const list = rowsOf(st.tab), pick = st.tab === 'decide' || st.tab === 'send';
-          body = list.length ? list.map(r => rowHtml(r, pick)).join('') : '<div class="cs-empty">' + ({ decide: '승인을 기다리는 요청이 없어요.', send: '승인했지만 아직 센터로 보내지 않은 건이 없어요.', sent: '아직 센터로 보낸 건이 없어요.', rejected: '반려한 건이 없어요.', inbox: '아직 이 센터로 들어온 서류가 없어요.' }[st.tab] || '') + '</div>';
-          if (pick && list.length) body += barHtml();
+        return st.mode === 'mgmt' ? renderMgmt() : renderSend();
+      }
+      const errHtml = () => (st.err ? '<div class="ra-note" style="color:#b03a2e">⚠️ ' + esc(st.err) + '</div>' : '');
+
+      // ── 센터 보내기(지역장·교관) ──
+      function renderSend() {
+        const d = st.data, me = d.me;
+        if (!me.canDecide) {
+          root().innerHTML = '<div class="cs-empty">센터 보내기는 <b>지역장·교관</b>(자기 지역 요청 승인)과 <b>전도부</b>가 써요.' + (me.centers.length ? '<br>센터 강사·전도사는 <b>센터 기수 관리</b> 탭에서 받은 수강생을 봐요.' : '') + '<br>교사는 <b>나의 활동 → 섭외자 화면 → 📮 센터 보내기</b>에서 지역장 승인을 요청해요.</div>';
+          return;
         }
-        root().innerHTML = '<div style="font-size:18px;font-weight:800;margin:4px 2px 8px">📮 센터 보내기 <small style="font-size:13px;font-weight:500;color:#6b7772">' + esc(scope || '') + '</small></div>'
-          + csFlowHtml(st.tab === 'decide' ? 2 : st.tab === 'send' || st.tab === 'sent' ? 3 : st.tab === 'inbox' ? 4 : -1, CYCLE)
-          + '<div class="cs-tabs">' + tabs.map(([k, l, c]) => '<button type="button" class="' + (st.tab === k ? 'on' : '') + '" onclick="centerAdm.tab(\'' + k + '\')">' + l + (c ? '<em>' + c + '</em>' : '') + '</button>').join('') + '</div>'
-          + (st.err ? '<div class="ra-note" style="color:#b03a2e">⚠️ ' + esc(st.err) + '</div>' : '') + body;
-      }
-      function barHtml() {
-        const k = st.sel.size, open = st.data.centers.filter(c => c.active);
-        if (st.tab === 'decide') return '<div class="cs-bar"><textarea id="csNote" placeholder="승인 메모 또는 반려 사유(반려할 때는 꼭 적어 주세요 — 교사에게 보여요)"></textarea>'
-          + '<button type="button" class="ra-btn" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.decide(\'승인\')">✅ 고른 ' + k + '건 승인</button>'
-          + '<button type="button" class="ra-btn warn" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.decide(\'반려\')">반려</button></div>';
-        return '';
-      }
-      // 11/2(사용자): "00센터 000기" 하나가 한 센터 — 보내기 = ① 센터 기수 먼저 고르기 → ② 내 소속 섭외자 체크 → 보내기 → 그 기수로 쏙
-      const csName = c => [c.name, c.cohortNo].filter(Boolean).join(' ');
-      function sendHtml() {
-        const open = st.data.centers.filter(c => c.active), list = rowsOf('send'), k = st.sel.size;
-        if (!open.length) return '<div class="cs-empty">아직 열린 센터 기수가 없어요. 전도부에 이번 개강 센터 기수(예: 덕진센터 165기)를 만들어 달라고 해 주세요.</div>';
+        const scope = me.hq ? '전도부 · 전체' : me.scopes.map(s => s.dept + (s.region ? ' ' + s.region : ' 전체') + ' ' + s.role).join(', ');
+        const open = d.centers.filter(c => c.active);
         if (!open.some(c => c.id === st.toId)) st.toId = open.length === 1 ? open[0].id : 0;
         const to = open.find(c => c.id === st.toId);
-        let h = '<div class="cs-bar" style="margin-top:4px"><div class="cs-pick"><b>① 보낼 센터 기수를 먼저 고르세요</b><div class="cs-chips">'
-          + open.map(c => '<button type="button" class="cs-chip ' + (st.toId === c.id ? 'on' : '') + '" onclick="centerAdm.toCohort(' + c.id + ')">' + esc(csName(c)) + '<small>' + esc(csMonth(c)) + ' · 받은 서류 ' + (c.received || 0) + '건</small></button>').join('')
-          + '</div></div></div>';
-        if (!to) return h + '<div class="cs-empty">위에서 센터 기수를 고르면 보낼 수 있는 섭외자(지역장 승인 끝난 건)가 나와요.</div>';
-        h += '<div style="margin:14px 2px 4px;font-size:14px;font-weight:800">② <span style="color:#00875f">' + esc(csName(to)) + '</span>에 담을 섭외자를 체크하세요 <small style="font-weight:500;color:#6b7772">(승인된 ' + list.length + '건)</small></div>';
-        if (!list.length) return h + '<div class="cs-empty">승인했지만 아직 센터로 보내지 않은 섭외자가 없어요. <b>승인 요청</b> 탭에서 먼저 승인해 주세요.</div>';
-        h += list.map(r => rowHtml(r, true)).join('');
-        return h + '<div class="cs-bar"><textarea id="csNote" placeholder="센터에 전할 말(선택)" oninput="centerAdm.note(this.value)">' + esc(st.note || '') + '</textarea>'
-          + '<button type="button" class="ra-btn" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.send()">' + (k ? '🏫 ' + esc(csName(to)) + '에 ' + k + '건 담기' : '담을 섭외자를 체크해 주세요') + '</button></div>';
+        const tabs = [['decide', '승인 요청', rowsOf('decide').length], ['sent', '보낸 건', 0], ['rejected', '반려', 0]];
+        let h = '<div style="font-size:18px;font-weight:800;margin:4px 2px 8px">📮 센터 보내기 <small style="font-size:13px;font-weight:500;color:#6b7772">' + esc(scope) + '</small></div>'
+          + csFlowHtml(st.tab === 'decide' ? 2 : st.tab === 'sent' ? 3 : -1, CYCLE)
+          // 센터 기수가 맨 위(바깥)에
+          + '<div class="cs-bar" style="margin-top:10px"><div class="cs-pick"><b>🏫 보낼 센터 기수</b>'
+          + (open.length ? '<div class="cs-chips">' + open.map(c => '<button type="button" class="cs-chip ' + (st.toId === c.id ? 'on' : '') + '" onclick="centerAdm.toCohort(' + c.id + ')">' + esc(csName(c)) + '<small>' + esc(csMonth(c)) + ' · 받은 ' + (c.received || 0) + '명</small></button>').join('') + '</div>'
+            : '<div class="ra-note">아직 열린 센터 기수가 없어요. 전도부에 이번 개강 센터 기수(예: 덕진센터 165기)를 만들어 달라고 해 주세요.</div>')
+          + '</div></div>'
+          + '<div class="cs-tabs">' + tabs.map(([k, l, c]) => '<button type="button" class="' + (st.tab === k ? 'on' : '') + '" onclick="centerAdm.tab(\'' + k + '\')">' + l + (c ? '<em>' + c + '</em>' : '') + '</button>').join('') + '</div>'
+          + errHtml();
+        const list = rowsOf(st.tab);
+        if (st.tab === 'decide') {
+          h += '<div style="margin:6px 2px 4px;font-size:14px;font-weight:800">' + (to ? '<span style="color:#00875f">' + esc(csName(to)) + '</span>로 보낼 대기자를 체크하세요' : '먼저 위에서 센터 기수를 고르고, 대기자를 체크하세요') + '</div>';
+          h += list.length ? list.map(r => rowHtml(r, true)).join('') : '<div class="cs-empty">승인을 기다리는 대기자가 없어요.</div>';
+          if (list.length) {
+            const k = st.sel.size;
+            h += '<div class="cs-bar">'
+              + (st.rejecting ? '<textarea id="csNote" placeholder="반려 사유(꼭 써 주세요 — 교사에게 보여요)" oninput="centerAdm.note(this.value)">' + esc(st.note || '') + '</textarea>' : '')
+              + '<div style="display:flex;gap:8px;width:100%;flex-wrap:wrap">'
+              + '<button type="button" class="ra-btn ' + (st.sure ? 'sure-ok' : '') + '" style="flex:2 1 220px;height:auto;min-height:48px;white-space:normal;line-height:1.3" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.approve()">'
+              + (!k ? '✅ 지역장 승인' : !to ? '✅ 지역장 승인 (센터 기수를 먼저 고르세요)' : st.sure ? '❓ ' + esc(csName(to)) + '로 보내기를 승인하시겠습니까?<br><small>한 번 더 누르면 ' + k + '명 승인·보내기</small>' : '✅ 지역장 승인 (' + k + '명 → ' + esc(csName(to)) + ')') + '</button>'
+              + '<button type="button" class="ra-btn warn" style="flex:1 1 120px;height:auto;min-height:48px" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.reject()">' + (st.rejecting ? '사유 쓰고 ' + k + '명 반려' : '반려') + '</button>'
+              + '</div></div>';
+          }
+        } else {
+          h += list.length ? list.map(r => rowHtml(r, false)).join('') : '<div class="cs-empty">' + (st.tab === 'sent' ? '아직 센터로 보낸 건이 없어요.' : '반려한 건이 없어요.') + '</div>';
+        }
+        root().innerHTML = h;
       }
-      const csMonth = c => (c.openDate ? c.openDate.slice(5).replace('-', '/') + ' 개강' : c.openMonth ? Number(c.openMonth.slice(5)) + '월 개강' : '개강일 미정');
-      // 센터 기수 카드 + 그 기수로 들어온 서류 — 11/2(사용자): 강사·전도사가 교자장부청으로 나눠 보게
-      const CS_ORGS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
-      const csOrgOf = r => CS_ORGS.find(o => String(r.dept || '').includes(o.replace('회', ''))) || '기타';
-      function cohortHtml(c, manage) {
-        const docs = st.data.inbox.filter(r => r.centerId === c.id), unread = docs.filter(r => !r.centerReadAt).length;
-        const byOrg = [...CS_ORGS, '기타'].map(o => [o, docs.filter(r => csOrgOf(r) === o)]);
-        return '<div class="cs-grp"><div class="cs-grp-h"><span>🏫 ' + esc(csName(c)) + ' <small style="font-size:13px;font-weight:500;color:#6b7772">' + esc(csMonth(c)) + '</small></span>'
-          + (manage ? '<span style="display:flex;gap:6px"><button type="button" class="ra-btn line" style="height:34px;font-size:13.5px;padding:0 10px" onclick="centerAdm.edit(' + c.id + ')">고치기</button>'
-            + '<button type="button" class="ra-btn warn" style="height:34px;font-size:13.5px;padding:0 10px" onclick="centerAdm.delCenter(' + c.id + ', this)">삭제</button></span>' : '') + '</div>'
-          + '<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">' + (c.active ? '<span class="cs-tag">열림</span>' : '<span class="cs-tag no">닫힘</span>') + (unread ? '<span class="cs-tag new">새 서류 ' + unread + '</span>' : '')
-          + '<span style="font-size:12.5px;color:#6b7772">' + (c.staff.length ? '받는 사람 ' + c.staff.map(x => esc(x.role + ' ' + x.name)).join(', ') : '받는 사람(강사·전도사) 없음') + '</span></div>'
-          + '<div style="margin-top:8px;font-size:14px;font-weight:800">📥 받은 서류 ' + docs.length + '건' + (docs.length ? ' <small style="font-weight:500;color:#6b7772">— ' + byOrg.filter(([, l]) => l.length).map(([o, l]) => o + ' ' + l.length).join(' · ') + '</small>' : '') + '</div>'
-          + byOrg.filter(([, l]) => l.length).map(([o, l]) => '<div class="cs-coh"><div class="cs-coh-h">' + esc(o) + ' <small style="font-weight:500;color:#6b7772">' + l.length + '건</small></div>'
-            + (l.length ? l.map(r => '<div style="display:flex;gap:6px;align-items:stretch"><button type="button" class="cs-dl" onclick="centerAdm.open(' + r.id + ')"><b>' + esc(r.targetName) + '</b><span>교사 ' + esc(r.teacherName) + (r.region ? ' · ' + esc(r.region) : '') + ' · ' + esc(r.sentAt.slice(5, 16)) + ' 받음</span>'
-              + (r.centerReadAt ? '' : '<span class="cs-tag new" style="flex:0 0 auto">새 서류</span>') + '📂</button>'
-              // 11/2: 담긴 건 빼기(반려) → 지역장 승인 전 대기로
-              + '<button type="button" class="ra-btn warn" style="height:auto;margin-top:6px;padding:0 10px;font-size:13px;flex:0 0 auto" onclick="centerAdm.reopen(' + r.id + ', this)">빼기</button></div>').join('') : '<div style="font-size:12.5px;color:#9aa5a0;margin-top:4px">아직 없음</div>') + '</div>').join('')
-          + (byOrg.some(([o, l]) => !l.length && o !== '기타') ? '<div style="font-size:12.5px;color:#9aa5a0;margin-top:8px">아직 없음 · ' + byOrg.filter(([o, l]) => !l.length && o !== '기타').map(([o]) => o).join(' · ') + '</div>' : '')
+
+      // ── 센터 기수 관리(전도부·센터 강사·전도사) ──
+      function renderMgmt() {
+        const d = st.data, me = d.me;
+        const cs = d.centers.filter(c => me.hq || me.centers.includes(c.id));
+        if (!cs.length) {
+          root().innerHTML = '<div class="cs-empty">' + (me.hq ? '아직 만든 센터 기수가 없어요.<br><br><button type="button" class="ra-btn" onclick="centerAdm.edit(0)">+ 새 센터 기수</button>' : '센터 기수 관리는 <b>전도부</b>와 그 기수의 <b>강사·전도사</b>가 써요.') + '</div>';
+          return;
+        }
+        if (!cs.some(c => c.id === st.mId)) st.mId = cs[0].id;
+        const c = cs.find(x => x.id === st.mId), can = me.hq || me.centers.includes(c.id);
+        const docs = d.inbox.filter(r => r.centerId === c.id);
+        const byOrg = docs.filter(r => !st.org || csOrgOf(r) === st.org);
+        const evs = c.staff.filter(s => s.role === '전도사');
+        const keyOf = r => r.assigneeId || '';
+        const shown = byOrg.filter(r => !st.who || (st.who === 'none' ? !keyOf(r) : keyOf(r) === st.who));
+        let h = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 2px 8px"><div style="font-size:18px;font-weight:800">🏫 센터 기수 관리</div>'
+          + (me.hq ? '<button type="button" class="ra-btn" style="height:38px" onclick="centerAdm.edit(0)">+ 새 센터 기수</button>' : '') + '</div>'
+          + '<div class="cs-chips">' + cs.map(x => '<button type="button" class="cs-chip ' + (x.id === c.id ? 'on' : '') + '" onclick="centerAdm.mPick(' + x.id + ')">' + esc(csName(x)) + '<small>' + esc(csMonth(x)) + ' · ' + d.inbox.filter(r => r.centerId === x.id).length + '명' + (x.active ? '' : ' · 닫힘') + '</small></button>').join('') + '</div>'
+          + errHtml()
+          + '<div class="cs-grp"><div class="cs-grp-h"><span>' + esc(csName(c)) + ' <small style="font-size:13px;font-weight:500;color:#6b7772">' + esc(csMonth(c)) + '</small> ' + (c.active ? '<span class="cs-tag">열림</span>' : '<span class="cs-tag no">닫힘</span>') + '</span>'
+          + (me.hq ? '<span style="display:flex;gap:6px">' + smallBtn('line', '고치기', 'centerAdm.edit(' + c.id + ')') + smallBtn('warn', '삭제', 'centerAdm.delCenter(' + c.id + ', this)') + '</span>' : '') + '</div>'
+          + '<div style="font-size:12.5px;color:#6b7772;margin-top:4px">' + (c.staff.filter(s => s.role !== '전도사').map(x => esc(x.role + ' ' + x.name)).join(', ') || '강사 미지정') + '</div>'
+          // 교자장부청 필터
+          + '<div style="margin-top:12px;font-size:13.5px;font-weight:800">교자장부청</div><div class="cs-chips" style="margin-top:6px">'
+          + [['', '전체', docs.length], ...CS_ORGS.map(o => [o, o, docs.filter(r => csOrgOf(r) === o).length])].map(([k, l, n]) => '<button type="button" class="cs-chip ' + (st.org === k ? 'on' : '') + '" onclick="centerAdm.mOrg(\'' + k + '\')">' + l + ' <small style="display:inline">' + n + '명</small></button>').join('') + '</div>'
+          // 전도사 그리드
+          + '<div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between"><b style="font-size:13.5px">전도사별 수강생</b>' + (can ? smallBtn('line', '+ 전도사 추가', 'centerAdm.addOpen()') : '') + '</div>'
+          + (st.addHits ? addStaffHtml() : '')
+          + '<div class="cs-ev-grid">' + [['', '전체', byOrg], ['none', '미배정', byOrg.filter(r => !keyOf(r))], ...evs.map(s => [s.key, s.name + ' 전도사', byOrg.filter(r => keyOf(r) === s.key)])]
+            .map(([k, l, list]) => '<button type="button" class="cs-ev ' + (st.who === k ? 'on' : '') + '" onclick="centerAdm.mWho(\'' + esc(k) + '\')"><b>' + esc(l) + '</b><em>' + list.length + '명</em><small>' + esc(list.slice(0, 4).map(r => r.targetName).join(', ') + (list.length > 4 ? ' 외 ' + (list.length - 4) : '')) + '</small></button>').join('') + '</div>'
+          // 수강생 목록
+          + '<div style="margin-top:12px;font-size:14px;font-weight:800">📥 받은 수강생 ' + shown.length + '명' + (st.org || st.who ? ' <small style="font-weight:500;color:#6b7772">(거른 결과 · 전체 ' + docs.length + '명)</small>' : '') + '</div>'
+          + (shown.length ? shown.map(r => '<div class="cs-st"><button type="button" class="cs-dl" onclick="centerAdm.open(' + r.id + ')"><b>' + esc(r.targetName) + '</b><span>' + esc(csOrgOf(r)) + (r.region ? ' ' + esc(r.region) : '') + ' · 교사 ' + esc(r.teacherName) + ' · ' + esc(r.sentAt.slice(5, 16)) + ' 받음</span>'
+            + (r.centerReadAt ? '' : '<span class="cs-tag new" style="flex:0 0 auto">새 서류</span>') + '📂</button>'
+            + (can ? '<div class="cs-st-acts"><select onchange="centerAdm.assign(' + r.id + ', this.value)"><option value="">전도사 미배정</option>' + evs.map(s => '<option value="' + esc(s.key) + '" ' + (keyOf(r) === s.key ? 'selected' : '') + '>' + esc(s.name) + ' 전도사</option>').join('') + '</select>'
+              + '<button type="button" class="ra-btn warn" style="height:36px;padding:0 10px;font-size:13px" onclick="centerAdm.reopen(' + r.id + ', this)">빼기</button></div>' : '')
+            + '</div>').join('') : '<div class="cs-empty">' + (docs.length ? '거른 조건에 맞는 수강생이 없어요.' : '아직 이 기수로 들어온 수강생이 없어요.') + '</div>')
           + '</div>';
+        root().innerHTML = h;
       }
-      function centersHtml() {
-        const cs = st.data.centers;
-        return '<div class="ra-note">개강마다 <b>센터 기수</b>(예: 덕진센터 165기)를 하나씩 만들고 강사·전도사를 넣어 주세요. 지역장·교관이 이 기수를 고르고 섭외자를 체크해 보내면 아래 <b>받은 서류</b>에 교자장부청별로 바로 들어와요.</div>'
-          + '<button type="button" class="ra-btn" onclick="centerAdm.edit(0)">+ 새 센터 기수</button>'
-          + (cs.length ? cs.map(c => cohortHtml(c, true)).join('') : '<div class="cs-empty">아직 만든 센터 기수가 없어요.</div>');
+      function addStaffHtml() {
+        return '<div class="cs-bar" style="margin-top:8px"><input id="csAddQ" class="ra-in" placeholder="전도사 이름 또는 고유번호" value="' + esc(st.addQ) + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault();centerAdm.addFind()}">'
+          + '<button type="button" class="ra-btn line" onclick="centerAdm.addFind()">찾기</button><button type="button" class="ra-btn line" onclick="centerAdm.addClose()">닫기</button>'
+          + '<div style="width:100%">' + st.addHits.map((h, i) => '<button type="button" class="cs-row" style="width:100%;text-align:left" onclick="centerAdm.addPick(' + i + ')"><div class="m"><b>' + esc(h.name) + '</b><div class="sub">' + esc([h.dept, h.region, h.position].filter(Boolean).join(' · ')) + '</div></div><span class="cs-tag">+ 전도사로</span></button>').join('')
+          + (st.addQ.trim().length >= 2 ? '<button type="button" class="ra-btn line" style="margin-top:6px" onclick="centerAdm.addName()">명단에 없으면 "' + esc(st.addQ.trim()) + '" 이름만으로 추가</button>' : '') + '</div></div>';
       }
-      // 강사·전도사(받는 사람)의 받은 서류 — 내 센터 기수마다, 교자장부청별로
-      function inboxHtml() {
-        const mine = st.data.centers.filter(c => st.data.me.centers.includes(c.id));
-        return mine.length ? mine.map(c => cohortHtml(c, false)).join('') : '<div class="cs-empty">아직 이 센터로 들어온 서류가 없어요.</div>';
-      }
+
+      // ── 센터 기수 만들기·고치기(전도부) ──
       function renderForm() {
         const f = st.form, roles = st.data.staffRoles || ['강사', '전도사', '담당'];
         root().innerHTML = '<button type="button" class="ra-btn line" onclick="centerAdm.edit(null)">‹ 목록</button>'
@@ -16659,7 +16691,7 @@ async function calAdmInit() {
           + '<div class="cs-bar" style="position:static;border:0"><select id="cfRole" style="flex:0 0 100px">' + roles.map(r => '<option>' + r + '</option>').join('') + '</select>'
           + '<input id="cfQ" class="ra-in" placeholder="이름 또는 고유번호로 찾기" value="' + esc(st.staffQ) + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault();centerAdm.staffFind()}"><button type="button" class="ra-btn line" onclick="centerAdm.staffFind()">찾기</button></div>'
           + st.staffHits.map((h, i) => '<button type="button" class="cs-row" style="width:100%;text-align:left" onclick="centerAdm.staffAdd(' + i + ')"><div class="m"><b>' + esc(h.name) + '</b><div class="sub">' + esc([h.dept, h.region, h.position].filter(Boolean).join(' · ')) + '</div></div><span class="cs-tag">+ 넣기</span></button>').join('')
-          + (st.err ? '<div class="ra-note" style="color:#b03a2e">⚠️ ' + esc(st.err) + '</div>' : '')
+          + errHtml()
           + '<div class="ra-acts"><button type="button" class="ra-btn" ' + (st.busy ? 'disabled' : '') + ' onclick="centerAdm.saveCenter()">저장</button>'
           + (f.id ? '<button type="button" class="ra-btn warn" ' + (st.busy ? 'disabled' : '') + ' onclick="centerAdm.delCenter(' + f.id + ', this)">이 기수 삭제</button>' : '') + '</div>';
       }
@@ -16680,29 +16712,27 @@ async function calAdmInit() {
         const res = await call(payload);
         st.busy = false;
         if (!res || res.error) { st.err = (res && res.error) || '실패했어요'; render(); return null; }
-        st.sel.clear(); toast(okMsg(res)); await load(); return res;
+        st.sel.clear(); st.sure = false; st.rejecting = false; st.note = ''; toast(okMsg(res)); await load(); return res;
       }
       return {
-        mount() { csCss(); load(); }, load,
-        tab(k) { st.tab = k; st.sel.clear(); st.err = ''; render(); },
-        pick(id, on) { if (on) st.sel.add(id); else st.sel.delete(id); render(); },
-        async decide(decision) {
-          const note = (document.getElementById('csNote') || {}).value || '';
-          await act({ action: 'decideCenterReferral', ids: [...st.sel], decision, note }, r => decision + ' ' + r.done + '건' + (r.skipped ? ' (처리 못한 ' + r.skipped + '건)' : ''));
-        },
-        async send() {
-          if (!st.toId) { st.err = '보낼 센터 기수를 먼저 골라 주세요.'; render(); return; }
-          const res = await act({ action: 'sendToCenter', ids: [...st.sel], centerId: st.toId, note: st.note || '' }, r => r.center + '로 ' + r.done + '건 보냈어요 🏫');
-          if (res) st.note = '';
-        },
-        toCohort(id) { st.toId = st.toId === id ? 0 : id; st.sel.clear(); st.err = ''; render(); },
+        mount(mode) { st.mode = mode || 'send'; st.doc = null; st.form = null; st.err = ''; csCss(); load(); },
+        load,
+        tab(k) { st.tab = k; st.sel.clear(); st.sure = false; st.rejecting = false; st.err = ''; render(); },
+        pick(id, on) { if (on) st.sel.add(id); else st.sel.delete(id); st.sure = false; render(); },
+        toCohort(id) { st.toId = st.toId === id ? 0 : id; st.sure = false; st.err = ''; render(); },
         note(v) { st.note = v; },
-        async delCenter(id, btn) {
-          const c = st.data.centers.find(x => x.id === id); if (!c) return;
-          const n = st.data.inbox.filter(r => r.centerId === id).length;
-          if (!btn.classList.contains('sure')) { btn.classList.add('sure'); btn.textContent = n ? '한 번 더 누르면 삭제(서류 ' + n + '건은 보내기 대기로)' : '한 번 더 누르면 삭제'; return; }
-          const res = await act({ action: 'deleteCenter', id }, r => c.label.split(' · ')[0] + ' 삭제' + (r.moved ? ' — 서류 ' + r.moved + '건은 센터 보내기 대기로 돌렸어요' : ''));
-          if (res) { st.form = null; render(); }
+        async approve() {
+          const to = st.data.centers.find(c => c.id === st.toId && c.active);
+          if (!to) { st.err = '먼저 위에서 보낼 센터 기수를 골라 주세요.'; st.sure = false; render(); return; }
+          if (!st.sel.size) { st.err = '승인할 대기자를 체크해 주세요.'; render(); return; }
+          if (!st.sure) { st.sure = true; st.rejecting = false; st.err = ''; render(); return; }   // 한 번 더 눌러야 승인
+          await act({ action: 'approveAndSend', ids: [...st.sel], centerId: to.id }, r => '승인 완료 — ' + r.center + '로 ' + r.done + '명 보냈어요 🏫' + (r.skipped ? ' (처리 못한 ' + r.skipped + '건)' : ''));
+        },
+        async reject() {
+          if (!st.sel.size) { st.err = '반려할 대기자를 체크해 주세요.'; render(); return; }
+          if (!st.rejecting) { st.rejecting = true; st.sure = false; st.err = ''; render(); const t = document.getElementById('csNote'); if (t) t.focus(); return; }
+          if (!String(st.note || '').trim()) { st.err = '반려 사유를 써 주세요(교사에게 보여요).'; render(); const t = document.getElementById('csNote'); if (t) t.focus(); return; }
+          await act({ action: 'decideCenterReferral', ids: [...st.sel], decision: '반려', note: st.note }, r => '반려 ' + r.done + '건' + (r.skipped ? ' (처리 못한 ' + r.skipped + '건)' : ''));
         },
         async reopen(id, btn) {
           if (!btn.classList.contains('sure')) { btn.classList.add('sure'); btn.textContent = '한 번 더 누르면 빼요(승인 전 대기로)'; return; }
@@ -16713,9 +16743,30 @@ async function calAdmInit() {
           const res = await call({ action: 'getCenterReferral', id });
           if (!res || res.error) { st.err = (res && res.error) || '열지 못했어요'; render(); return; }
           st.doc = { row: res.row, snap: res.snapshot }; render(); document.getElementById('appSections') && (document.getElementById('appSections').scrollTop = 0);
-          if (st.tab === 'inbox') { const r = st.data.inbox.find(x => x.id === id); if (r && !r.centerReadAt) r.centerReadAt = res.row.centerReadAt; }
+          const r = st.data.inbox.find(x => x.id === id); if (r && !r.centerReadAt && res.row.centerReadAt) r.centerReadAt = res.row.centerReadAt;
         },
         close() { st.doc = null; render(); },
+        // 센터 기수 관리
+        mPick(id) { st.mId = id; st.who = ''; st.addHits = null; st.err = ''; render(); },
+        mOrg(k) { st.org = k; render(); },
+        mWho(k) { st.who = st.who === k ? '' : k; render(); },
+        async assign(id, key) { await act({ action: 'assignCenterReferral', id, assignee: key }, () => key ? '전도사에게 배정했어요' : '배정을 풀었어요'); },
+        addOpen() { st.addHits = []; st.addQ = ''; render(); const q = document.getElementById('csAddQ'); if (q) q.focus(); },
+        addClose() { st.addHits = null; render(); },
+        async addFind() {
+          st.addQ = (document.getElementById('csAddQ') || {}).value || '';
+          const res = await call({ action: 'findCenterStaff', q: st.addQ });
+          st.addHits = (res && res.rows) || []; st.err = (res && res.error) || ''; render();
+        },
+        async addPick(i) { const h = st.addHits[i]; if (!h) return; st.addHits = null; await act({ action: 'addCenterStaff', centerId: st.mId, staffId: h.memberId, staffName: h.name, role: '전도사' }, () => h.name + ' 전도사를 넣었어요'); },
+        async addName() { const n = st.addQ.trim(); st.addHits = null; await act({ action: 'addCenterStaff', centerId: st.mId, staffId: '', staffName: n, role: '전도사' }, () => n + ' 전도사를 넣었어요'); },
+        async delCenter(id, btn) {
+          const c = st.data.centers.find(x => x.id === id); if (!c) return;
+          const n = st.data.inbox.filter(r => r.centerId === id).length;
+          if (!btn.classList.contains('sure')) { btn.classList.add('sure'); btn.textContent = n ? '한 번 더 누르면 삭제(수강생 ' + n + '명은 보내기 대기로)' : '한 번 더 누르면 삭제'; return; }
+          const res = await act({ action: 'deleteCenter', id }, r => csName(c) + ' 삭제' + (r.moved ? ' — ' + r.moved + '명은 센터 보내기 대기로 돌렸어요' : ''));
+          if (res) { st.form = null; render(); }
+        },
         edit(id) {
           st.err = ''; st.staffHits = []; st.staffQ = '';
           if (id === null) { st.form = null; render(); return; }
@@ -16734,10 +16785,10 @@ async function calAdmInit() {
           keepForm();
           const f = st.form;
           st.busy = true; st.err = ''; render();
-          const res = await call({ action: 'saveCenter', id: f.id || undefined, centerName: f.name, cohortNo: f.cohortNo, openMonth: f.openMonth, openDate: f.openDate, memo: f.memo, active: f.active, staff: f.staff });
+          const res = await call({ action: 'saveCenter', id: f.id || undefined, centerName: f.name, cohortNo: '', openMonth: f.openMonth, openDate: f.openDate, memo: f.memo, active: f.active, staff: f.staff });
           st.busy = false;
           if (!res || res.error) { st.err = (res && res.error) || '저장하지 못했어요'; render(); return; }
-          st.form = null; toast('센터 기수를 저장했어요'); await load();
+          st.form = null; if (res.id) st.mId = res.id; toast('센터 기수를 저장했어요'); await load();
         },
       };
     })();

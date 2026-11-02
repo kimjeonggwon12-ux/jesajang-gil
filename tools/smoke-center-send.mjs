@@ -72,9 +72,22 @@ try {
   let back = (await a.getCenterSendState({ ...T, targetId: tid })).referral;
   assert.equal(back.status, '요청'); assert.match(back.decideNote, /^센터에서 뺌 — 시험강사.*서류 보완/);
   assert.ok(!(await a.getCenterDesk(S)).inbox.some((r) => r.id === rid));
-  assert.equal((await a.decideCenterReferral({ ...L, ids: [rid], decision: '승인' })).done, 1);
-  assert.equal((await a.sendToCenter({ ...L, ids: [rid], centerId })).done, 1);
-  console.log('✓ 센터에서 빼기 → 승인 전 대기 → 다시 승인·보내기');
+  // 지역장 승인 = 센터 기수 골라 승인과 동시에 보내기
+  assert.match((await a.approveAndSend({ ...L, ids: [rid] })).error, /센터 기수/);
+  assert.equal((await a.approveAndSend({ ...X, ids: [rid], centerId })).done, 0);   // 다른 지역
+  assert.equal((await a.approveAndSend({ ...L, ids: [rid], centerId })).done, 1);
+  back = (await a.getCenterSendState({ ...T, targetId: tid })).referral;
+  assert.equal(back.status, '전달'); assert.match(back.decidedBy, /시험지역장/);
+  console.log('✓ 센터에서 빼기 → 승인 전 대기 → 지역장 승인(=그 기수로 보내기)');
+  // 센터 기수 관리: 전도사 넣기(이름만도) → 배정
+  assert.match((await a.addCenterStaff({ ...X, centerId, staffName: '김전도' })).error, /관리할 수/);
+  assert.ok((await a.addCenterStaff({ ...S, centerId, staffName: '김전도' })).ok);   // 그 기수 강사
+  const ev = (await a.getCenterDesk(S)).centers.find((c) => c.id === centerId).staff.find((s) => s.name === '김전도');
+  assert.equal(ev.role, '전도사'); assert.equal(ev.key, 'name:김전도');
+  assert.match((await a.assignCenterReferral({ ...S, id: rid, assignee: 'name:없는사람' })).error, /전도사가 아니/);
+  assert.ok((await a.assignCenterReferral({ ...S, id: rid, assignee: ev.key })).ok);
+  assert.equal((await a.getCenterDesk(S)).inbox.find((r) => r.id === rid).assigneeName, '김전도');
+  console.log('✓ 전도사 넣기 → 수강생 배정');
   // 기수 삭제: 전도부만, 받은 서류는 '승인'(보내기 대기)으로 돌아감
   assert.match((await a.deleteCenter({ ...L, id: centerId })).error, /전도부/);
   assert.ok((await a.getCenterDesk(HQ)).inbox.some((r) => r.id === rid));   // 전도부는 모든 기수의 받은 서류를 봄

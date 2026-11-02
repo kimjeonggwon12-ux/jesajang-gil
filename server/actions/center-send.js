@@ -93,19 +93,19 @@ function toRow(r, centersById) {
     requestNote: r.request_note, hopeCenter: r.hope_center, requestedAt: fmtTs(r.requested_at),
     decidedBy: r.decided_by, decidedAt: fmtTs(r.decided_at), decideNote: r.decide_note,
     sentBy: r.sent_by, sentAt: fmtTs(r.sent_at), sendNote: r.send_note,
-    centerId: r.center_id, centerLabel: centerLabel(c), centerReadAt: fmtTs(r.center_read_at),
+    centerId: r.center_id, centerLabel: centerLabel(c), centerReadAt: fmtTs(r.center_read_at), assigneeId: r.assignee_id || '', assigneeName: r.assignee_name || '',
   };
 }
 
 function toCenter(c, counts) {
   return {
     id: c.id, name: c.name, cohortNo: c.cohort_no, openMonth: c.open_month, openDate: c.open_date,
-    staff: c.staff || [], memo: c.memo, active: c.active, label: centerLabel(c),
+    staff: (c.staff || []).map((s) => ({ ...s, key: staffKey(s) })), memo: c.memo, active: c.active, label: centerLabel(c),
     received: counts ? (counts.get(c.id) || 0) : undefined,
   };
 }
 
-const LIGHT = 'id, target_id, target_name, teacher_id, teacher_nid, teacher_name, dept, region, stage, status, request_note, hope_center, requested_at, decided_by, decided_at, decide_note, sent_by, sent_at, send_note, center_id, center_read_at';
+const LIGHT = 'id, target_id, target_name, teacher_id, teacher_nid, teacher_name, dept, region, stage, status, request_note, hope_center, requested_at, decided_by, decided_at, decide_note, sent_by, sent_at, send_note, center_id, center_read_at, assignee_id, assignee_name';
 
 // ── ① 교사 ──
 
@@ -265,7 +265,7 @@ async function reopenCenterReferral(body) {
   if (open.length) return { error: '이 섭외자에 진행 중인 다른 요청이 있어요.' };
   const note = str(body.note).slice(0, 300);
   const why = r.status === '전달' ? `센터에서 뺌 — ${signer(acc)}${note ? ': ' + note : ''}` : note ? `되돌림 — ${signer(acc)}: ${note}` : '';
-  await run(db().from('center_referrals').update({ status: '요청', center_id: null, sent_at: null, sent_by: '', sent_by_id: '', center_read_at: null, ...(why ? { decide_note: why } : {}) }).eq('id', r.id));
+  await run(db().from('center_referrals').update({ status: '요청', center_id: null, sent_at: null, sent_by: '', sent_by_id: '', center_read_at: null, assignee_id: '', assignee_name: '', ...(why ? { decide_note: why } : {}) }).eq('id', r.id));
   return { ok: true };
 }
 
@@ -307,7 +307,7 @@ async function deleteCenter(body) {
   const [c] = await run(db().from('centers').select('id').eq('id', id).limit(1));
   if (!c) return { error: '이미 지워진 기수예요.' };
   const moved = await run(db().from('center_referrals')
-    .update({ status: '승인', center_id: null, sent_at: null, sent_by: '', sent_by_id: '', send_note: '', center_read_at: null })
+    .update({ status: '승인', center_id: null, sent_at: null, sent_by: '', sent_by_id: '', send_note: '', center_read_at: null, assignee_id: '', assignee_name: '' })
     .eq('center_id', id).select('id'));
   await run(db().from('centers').delete().eq('id', id));
   return { ok: true, moved: moved.length };
@@ -316,7 +316,7 @@ async function deleteCenter(body) {
 /** 강사·전도사 지정용: 이름(또는 번호)으로 명단에서 찾기. */
 async function findCenterStaff(body) {
   const acc = await accessOf(body.memberId);
-  if (!acc.hq) return { error: '전도부만 쓸 수 있어요.' };
+  if (!acc.hq && !acc.centers.length) return { error: '전도부·센터 담당만 쓸 수 있어요.' };
   const q = str(body.q);
   if (q.length < 2) return { rows: [] };
   const digits = q.replace(/\D/g, '');
@@ -326,8 +326,63 @@ async function findCenterStaff(body) {
   return { rows: rows.map((t) => ({ memberId: t.member_id, name: t.name, dept: t.dept, region: t.region, position: t.position })) };
 }
 
+/**
+ * 11/2(사용자): 지역장 승인 = 센터 기수를 먼저 고르고 대기자를 체크해 [지역장 승인] → 승인과 동시에 그 기수로 보낸다.
+ * 요청 건은 승인 기록을 남기고, 예전에 승인만 해 둔 건은 그대로 보낸다.
+ */
+async function approveAndSend(body) {
+  const acc = await accessOf(body.memberId);
+  if (!acc.hq && !acc.scopes.length) return { error: '지역장·교관만 승인할 수 있어요.' };
+  const cid = Number(body.centerId);
+  const [center] = cid ? await run(db().from('centers').select('*').eq('id', cid).limit(1)) : [];
+  if (!center || !center.active) return { error: '보낼 센터 기수를 먼저 골라 주세요(닫힌 기수는 안 돼요).' };
+  const list = [...new Set((body.ids || []).map(Number).filter(Boolean))].slice(0, 200);
+  if (!list.length) return { error: '승인할 대기자를 체크해 주세요.' };
+  const rows = await run(db().from('center_referrals').select('*').in('id', list));
+  const ok = rows.filter((r) => inScope(acc, r) && OPEN.includes(r.status));
+  const now = kstDateTime(), note = String(body.note || '').slice(0, 1000);
+  for (const r of ok) {
+    const snapshot = await refreshSnapshot(r);
+    const patch = {
+      status: '전달', sent_by: signer(acc), sent_by_id: str(body.memberId), sent_at: now, center_id: center.id, send_note: note, snapshot, center_read_at: null,
+      ...(r.status === '요청' ? { decided_by: signer(acc), decided_by_id: str(body.memberId), decided_at: now, decide_note: note } : {}),
+    };
+    await run(db().from('center_referrals').update(patch).eq('id', r.id).eq('status', r.status));
+  }
+  return { ok: true, done: ok.length, skipped: list.length - ok.length, center: centerLabel(center) };
+}
+
+/** 센터 기수 관리: 받은 수강생을 그 기수 전도사에게 배정(빈 값이면 배정 해제). 전도부·그 기수 강사·전도사. */
+async function assignCenterReferral(body) {
+  const acc = await accessOf(body.memberId);
+  const [r] = await run(db().from('center_referrals').select('id, status, center_id').eq('id', Number(body.id)).limit(1));
+  if (!r || r.status !== '전달' || !(acc.hq || acc.centers.includes(r.center_id))) return { error: '배정할 수 있는 건이 아니에요.' };
+  const [c] = await run(db().from('centers').select('staff').eq('id', r.center_id).limit(1));
+  const key = str(body.assignee);   // 전도사 열쇠 = 고유번호(없으면 'name:이름')
+  const s = key ? (c.staff || []).find((x) => staffKey(x) === key) : null;
+  if (key && !s) return { error: '이 기수의 전도사가 아니에요.' };
+  await run(db().from('center_referrals').update({ assignee_id: s ? staffKey(s) : '', assignee_name: s ? s.name : '' }).eq('id', r.id));
+  return { ok: true };
+}
+const staffKey = (s) => (s.memberId ? normId(s.memberId) : 'name:' + s.name);
+
+/** 센터 기수 관리: 이 기수에 전도사(또는 강사) 넣기 — 명단에 없으면 이름만으로도. 전도부·그 기수 강사·전도사. */
+async function addCenterStaff(body) {
+  const acc = await accessOf(body.memberId);
+  const id = Number(body.centerId);
+  if (!(acc.hq || acc.centers.includes(id))) return { error: '이 기수를 관리할 수 있는 분이 아니에요.' };
+  const [c] = await run(db().from('centers').select('staff').eq('id', id).limit(1));
+  if (!c) return { error: '기수를 찾을 수 없어요.' };
+  const add = { memberId: str(body.staffId), name: str(body.staffName).slice(0, 30), role: STAFF_ROLES.includes(str(body.role)) ? str(body.role) : '전도사' };
+  if (!add.name) return { error: '이름을 적어 주세요.' };
+  const staff = c.staff || [];
+  if (staff.some((x) => staffKey(x) === staffKey(add))) return { error: '이미 들어 있는 분이에요.' };
+  await run(db().from('centers').update({ staff: [...staff, add], updated_at: kstDateTime() }).eq('id', id));
+  return { ok: true };
+}
+
 export default {
   getCenterSendState, requestCenterApproval, cancelCenterRequest,
   getCenterDesk, getCenterSendBadge, getCenterReferral, decideCenterReferral, sendToCenter, reopenCenterReferral,
-  saveCenter, deleteCenter, findCenterStaff,
+  saveCenter, deleteCenter, findCenterStaff, approveAndSend, assignCenterReferral, addCenterStaff,
 };
