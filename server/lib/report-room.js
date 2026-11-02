@@ -16,6 +16,11 @@ const tag = (s) => { const v = String(s || '').replace(/[^0-9A-Za-z가-힣_]/g, 
 const REGION_ROOM_ALIAS = { '청년회/새신자': '청년회/기타' };
 const roomKeyOf = (dept, region) => { const k = `${String(dept).trim()}/${String(region).trim()}`; return REGION_ROOM_ALIAS[k] || k; };
 export const regionRoomKey = (t) => (t && t.dept && t.region ? roomKeyOf(t.dept, t.region) : '');
+// 11/2(사용자): 부녀회 명단 지역 '기타' = 회장단(15명, 소속 '기타회장단') — 회장단 방이 이 사람들의 지역 방, 총합 표에선 '회장단'으로 맨 위
+const ORG_LABEL = { '부녀회/기타': '회장단' };
+export const orgLabel = (dept, org) => ORG_LABEL[`${dept}/${org}`] || org;
+// 출석도 그 방에 바로 올리는 지역 방(회장단은 사람이 적어 한 명씩)
+const ATTEND_SHARE = ['부녀회/기타'];
 
 /**
  * 이 부서의 보고방. 부서 방이 없으면 기본 방(dept '*')으로 — 10/23 사용자: "부서를 보고 맞는 방으로, 일단은 봇을 초대한 그 방으로".
@@ -48,7 +53,7 @@ const isRegionRoom = (room) => String(room.dept || '').includes('/');
 
 /** 이 보고를 올릴 방들: 내 방(roomForTeacher) + 내 방이 지역 방이고 상담 이상 건이면 부서 전체 방. 교사 역할이 아니면 지역 방만. */
 export async function roomsForReport(t, row) {
-  const rooms = await roomsByStage(t, row);
+  const rooms = (await roomsByStage(t, row)).filter((r) => !topicPending(r));   // 주제 번호를 아직 모르는 방엔 안 올림(일반 주제로 새지 않게)
   return isTeacherRole(row) ? rooms : rooms.filter(isRegionRoom);
 }
 async function roomsByStage(t, row) {
@@ -241,7 +246,7 @@ export async function buildDailyReports(date, onlyDept = '') {
   return rooms.filter((r) => !onlyDept || r.dept === onlyDept).map((room) => {
     const list = groups.get(room.dept);
     const region = room.dept.includes('/') ? room.dept.split('/')[1] : '';
-    const title = region ? regionOf({ region }) || region : deptLabelOf(room.dept);
+    const title = region ? (ORG_LABEL[room.dept] || regionOf({ region }) || region) : deptLabelOf(room.dept);
     // 아래에 지역 방이 있는 부서 전체 방(= 개강 인도 준비 방)은 상담1~복음방 칸만
     const whole = !region && rooms.some((r) => r.dept.startsWith(room.dept + '/'));
     // 부서 전체 방(지역 방 아닌 방)은 교사 역할 기록만 — 개별 보고와 같은 규칙(10/30)
@@ -270,7 +275,7 @@ export function summaryBoard(dept, date, orgs, actsByOrg) {
   const total = DAILY_SECTIONS.map(() => 0);
   const per = orgs.map((org) => {
     const nums = DAILY_SECTIONS.map(([, items], i) => { const n = countPairs(actsByOrg.get(org) || [], items); total[i] += n; return n; });
-    return { org, nums, sum: nums.reduce((a, b) => a + b, 0) };
+    return { org: orgLabel(dept, org), nums, sum: nums.reduce((a, b) => a + b, 0) };
   });
   const sum = total.reduce((a, b) => a + b, 0);
   const done = orgs.filter((o) => (actsByOrg.get(o) || []).length).length;
@@ -326,7 +331,7 @@ export async function buildSummaryReports(date, onlyKey = '') {
   return sums.map((room) => {
     const dept = room.dept.split('#')[0];
     const orgs = [...new Set([...all.filter((r) => r.dept.startsWith(dept + '/')).map((r) => r.dept.split('/')[1]), ...(SUMMARY_EXTRA_ORGS[dept] || [])])]
-      .sort((a, b) => { const p = orgOrder(a), q = orgOrder(b); return p[0] - q[0] || p[1] - q[1]; });
+      .sort((a, b) => { const k = (o) => (ORG_LABEL[`${dept}/${o}`] ? [-1, 0] : orgOrder(o)); const p = k(a), q = k(b); return p[0] - q[0] || p[1] - q[1]; });   // 회장단 맨 위
     const actsByOrg = new Map(orgs.map((o) => [o, []]));
     for (const a of acts) {
       const t = byNid.get(a.nid);
@@ -344,7 +349,7 @@ export async function buildSummaryReports(date, onlyKey = '') {
  */
 // 11/2(사용자): 부녀회 회장단 방(회장단1구역) — 지역 없이 부서 전체 총합(지역장+교관방과 같은 내용)을 '전도활동방' 주제로
 // 방 열쇠 → 주제 이름에 든 글자(띄어쓰기 빼고)
-const TOPIC_OF_ROOM = { '청년회/06지역': '전도', '청년회/03지역': '보고', '부녀회#총합:회장단': '전도활동' };
+const TOPIC_OF_ROOM = { '청년회/06지역': '전도', '청년회/03지역': '보고', '부녀회#총합:회장단': '전도활동', '부녀회/기타': '전도활동' };
 /** 정한 주제가 있는 방인데 아직 주제 번호를 모르면(그 주제에 아무도 글을 안 씀) 보내지 않는다 — 일반 주제로 새지 않게. */
 export const topicPending = (room) => !!TOPIC_OF_ROOM[room.dept] && !String(room.chat_id).includes('/'); 
 export async function learnSummaryTopic(msg) {
@@ -357,14 +362,29 @@ export async function learnSummaryTopic(msg) {
     .filter((r) => (TOPIC_OF_ROOM[r.dept] ? name.includes(TOPIC_OF_ROOM[r.dept]) : kind === 'sum' && r.dept.includes('#총합')));
   for (const r of rows) await run(db().from('report_rooms').update({ chat_id: `${msg.chat.id}/${th}` }).eq('dept', r.dept));
   const sums = rows.filter((r) => r.dept.includes('#총합'));
-  if (rows.length) await sendText(`${msg.chat.id}/${th}`, sums.length
-    ? `✅ 이 주제로 매일 22시 ${esc(deptLabelOf(sums[0].dept.split('#')[0]))} 지역별 일일 보고 총합이 올라와요.`
-    : '✅ 이 주제로 교사들의 활동 보고와 매일 22시 일일 보고가 올라와요.').catch(() => {});
+  const lines = [
+    ...rows.filter((r) => !r.dept.includes('#')).map((r) => (ORG_LABEL[r.dept]
+      ? `✅ 이 주제로 ${esc(ORG_LABEL[r.dept])} 멤버의 활동 보고${ATTEND_SHARE.includes(r.dept) ? '·출석' : ''}과 매일 22시 일일 보고가 올라와요.`
+      : '✅ 이 주제로 교사들의 활동 보고와 매일 22시 일일 보고가 올라와요.')),
+    ...sums.map((r) => `✅ 이 주제로 매일 22시 ${esc(deptLabelOf(r.dept.split('#')[0]))} 지역별 일일 보고 총합이 올라와요.`),
+  ];
+  if (rows.length) await sendText(`${msg.chat.id}/${th}`, lines.join('\n')).catch(() => {});
   // 11/2: 주제를 처음 배운 총합 방에는 오늘 총합을 샘플로 한 번 올린다
   for (const r of sums) {
     for (const rep of await buildSummaryReports(kstDate(), r.dept)) await sendDaily(rep, '🧪 <b>샘플</b> — 지역장+교관방과 같은 내용\n').catch((e) => console.log('샘플 실패: ' + e.message));
   }
   return rows.length > 0;
+}
+
+/** 출석 한 건을 그 사람 지역 방에(ATTEND_SHARE 방만 — 회장단). person = { name, rosterDept, region }. */
+export async function shareAttendance(person, meeting, rec) {
+  const key = regionRoomKey({ dept: person && person.rosterDept, region: person && person.region });
+  if (!ATTEND_SHARE.includes(key)) return false;
+  const [room] = await run(db().from('report_rooms').select('*').eq('dept', key).eq('active', true).limit(1)).catch(() => []);
+  if (!room || topicPending(room)) return false;
+  const late = /지각/.test(rec.late || '') ? ` · ⏰ ${esc(rec.late)}` : ' · 정상 출석';
+  await sendText(room.chat_id, `✅ <b>출석</b> ${esc(rec.name)}${late}\n📋 ${esc(meeting.title)} (${esc(String(rec.at).slice(5, 16).replace('-', '/'))})`);
+  return true;
 }
 
 /** 일일 보고 한 통 — 총합은 표 사진 + 설명(사진을 못 만들거나 못 보내면 글로). pre = 맨 위에 붙일 HTML 한 줄. */

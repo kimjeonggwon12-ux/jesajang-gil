@@ -389,6 +389,8 @@ async function submitAttendance(body) {
   }
   const record = toRecord(data[0]);
   runLater(m.cohortId && !isTestMeeting(m) ? notifyCohortAttendance(m, record) : notifyAttendance(m, record, data[0].id));   // 알림은 응답을 보낸 뒤에
+  // 11/2: 회장단(부녀회 '기타') 멤버 출석은 회장단 방에도
+  if (!isTestMeeting(m) && !who.guest) runLater(import('../lib/report-room.js').then((r) => r.shareAttendance(person, m, record)).catch((e) => console.log('출석 공유 실패: ' + e.message)));
   return { ok: true, record };
 }
 
