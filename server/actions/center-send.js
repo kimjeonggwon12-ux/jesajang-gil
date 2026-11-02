@@ -124,6 +124,8 @@ async function requestCenterApproval(body) {
   const mid = str(body.memberId);
   const target = await ownedTarget(mid, body.targetId);
   if (!target) return { error: '본인 담당의 섭외자만 요청할 수 있어요.' };
+  // 11/2(사용자): 지역장 승인 요청은 복음방 단계인 분만(센터수강 등 이미 넘어간 분·그 전 단계는 안 됨)
+  if (str(target.stage) !== '복음방') return { error: `복음방 단계인 분만 지역장 승인을 요청할 수 있어요(지금: ${str(target.stage) || '단계 없음'}).` };
   const teacher = await findTeacher(mid);
   if (!teacher) return { error: '교사 명단에서 내 고유번호를 찾을 수 없어요.' };
   if (!str(teacher.region)) return { error: '내 지역이 명단에 없어 지역장을 찾을 수 없어요. 명단 담당자에게 지역을 넣어 달라고 해 주세요.' };
@@ -339,7 +341,13 @@ async function approveAndSend(body) {
   const list = [...new Set((body.ids || []).map(Number).filter(Boolean))].slice(0, 200);
   if (!list.length) return { error: '승인할 대기자를 체크해 주세요.' };
   const rows = await run(db().from('center_referrals').select('*').in('id', list));
-  const ok = rows.filter((r) => inScope(acc, r) && OPEN.includes(r.status));
+  const mine = rows.filter((r) => inScope(acc, r) && OPEN.includes(r.status));
+  // 11/2(사용자): 지금 복음방 단계인 분만 승인·보내기(센터수강 등으로 넘어갔거나 그 전 단계면 안 됨 — 반려로 돌려보내기)
+  const tids = mine.map((r) => r.target_id);
+  const stages = new Map((tids.length ? await run(db().from('targets').select('target_id, stage').in('target_id', tids)) : []).map((t) => [t.target_id, str(t.stage)]));
+  const ok = mine.filter((r) => (stages.get(r.target_id) ?? str(r.stage)) === '복음방');
+  const notGospel = mine.filter((r) => !ok.includes(r)).map((r) => `${r.target_name}(${stages.get(r.target_id) ?? r.stage ?? '-'})`);
+  if (!ok.length && notGospel.length) return { error: `복음방 단계인 분만 승인할 수 있어요: ${notGospel.join(', ')} — 반려로 돌려보내 주세요.` };
   const now = kstDateTime(), note = String(body.note || '').slice(0, 1000);
   for (const r of ok) {
     const snapshot = await refreshSnapshot(r);
@@ -349,7 +357,7 @@ async function approveAndSend(body) {
     };
     await run(db().from('center_referrals').update(patch).eq('id', r.id).eq('status', r.status));
   }
-  return { ok: true, done: ok.length, skipped: list.length - ok.length, center: centerLabel(center) };
+  return { ok: true, done: ok.length, skipped: list.length - ok.length, notGospel, center: centerLabel(center) };
 }
 
 /** 센터 기수 관리: 받은 수강생을 그 기수 전도사에게 배정(빈 값이면 배정 해제). 전도부·그 기수 강사·전도사. */

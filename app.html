@@ -8768,10 +8768,13 @@
       if (!cs.loaded) return '<div class="er-o-note"><span class="loading loading-spinner loading-xs"></span> 확인 중…</div>';
       const step = r ? (CS_STATUS_STEP[r.status] != null ? CS_STATUS_STEP[r.status] : 1) : 0;
       const head = csFlowHtml(step, '섭외부터 복음방까지는 <b>나의 전도 기록</b>이에요. <b>지역장 승인 요청</b>을 누르면 지금까지의 기록 전부(활동·파악한 정보·단계 이력·HEARTS·교관 답)가 서류로 묶여 지역장에게 보고되고, 승인되면 지역장·교관이 이번 개강 센터 기수로 보내요. 센터 강사·전도사는 이 서류로 그분을 잘 맞이하고 관리해요.');
-      const form = (again) => '<label class="cs-f">지역장님께 한마디(선택)<textarea id="erCsNote" rows="3" placeholder="예: 복음방 5과까지 진행, 11월 개강 희망. 가정 사정으로 저녁반 원함"></textarea></label>'
+      // 11/2(사용자): 지역장 승인 요청은 복음방 단계인 분만 — 센터수강 등 이미 넘어간 분·그 전 단계는 요청 칸 대신 안내
+      const form = (again) => p.stage !== '복음방'
+        ? '<div class="er-o-note">📮 지역장 승인 요청은 <b>복음방</b> 단계인 분만 할 수 있어요. 지금 단계: <b>' + esc(p.stage || '없음') + '</b>'
+          + (['센터소개', '센터수강', '수료'].includes(p.stage) ? '<br>이미 센터 쪽으로 넘어간 분이에요.' : '<br>복음방까지 진행한 뒤 요청해 주세요.') + '</div>'
+        : '<label class="cs-f">지역장님께 한마디(선택)<textarea id="erCsNote" rows="3" placeholder="예: 복음방 5과까지 진행, 11월 개강 희망. 가정 사정으로 저녁반 원함"></textarea></label>'
         + '<label class="cs-f">희망 센터·개강(선택)<input id="erCsHope" placeholder="예: 11월 개강 ○○센터"></label>'
-        + '<button type="button" class="er-o-main" ' + (cs.busy ? 'disabled' : '') + ' onclick="erCenterRequest(\'' + id + '\')">' + (cs.busy ? '<span class="loading loading-spinner loading-xs"></span> 서류 묶는 중…' : '📮 ' + (again ? '다시 ' : '') + '지역장 승인 요청') + '</button>'
-        + (['섭외', '친분', '만남1', '만남2'].includes(p.stage) ? '<div class="er-o-note">아직 ' + esc(p.stage) + ' 단계예요. 보통 상담·복음방을 거친 뒤 요청해요(지역장 판단).</div>' : '');
+        + '<button type="button" class="er-o-main" ' + (cs.busy ? 'disabled' : '') + ' onclick="erCenterRequest(\'' + id + '\')">' + (cs.busy ? '<span class="loading loading-spinner loading-xs"></span> 서류 묶는 중…' : '📮 ' + (again ? '다시 ' : '') + '지역장 승인 요청') + '</button>';
       if (cs.error) return head + '<div class="er-o-note">⚠️ ' + esc(cs.error) + '</div>';
       if (!r) return head + form(false);
       const info = '<div class="er-o-card" style="white-space:normal">' + '<b>' + esc({ '요청': '⏳ 지역장 승인을 기다리는 중', '승인': '✅ 지역장 승인 — 센터로 보내는 중', '전달': '🏫 ' + (r.centerLabel || '센터') + '로 전달됐어요', '반려': '↩️ 반려됐어요' }[r.status] || r.status) + '</b>'
@@ -16590,7 +16593,7 @@ async function calAdmInit() {
       function rowHtml(r, pick) {
         const tag = { '요청': '<span class="cs-tag wait">승인 대기</span>', '승인': '<span class="cs-tag">승인됨 · 보내기 전</span>', '전달': '<span class="cs-tag">센터 전달</span>', '반려': '<span class="cs-tag no">반려</span>' }[r.status] || '';
         return '<div class="cs-row">' + (pick ? '<input type="checkbox" ' + (st.sel.has(r.id) ? 'checked' : '') + ' onchange="centerAdm.pick(' + r.id + ', this.checked)">' : '')
-          + '<div class="m"><b>' + esc(r.targetName) + '</b>' + tag
+          + '<div class="m"><b>' + esc(r.targetName) + '</b>' + tag + (pick && r.stage !== '복음방' ? '<span class="cs-tag no">' + esc(r.stage || '단계 없음') + ' · 복음방 아님 — 승인 불가, 반려로</span>' : '')
           + '<div class="sub">교사 ' + esc(r.teacherName) + ' · ' + esc([r.dept, r.region].filter(Boolean).join(' ')) + ' · 요청 때 단계 ' + esc(r.stage || '-') + '<br>요청 ' + esc(r.requestedAt.slice(0, 16))
           + (r.decidedBy && r.status !== '요청' ? ' · 승인 ' + esc(r.decidedBy) + ' ' + esc(r.decidedAt.slice(5, 16)) : '') + (r.centerLabel ? '<br>🏫 ' + esc(r.centerLabel) + ' · ' + esc(r.sentBy) + ' ' + esc(r.sentAt.slice(5, 16)) + (r.centerReadAt ? ' · 센터 열람 ' + esc(r.centerReadAt.slice(5, 16)) : ' · 센터 미열람') : '') + '</div>'
           + (r.requestNote ? '<div class="note">💬 ' + esc(r.requestNote) + (r.hopeCenter ? '\n희망: ' + esc(r.hopeCenter) : '') + '</div>' : r.hopeCenter ? '<div class="note">희망: ' + esc(r.hopeCenter) + '</div>' : '')
@@ -16749,7 +16752,7 @@ async function calAdmInit() {
           if (!to) { st.err = '먼저 위에서 보낼 센터 기수를 골라 주세요.'; st.sure = false; render(); return; }
           if (!st.sel.size) { st.err = '승인할 대기자를 체크해 주세요.'; render(); return; }
           if (!st.sure) { st.sure = true; st.rejecting = false; st.err = ''; render(); return; }   // 한 번 더 눌러야 승인
-          await act({ action: 'approveAndSend', ids: [...st.sel], centerId: to.id }, r => '승인 완료 — ' + r.center + '로 ' + r.done + '명 보냈어요 🏫' + (r.skipped ? ' (처리 못한 ' + r.skipped + '건)' : ''));
+          await act({ action: 'approveAndSend', ids: [...st.sel], centerId: to.id }, r => '승인 완료 — ' + r.center + '로 ' + r.done + '명 보냈어요 🏫' + (r.notGospel && r.notGospel.length ? ' · 복음방 아님(안 보냄): ' + r.notGospel.join(', ') : r.skipped ? ' (처리 못한 ' + r.skipped + '건)' : ''));
         },
         async reject() {
           if (!st.sel.size) { st.err = '반려할 대기자를 체크해 주세요.'; render(); return; }

@@ -40,6 +40,10 @@ try {
   assert.ok(centerId);
 
   assert.match((await a.requestCenterApproval({ ...L, targetId: tid })).error, /본인 담당/);
+  // 복음방 단계인 분만 요청 가능
+  await run(db().from('targets').update({ stage: '센터수강' }).eq('target_id', tid));
+  assert.match((await a.requestCenterApproval({ ...T, targetId: tid })).error, /복음방 단계인 분만/);
+  await run(db().from('targets').update({ stage: '복음방' }).eq('target_id', tid));
   const req = await a.requestCenterApproval({ ...T, targetId: tid, note: '복음방 3과까지', hopeCenter: '11월 개강' });
   assert.equal(req.referral.status, '요청'); assert.equal(req.referral.region, 'ZZ지역');
   assert.match((await a.requestCenterApproval({ ...T, targetId: tid })).error, /이미/);
@@ -75,6 +79,9 @@ try {
   // 지역장 승인 = 센터 기수 골라 승인과 동시에 보내기
   assert.match((await a.approveAndSend({ ...L, ids: [rid] })).error, /센터 기수/);
   assert.equal((await a.approveAndSend({ ...X, ids: [rid], centerId })).done, 0);   // 다른 지역
+  await run(db().from('targets').update({ stage: '센터수강' }).eq('target_id', tid));   // 요청 뒤 단계가 넘어가면 승인 불가
+  assert.match((await a.approveAndSend({ ...L, ids: [rid], centerId })).error, /복음방 단계인 분만/);
+  await run(db().from('targets').update({ stage: '복음방' }).eq('target_id', tid));
   assert.equal((await a.approveAndSend({ ...L, ids: [rid], centerId })).done, 1);
   back = (await a.getCenterSendState({ ...T, targetId: tid })).referral;
   assert.equal(back.status, '전달'); assert.match(back.decidedBy, /시험지역장/);
