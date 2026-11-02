@@ -16671,7 +16671,7 @@ async function calAdmInit() {
           keepForm();
           const f = st.form;
           st.busy = true; st.err = ''; render();
-          const res = await call({ action: 'saveCenter', id: f.id || undefined, name: f.name, cohortNo: f.cohortNo, openMonth: f.openMonth, openDate: f.openDate, memo: f.memo, active: f.active, staff: f.staff });
+          const res = await call({ action: 'saveCenter', id: f.id || undefined, centerName: f.name, cohortNo: f.cohortNo, openMonth: f.openMonth, openDate: f.openDate, memo: f.memo, active: f.active, staff: f.staff });
           st.busy = false;
           if (!res || res.error) { st.err = (res && res.error) || '저장하지 못했어요'; render(); return; }
           st.form = null; toast('센터·기수를 저장했어요'); await load();

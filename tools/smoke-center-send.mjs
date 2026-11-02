@@ -35,8 +35,8 @@ try {
 
   // ── 센터 보내기 ──
   await run(db().from('targets').insert({ target_id: tid, creator_id: T.memberId, teacher_name: T.name, target_name: '홍길동', stage: '복음방', created_at: kstDateTime(), updated_at: kstDateTime() }));
-  assert.match((await a.saveCenter({ ...L, name: 'X', openMonth: '2026-11' })).error, /전도부/);
-  centerId = (await a.saveCenter({ ...HQ, name: 'ZZ시험센터', cohortNo: '1기', openMonth: '2026-11', staff: [{ ...S, role: '강사' }] })).id;
+  assert.match((await a.saveCenter({ ...L, centerName: 'X', openMonth: '2026-11' })).error, /전도부/);
+  centerId = (await a.saveCenter({ ...HQ, centerName: 'ZZ시험센터', cohortNo: '1기', openMonth: '2026-11', staff: [{ ...S, role: '강사' }] })).id;
   assert.ok(centerId);
 
   assert.match((await a.requestCenterApproval({ ...L, targetId: tid })).error, /본인 담당/);

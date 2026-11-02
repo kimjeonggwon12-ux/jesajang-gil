@@ -275,7 +275,7 @@ function cleanStaff(list) {
 async function saveCenter(body) {
   const acc = await accessOf(body.memberId);
   if (!acc.hq) return { error: '센터 만들기는 전도부(교육·전도 담당 관리자)만 할 수 있어요.' };
-  const name = str(body.name).slice(0, 40);
+  const name = str(body.centerName ?? body.name).slice(0, 40);   // 11/2: 화면은 centerName — 'name'은 앱이 로그인 이름으로 덮어씀
   const openMonth = str(body.openMonth);
   const openDate = str(body.openDate);
   if (!name) return { error: '센터 이름을 적어 주세요.' };
