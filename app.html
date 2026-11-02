@@ -16578,6 +16578,7 @@ async function calAdmInit() {
         if (!tabs.length) body = '<div class="cs-empty">센터 보내기는 <b>지역장·교관</b>(자기 지역 요청 승인·보내기), <b>센터 강사·전도사</b>(받은 서류), <b>전도부</b>(센터·기수 만들기)가 써요.<br>교사는 <b>나의 활동 → 섭외자 화면 → 📮 센터 보내기</b>에서 지역장 승인을 요청해요.</div>';
         else if (st.tab === 'centers') body = centersHtml();
         else if (st.tab === 'inbox') body = inboxHtml();
+        else if (st.tab === 'send') body = sendHtml();
         else {
           const list = rowsOf(st.tab), pick = st.tab === 'decide' || st.tab === 'send';
           body = list.length ? list.map(r => rowHtml(r, pick)).join('') : '<div class="cs-empty">' + ({ decide: '승인을 기다리는 요청이 없어요.', send: '승인했지만 아직 센터로 보내지 않은 건이 없어요.', sent: '아직 센터로 보낸 건이 없어요.', rejected: '반려한 건이 없어요.', inbox: '아직 이 센터로 들어온 서류가 없어요.' }[st.tab] || '') + '</div>';
@@ -16593,62 +16594,60 @@ async function calAdmInit() {
         if (st.tab === 'decide') return '<div class="cs-bar"><textarea id="csNote" placeholder="승인 메모 또는 반려 사유(반려할 때는 꼭 적어 주세요 — 교사에게 보여요)"></textarea>'
           + '<button type="button" class="ra-btn" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.decide(\'승인\')">✅ 고른 ' + k + '건 승인</button>'
           + '<button type="button" class="ra-btn warn" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.decide(\'반려\')">반려</button></div>';
-        // 11/2: 섭외자를 체크 → ① 센터 고르기 → ② 그 센터의 기수 목록에서 고르기 → 그 기수로 서류가 들어감
-        if (!open.length) return '<div class="cs-bar"><div class="ra-note">아직 열린 센터·기수가 없어요. 전도부에 이번 개강 센터·기수를 만들어 달라고 해 주세요.</div></div>';
-        const groups = csGroups(open);
-        if (!groups.some(g => g[0] === st.toName)) st.toName = groups.length === 1 ? groups[0][0] : '';
-        const cohorts = st.toName ? groups.find(g => g[0] === st.toName)[1] : [];
-        if (!cohorts.some(c => c.id === st.toId)) st.toId = cohorts.length === 1 ? cohorts[0].id : 0;
-        const to = cohorts.find(c => c.id === st.toId);
-        const btn = !k ? '보낼 섭외자를 위에서 체크해 주세요' : !st.toName ? '센터를 골라 주세요' : !to ? '기수를 골라 주세요' : '🏫 ' + esc(to.label.split(' · ')[0]) + '로 ' + k + '건 보내기';
-        return '<div class="cs-bar">'
-          + '<div class="cs-pick"><b>① 어느 센터로 보낼까요?</b><div class="cs-chips">' + groups.map(([n, cs], i) => '<button type="button" class="cs-chip ' + (st.toName === n ? 'on' : '') + '" onclick="centerAdm.toCenter(' + i + ')">' + esc(n) + '<small>기수 ' + cs.length + '개</small></button>').join('') + '</div></div>'
-          + (st.toName ? '<div class="cs-pick"><b>② ' + esc(st.toName) + '의 어느 기수로?</b><div class="cs-chips">' + cohorts.map(c => '<button type="button" class="cs-chip ' + (st.toId === c.id ? 'on' : '') + '" onclick="centerAdm.toCohort(' + c.id + ')">' + esc(c.cohortNo || '(기수 없음)') + '<small>' + esc(csMonth(c)) + ' · 받은 서류 ' + (c.received || 0) + '건</small></button>').join('') + '</div></div>' : '')
-          + '<textarea id="csNote" placeholder="센터에 전할 말(선택)" oninput="centerAdm.note(this.value)">' + esc(st.note || '') + '</textarea>'
-          + '<button type="button" class="ra-btn" ' + (k && to && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.send()">' + btn + '</button></div>';
+        return '';
       }
-      // 센터 이름별로 기수를 묶는다(개강 월 최근 순은 서버 순서 그대로)
-      function csGroups(list) {
-        const m = new Map();
-        list.forEach(c => { const n = String(c.name || '').trim() || '(이름 없음)'; if (!m.has(n)) m.set(n, []); m.get(n).push(c); });
-        return [...m];
+      // 11/2(사용자): "00센터 000기" 하나가 한 센터 — 보내기 = ① 센터 기수 먼저 고르기 → ② 내 소속 섭외자 체크 → 보내기 → 그 기수로 쏙
+      const csName = c => [c.name, c.cohortNo].filter(Boolean).join(' ');
+      function sendHtml() {
+        const open = st.data.centers.filter(c => c.active), list = rowsOf('send'), k = st.sel.size;
+        if (!open.length) return '<div class="cs-empty">아직 열린 센터 기수가 없어요. 전도부에 이번 개강 센터 기수(예: 덕진센터 165기)를 만들어 달라고 해 주세요.</div>';
+        if (!open.some(c => c.id === st.toId)) st.toId = open.length === 1 ? open[0].id : 0;
+        const to = open.find(c => c.id === st.toId);
+        let h = '<div class="cs-bar" style="margin-top:4px"><div class="cs-pick"><b>① 보낼 센터 기수를 먼저 고르세요</b><div class="cs-chips">'
+          + open.map(c => '<button type="button" class="cs-chip ' + (st.toId === c.id ? 'on' : '') + '" onclick="centerAdm.toCohort(' + c.id + ')">' + esc(csName(c)) + '<small>' + esc(csMonth(c)) + ' · 받은 서류 ' + (c.received || 0) + '건</small></button>').join('')
+          + '</div></div></div>';
+        if (!to) return h + '<div class="cs-empty">위에서 센터 기수를 고르면 보낼 수 있는 섭외자(지역장 승인 끝난 건)가 나와요.</div>';
+        h += '<div style="margin:14px 2px 4px;font-size:14px;font-weight:800">② <span style="color:#00875f">' + esc(csName(to)) + '</span>에 담을 섭외자를 체크하세요 <small style="font-weight:500;color:#6b7772">(승인된 ' + list.length + '건)</small></div>';
+        if (!list.length) return h + '<div class="cs-empty">승인했지만 아직 센터로 보내지 않은 섭외자가 없어요. <b>승인 요청</b> 탭에서 먼저 승인해 주세요.</div>';
+        h += list.map(r => rowHtml(r, true)).join('');
+        return h + '<div class="cs-bar"><textarea id="csNote" placeholder="센터에 전할 말(선택)" oninput="centerAdm.note(this.value)">' + esc(st.note || '') + '</textarea>'
+          + '<button type="button" class="ra-btn" ' + (k && !st.busy ? '' : 'disabled') + ' onclick="centerAdm.send()">' + (k ? '🏫 ' + esc(csName(to)) + '에 ' + k + '건 담기' : '담을 섭외자를 체크해 주세요') + '</button></div>';
       }
       const csMonth = c => (c.openDate ? c.openDate.slice(5).replace('-', '/') + ' 개강' : c.openMonth ? Number(c.openMonth.slice(5)) + '월 개강' : '개강일 미정');
-      // 기수 카드 + 그 기수로 들어온 서류(받은 서류) 목록
+      // 센터 기수 카드 + 그 기수로 들어온 서류 — 11/2(사용자): 강사·전도사가 교자장부청으로 나눠 보게
+      const CS_ORGS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
+      const csOrgOf = r => CS_ORGS.find(o => String(r.dept || '').includes(o.replace('회', ''))) || '기타';
       function cohortHtml(c, manage) {
         const docs = st.data.inbox.filter(r => r.centerId === c.id), unread = docs.filter(r => !r.centerReadAt).length;
-        return '<div class="cs-coh"><div class="cs-coh-h">' + esc(c.cohortNo || '(기수 없음)') + ' <small style="font-weight:500;color:#6b7772">' + esc(csMonth(c)) + '</small>'
-          + (c.active ? '<span class="cs-tag">열림</span>' : '<span class="cs-tag no">닫힘</span>') + (unread ? '<span class="cs-tag new">새 서류 ' + unread + '</span>' : '')
-          + (manage ? '<span style="margin-left:auto;display:flex;gap:6px"><button type="button" class="ra-btn line" style="height:34px;font-size:13.5px;padding:0 10px" onclick="centerAdm.edit(' + c.id + ')">고치기</button>'
+        const byOrg = [...CS_ORGS, '기타'].map(o => [o, docs.filter(r => csOrgOf(r) === o)]);
+        return '<div class="cs-grp"><div class="cs-grp-h"><span>🏫 ' + esc(csName(c)) + ' <small style="font-size:13px;font-weight:500;color:#6b7772">' + esc(csMonth(c)) + '</small></span>'
+          + (manage ? '<span style="display:flex;gap:6px"><button type="button" class="ra-btn line" style="height:34px;font-size:13.5px;padding:0 10px" onclick="centerAdm.edit(' + c.id + ')">고치기</button>'
             + '<button type="button" class="ra-btn warn" style="height:34px;font-size:13.5px;padding:0 10px" onclick="centerAdm.delCenter(' + c.id + ', this)">삭제</button></span>' : '') + '</div>'
-          + '<div class="sub" style="font-size:12.5px;color:#6b7772;margin-top:4px">' + (c.staff.length ? '받는 사람 ' + c.staff.map(x => esc(x.role + ' ' + x.name)).join(', ') : '받는 사람(강사·전도사) 없음') + '</div>'
-          + '<div style="margin-top:6px;font-size:13.5px;font-weight:700">📥 받은 서류 ' + docs.length + '건</div>'
-          + docs.map(r => '<button type="button" class="cs-dl" onclick="centerAdm.open(' + r.id + ')"><b>' + esc(r.targetName) + '</b><span>교사 ' + esc(r.teacherName) + ' · ' + esc([r.dept, r.region].filter(Boolean).join(' ')) + ' · ' + esc(r.sentAt.slice(5, 16)) + ' 받음</span>'
-            + (r.centerReadAt ? '' : '<span class="cs-tag new" style="flex:0 0 auto">새 서류</span>') + '📂</button>').join('')
+          + '<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">' + (c.active ? '<span class="cs-tag">열림</span>' : '<span class="cs-tag no">닫힘</span>') + (unread ? '<span class="cs-tag new">새 서류 ' + unread + '</span>' : '')
+          + '<span style="font-size:12.5px;color:#6b7772">' + (c.staff.length ? '받는 사람 ' + c.staff.map(x => esc(x.role + ' ' + x.name)).join(', ') : '받는 사람(강사·전도사) 없음') + '</span></div>'
+          + '<div style="margin-top:8px;font-size:14px;font-weight:800">📥 받은 서류 ' + docs.length + '건' + (docs.length ? ' <small style="font-weight:500;color:#6b7772">— ' + byOrg.filter(([, l]) => l.length).map(([o, l]) => o + ' ' + l.length).join(' · ') + '</small>' : '') + '</div>'
+          + byOrg.filter(([o, l]) => l.length || o !== '기타').map(([o, l]) => '<div class="cs-coh"><div class="cs-coh-h">' + esc(o) + ' <small style="font-weight:500;color:#6b7772">' + l.length + '건</small></div>'
+            + (l.length ? l.map(r => '<button type="button" class="cs-dl" onclick="centerAdm.open(' + r.id + ')"><b>' + esc(r.targetName) + '</b><span>교사 ' + esc(r.teacherName) + (r.region ? ' · ' + esc(r.region) : '') + ' · ' + esc(r.sentAt.slice(5, 16)) + ' 받음</span>'
+              + (r.centerReadAt ? '' : '<span class="cs-tag new" style="flex:0 0 auto">새 서류</span>') + '📂</button>').join('') : '<div style="font-size:12.5px;color:#9aa5a0;margin-top:4px">아직 없음</div>') + '</div>').join('')
           + '</div>';
-      }
-      function cohortGroupsHtml(list, manage) {
-        return csGroups(list).map(([n, cs]) => '<div class="cs-grp"><div class="cs-grp-h">🏫 ' + esc(n) + (manage ? '<button type="button" class="ra-btn line" style="height:34px;font-size:13.5px;padding:0 10px" onclick="centerAdm.addCohort(' + cs[0].id + ')">+ 이 센터에 기수 추가</button>' : '') + '</div>'
-          + cs.map(c => cohortHtml(c, manage)).join('') + '</div>').join('');
       }
       function centersHtml() {
         const cs = st.data.centers;
-        return '<div class="ra-note">개강마다 센터에 기수를 만들고 강사·전도사를 넣어 주세요. 지역장·교관이 섭외자를 체크하고 <b>센터 → 기수</b>를 고르면 그 기수 아래 <b>받은 서류</b>로 바로 들어와요.</div>'
-          + '<button type="button" class="ra-btn" onclick="centerAdm.edit(0)">+ 새 센터·기수</button>'
-          + (cs.length ? cohortGroupsHtml(cs, true) : '<div class="cs-empty">아직 만든 센터가 없어요.</div>');
+        return '<div class="ra-note">개강마다 <b>센터 기수</b>(예: 덕진센터 165기)를 하나씩 만들고 강사·전도사를 넣어 주세요. 지역장·교관이 이 기수를 고르고 섭외자를 체크해 보내면 아래 <b>받은 서류</b>에 교자장부청별로 바로 들어와요.</div>'
+          + '<button type="button" class="ra-btn" onclick="centerAdm.edit(0)">+ 새 센터 기수</button>'
+          + (cs.length ? cs.map(c => cohortHtml(c, true)).join('') : '<div class="cs-empty">아직 만든 센터 기수가 없어요.</div>');
       }
-      // 강사·전도사(받는 사람)의 받은 서류 — 내 센터의 기수별로
+      // 강사·전도사(받는 사람)의 받은 서류 — 내 센터 기수마다, 교자장부청별로
       function inboxHtml() {
         const mine = st.data.centers.filter(c => st.data.me.centers.includes(c.id));
-        return mine.length ? cohortGroupsHtml(mine, false) : '<div class="cs-empty">아직 이 센터로 들어온 서류가 없어요.</div>';
+        return mine.length ? mine.map(c => cohortHtml(c, false)).join('') : '<div class="cs-empty">아직 이 센터로 들어온 서류가 없어요.</div>';
       }
       function renderForm() {
         const f = st.form, roles = st.data.staffRoles || ['강사', '전도사', '담당'];
         root().innerHTML = '<button type="button" class="ra-btn line" onclick="centerAdm.edit(null)">‹ 목록</button>'
-          + '<div style="font-size:17px;font-weight:800;margin:14px 2px 4px">' + (f.id ? '센터·기수 고치기' : '새 센터·기수') + '</div>'
-          + '<label class="cs-f">센터 이름<input id="cfName" value="' + esc(f.name || '') + '" placeholder="예: 전주센터"></label>'
-          + '<div class="ra-two"><label class="cs-f">기수<input id="cfCohort" value="' + esc(f.cohortNo || '') + '" placeholder="예: 43기"></label>'
-          + '<label class="cs-f">개강 월<input id="cfMonth" type="month" value="' + esc(f.openMonth || '') + '"></label></div>'
+          + '<div style="font-size:17px;font-weight:800;margin:14px 2px 4px">' + (f.id ? '센터 기수 고치기' : '새 센터 기수') + '</div>'
+          + '<label class="cs-f">센터 기수 이름<input id="cfName" value="' + esc(csName(f)) + '" placeholder="예: 덕진센터 165기"></label>'
+          + '<label class="cs-f">개강 월<input id="cfMonth" type="month" value="' + esc(f.openMonth || '') + '"></label>'
           + '<label class="cs-f">개강일(선택)<input id="cfDate" type="date" value="' + esc(f.openDate || '') + '"></label>'
           + '<label class="cs-f">메모<textarea id="cfMemo" rows="2">' + esc(f.memo || '') + '</textarea></label>'
           + '<label class="cs-f"><input type="checkbox" id="cfActive" ' + (f.active !== false ? 'checked' : '') + ' style="display:inline;width:auto;margin-right:6px">열림(지역장·교관이 보낼 수 있음)</label>'
@@ -16663,7 +16662,7 @@ async function calAdmInit() {
       function keepForm() {
         const v = id => (document.getElementById(id) || {}).value;
         if (!st.form || !document.getElementById('cfName')) return;
-        Object.assign(st.form, { name: v('cfName'), cohortNo: v('cfCohort'), openMonth: v('cfMonth'), openDate: v('cfDate'), memo: v('cfMemo'), active: document.getElementById('cfActive').checked });
+        Object.assign(st.form, { name: v('cfName'), cohortNo: '', openMonth: v('cfMonth'), openDate: v('cfDate'), memo: v('cfMemo'), active: document.getElementById('cfActive').checked });
         st.staffQ = v('cfQ') || '';
       }
       function renderDoc() {
@@ -16688,19 +16687,12 @@ async function calAdmInit() {
           await act({ action: 'decideCenterReferral', ids: [...st.sel], decision, note }, r => decision + ' ' + r.done + '건' + (r.skipped ? ' (처리 못한 ' + r.skipped + '건)' : ''));
         },
         async send() {
-          if (!st.toId) { st.err = '보낼 센터와 기수를 골라 주세요.'; render(); return; }
+          if (!st.toId) { st.err = '보낼 센터 기수를 먼저 골라 주세요.'; render(); return; }
           const res = await act({ action: 'sendToCenter', ids: [...st.sel], centerId: st.toId, note: st.note || '' }, r => r.center + '로 ' + r.done + '건 보냈어요 🏫');
           if (res) st.note = '';
         },
-        toCenter(i) { const g = csGroups(st.data.centers.filter(c => c.active))[i]; if (!g) return; st.toName = st.toName === g[0] ? '' : g[0]; st.toId = 0; st.err = ''; render(); },
-        toCohort(id) { st.toId = st.toId === id ? 0 : id; st.err = ''; render(); },
+        toCohort(id) { st.toId = st.toId === id ? 0 : id; st.sel.clear(); st.err = ''; render(); },
         note(v) { st.note = v; },
-        addCohort(fromId) {
-          const c = st.data.centers.find(x => x.id === fromId); if (!c) return;
-          st.err = ''; st.staffHits = []; st.staffQ = '';
-          st.form = { name: c.name, cohortNo: '', openMonth: '', openDate: '', memo: '', active: true, staff: [...c.staff] };
-          render();
-        },
         async delCenter(id, btn) {
           const c = st.data.centers.find(x => x.id === id); if (!c) return;
           const n = st.data.inbox.filter(r => r.centerId === id).length;
@@ -16741,7 +16733,7 @@ async function calAdmInit() {
           const res = await call({ action: 'saveCenter', id: f.id || undefined, centerName: f.name, cohortNo: f.cohortNo, openMonth: f.openMonth, openDate: f.openDate, memo: f.memo, active: f.active, staff: f.staff });
           st.busy = false;
           if (!res || res.error) { st.err = (res && res.error) || '저장하지 못했어요'; render(); return; }
-          st.form = null; toast('센터·기수를 저장했어요'); await load();
+          st.form = null; toast('센터 기수를 저장했어요'); await load();
         },
       };
     })();
