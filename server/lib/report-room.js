@@ -19,8 +19,6 @@ export const regionRoomKey = (t) => (t && t.dept && t.region ? roomKeyOf(t.dept,
 // 11/2(사용자): 부녀회 명단 지역 '기타' = 회장단(15명, 소속 '기타회장단') — 회장단 방이 이 사람들의 지역 방, 총합 표에선 '회장단'으로 맨 위
 const ORG_LABEL = { '부녀회/기타': '회장단' };
 export const orgLabel = (dept, org) => ORG_LABEL[`${dept}/${org}`] || org;
-// 출석도 그 방에 바로 올리는 지역 방(회장단은 사람이 적어 한 명씩)
-const ATTEND_SHARE = ['부녀회/기타'];
 
 /**
  * 이 부서의 보고방. 부서 방이 없으면 기본 방(dept '*')으로 — 10/23 사용자: "부서를 보고 맞는 방으로, 일단은 봇을 초대한 그 방으로".
@@ -349,7 +347,7 @@ export async function buildSummaryReports(date, onlyKey = '') {
  */
 // 11/2(사용자): 부녀회 회장단 방(회장단1구역) — 지역 없이 부서 전체 총합(지역장+교관방과 같은 내용)을 '전도활동방' 주제로
 // 방 열쇠 → 주제 이름에 든 글자(띄어쓰기 빼고)
-const TOPIC_OF_ROOM = { '청년회/06지역': '전도', '청년회/03지역': '보고', '부녀회#총합:회장단': '전도활동', '부녀회/기타': '전도활동' };
+const TOPIC_OF_ROOM = { '청년회/06지역': '전도', '청년회/03지역': '보고', '부녀회#총합:회장단': '전도활동', '부녀회/기타': '전도활동', '부녀회/기타#출결': '출결' };
 /** 정한 주제가 있는 방인데 아직 주제 번호를 모르면(그 주제에 아무도 글을 안 씀) 보내지 않는다 — 일반 주제로 새지 않게. */
 export const topicPending = (room) => !!TOPIC_OF_ROOM[room.dept] && !String(room.chat_id).includes('/'); 
 export async function learnSummaryTopic(msg) {
@@ -362,13 +360,17 @@ export async function learnSummaryTopic(msg) {
     .filter((r) => (TOPIC_OF_ROOM[r.dept] ? name.includes(TOPIC_OF_ROOM[r.dept]) : kind === 'sum' && r.dept.includes('#총합')));
   for (const r of rows) await run(db().from('report_rooms').update({ chat_id: `${msg.chat.id}/${th}` }).eq('dept', r.dept));
   const sums = rows.filter((r) => r.dept.includes('#총합'));
+  const rolls = rows.filter((r) => r.dept.endsWith('#출결'));
   const lines = [
     ...rows.filter((r) => !r.dept.includes('#')).map((r) => (ORG_LABEL[r.dept]
-      ? `✅ 이 주제로 ${esc(ORG_LABEL[r.dept])} 멤버의 활동 보고${ATTEND_SHARE.includes(r.dept) ? '·출석' : ''}과 매일 22시 일일 보고가 올라와요.`
+      ? `✅ 이 주제로 ${esc(ORG_LABEL[r.dept])} 멤버의 전도 활동 보고와 매일 22시 일일 보고가 올라와요.`
       : '✅ 이 주제로 교사들의 활동 보고와 매일 22시 일일 보고가 올라와요.')),
     ...sums.map((r) => `✅ 이 주제로 매일 22시 ${esc(deptLabelOf(r.dept.split('#')[0]))} 지역별 일일 보고 총합이 올라와요.`),
+    ...rolls.map((r) => `✅ 이 주제로 ${esc(ORG_LABEL[r.dept.split('#')[0]] || r.dept)} 멤버 출결 현황이 모임마다 마감 때 취합돼 올라와요.`),
   ];
   if (rows.length) await sendText(`${msg.chat.id}/${th}`, lines.join('\n')).catch(() => {});
+  // 출결 주제를 처음 배우면 최근 모임 출결을 샘플로 한 번
+  for (const r of rolls) await rollCallSample(r.dept).catch((e) => console.log('출결 샘플 실패: ' + e.message));
   // 11/2: 주제를 처음 배운 총합 방에는 오늘 총합을 샘플로 한 번 올린다
   for (const r of sums) {
     for (const rep of await buildSummaryReports(kstDate(), r.dept)) await sendDaily(rep, '🧪 <b>샘플</b> — 지역장+교관방과 같은 내용\n').catch((e) => console.log('샘플 실패: ' + e.message));
@@ -376,15 +378,65 @@ export async function learnSummaryTopic(msg) {
   return rows.length > 0;
 }
 
-/** 출석 한 건을 그 사람 지역 방에(ATTEND_SHARE 방만 — 회장단). person = { name, rosterDept, region }. */
-export async function shareAttendance(person, meeting, rec) {
-  const key = regionRoomKey({ dept: person && person.rosterDept, region: person && person.region });
-  if (!ATTEND_SHARE.includes(key)) return false;
-  const [room] = await run(db().from('report_rooms').select('*').eq('dept', key).eq('active', true).limit(1)).catch(() => []);
-  if (!room || topicPending(room)) return false;
-  const late = /지각/.test(rec.late || '') ? ` · ⏰ ${esc(rec.late)}` : ' · 정상 출석';
-  await sendText(room.chat_id, `✅ <b>출석</b> ${esc(rec.name)}${late}\n📋 ${esc(meeting.title)} (${esc(String(rec.at).slice(5, 16).replace('-', '/'))})`);
-  return true;
+// ── 멤버 출결 취합 (11/2 사용자: "출결은 각종 취합 출결 주제로, 멤버 15명이면 그중 몇 명 출석인지 집계, 전도 활동만 전도활동방") ──
+// 방 열쇠 '부서/지역#출결' = 그 지역(회장단) 멤버 전원 대비 출결. 모임이 마감(출석 마감 서머리)될 때 모임마다 한 번.
+const ROLL_ROOMS = ['부녀회/기타#출결'];
+async function rollMembers(key) {
+  const [dept, region] = key.split('#')[0].split('/');
+  // 부서 전체(1천 줄 넘음)를 읽지 않고 그 지역만 — 지역 이름이 방 열쇠와 같은 경우(별칭 지역은 아직 출결 방 없음)
+  const rows = await run(db().from('teachers').select('nid, name, dept, region, affiliation, sort_order').eq('dept', dept).eq('region', region).order('sort_order'));
+  return rows.filter((t) => regionRoomKey(t) === key.split('#')[0]);
+}
+/** 한 모임의 멤버 출결 글(HTML). 멤버가 한 명도 안 왔으면 null. */
+function rollText(key, meeting, members, records) {
+  const came = new Map();
+  for (const r of records) { const n = normId(r.memberId ?? r.member_id); if (!came.has(n)) came.set(n, r); }
+  const yes = members.filter((t) => came.has(t.nid)), no = members.filter((t) => !came.has(t.nid));
+  if (!yes.length) return null;
+  const late = yes.filter((t) => /지각/.test(came.get(t.nid).late || ''));
+  const pctv = Math.round((yes.length / members.length) * 1000) / 10;
+  const who = ORG_LABEL[key.split('#')[0]] || key;
+  const when = `${String(meeting.date || '').slice(5).replace('-', '/')}${meeting.start ? ' ' + meeting.start : ''}${meeting.end ? '~' + meeting.end : ''}`;
+  return [
+    `📋 <b>${esc(who)} 출결 — ${esc(meeting.title)}</b> (${esc(when)})`,
+    `✅ 출석 <b>${yes.length}/${members.length}명</b> (${pctv}%) · 정상 ${yes.length - late.length} · 지각 ${late.length}`,
+    '',
+    `🙋 출석 ${yes.length}명: ` + yes.map((t) => { const l = came.get(t.nid).late || ''; return esc(t.name) + (/지각/.test(l) ? `(${esc(l)})` : ''); }).join(', '),
+    `❌ 미출석 ${no.length}명: ` + (no.length ? no.map((t) => esc(t.name)).join(', ') : '없음'),
+  ].join('\n');
+}
+/** 출석 마감 때(attAutoSummary) 부름 — 출결 방마다 그 모임 멤버 출결을 한 번 올린다. records = loadRecords 결과. */
+export async function postRollCalls(meeting, records) {
+  const rooms = await run(db().from('report_rooms').select('*').in('dept', ROLL_ROOMS).eq('active', true)).catch(() => []);
+  const sent = [];
+  for (const room of rooms) {
+    if (topicPending(room)) continue;
+    const text = rollText(room.dept, meeting, await rollMembers(room.dept), records);
+    if (!text) continue;
+    const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#roll-call', kind: '출결', ref_id: `${room.dept}|${meeting.meetingId}`, date: meeting.date, sent_at: kstDateTime() });
+    if (error) continue;   // 이미 보냄
+    await sendText(room.chat_id, text);
+    sent.push(room.dept);
+  }
+  return sent;
+}
+/** 출결 주제를 처음 배웠을 때: 최근 2주 안에 멤버가 출석한 가장 최근 모임 하나를 샘플로. dryRun 이면 글만 돌려준다. */
+const sendTextReal = (chat, text) => sendText(chat, text);
+export async function rollCallSample(key, dryRun = false) {
+  const [room] = await run(db().from('report_rooms').select('*').eq('dept', key).limit(1));
+  if (!room || (!dryRun && topicPending(room))) return null;
+  if (dryRun) room.chat_id = null;
+  const sendText = async (chat, text) => { if (!dryRun) await sendTextReal(chat, text); return text; };
+  const members = await rollMembers(key);
+  const since = kstDate(new Date(Date.now() - 14 * 864e5));
+  const meetings = await run(db().from('attend_meetings').select('meeting_id, title, date, start_time, end_time').neq('status', '삭제').gte('date', since).lte('date', kstDate()).order('date', { ascending: false }).limit(40));
+  for (const m of meetings) {
+    if (String(m.title).startsWith('[TEST]')) continue;
+    const recs = await run(db().from('attend_records').select('member_id, late').eq('meeting_id', m.meeting_id).in('nid', members.map((t) => t.nid)));
+    const text = rollText(key, { meetingId: m.meeting_id, title: m.title, date: m.date, start: String(m.start_time || '').slice(0, 5), end: String(m.end_time || '').slice(0, 5) }, members, recs);
+    if (text) { return await sendText(room.chat_id, '🧪 <b>샘플</b> — 최근 모임 출결\n' + text); }
+  }
+  return await sendText(room.chat_id, `🧪 <b>샘플</b> — 최근 2주 모임에 ${esc(ORG_LABEL[key.split('#')[0]] || key)} 멤버(${members.length}명) 출석 기록이 없어요.`);
 }
 
 /** 일일 보고 한 통 — 총합은 표 사진 + 설명(사진을 못 만들거나 못 보내면 글로). pre = 맨 위에 붙일 HTML 한 줄. */
@@ -459,6 +511,7 @@ export async function reportRooms(body) {
     }
     return { rooms: out };
   }
+  if (op === 'roll') return { text: await rollCallSample(String(body.dept || '부녀회/기타#출결'), !body.send) };   // 11/2 멤버 출결 취합 미리 보기(send 면 그 방에)
   if (op === 'admins') {   // 방 관리자 목록(다른 봇이 있는지 보기용, 글 안 올림)
     const j = await (await fetch(`https://api.telegram.org/bot${botToken()}/getChatAdministrators?chat_id=${encodeURIComponent(String(body.chatId || ''))}`)).json().catch(() => ({}));
     return j.ok ? { admins: j.result.map((a) => ({ name: [a.user.first_name, a.user.last_name].filter(Boolean).join(' '), username: a.user.username || '', bot: a.user.is_bot })) } : { error: j.description };

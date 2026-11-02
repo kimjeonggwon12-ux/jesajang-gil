@@ -388,10 +388,7 @@ async function submitAttendance(body) {
     return (await alreadyDone()) || { retry: true, error: '접속이 몰려 순서대로 처리하고 있어요.' };
   }
   const record = toRecord(data[0]);
-  runLater(m.cohortId && !isTestMeeting(m) ? notifyCohortAttendance(m, record) : notifyAttendance(m, record, data[0].id));   // 알림은 응답을 보낸 뒤에
-  // 11/2: 회장단(부녀회 '기타') 멤버 출석은 회장단 방에도
-  if (!isTestMeeting(m) && !who.guest) runLater(import('../lib/report-room.js').then((r) => r.shareAttendance(person, m, record)).catch((e) => console.log('출석 공유 실패: ' + e.message)));
-  return { ok: true, record };
+  runLater(m.cohortId && !isTestMeeting(m) ? notifyCohortAttendance(m, record) : notifyAttendance(m, record, data[0].id));   // 알림은 응답을 보낸 뒤에  return { ok: true, record };
 }
 
 // ── 출석 알림 ── 1분에 8명까지는 한 명씩, 그보다 몰리면 20명씩 묶어서 보낸다.
@@ -650,6 +647,8 @@ async function attAutoSummary(body) {
       (records.length && m.questions.length ? '\n\n' + surveySummary(m.questions, records) : ''));
     if (records.length && !test) {
       try { await sendClosing(m); } catch (e) { await sendAttendText('⚠️ 출석 명단 파일을 만들지 못했어요: ' + e); }
+      // 11/2: 회장단 등 멤버 출결 취합(멤버 전원 대비 출석) → 그 방의 '출결' 주제
+      try { await (await import('../lib/report-room.js')).postRollCalls(m, records); } catch (e) { console.log('멤버 출결 취합 오류: ' + e.message); }
     }
   }
   // 2026-10-16: 교육 과정 — 출석·과제·시험 마감 시각이 지나면 과정 방으로 결과 서머리
