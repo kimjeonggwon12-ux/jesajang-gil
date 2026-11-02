@@ -42,7 +42,7 @@ try {
   assert.match((await a.requestCenterApproval({ ...L, targetId: tid })).error, /본인 담당/);
   // 복음방 단계인 분만 요청 가능
   await run(db().from('targets').update({ stage: '센터수강' }).eq('target_id', tid));
-  assert.match((await a.requestCenterApproval({ ...T, targetId: tid })).error, /복음방 단계인 분만/);
+  assert.match((await a.requestCenterApproval({ ...T, targetId: tid })).error, /복음방이 아닙니다/);
   await run(db().from('targets').update({ stage: '복음방' }).eq('target_id', tid));
   const req = await a.requestCenterApproval({ ...T, targetId: tid, note: '복음방 3과까지', hopeCenter: '11월 개강' });
   assert.equal(req.referral.status, '요청'); assert.equal(req.referral.region, 'ZZ지역');

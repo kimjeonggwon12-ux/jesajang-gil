@@ -8682,8 +8682,10 @@
           : ['plan', gst.busy ? 'busy' : t.goalPlan ? 'done' : 'ready', gst.busy ? spin : pfSvg('route'), gm ? `${gm}월 개강 계획` : '개강 계획',
             gst.busy ? '설계 중…' : t.goalPlan ? `설계 ${pfMD(t.goalPlanAt)}` : gm ? '설계받기' : '목표 정하기']),
         // 11/2(사용자): 센터 보내기 — 지역장 승인 요청부터는 보고 체계
-        t && (cs => ['center', cs.referral ? (cs.referral.status === '반려' ? 'ready' : 'done') : 'ready', '📮', '센터 보내기',
-          cs.loading && !cs.loaded ? '확인 중…' : cs.referral ? ({ '요청': '지역장 승인 대기', '승인': '승인 · 센터 보내는 중', '전달': '센터 전달됨', '반려': '반려 · 다시 요청' }[cs.referral.status] || cs.referral.status) : '지역장 승인 요청'])(erCenter[t.targetId] || {}),
+        // 11/2(사용자): 복음방이 아니면 확실히 거부 — 칸부터 '복음방 아님 · 보낼 수 없음'
+        t && (cs => erCenterBlocked(p, cs) ? ['center', 'off', '🚫', '센터 보내기', '복음방 아님 · 보낼 수 없음']
+          : ['center', cs.referral ? (cs.referral.status === '반려' ? 'ready' : 'done') : 'ready', '📮', '센터 보내기',
+          cs.loading && !cs.loaded ? '확인 중…' : cs.referral ? ({ '요청': '지역장 승인 대기', '승인': '승인 · 센터 보내는 중', '전달': '센터 전달됨', '반려': '반려됨 · 다시 요청' }[cs.referral.status] || cs.referral.status) : '지역장 승인 요청'])(erCenter[t.targetId] || {}),
         t && ['case', `case${erSent(p.stage) ? ' hot' : ''}${erCaseBusy === t.targetId ? ' busy' : ''}`, erCaseBusy === t.targetId ? spin : pfSvg('doc'), '사례로 남기기',
           erCaseBusy === t.targetId ? 'AI 초안 쓰는 중…' : erSent(p.stage) ? '센터 보냄 · AI 초안' : 'AI 초안'],
       ].filter(Boolean);
@@ -8747,9 +8749,19 @@
         <button type="button" class="er-o-main red" onclick="erWriteCase('${esc(t.targetId)}')" ${erCaseBusy ? 'disabled' : ''}>${erCaseBusy === t.targetId ? '<span class="loading loading-spinner loading-xs"></span> 사례 초안 쓰는 중…' : '✍️ AI 사례 초안 쓰기'}</button>`;
       return '';
     }
+    // 11/2(사용자): 섭외자가 복음방이 아니면 센터 보내기 거부(이미 진행 중·센터 전달된 건은 상태를 보여 줌)
+    const CS_GOSPEL = '복음방';
+    const CS_REFUSE = '복음방이 아닙니다. 센터로 보낼 수가 없습니다.';
+    function erCenterBlocked(p, cs) {
+      const r = cs && cs.referral;
+      return p.stage !== CS_GOSPEL && !(r && ['요청', '승인', '전달'].includes(r.status));
+    }
     window.erCellOpen = function (k) {
       erCell = erCell === k ? '' : k;
-      if (erCell === 'center') { const p = erPeople().find(x => x.name === erSel); if (p && p.t) erCenterLoad(p.t.targetId); }
+      if (erCell === 'center') {
+        const p = erPeople().find(x => x.name === erSel);
+        if (p && p.t) { if (erCenterBlocked(p, erCenter[p.t.targetId])) toast(CS_REFUSE, true); erCenterLoad(p.t.targetId); }
+      }
       renderHome();
     };
     // ── 센터 보내기 (11/2) ── 교사 쪽: 지역장 승인 요청 → 진행 상태 보기
@@ -8765,6 +8777,7 @@
     function erCenterBodyHtml(t, p) {
       csCss();
       const cs = erCenter[t.targetId] || {}, r = cs.referral, id = esc(t.targetId);
+      if (erCenterBlocked(p, cs) && (cs.loaded || !cs.loading)) return '<div class="cs-refuse"><b>🚫 ' + CS_REFUSE + '</b><span>지금 단계: <b>' + esc(p.stage || '없음') + '</b> · 지역장 승인 요청은 <b>복음방</b> 단계인 분만 할 수 있어요.</span></div>';
       if (!cs.loaded) return '<div class="er-o-note"><span class="loading loading-spinner loading-xs"></span> 확인 중…</div>';
       const step = r ? (CS_STATUS_STEP[r.status] != null ? CS_STATUS_STEP[r.status] : 1) : 0;
       const head = csFlowHtml(step, '섭외부터 복음방까지는 <b>나의 전도 기록</b>이에요. <b>지역장 승인 요청</b>을 누르면 지금까지의 기록 전부(활동·파악한 정보·단계 이력·HEARTS·교관 답)가 서류로 묶여 지역장에게 보고되고, 승인되면 지역장·교관이 이번 개강 센터 기수로 보내요. 센터 강사·전도사는 이 서류로 그분을 잘 맞이하고 관리해요.');
@@ -16509,6 +16522,8 @@ async function calAdmInit() {
         .cs-coh{margin-top:10px;padding:10px;border-radius:12px;background:#f6f8f7}
         .cs-coh-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-weight:800}
         .cs-dl{display:flex;align-items:center;gap:8px;width:100%;margin-top:6px;padding:9px 10px;border:1px solid #e3e8e5;border-radius:10px;background:#fff;text-align:left;font-size:14px}
+        .cs-refuse{display:flex;flex-direction:column;gap:6px;padding:16px;border-radius:14px;background:#FEF2F2;border:2px solid #F87171;color:#991B1B}
+        .cs-refuse>b{font-size:16px;font-weight:900}.cs-refuse span{font-size:13.5px;color:#7f1d1d;line-height:1.5}
         .cs-target{margin-top:4px;padding:14px;border-radius:14px;background:#e9f8f2;border:1.5px solid #9fdcc6}.cs-target-h{font-size:16px;font-weight:800;margin-bottom:8px;color:#065f46}.cs-target-h span{color:#00875f}
         .cs-chip.big{min-height:52px;padding:8px 16px;font-size:16px}
         .mg-cohorts{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
