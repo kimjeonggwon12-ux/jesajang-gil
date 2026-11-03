@@ -36,6 +36,16 @@ export async function findTeacher(memberId) {
   return rows[0] || null;
 }
 
+/**
+ * 11/3(사용자: "뭔가 기록하면 다 올라가게"): 고유번호로 못 찾으면(한 자리 틀림·빠짐) 이름으로 — 교사명단에 그 이름이 한 명일 때만.
+ */
+export async function findTeacherLoose(memberId, name) {
+  const t = await findTeacher(memberId);
+  if (t || !String(name || '').trim()) return t;
+  const rows = await run(db().from('teachers').select('*').eq('name', String(name).trim()).limit(2));
+  return rows.length === 1 ? rows[0] : null;
+}
+
 /** 고유번호로 관리자 명단 한 줄(없으면 null). */
 export async function findAdmin(memberId) {
   const rows = await run(db().from('admins').select('name, position, dept').eq('nid', normId(memberId)).order('id').limit(1));

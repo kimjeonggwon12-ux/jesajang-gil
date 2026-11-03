@@ -4,7 +4,7 @@ import { normId, str, kstDate, kstDateTime, fmtTs, byDesc } from '../lib/util.js
 import { notifyActivityChannel } from '../lib/telegram.js';
 import { afterAction } from '../lib/events.js';
 import { upsertTargetFromActivity, updateProfileFromEdit, raiseStageFromActivity, renameTargetForOwner, TARGET_STAGES, cleanReport } from './targets.js';
-import { findTeacher } from './roster.js';
+import { findTeacher, findTeacherLoose } from './roster.js';
 import { roomForTeacher, roomsForReport, postReport, reportRooms, reportRoomsAdmin } from '../lib/report-room.js';
 import { storeImage } from '../lib/images.js';
 
@@ -88,7 +88,7 @@ async function submitActivity(body) {
 async function autoReport(row, kind) {
   if (!row || !row.report_text) return { reported: false };
   try {
-    const teacher = await findTeacher(row.member_id);
+    const teacher = await findTeacherLoose(row.member_id, row.name);
     if (!teacher) return { reported: false };
     const rooms = await roomsForReport(teacher, row);   // 10/25: 지역 방 + 상담 이상 건이면 부서 전체 방
     if (!rooms.length) return { reported: false, reportError: '내 지역·부서 보고방이 아직 연결되지 않았어요.' };
@@ -152,7 +152,7 @@ async function postActivityReport(body) {
   if (!row) return { error: '올릴 기록을 찾을 수 없습니다.' };
   if (!row.report_text) return { error: '보고 문자가 없는 예전 기록이에요. 수정해서 저장하면 보고 문자가 생겨요.' };
   if ((row.tg_posts || []).some((p) => p.kind === 'post')) return { error: '이미 보고방에 올린 기록이에요. 고치면 수정본이 다시 올라가요.' };
-  const rooms = await roomsForReport(await findTeacher(mid), row);
+  const rooms = await roomsForReport(await findTeacherLoose(mid, row.name), row);
   if (!rooms.length) return { error: '아직 내 지역·부서 보고방이 연결되지 않았어요.' };
   const sent = await postToRooms(row, rooms, 'post');
   return { ok: true, tgPosts: sent.tgPosts, room: sent.room };

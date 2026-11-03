@@ -3,7 +3,7 @@
 // 10/25: 지역 방(dept '부녀회/03지역')이 있으면 그 지역 사람 보고는 지역 방으로, 매일 22시에 방마다 일일 보고 취합(reportDailyTick).
 import { db, run } from './db.js';
 import { kstDate, kstDateTime, normId } from './util.js';
-import { findTeacher, loadRoster, isApprover } from '../actions/roster.js';
+import { findTeacher, findTeacherLoose, loadRoster, isApprover } from '../actions/roster.js';
 import { tablePng } from './table-image.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -52,7 +52,8 @@ const isRegionRoom = (room) => String(room.dept || '').includes('/');
 /** 이 보고를 올릴 방들: 내 방(roomForTeacher) + 내 방이 지역 방이고 상담 이상 건이면 부서 전체 방. 교사 역할이 아니면 지역 방만. */
 export async function roomsForReport(t, row) {
   const rooms = (await roomsByStage(t, row)).filter((r) => !topicPending(r));   // 주제 번호를 아직 모르는 방엔 안 올림(일반 주제로 새지 않게)
-  return isTeacherRole(row) ? rooms : rooms.filter(isRegionRoom);
+  // 11/3: 교역자는 지역 방이 없어 교역자 방이 곧 자기 방 — 교사 역할이 아니어도(협력 등) 올린다
+  return isTeacherRole(row) ? rooms : rooms.filter((r) => isRegionRoom(r) || r.dept === '교역자');
 }
 async function roomsByStage(t, row) {
   const room = await roomForTeacher(t);
@@ -134,7 +135,7 @@ export async function postReport(row, room, kind) {
   // 10/23(사용자): "보고자가 누구인지 알 수 없다" — 봇은 그 사람 프로필로 못 올리므로 맨 위에 보고자 이름(굵게)·부서·번호.
   //   이름·부서는 교사명단 기준(앱에 이름이 비어 있어도 나옴). 본문 맨 아래 옛 '✍️ 보고 :' 줄은 겹치므로 뺀다.
   // 10/25(사용자): 이름·지역 앞에 #(누르면 그 사람·그 지역 보고만 모아 봄), 맨 아래에도 보고자 이름과 소속을 한 번 더.
-  const t = await findTeacher(row.member_id).catch(() => null);
+  const t = await findTeacherLoose(row.member_id, row.name).catch(() => null);
   const nm = (t && t.name) || row.name || '이름 미상';
   const who = `<b>${esc(tag(nm) || nm)}</b>`;
   const deptLabel = deptLabelOf(t && t.dept);
@@ -328,6 +329,16 @@ export async function buildSummaryReports(date, onlyKey = '') {
   const nids = [...new Set(acts.map((a) => a.nid).filter(Boolean))];
   const teachers = nids.length ? await run(db().from('teachers').select('nid, dept, region').in('nid', nids)) : [];
   const byNid = new Map(teachers.map((t) => [t.nid, t]));
+  // 11/3: 명단 번호와 안 맞는 기록은 이름으로(그 이름이 명단에 한 명일 때)
+  const lost = [...new Set(acts.filter((a) => !byNid.has(a.nid) && a.name).map((a) => a.name))];
+  if (lost.length) {
+    const named = await run(db().from('teachers').select('name, dept, region').in('name', lost));
+    for (const a of acts) {
+      if (byNid.has(a.nid)) continue;
+      const same = named.filter((t) => t.name === a.name);
+      if (same.length === 1) byNid.set(a.nid, same[0]);
+    }
+  }
   return sums.map((room) => {
     const dept = room.dept.split('#')[0];
     const orgs = [...new Set([...all.filter((r) => r.dept.startsWith(dept + '/')).map((r) => r.dept.split('/')[1]), ...(SUMMARY_EXTRA_ORGS[dept] || [])])]

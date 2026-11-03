@@ -6511,7 +6511,9 @@
       return d.getFullYear() === new Date().getFullYear();
     }
     const ROLE_OPTIONS = ['인도자', '교사', '섬김이', '협력교사'];
-    const ROLE_ACTIVITY_OPTIONS = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
+    // 11/3(사용자·행정방): 친분·만남1·만남2 → '만남' 하나(저장값 '만남1'), 센터소개는 복음방 과정 안이라 뺌. 단계 순서(대표 항목 고르기)는 예전 전체 목록으로.
+    const ROLE_ACTIVITY_ALL = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
+    const ROLE_ACTIVITY_OPTIONS = ['피드백', '섭외', '만남1', '상담1', '상담2', '복음방', '센터수강'];
     const TEACHER_EXTRA_ACTIVITY = '동행교사';
     const ROLES_WITH_EXTRA_ACTIVITY = ['교사'];
     // 2026-10-02: 사용자 피드백 — 협력교사는 개인 섭외자 단계 관리(인도·교사·섬김)와 달리 여러 사람을
@@ -6521,13 +6523,14 @@
     // 11/1(사용자): 소분류에 없던 교사 활동 — 내부(식구) 복음방 · 전도 행사 지원, 동호회(=동아리)는 모든 역할에서 고를 수 있게.
     //   ⚠️ server/actions/tiers.js ACTIVITY_GROUPS(교사 명단 묶음 열)와 같이 맞출 것.
     const EXTRA_ACTIVITY_OPTIONS = ['동아리', '식구 복음방', '전도 행사 지원'];
-    const COOP_ACTIVITY_OPTIONS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
+    // 11/3(사용자): 육상담(=상담1)·부스담당은 뺌
+    const COOP_ACTIVITY_OPTIONS = ['동아리', '잎사귀', '만남 동행', '밭보기', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
     function activityOptionsForRoles(roles) {
       if (roles.includes(COOP_ROLE)) return COOP_ACTIVITY_OPTIONS;
       return (roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r)) ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS).concat(EXTRA_ACTIVITY_OPTIONS);
     }
     // 칩에만 보이는 이름(저장값은 그대로) — 교사광장 일일보고 항목 말로
-    const ACT_CHIP_LABEL = { '섭외': '섭외·찾기', '동아리': '동호회', '동행교사': '동행 복음방' };
+    const ACT_CHIP_LABEL = { '피드백': '섭외자피드백', '섭외': '섭외찾기(전단지)', '만남1': '만남', '센터수강': '센터수강생관리', '동아리': '동호회활동', '동행교사': '동행 복음방' };
     const ROLE_SHORT_LABEL = { '인도자': '인도', '교사': '교사', '섬김이': '섬김', '협력교사': '협력' };
     function roleShortLabel(role) { return ROLE_SHORT_LABEL[role] || role; }
     const REACTION_OPTIONS = ['긍정적', '중립', '부정적'];
@@ -6994,7 +6997,7 @@
     };
     // 활동을 여러 개 고르면 보고 제목·단계는 그중 가장 높은 단계로(피드백·협력 활동은 고른 순서대로)
     function rpPrimary(items) {
-      const rank = i => ROLE_ACTIVITY_OPTIONS.indexOf(i);
+      const rank = i => ROLE_ACTIVITY_ALL.indexOf(i);
       return items.slice().sort((a, b) => rank(b) - rank(a))[0] || '';
     }
     // 텔레그램 해시태그 — 이름 앞에 #(누르면 그 사람 보고만 모아 봄). 띄어쓰기·괄호 앞까지만 이름으로 본다.
@@ -7362,7 +7365,8 @@
     }
     function activityFormHtml() {
       const f = home.form;
-      const itemOptions = activityOptionsForRoles(f.roles);
+      // 예전에 고른 항목(친분·만남2·센터소개 등)이 있는 기록을 고칠 때는 그 칩도 보여 줘서 뺄 수 있게
+      const itemOptions = [...new Set([...activityOptionsForRoles(f.roles), ...f.items])];
       const stageOptions = home.stages.length ? home.stages : TARGET_STAGES_FALLBACK;
       const existingTargets = home.targets.filter(t => !t.completed);
       // 2026-10-23: 활동 항목에 따라 보고 틀(칸 수)이 달라진다 — rpTier
@@ -7515,7 +7519,8 @@
           f.activityItem = rpPrimary(f.items);
           if (f.activityItem === before) { renderActivityFormSheet(); return; }
           const mapped = ACTIVITY_TO_STAGE[f.activityItem];
-          if (mapped) f.targetStage = mapped;
+          const stIdx = x => ROLE_ACTIVITY_ALL.indexOf(x);
+          if (mapped && !(mapped === '만남1' && stIdx(f.targetStage) > stIdx(mapped))) f.targetStage = mapped;
           if (RP_STAGE_MARK_OF[f.activityItem]) f.rp.stageMark = RP_STAGE_MARK_OF[f.activityItem];
           f.extraTitle = '';
           renderActivityFormSheet();
