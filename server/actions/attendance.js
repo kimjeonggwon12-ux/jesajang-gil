@@ -629,9 +629,8 @@ async function attAutoSummary(body) {
     if (m.cohortId) continue;   // 교육 과정 모임은 과정 방으로 따로(cohort-tick.js)
     const [y, mo, d] = m.date.split('-').map(Number);
     const [h, min] = m.end.split(':').map(Number);
-    // 11/3(사용자): 화요전도단은 끝나는 시각(21:00) = 마감 = 서머리 시각, 그 밖은 끝나고 10분 뒤부터
-    const after = /화요\s*전도단/.test(String(m.title || '')) ? 0 : 10;
-    const sinceClose = Math.round((now - new Date(y, mo - 1, d, h, min + after)) / 60000);
+    // 11/3(사용자): 개설자가 걸어 놓은 끝나는 시각 = 마감 = 서머리 시각(예전엔 끝나고 10분 뒤)
+    const sinceClose = Math.round((now - new Date(y, mo - 1, d, h, min)) / 60000);
     const manual = m.status === '닫힘' && sinceClose <= 24 * 60 && m.date <= today;
     if (!manual && (sinceClose < 0 || sinceClose > 360)) continue;
     await setStatus(m.meetingId, '집계완료');
@@ -652,13 +651,13 @@ async function attAutoSummary(body) {
       try { await sendClosing(m); } catch (e) { await sendAttendText('⚠️ 출석 명단 파일을 만들지 못했어요: ' + e); }
       // 11/2: 회장단 등 멤버 출결 취합(멤버 전원 대비 출석) → 그 방의 '출결' 주제
       try { await (await import('../lib/report-room.js')).postRollCalls(m, records); } catch (e) { console.log('멤버 출결 취합 오류: ' + e.message); }
-      // 11/3: 화요전도단 — 지역 방·교역자 방·부서 총합 방마다 그 방 사람 총 참석(교사는 등록 지역, 비교사는 적은 지역)
-      try { const ra = await import('../lib/room-attendance.js'); if (ra.isRoomAttMeeting(m)) await ra.postRoomAttendance(m, '최종'); } catch (e) { console.log('방별 출석 서머리 오류: ' + e.message); }
+      // 11/3: 지역 방·교역자 방·부서 총합/전체 방마다 그 방 사람 총 참석(교사는 등록 지역, 비교사는 적은 지역)
+      try { await (await import('../lib/room-attendance.js')).postRoomAttendance(m, '최종'); } catch (e) { console.log('방별 출석 서머리 오류: ' + e.message); }
     }
   }
-  // 11/3: 화요전도단 오전 교육 마감(13시) — 방마다 오전 출석
+  // 11/3: 개설자가 정한 앞 타임(예: 오전 09:00~10:30)이 끝나면 방마다 그 타임 출석
   let roomAm = [];
-  try { roomAm = await (await import('../lib/room-attendance.js')).roomAttendanceMorningTick(recent.filter((x) => !closed.includes(x.meetingId))); } catch (e) { console.log('오전 방별 출석 오류: ' + e.message); }
+  try { roomAm = await (await import('../lib/room-attendance.js')).roomAttendanceSlotTick(recent.filter((x) => !closed.includes(x.meetingId))); } catch (e) { console.log('오전 방별 출석 오류: ' + e.message); }
   // 2026-10-16: 교육 과정 — 출석·과제·시험 마감 시각이 지나면 과정 방으로 결과 서머리
   let cohort = [];
   try { cohort = await (await import('./cohort-tick.js')).cohortTick(); } catch (e) { console.log('교육 과정 서머리 오류: ' + e); }

@@ -516,12 +516,12 @@ export async function reportRooms(body) {
     }
     return { rooms: out };
   }
-  if (op === 'roomAtt') {   // 11/3 화요전도단 방별 출석 서머리 — 미리 보기(send 면 샘플로 모든 방에)
+  if (op === 'roomAtt') {   // 11/3 교육 방별 출석 서머리 — 미리 보기(send 면 샘플로 모든 방에)
     const { findMeeting } = await import('../actions/attendance.js');
     const ra = await import('./room-attendance.js');
     const m = await findMeeting(String(body.meetingId || ''));
     if (!m) return { error: '모임 없음' };
-    const phase = body.phase === '최종' ? '최종' : '오전';
+    const phase = String(body.phase || '최종');
     if (!body.send) return { posts: (await ra.buildRoomAttendance(m, phase)).map((p) => ({ dept: p.room.dept, chat: p.room.chat_id, text: p.text })) };
     return { sent: await ra.postRoomAttendance(m, phase, body.prefix != null ? String(body.prefix) : '🧪 <b>샘플</b>\n') };
   }
