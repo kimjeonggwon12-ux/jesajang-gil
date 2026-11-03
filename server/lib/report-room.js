@@ -114,6 +114,57 @@ async function sendText(chatId, text, reply) {
   const res = await healed(chatId, (c) => tg('sendMessage', { ...target(c), text: String(text).slice(0, 4096), parse_mode: 'HTML', ...replyTo(reply) }, tokenFor(c)));
   return res.message_id;
 }
+// ── 11/3(사용자): 보고 길이를 역할로 나눈다 — 교사는 서식 전부, 인도자·섬김이는 섭외자 정보·단계(필수) + 적은 칸만, 협력은 협력 항목만 ──
+const RP_LINE = '━━━━━━━━━━━━━━';
+const RP_LABEL = { '피드백': '섭외자피드백', '섭외': '섭외찾기(전단지)', '만남1': '만남', '센터수강': '센터수강생관리', '동아리': '동호회활동', '동행교사': '동행 복음방' };
+const emptyLine = (l) => /^• [^:]+ :\s*$/.test(l) || /^\s+-?\s*$/.test(l) || /^\d+\.\s*$/.test(l);
+/** 보고 문자(앱이 만든 전체 서식) → 역할에 맞게 줄인 글. row = activities 행. */
+export function shapeReport(row) {
+  const text = String(row.report_text || '').replace(/\n?✍️ 보고 :[^\n]*$/, '').trim();
+  const roles = row.roles || [];
+  if (!text || roles.includes('교사')) return text;
+  const lines = text.split('\n');
+  const cut = lines.indexOf(RP_LINE);
+  if (cut < 0) return text;   // 예전 모양 글은 그대로
+  const head = lines.slice(0, cut).filter((l, i, a) => l.trim() || (a[i - 1] || '').trim());
+  // 서식 몸통을 빈 줄로 덩어리(제목 줄 + 항목들)로
+  const blocks = [];
+  for (const l of lines.slice(cut + 1)) {
+    if (l === RP_LINE || /^※/.test(l)) continue;
+    if (!l.trim()) { if (blocks.length && blocks[blocks.length - 1].length) blocks.push([]); continue; }
+    if (!blocks.length) blocks.push([]);
+    blocks[blocks.length - 1].push(l);
+  }
+  const block = (emoji) => blocks.find((b) => b[0] && b[0].startsWith(emoji)) || [];
+  const filled = (b) => b.slice(1).filter((l) => !emptyLine(l))
+    .filter((l, i, a) => !(/^• (내용|반응)$/.test(l) && (!a[i + 1] || /^• /.test(a[i + 1]))));   // 내용·반응 아래가 비면 제목도 뺌
+  const items = (row.activities || []).map((x) => RP_LABEL[x] || x).join(', ');
+  const name = String(row.target_name || '').trim();
+  const roleLine = `🔖 역할 · 활동 : ${roles.join('·') || '-'} / ${items || '-'}`;
+  const top = head.map((l) => (/^🔖 /.test(l) ? roleLine : l.replace(/\s+\|\s+[^:|]+:\s*$/, '')));   // '목표 센터 :' 처럼 빈 값은 뺌
+  if (roles.includes('협력교사')) {
+    // 협력: 날짜·제목·부서·협력 항목 + (있으면) 함께한 섭외자 · 한 일
+    const edu = block('📖'), at = edu.indexOf('• 내용');
+    const work = at < 0 ? [] : edu.slice(at + 1).filter((l, i, a) => !a.slice(0, i + 1).some((x) => /^• /.test(x))).filter((l) => !emptyLine(l));   // 내용 줄만
+    return [...top.map((l) => l.replace(/\s+\|\s+.*$/, '')), RP_LINE,   // 협력은 부서 줄의 목표 센터·수강도 뺌
+      ...(name ? [`👤 함께한 섭외자 : ${name}`] : []),
+      ...(work.length ? ['📝 한 일', ...work] : []),
+      RP_LINE].join('\n');
+  }
+  // 인도자·섬김이: 섭외자 정보·단계는 꼭, 나머지는 적은 칸만
+  const person = filled(block('👤'));
+  const mark = (block('✅').find((l) => /② 단계 여부/.test(l)) || '').replace(/^.*:\s*/, '').trim();
+  const out = [...top, RP_LINE, '', '👤 섭외자',
+    ...(person.some((l) => /^• 이름 :/.test(l)) ? [] : [`• 이름 : ${name || '-'}`]), ...person,
+    `• 단계 : ${row.target_stage || '-'}${mark ? ` (${mark})` : ''}`];
+  for (const [emoji, title] of [['🤝', '🤝 함께하는 팀'], ['📖', '📖 교육'], ['➡️', '➡️ 다음 계획']]) {
+    const b = filled(block(emoji));
+    if (b.length) out.push('', title, ...b);
+  }
+  out.push(RP_LINE);
+  return out.join('\n');
+}
+
 /** 사진 묶음(1~3장, R2 주소) → 첫 사진 글 번호. caption 은 첫 사진 아래에 붙는다(1024자까지). */
 async function sendAlbum(chatId, urls, caption, reply) {
   const media = urls.map((u, i) => ({ type: 'photo', media: u, ...(i === 0 && caption ? { caption, parse_mode: 'HTML' } : {}) }));
@@ -146,7 +197,7 @@ export async function postReport(row, room, kind) {
     : `🙋 보고자 : ${who}${tags ? ` · ${esc(tags)}` : ''}  <code>${esc(row.member_id)}</code>`;
   const affil = String((t && (t.affiliation || t.region)) || '').trim();
   const foot = `🙋 보고자 : ${who}${deptLabel ? ` · ${esc(deptLabel)}` : ''}${affil && affil !== deptLabel ? ` · ${esc(affil)}` : ''}`;
-  const body = esc(String(row.report_text || '').replace(/\n?✍️ 보고 :[^\n]*$/, '').trim());
+  const body = esc(shapeReport(row));   // 11/3: 교사 = 전체, 인도·섬김 = 필요한 칸만, 협력 = 협력 항목만
   const text = `${head}\n\n${body}\n${foot}`;
   const reply = kind === 'edit' && first ? first.msg : null;
 
@@ -522,6 +573,15 @@ export async function reportRooms(body) {
     const phase = String(body.phase || '최종');
     if (!body.send) return { posts: (await ra.buildRoomAttendance(m, phase)).map((p) => ({ dept: p.room.dept, chat: p.room.chat_id, text: p.text })) };
     return { sent: await ra.postRoomAttendance(m, phase, body.prefix != null ? String(body.prefix) : '🧪 <b>샘플</b>\n') };
+  }
+  if (op === 'shapeSample') {   // 11/3 역할별 보고 길이 샘플 {dept, rows:[{label, name, roles, activities, target_name, target_stage, report_text}], send}
+    const [room] = await run(db().from('report_rooms').select('*').eq('dept', String(body.dept || '')).eq('active', true));
+    if (!room) return { error: '방 없음' };
+    const texts = (Array.isArray(body.rows) ? body.rows : []).slice(0, 6).map((r) =>
+      `🧪 <b>샘플 — ${esc(r.label || '')}</b>\n🙋 보고자 : <b>${esc(tag(r.name) || r.name || '')}</b>\n\n${esc(shapeReport(r))}`);
+    if (!body.send) return { texts };
+    for (const t of texts) await sendText(room.chat_id, t);
+    return { sent: texts.length, room: room.dept };
   }
   if (op === 'roll') return { text: await rollCallSample(String(body.dept || '부녀회/기타#출결'), !body.send) };   // 11/2 멤버 출결 취합 미리 보기(send 면 그 방에)
   if (op === 'admins') {   // 방 관리자 목록(다른 봇이 있는지 보기용, 글 안 올림)
