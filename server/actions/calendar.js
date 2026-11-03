@@ -46,8 +46,9 @@ async function countByEvent(table) {
 async function deptManagerOf(memberId) {
   if (!memberId) return '';
   if (isOwner(memberId)) return 'all';
-  const { admin } = await memberInfo(memberId);
-  const d = String(admin?.dept || '').trim();
+  const { admin, teacher } = await memberInfo(memberId);
+  // 11/3(사용자): 지역장·교관이면(관리자 명단에 아직 없어도 교사명단 직책으로) 자기 부서 일정을 올린다
+  const d = String(admin?.dept || (/지역장|교관/.test(String(teacher?.position || '')) ? teacher?.dept : '') || '').trim();
   if (!d) return '';
   if (d === '전도부') return 'all';
   if (d === '중진' || d.startsWith('교')) return '교';
