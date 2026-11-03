@@ -46,6 +46,24 @@ export async function findTeacherLoose(memberId, name) {
   return rows.length === 1 ? rows[0] : null;
 }
 
+/**
+ * 11/3(사용자: "올리지는 말고 카운트만 되게"): 고유번호를 잘못 넣고 남긴 활동 기록 — 명단에 그 번호가 없고 이름이 명단에 한 명이면
+ * 그 교사의 번호(nid)로 바꿔 센다(메모리에서만, 기록 자체는 그대로). acts = [{ nid, name, ... }] 를 고쳐서 돌려준다.
+ */
+export async function fixActivityNids(acts) {
+  if (!acts.length) return acts;
+  const roster = await allTeachers();
+  const known = new Set(roster.map((t) => t.nid));
+  const byName = new Map();
+  for (const t of roster) byName.set(t.name, byName.has(t.name) ? null : t.nid);   // 같은 이름이 둘 이상이면 null
+  for (const a of acts) {
+    if (!a.nid || known.has(a.nid)) continue;
+    const nid = byName.get(String(a.name || '').trim());
+    if (nid) a.nid = nid;
+  }
+  return acts;
+}
+
 /** 고유번호로 관리자 명단 한 줄(없으면 null). */
 export async function findAdmin(memberId) {
   const rows = await run(db().from('admins').select('name, position, dept').eq('nid', normId(memberId)).order('id').limit(1));

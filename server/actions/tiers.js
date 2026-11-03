@@ -1,7 +1,7 @@
 // 등급 심사 엔진 — 승급·강등 제안, 일괄 승인, 결산, 부서·지역 현황
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, str, kstDate, kstDateTime, fmtTs, byDesc } from '../lib/util.js';
-import { TEACHER_TIERS, toRosterRow, findTeacher, loadRoster, rosterCounts, teachersByNid, forgetRoster } from './roster.js';
+import { TEACHER_TIERS, toRosterRow, findTeacher, loadRoster, rosterCounts, teachersByNid, forgetRoster, fixActivityNids } from './roster.js';
 import { ROLE_OPTIONS, emptyRoleCounts } from './activities.js';
 import { TARGET_STAGES } from './targets.js';
 
@@ -101,7 +101,8 @@ function settlementDate(body) {
 // ── 자료 읽기 ──
 
 async function loadActivities() {
-  return selectAll(() => db().from('activities').select('member_id, nid, submitted_at, activities, roles').order('id'));
+  // 11/3: 번호를 잘못 넣고 남긴 기록도 그 교사 것으로 센다(이름이 명단에 한 명일 때)
+  return fixActivityNids(await selectAll(() => db().from('activities').select('member_id, nid, name, submitted_at, activities, roles').order('id')));
 }
 
 /** 교사별 활동 [{type, date}] — 한 기록에 항목이 여럿이면 항목마다 한 건. */

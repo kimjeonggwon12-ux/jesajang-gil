@@ -3,7 +3,7 @@
 // 10/25: 지역 방(dept '부녀회/03지역')이 있으면 그 지역 사람 보고는 지역 방으로, 매일 22시에 방마다 일일 보고 취합(reportDailyTick).
 import { db, run } from './db.js';
 import { kstDate, kstDateTime, normId } from './util.js';
-import { findTeacher, findTeacherLoose, loadRoster, isApprover } from '../actions/roster.js';
+import { findTeacher, findTeacherLoose, fixActivityNids, loadRoster, isApprover } from '../actions/roster.js';
 import { tablePng } from './table-image.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -220,8 +220,8 @@ export async function buildDailyReports(date, onlyDept = '') {
   // 묶기는 모든 방 기준(지역 방 사람이 부서 방으로 새지 않게), 돌려주는 것만 onlyDept
   const rooms = (await run(db().from('report_rooms').select('*').eq('active', true))).filter((r) => r.dept !== '*' && !r.dept.includes('#'));
   if (!rooms.some((r) => !onlyDept || r.dept === onlyDept)) return [];
-  const acts = await run(db().from('activities').select('id, member_id, nid, name, activities, roles, target_name, report, submitted_at')
-    .gte('submitted_at', `${date} 00:00:00`).lte('submitted_at', `${date} 23:59:59`).order('id'));
+  const acts = await fixActivityNids(await run(db().from('activities').select('id, member_id, nid, name, activities, roles, target_name, report, submitted_at')
+    .gte('submitted_at', `${date} 00:00:00`).lte('submitted_at', `${date} 23:59:59`).order('id')));   // 11/3: 번호 잘못 넣은 기록도 이름으로
   const nids = acts.map((a) => a.nid).filter(Boolean);
   const leaderIds = acts.map((a) => normId(leaderId(a.report && a.report.team && a.report.team.leader))).filter(Boolean);
   const want = [...new Set([...nids, ...leaderIds])];
@@ -324,21 +324,11 @@ export async function buildSummaryReports(date, onlyKey = '') {
   const sums = all.filter((r) => r.dept.includes('#총합') && (!onlyKey || r.dept === onlyKey))
     .sort((a, b) => deptRank(a.dept) - deptRank(b.dept) || a.dept.localeCompare(b.dept));
   if (!sums.length) return [];
-  const acts = await run(db().from('activities').select('id, member_id, nid, name, activities, target_name, report, submitted_at')
-    .gte('submitted_at', `${date} 00:00:00`).lte('submitted_at', `${date} 23:59:59`).order('id'));
+  const acts = await fixActivityNids(await run(db().from('activities').select('id, member_id, nid, name, activities, target_name, report, submitted_at')
+    .gte('submitted_at', `${date} 00:00:00`).lte('submitted_at', `${date} 23:59:59`).order('id')));
   const nids = [...new Set(acts.map((a) => a.nid).filter(Boolean))];
   const teachers = nids.length ? await run(db().from('teachers').select('nid, dept, region').in('nid', nids)) : [];
   const byNid = new Map(teachers.map((t) => [t.nid, t]));
-  // 11/3: 명단 번호와 안 맞는 기록은 이름으로(그 이름이 명단에 한 명일 때)
-  const lost = [...new Set(acts.filter((a) => !byNid.has(a.nid) && a.name).map((a) => a.name))];
-  if (lost.length) {
-    const named = await run(db().from('teachers').select('name, dept, region').in('name', lost));
-    for (const a of acts) {
-      if (byNid.has(a.nid)) continue;
-      const same = named.filter((t) => t.name === a.name);
-      if (same.length === 1) byNid.set(a.nid, same[0]);
-    }
-  }
   return sums.map((room) => {
     const dept = room.dept.split('#')[0];
     const orgs = [...new Set([...all.filter((r) => r.dept.startsWith(dept + '/')).map((r) => r.dept.split('/')[1]), ...(SUMMARY_EXTRA_ORGS[dept] || [])])]
