@@ -13011,8 +13011,62 @@ function tbSearchRender() {
     }
 
     // 2026-09-22: study-room.html 병합 — 교재 탭 첫 진입 때만 로드(다른 섹션과 동일한 mount 패턴).
+    // ── 11/3(사용자): 교재 보호 — 워터마크(보는 사람 이름·번호), 복사·선택·인쇄 막기, 앱을 벗어나면 가리기 ──
+    //   웹 앱이라 휴대폰 캡쳐 자체는 못 막는다 → 캡쳐돼도 누가 찍었는지 보이게 + 다른 앱으로 넘어가면 흐리게.
+    const tbProtect = (() => {
+      let wired = false;
+      const root = () => document.getElementById('tbRoot');
+      const isField = el => !!(el && el.closest && el.closest('input, textarea, [contenteditable="true"]'));
+      const inBook = el => !!(el && el.closest && el.closest('#tbRoot')) && !isField(el);
+      function mark() {
+        const r = root(); if (!r) return;
+        const who = String(MY_NAME || name || '').trim() || '교사광장';
+        const id = String(MEMBER_ID || memberId || '').replace(/[^0-9]/g, '').slice(-5);
+        const day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '.');
+        const esx = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="170"><g transform="rotate(-24 130 85)" fill="#111" fill-opacity="0.11" font-family="Malgun Gothic, sans-serif" font-weight="700" text-anchor="middle">`
+          + `<text x="130" y="80" font-size="17">${esx(who)} ${esx(id)}</text><text x="130" y="102" font-size="12">교사광장 · ${day}</text></g></svg>`;
+        r.style.setProperty('--tb-wm', `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`);
+      }
+      function css() {
+        if (document.getElementById('tbProtectCss')) return;
+        const st = document.createElement('style'); st.id = 'tbProtectCss';
+        st.textContent = `
+          #tbRoot { position:relative; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+          #tbRoot input, #tbRoot textarea, #tbRoot [contenteditable="true"] { -webkit-user-select:text; user-select:text; -webkit-touch-callout:default; }
+          #tbRoot::after { content:''; position:absolute; inset:0; pointer-events:none; z-index:40; background-image:var(--tb-wm); background-repeat:repeat; }
+          #tbRoot img { -webkit-user-drag:none; user-drag:none; }
+          #tbRoot.tb-away > * { filter:blur(18px); transition:filter .05s; }
+          #tbRoot.tb-away::before { content:'🔒 교사광장 교재 — 앱으로 돌아오면 다시 보여요'; position:fixed; left:50%; top:45%; transform:translate(-50%,-50%); z-index:41;
+            background:#111827; color:#fff; font-weight:800; font-size:14px; padding:12px 16px; border-radius:12px; white-space:nowrap; }
+          @media print { #tbRoot { display:none !important; } }`;
+        document.head.appendChild(st);
+      }
+      function away(on) { const r = root(); if (r) r.classList.toggle('tb-away', on); }
+      function wire() {
+        if (wired) return; wired = true;
+        // 복사·잘라내기·길게 눌러 메뉴·끌어 놓기·선택 막기(교재 안에서만, 검색 칸은 그대로)
+        ['copy', 'cut', 'contextmenu', 'dragstart', 'selectstart'].forEach(t => document.addEventListener(t, e => { if (inBook(e.target)) e.preventDefault(); }, true));
+        document.addEventListener('keydown', e => {
+          const k = (e.key || '').toLowerCase();
+          if ((e.ctrlKey || e.metaKey) && ['c', 'x', 'p', 's', 'a'].includes(k) && inBook(document.activeElement || e.target) && !isField(e.target)) e.preventDefault();
+          if (k === 'printscreen') { away(true); setTimeout(() => away(false), 1500); }
+        }, true);
+        // 앱을 벗어나면 가리기(다른 앱·최근 앱 화면·화면 꺼짐). 영상(iframe)을 누를 때 생기는 blur 는 빼고.
+        document.addEventListener('visibilitychange', () => away(document.hidden));
+        window.addEventListener('pagehide', () => away(true));
+        window.addEventListener('pageshow', () => away(false));
+        window.addEventListener('blur', () => setTimeout(() => { const a = document.activeElement; if (!(a && a.tagName === 'IFRAME')) away(true); }, 0));
+        window.addEventListener('focus', () => away(false));
+        window.addEventListener('beforeprint', () => away(true));
+        window.addEventListener('afterprint', () => away(false));
+      }
+      return () => { css(); mark(); wire(); };
+    })();
+
     window.Sections.textbook = {
       mount() {
+        tbProtect();
         tbState.memberId = memberId;
         tbState.name = MY_NAME || name || '';
         tbRender();
