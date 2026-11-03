@@ -11,6 +11,11 @@ const LIST_CAP = 300;   // 미리보기 목록은 종류마다 이만큼까지�
 const FIXED_NAMES = {
   '22082400021': '정다감',   // 00220824-00021 옛 이름 정민경, 개명(2026-10-18 요청)
 };
+// 11/3(사용자): 엑셀과 상관없이 늘 이 부서·지역(회장단 방으로 보고). 엑셀에 없어도 명단에서 빼지 않는다.
+const FIXED_PLACE = {
+  '21011800020': { dept: '부녀회', region: '기타', affiliation: '기타회장단', note: '기타회장단' },   // 이경원 부녀회장
+  '23032000007': { dept: '부녀회', region: '기타', affiliation: '기타회장단', note: '기타회장단' },   // 김경아 부녀회 총무(엑셀엔 교역자·교회)
+};
 
 /** 화면에서 받은 엑셀 줄을 다듬는다. */
 function cleanRows(rows) {
@@ -58,13 +63,14 @@ async function plan(excel, options) {
       member_id: t ? t.member_id : r.memberId, dept: r.dept, region: r.region, affiliation: r.note, note: r.note,
       reg_leads: r.regLeads, unreg_leads: r.unregLeads, counsel: r.counsel, gospel_room: r.gospelRoom,
       companion: r.companion, active_state: r.activeState, sort_order: i + 1,
+      ...(FIXED_PLACE[r.nid] || {}),
     };
     if (!t) {
       added.push({ ...who(r), tier: r.tier });
       upserts.push({ ...base, name: FIXED_NAMES[r.nid] || r.name, position: '', tier: r.tier, tier_changed_at: null });
       return;
     }
-    if (t.dept !== r.dept || t.region !== r.region) moved.push({ ...who(r), name: t.name, from: `${t.dept} ${t.region}`.trim(), to: `${r.dept} ${r.region}`.trim() });
+    if (!FIXED_PLACE[r.nid] && (t.dept !== r.dept || t.region !== r.region)) moved.push({ ...who(r), name: t.name, from: `${t.dept} ${t.region}`.trim(), to: `${r.dept} ${r.region}`.trim() });
     // 이름이 다르면: 고른 사람만 엑셀 이름으로, 나머지는 앱에서 쓰던 이름을 지킨다(앱에서 먼저 고친 개명일 수 있다).
     // FIXED_NAMES에 있는 사람은 고를 것 없이 늘 그 이름.
     const fixedName = FIXED_NAMES[r.nid];
@@ -85,7 +91,7 @@ async function plan(excel, options) {
   const removed = [], kept = [], removeIds = [];
   for (const t of missing) {
     const info = { ...who(t), position: t.position, tier: t.tier, adminPosition: adminOf.get(t.nid)?.position || '' };
-    if (keep.has(t.nid)) {
+    if (keep.has(t.nid) || FIXED_PLACE[t.nid]) {
       kept.push(info);
       upserts.push({
         member_id: t.member_id, name: t.name, dept: t.dept, region: t.region, affiliation: t.affiliation, note: t.note,
