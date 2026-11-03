@@ -3,7 +3,7 @@
 // 10/25: 지역 방(dept '부녀회/03지역')이 있으면 그 지역 사람 보고는 지역 방으로, 매일 22시에 방마다 일일 보고 취합(reportDailyTick).
 import { db, run } from './db.js';
 import { kstDate, kstDateTime, normId } from './util.js';
-import { findTeacher, findTeacherLoose, fixActivityNids, loadRoster, isApprover } from '../actions/roster.js';
+import { findTeacher, findTeacherLoose, fixActivityNids, adminsAsTeachers, loadRoster, isApprover } from '../actions/roster.js';
 import { tablePng } from './table-image.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -277,6 +277,7 @@ export async function buildDailyReports(date, onlyDept = '') {
   const leaderIds = acts.map((a) => normId(leaderId(a.report && a.report.team && a.report.team.leader))).filter(Boolean);
   const want = [...new Set([...nids, ...leaderIds])];
   const teachers = want.length ? await run(db().from('teachers').select('nid, name, dept, region, affiliation, note').in('nid', want)) : [];
+  teachers.push(...await adminsAsTeachers(want.filter((n) => !teachers.some((t) => t.nid === n))));   // 11/3: 관리자 명단에만 있는 분(회장 등)
   const byNid = new Map(teachers.map((t) => [t.nid, t]));
   const names = [...new Set(acts.map((a) => String(a.target_name || '').trim()).filter(Boolean))];
   const fresh = names.length
@@ -379,6 +380,7 @@ export async function buildSummaryReports(date, onlyKey = '') {
     .gte('submitted_at', `${date} 00:00:00`).lte('submitted_at', `${date} 23:59:59`).order('id')));
   const nids = [...new Set(acts.map((a) => a.nid).filter(Boolean))];
   const teachers = nids.length ? await run(db().from('teachers').select('nid, dept, region').in('nid', nids)) : [];
+  teachers.push(...await adminsAsTeachers(nids.filter((n) => !teachers.some((t) => t.nid === n))));   // 11/3: 관리자 명단에만 있는 분
   const byNid = new Map(teachers.map((t) => [t.nid, t]));
   return sums.map((room) => {
     const dept = room.dept.split('#')[0];

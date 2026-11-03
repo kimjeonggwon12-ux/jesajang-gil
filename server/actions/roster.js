@@ -41,9 +41,21 @@ export async function findTeacher(memberId) {
  */
 export async function findTeacherLoose(memberId, name) {
   const t = await findTeacher(memberId);
-  if (t || !String(name || '').trim()) return t;
-  const rows = await run(db().from('teachers').select('*').eq('name', String(name).trim()).limit(2));
-  return rows.length === 1 ? rows[0] : null;
+  if (t) return t;
+  if (String(name || '').trim()) {
+    const rows = await run(db().from('teachers').select('*').eq('name', String(name).trim()).limit(2));
+    if (rows.length === 1) return rows[0];
+  }
+  // 11/3(사용자: 이경원 부녀회장 보고가 회장단 방에 안 올라옴): 교사명단엔 없고 관리자 명단에만 있는 분 → 관리자 명단의 부서·지역으로
+  const [a] = await run(db().from('admins').select('member_id, nid, name, dept, region, position, affiliation').eq('nid', normId(memberId)).limit(1));
+  return a ? { ...a, affiliation: a.affiliation || '', note: '', fromAdmins: true } : null;
+}
+
+/** nid 들 중 교사명단에 없는 것을 관리자 명단(부서·지역)으로 채운다 — 보고방 일일 보고·총합에서 관리자만인 분도 세게. */
+export async function adminsAsTeachers(nids) {
+  if (!nids.length) return [];
+  const rows = await run(db().from('admins').select('nid, name, dept, region, affiliation').in('nid', nids));
+  return rows.map((a) => ({ ...a, affiliation: a.affiliation || '', note: '' }));
 }
 
 /**
