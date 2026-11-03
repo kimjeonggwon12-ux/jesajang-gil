@@ -373,12 +373,7 @@ export async function learnSummaryTopic(msg) {
     ...rolls.map((r) => `✅ 이 주제로 ${esc(ORG_LABEL[r.dept.split('#')[0]] || r.dept)} 멤버 출결 현황이 모임마다 마감 때 취합돼 올라와요.`),
   ];
   if (rows.length) await sendText(`${msg.chat.id}/${th}`, lines.join('\n')).catch(() => {});
-  // 출결 주제를 처음 배우면 최근 모임 출결을 샘플로 한 번
-  for (const r of rolls) await rollCallSample(r.dept).catch((e) => console.log('출결 샘플 실패: ' + e.message));
-  // 11/2: 주제를 처음 배운 총합 방에는 오늘 총합을 샘플로 한 번 올린다
-  for (const r of sums) {
-    for (const rep of await buildSummaryReports(kstDate(), r.dept)) await sendDaily(rep, '🧪 <b>샘플</b> — 지역장+교관방과 같은 내용\n').catch((e) => console.log('샘플 실패: ' + e.message));
-  }
+  // 11/3(사용자): "샘플은 이제 올리지 말고 마감되면 제대로" — 주제를 배워도 샘플은 안 올린다(연결 안내 한 줄만)
   return rows.length > 0;
 }
 
