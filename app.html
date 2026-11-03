@@ -6524,7 +6524,7 @@
     //   ⚠️ server/actions/tiers.js ACTIVITY_GROUPS(교사 명단 묶음 열)와 같이 맞출 것.
     const EXTRA_ACTIVITY_OPTIONS = ['동아리', '식구 복음방', '전도 행사 지원'];
     // 11/3(사용자): 육상담(=상담1)·부스담당은 뺌, 협력도 섭외자피드백을 고를 수 있게
-    const COOP_ACTIVITY_OPTIONS = ['피드백', '동아리', '잎사귀', '만남 동행', '밭보기', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
+    const COOP_ACTIVITY_OPTIONS = ['피드백', '동아리', '잎사귀', '만남 동행', '밭보기', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원', '교육 지원', '특강'];   // 11/3(사용자): 교육 지원·특강 추가
     function activityOptionsForRoles(roles) {
       if (roles.includes(COOP_ROLE)) return COOP_ACTIVITY_OPTIONS;
       return (roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r)) ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS).concat(EXTRA_ACTIVITY_OPTIONS);
