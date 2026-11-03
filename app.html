@@ -6523,8 +6523,8 @@
     // 11/1(사용자): 소분류에 없던 교사 활동 — 내부(식구) 복음방 · 전도 행사 지원, 동호회(=동아리)는 모든 역할에서 고를 수 있게.
     //   ⚠️ server/actions/tiers.js ACTIVITY_GROUPS(교사 명단 묶음 열)와 같이 맞출 것.
     const EXTRA_ACTIVITY_OPTIONS = ['동아리', '식구 복음방', '전도 행사 지원'];
-    // 11/3(사용자): 육상담(=상담1)·부스담당은 뺌
-    const COOP_ACTIVITY_OPTIONS = ['동아리', '잎사귀', '만남 동행', '밭보기', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
+    // 11/3(사용자): 육상담(=상담1)·부스담당은 뺌, 협력도 섭외자피드백을 고를 수 있게
+    const COOP_ACTIVITY_OPTIONS = ['피드백', '동아리', '잎사귀', '만남 동행', '밭보기', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
     function activityOptionsForRoles(roles) {
       if (roles.includes(COOP_ROLE)) return COOP_ACTIVITY_OPTIONS;
       return (roles.some(r => ROLES_WITH_EXTRA_ACTIVITY.includes(r)) ? ROLE_ACTIVITY_OPTIONS.concat([TEACHER_EXTRA_ACTIVITY]) : ROLE_ACTIVITY_OPTIONS).concat(EXTRA_ACTIVITY_OPTIONS);
@@ -11795,45 +11795,7 @@ function sanitizeFilename(s) {
   return String(s || '').replace(/[\\/:*?"<>|\r\n]+/g, '_').trim();
 }
 
-// 워드가 열 수 있는 최소한의 HTML 문서를 만들어 application/msword로 다운로드.
-// 실제 .docx(zip 기반)가 아니라 "워드가 HTML을 인식해서 열어주는" 방식(.doc 확장자
-// + MS Office 네임스페이스 선언)이라 별도 라이브러리 없이 브라우저에서 바로 생성 가능.
-function downloadUnitAsWord(u) {
-  const paragraphs = String(u.content || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  const bodyHtml = paragraphs.map(p =>
-    `<p style="margin:0 0 12pt 0; line-height:1.6;">${esc(p).split('\n').join('<br>')}</p>`
-  ).join('\n');
-
-  const html = `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-<meta charset="UTF-8">
-<meta name="ProgId" content="Word.Document">
-<title>${esc(u.unitName)}</title>
-<style>
-  body { font-family: '맑은 고딕', 'Malgun Gothic', sans-serif; font-size: 11pt; }
-  h1 { font-size: 20pt; margin: 0 0 4pt 0; }
-  .subtitle { font-size: 10pt; color: #555555; margin: 0 0 18pt 0; }
-</style>
-</head>
-<body>
-<h1>${esc(u.unitName)}</h1>
-<p class="subtitle">${esc(u.courseName)} · 예상 소요시간 약 ${u.minutes || '-'}분</p>
-${bodyHtml}
-</body>
-</html>`;
-
-  // 맨 앞 UTF-8 BOM — 워드가 한글을 EUC-KR 등으로 오인해 깨지는 것을 방지.
-  const blob = new Blob(['﻿' + html], { type: 'application/msword;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = sanitizeFilename(`${u.courseName}_${u.unitName}.doc`);
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+// 11/3(사용자): 교재(복음방 교재 등) 다운로드 기능 자체를 없앰 — 앱 안에서 열람만.
 
 const TAB_DEFS = [...COURSE_TABS];   // 2026-10-10: '이수교육'은 나의 교실 [이수한 교육] 탭으로 옮김
 
@@ -12024,22 +11986,10 @@ function renderUnitDetail(u) {
         ${renderContentHtml(u.content)}
       </div>
 
-      <button class="download-unit-btn kko-btn-outline mt-2.5" data-course="${esc(u.courseId)}">
-        <svg class="lucide-i mr-1.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg> 워드로 다운로드
-      </button>
     </div>`;
 }
 
-function wireUnitControls(body) {
-  body.querySelectorAll('.download-unit-btn').forEach(el => {
-    el.onclick = (e) => {
-      e.stopPropagation();
-      const id = el.dataset.course;
-      const u = tbState.courses.find(c => c.courseId === id);
-      if (u) downloadUnitAsWord(u);
-    };
-  });
-}
+function wireUnitControls(body) { /* 11/3: 교재 다운로드 단추 없앰 */ }
 
 
 // 2026-09-15: 교사 본인 체크 → 읽기 전용으로 변경(사용자 요청). 이수 등록은 교육부·전도부가
@@ -12956,7 +12906,7 @@ function tbSearchRender() {
         catch (e2) { toast('복사하지 못했어요.', true); }
       }
     }
-    // 워드가 여는 HTML(.doc) — 교재 단원 받기(downloadUnitAsWord)와 같은 방식, 내용은 복사와 같은 교안 모양
+    // 워드가 여는 HTML(.doc) — 내용은 복사와 같은 교안 모양(영상 교안)
     function vtDownload(v, kind) {
       const r = vtState.cache[v.id];
       if (!r || !r.exists) return;
