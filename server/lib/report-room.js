@@ -264,8 +264,10 @@ const DEPT_ORDER =['교역자', '자문회', '장년회', '부녀회', '청년�
 const deptRank = (key) => { const i = DEPT_ORDER.indexOf(key.split(/[#/]/)[0]); return i < 0 ? 9 : i; };
 const orgOrder = (r) => { const m = r.match(/^0*(\d+)/); return m ? [0, Number(m[1])] : [1, ['유아모', '새신자'].indexOf(r) + 1 || 9]; };
 const countPairs = (acts, items) => new Set(acts.filter((a) => (a.activities || []).some((x) => items.includes(x)))
-  .map((a) => `${String(a.target_name || '').trim()}|${leaderName((a.report && a.report.team && a.report.team.leader) || '') || a.nid}`)
-  .filter((k) => !k.startsWith('|'))).size;
+  // 11/3(사용자: "교관 2건+1건 올렸는데 총 서머리엔 1건"): 섭외자 이름을 비운 보고는 예전엔 아예 빠졌다 → 보고 한 건을 1건으로 센다
+  .map((a) => (String(a.target_name || '').trim()
+    ? `${String(a.target_name).trim()}|${leaderName((a.report && a.report.team && a.report.team.leader) || '') || a.nid}`
+    : `#${a.id}`))).size;
 
 export function summaryBoard(dept, date, orgs, actsByOrg) {
   const [y, m, d] = date.split('-').map(Number);
