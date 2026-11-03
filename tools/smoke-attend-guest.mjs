@@ -45,6 +45,17 @@ try {
   const c = charts.find((x) => x.dept === '부녀회');
   assert.ok(c, '부녀회 그래프'); assert.match(c.caption, /3지역 0\/\d+명 \(0%\) \+ 비교사 1명/);
   console.log('✓ 마감: 교자장부청 부녀회 1 · 부녀회 3지역 + 비교사 1명');
+  // 11/3: 네 부서 '새신자' 지역, 장년회 13지역, 청년회는 6지역까지
+  const G2 = { memberId: '99999999-91235', name: '시험새신자' }, G3 = { memberId: '99999999-91236', name: '시험장년' };
+  assert.match((await a.submitAttendance({ ...G2, meetingId, guestOrg: '청년', guestDistrict: '7' })).error, /지역/);
+  const n2 = await a.submitAttendance({ ...G2, meetingId, guestOrg: '자문', guestDistrict: '새신자' });
+  assert.ok(n2.ok, n2.error); assert.equal(n2.record.pickDistrict, '새신자');
+  const n3 = await a.submitAttendance({ ...G3, meetingId, guestOrg: '장년', guestDistrict: '13' });
+  assert.ok(n3.ok, n3.error); assert.equal(n3.record.pickDistrict, 13);
+  const d2 = await closingData(m);
+  assert.equal(d2.rows.find((r) => r.name === '시험새신자').region, '새신자');
+  assert.equal(d2.rows.find((r) => r.name === '시험장년').region, '13지역');
+  console.log('✓ 자문회 새신자 · 장년회 13지역 비교사');
   console.log('비교사 출석 점검 통과');
 } finally {
   if (meetingId) {

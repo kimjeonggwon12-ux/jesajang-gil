@@ -9306,7 +9306,10 @@
     // 자문·장년·부녀·청년은 1~12지역(부녀회만 '유아모' 추가). 표시는 서버 _attMeetLabel_과 같은 '부녀회 3지역' 형식.
     const ATT_ORGS = [['', '선택 안 함'], ['전체', '전체 (모든 부서)'], ['교역자', '교역자'], ['자문', '자문회'], ['장년', '장년회'], ['부녀', '부녀회'], ['청년', '청년회'], ['기타', '기타']];
     const ATT_ORG_HAS_DISTRICT = ['자문', '장년', '부녀', '청년'];
-    const attDistricts = org => ATT_ORG_HAS_DISTRICT.includes(org) ? [...Array.from({ length: 12 }, (_, i) => String(i + 1)), ...(org === '부녀' ? ['유아모'] : [])] : [];
+    // 11/3(사용자): 부서마다 명단 지역 그대로 + 네 부서 모두 '새신자' (서버 DISTRICT_MAX_OF·EXTRA_DISTRICTS와 같게)
+    const ATT_DIST_MAX = { 자문: 10, 장년: 13, 부녀: 12, 청년: 6 };
+    const ATT_DIST_EXTRA = { 부녀: ['유아모', '새신자'], 장년: ['새신자'], 청년: ['새신자'], 자문: ['새신자'] };
+    const attDistricts = org => ATT_ORG_HAS_DISTRICT.includes(org) ? [...Array.from({ length: ATT_DIST_MAX[org] || 12 }, (_, i) => String(i + 1)), ...(ATT_DIST_EXTRA[org] || [])] : [];
     const attDistrictLabel = d => d == null || d === '' ? '' : /^\d+$/.test(String(d)) ? d + '지역' : String(d);
     function attMeetLabel(m) {
       if (!m) return '';
@@ -9808,8 +9811,8 @@
           ${attMeetLabel(f) ? `<div class="att-muted" style="margin-top:6px">텔레그램 알림 표시: <span class="att-org">${esc(attMeetLabel(f))}</span></div>` : ''}
           <label class="cal-lbl">참석자에게 고르게 하기</label>
           <label class="att-toggle"><input type="checkbox" id="attFAskDist" ${f.askDistrict ? 'checked' : ''}><span><b>내 지역 선택</b><small>${f.org === '교역자' ? '교역자 모임은 지역을 묻지 않아요(한 부서).'
-            : attFixedPickOrg(f) ? `${esc(attMeetLabel({ org: f.org }))} 1~12지역${f.org === '부녀' ? '·유아모' : ''} 중 고름`
-            : '소속(교역자·자문·장년·부녀·청년) → 1~12지역 고름 · 부녀회는 유아모 · 교역자는 지역 없음'}</small></span></label>
+            : attFixedPickOrg(f) ? `${esc(attMeetLabel({ org: f.org }))} 1~${ATT_DIST_MAX[f.org] || 12}지역·${(ATT_DIST_EXTRA[f.org] || []).join('·')} 중 고름`
+            : '소속(교역자·자문·장년·부녀·청년) → 지역 고름(새신자 포함) · 부녀회는 유아모 · 교역자는 지역 없음'}</small></span></label>
           <label class="att-toggle"><input type="checkbox" id="attFAskDept" ${f.askDept ? 'checked' : ''}><span><b>24개 부서 선택</b><small>행서·내무·기획·교육 등 부서 중 하나를 고름 · 기타는 직접 쓰기</small></span></label>
           <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">날짜 <span class="cal-req">*</span></label><input type="date" class="cal-inp" id="attFDate" value="${esc(f.date)}"></div>
             <div style="flex:1"><label class="cal-lbl">장소</label><input class="cal-inp" id="attFPlace" maxlength="80" value="${esc(f.place)}"></div></div>
@@ -16844,7 +16847,7 @@ async function calAdmInit() {
 
     const rosterAdm = (() => {
       const DEPTS = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
-      const REGIONS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0') + '지역');
+      const REGIONS = [...Array.from({ length: 13 }, (_, i) => String(i + 1).padStart(2, '0') + '지역'), '새신자', '유아모', '기타'];   // 11/3: 장년회 13지역·새신자도
       const st = { query: '', rows: null, hint: '', busy: false, error: '' };
       const root = () => document.getElementById('rosterAdmRoot');
       const call = payload => callApi({ ...payload, memberId: App.memberId, name: App.name });
