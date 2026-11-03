@@ -269,6 +269,7 @@ async function regionStats(data) {
   const cellOf = (dept, region) => {
     const regions = stats.get(dept);
     region = regionLabel(region);   // '03지역'(명단)·'3지역'(비교사)을 한 칸으로
+    if (dept === '청년회' && region === '새신자') region = '기타';   // 11/3: 청년회 새신자는 기타로
     if (!regions.has(region)) regions.set(region, { total: 0, people: new Set(), guests: new Set(), bySession: {} });
     return regions.get(region);
   };

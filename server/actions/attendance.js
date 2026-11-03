@@ -14,7 +14,9 @@ const ORGS_WITH_DISTRICT = ['부녀', '장년', '청년', '자문'];            
 // 11/3(사용자): 부서마다 명단 지역 그대로 — 자문 1~10, 장년 1~13, 부녀 1~12·유아모, 청년 1~6, 네 부서 모두 '새신자' 지역
 const DISTRICT_MAX_OF = { 자문: 10, 장년: 13, 부녀: 12, 청년: 6 };
 const DISTRICT_MAX = 13;
-const EXTRA_DISTRICTS = { 부녀: ['유아모', '새신자'], 장년: ['새신자'], 청년: ['새신자'], 자문: ['새신자'] };
+// 11/3(사용자): 청년회는 새신자를 따로 두지 않고 '기타'로 몰아간다(텔레 '기타(교문,새신자,회장단) 교사방'과 같게)
+const EXTRA_DISTRICTS = { 부녀: ['유아모', '새신자'], 장년: ['새신자'], 청년: ['기타'], 자문: ['새신자'] };
+const DISTRICT_INTO = { 청년: { 새신자: '기타' } };   // 이 부서에서 이 지역은 저 지역으로 센다
 const PICK_ORGS = ['교역자', '자문', '장년', '부녀', '청년'];                    // 참석자가 고르는 소속
 const DEPT24 = ['행서', '내무', '기획', '재정', '교육', '신학', '해선', '문화', '출판', '정통', '찬양', '섭외', '국선', '홍보', '법무', '건설', '체육', '사업', '후생', '봉교'];
 
@@ -38,7 +40,8 @@ function hhmm(v) {
 /** 지역 값 다듬기: 1~12 숫자 또는 그 부서의 특별 지역(유아모). 아니면 ''. */
 function cleanDistrict(org, v) {
   if (v == null || v === '' || !ORGS_WITH_DISTRICT.includes(org)) return '';
-  const s = String(v).trim().replace(/지역$/, '');
+  let s = String(v).trim().replace(/지역$/, '');
+  s = (DISTRICT_INTO[org] || {})[s] || s;
   if (/^\d+$/.test(s)) { const n = Number(s); return n >= 1 && n <= (DISTRICT_MAX_OF[org] || DISTRICT_MAX) ? n : ''; }
   return (EXTRA_DISTRICTS[org] || []).includes(s) ? s : '';
 }
@@ -61,7 +64,7 @@ const orgFromDept = (dept) => PICK_ORGS.find((o) => String(dept || '').includes(
 function districtFromRegion(org, region) {
   if (!ORGS_WITH_DISTRICT.includes(org)) return '';
   const r = String(region || '');
-  const extra = (EXTRA_DISTRICTS[org] || []).find((x) => r.includes(x));
+  const extra = (EXTRA_DISTRICTS[org] || []).find((x) => r.includes(x)) || Object.entries(DISTRICT_INTO[org] || {}).find(([x]) => r.includes(x))?.[1];
   if (extra) return extra;
   const n = Number(r.replace(/\D/g, ''));
   return n >= 1 && n <= (DISTRICT_MAX_OF[org] || DISTRICT_MAX) ? n : '';

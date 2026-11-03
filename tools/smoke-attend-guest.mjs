@@ -55,7 +55,11 @@ try {
   const d2 = await closingData(m);
   assert.equal(d2.rows.find((r) => r.name === '시험새신자').region, '새신자');
   assert.equal(d2.rows.find((r) => r.name === '시험장년').region, '13지역');
-  console.log('✓ 자문회 새신자 · 장년회 13지역 비교사');
+  const G4 = { memberId: '99999999-91237', name: '시험청년' };
+  const n4 = await a.submitAttendance({ ...G4, meetingId, guestOrg: '청년', guestDistrict: '새신자' });
+  assert.ok(n4.ok, n4.error); assert.equal(n4.record.pickDistrict, '기타');
+  assert.equal((await closingData(m)).rows.find((r) => r.name === '시험청년').region, '기타');
+  console.log('✓ 자문회 새신자 · 장년회 13지역 · 청년회 새신자 → 기타');
   console.log('비교사 출석 점검 통과');
 } finally {
   if (meetingId) {

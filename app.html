@@ -9308,7 +9308,7 @@
     const ATT_ORG_HAS_DISTRICT = ['자문', '장년', '부녀', '청년'];
     // 11/3(사용자): 부서마다 명단 지역 그대로 + 네 부서 모두 '새신자' (서버 DISTRICT_MAX_OF·EXTRA_DISTRICTS와 같게)
     const ATT_DIST_MAX = { 자문: 10, 장년: 13, 부녀: 12, 청년: 6 };
-    const ATT_DIST_EXTRA = { 부녀: ['유아모', '새신자'], 장년: ['새신자'], 청년: ['새신자'], 자문: ['새신자'] };
+    const ATT_DIST_EXTRA = { 부녀: ['유아모', '새신자'], 장년: ['새신자'], 청년: ['기타'], 자문: ['새신자'] };   // 청년회 새신자 = 기타
     const attDistricts = org => ATT_ORG_HAS_DISTRICT.includes(org) ? [...Array.from({ length: ATT_DIST_MAX[org] || 12 }, (_, i) => String(i + 1)), ...(ATT_DIST_EXTRA[org] || [])] : [];
     const attDistrictLabel = d => d == null || d === '' ? '' : /^\d+$/.test(String(d)) ? d + '지역' : String(d);
     function attMeetLabel(m) {
@@ -9440,7 +9440,7 @@
           ${fixed ? `<div class="att-muted" style="margin-bottom:6px">${esc(attMeetLabel({ org: fixed }))}</div>`
             : `<div class="att-opts">${[...ATT_PICK_ORGS, ['기타', '기타']].map(([v, l]) => `<button type="button" class="att-opt ${p.org === v ? 'on' : ''}" data-att-porg="${v}">${l}</button>`).join('')}</div>
               ${p.org === '기타' ? `<input class="cal-inp" data-att-etc="orgEtc" maxlength="30" style="margin-top:8px" placeholder="소속·지역을 직접 써 주세요" value="${esc(p.orgEtc)}">` : ''}`}
-          ${attDistricts(org).length ? `<div class="att-org-chips" style="margin-top:8px">${[...attDistricts(org), '기타'].map(d => `<button type="button" class="att-opt ${p.district === d ? 'on' : ''}" data-att-pdist="${esc(d)}">${esc(attDistrictLabel(d))}</button>`).join('')}</div>
+          ${attDistricts(org).length ? `<div class="att-org-chips" style="margin-top:8px">${[...attDistricts(org).filter(d => d !== '기타'), '기타'].map(d => `<button type="button" class="att-opt ${p.district === d ? 'on' : ''}" data-att-pdist="${esc(d)}">${esc(attDistrictLabel(d))}</button>`).join('')}</div>
               ${p.district === '기타' ? `<input class="cal-inp" data-att-etc="districtEtc" maxlength="30" style="margin-top:8px" placeholder="지역을 직접 써 주세요" value="${esc(p.districtEtc)}">` : ''}`
             : org === '교역자' ? '<div class="att-muted" style="margin-top:6px">교역자는 지역 구분 없이 한 부서로 출석해요.</div>' : ''}
         </div>`;
