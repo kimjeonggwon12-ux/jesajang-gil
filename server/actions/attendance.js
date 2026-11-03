@@ -629,7 +629,9 @@ async function attAutoSummary(body) {
     if (m.cohortId) continue;   // 교육 과정 모임은 과정 방으로 따로(cohort-tick.js)
     const [y, mo, d] = m.date.split('-').map(Number);
     const [h, min] = m.end.split(':').map(Number);
-    const sinceClose = Math.round((now - new Date(y, mo - 1, d, h, min + 10)) / 60000);   // 끝나고 10분 뒤부터
+    // 11/3(사용자): 화요전도단은 끝나는 시각(21:00) = 마감 = 서머리 시각, 그 밖은 끝나고 10분 뒤부터
+    const after = /화요s*전도단/.test(String(m.title || '')) ? 0 : 10;
+    const sinceClose = Math.round((now - new Date(y, mo - 1, d, h, min + after)) / 60000);
     const manual = m.status === '닫힘' && sinceClose <= 24 * 60 && m.date <= today;
     if (!manual && (sinceClose < 0 || sinceClose > 360)) continue;
     await setStatus(m.meetingId, '집계완료');

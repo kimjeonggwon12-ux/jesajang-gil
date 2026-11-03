@@ -7,7 +7,7 @@ import { sendRoomText, topicPending, orgLabel } from './report-room.js';
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 export const ROOM_ATT_TITLES = [/화요\s*전도단/];
 export const isRoomAttMeeting = (m) => !!m && !m.cohortId && ROOM_ATT_TITLES.some((re) => re.test(String(m.title || '')));
-export const MORNING_POST = '13:00';   // 오전 교육 마감 서머리 시각(이때까지 온 '오전' 출석)
+export const MORNING_POST = '10:30';   // 11/3(사용자): 오전 교육 끝나는 시각 = 오전 마감 서머리 시각(이때까지 온 '오전' 출석)
 const DEPTS = ['자문회', '장년회', '부녀회', '청년회'];
 const ALIAS = { '청년회/새신자': '청년회/기타' };
 // '3지역'·'03지역' → '03지역'(방 열쇠 모양)
