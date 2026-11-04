@@ -554,6 +554,9 @@ async function sendDaily(r, pre = '') {
   return sendText(r.room.chat_id, pre + (r.html ? r.text : esc(r.text)));
 }
 
+// 11/4: 방별 출석 표(room-attendance.js) — 표 사진 + 설명, 사진이 안 되면 글
+export const sendRoomBoard = (room, png, caption, text) => sendDaily({ room, png, caption, text, html: true });
+
 /** 5분마다: 22시가 지나면 오늘 일일 보고를 방마다 한 번씩. */
 export async function reportDailyTick() {
   if (kstDateTime().slice(11, 16) < '22:00') return [];

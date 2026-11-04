@@ -40,7 +40,7 @@ export function tablePng(b) {
   const tableW = colW.reduce((a, x) => a + x, 0);
   const titleH = 34 + (b.sub ? 24 : 0);
   const footLines = b.foot ? String(b.foot).match(/.{1,60}(\s|$)|.{1,60}/g).map((x) => x.trim()).filter(Boolean) : [];
-  const W = Math.max(tableW, textW(b.title, 22), ...footLines.map((l) => textW(l, 14))) + PAD * 2;
+  const W = Math.max(tableW, textW(b.title, 22), b.sub ? textW(b.sub, 14) : 0, ...footLines.map((l) => textW(l, 14))) + PAD * 2;
   const GH = b.groups ? H : 0;   // 묶음 머리 줄
   const tableTop = PAD + titleH + 6 + GH;
   const Hgt = tableTop + HH + H * b.rows.length + (footLines.length ? 14 + footLines.length * 20 : 0) + PAD;

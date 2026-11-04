@@ -418,7 +418,7 @@ async function tsTestRoom(body) {
   const tag = (n, what) => `🧪 <b>[시험 ${n}] ${what}</b>\n\n`;
   const out = [];
   const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
-  if (body.intro !== false) {
+  if (body.intro !== false && !only.every((x) => x === 'att')) {
     out.push(['intro', await testText([
       '🧪 <b>나만의 교사광장 — 하루 서머리 세트 시험</b>',
       `${md(day)} 기록으로 만든 하루 세트예요. 실제 방에는 보내지 않았어요.`, '',
@@ -452,6 +452,27 @@ async function tsTestRoom(body) {
   if (only.includes('status')) {
     const r = await composeStatus(day);
     out.push(['status', await testPhoto(r.png, tag('⑤', '밤 11시 — 교사 활동 현황 서머리') + r.caption, tag('⑤', '교사 활동 현황 서머리') + r.text)]);
+  }
+  // 11/4: 출석 서머리 시험 — { only:['att'], meetingId, phase:'최종'|'오전'… } 지역 글 몇 개 + 부서 민트 표 + 교자장부청 보라 표
+  if (only.includes('att')) {
+    const { findMeeting } = await import('./attendance.js');
+    const { attendancePreview } = await import('../lib/room-attendance.js');
+    const m = await findMeeting(String(body.meetingId || ''));
+    if (!m) return { error: '모임 없음' };
+    const phase = String(body.phase || '최종');
+    const p = await attendancePreview(m, phase, Number(body.regions || 2));
+    if (body.intro !== false) {
+      out.push(['att:intro', await testText([
+        '🧪 <b>출석 서머리 새 모양 — 시험</b>', `📌 ${esc(m.title)} (${m.date}) · ${phase === '최종' ? '교육 마감 · 총 참석' : phase + ' 교육 마감'}`, '',
+        '① 📍 <b>지역 방·교역자 방</b> — 숫자 요약(한 줄에 하나) + 타임별 정상/지각으로 나눈 이름(한 줄에 4명)',
+        '② 📊 <b>부서 총합·전체 방</b> — 지역 × 재적·오전·저녁·총 참석·출석률·정상·지각·비교사 <b>민트</b> 표',
+        '③ 🟣 <b>교자장부청</b> — 같은 칸의 <b>보라</b> 표 (어느 방에 올릴지 정해 주시면 연결)', '',
+        '※ 지역 글은 견본으로 몇 곳만 보냈어요. 실제로는 사람이 온 지역 방마다 하나씩.',
+      ].join('\n'))]);
+    }
+    for (const t of p.texts) out.push(['att:region', await testText(tag('①', '지역 방') + t)]);
+    for (const d of p.depts) out.push(['att:' + d.dept, await testPhoto(d.png, tag('②', `${d.dept} 총합 방`) + d.caption, tag('②', d.dept) + d.text)]);
+    if (p.org) out.push(['att:org', await testPhoto(p.org.png, tag('③', '교자장부청') + p.org.caption, tag('③', '교자장부청') + p.org.text)]);
   }
   return { ok: out.every(([, r]) => r.ok), chat: MY_TEST_CHAT, date: day, sent: out.map(([k, r]) => [k, r.ok ? '성공' : '실패 ' + (r.error || '')]) };
 }
