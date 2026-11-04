@@ -8,6 +8,9 @@
 //   ④ 센터 강사·전도사 getCenterReferral — 받은 서류(그 사람 기록 전부)를 보고 관리 정보로 삼는다
 //   전도부(교육·전도 담당 관리자)는 saveCenter 로 센터를 만들고, 전체 건을 본다.
 import { db, run, isDuplicate } from '../lib/db.js';
+// 11/4(사용자·개인정보): 센터 보내기 서류는 섭외자가 수강카드를 작성(센터 수강 동의)한 뒤에만 센터로 넘긴다 — 승인·보내기 때 확인 체크 필수, 메모에 표시
+const CARD_FIRST = '수강카드를 작성(센터 수강 동의)한 분만 센터로 서류를 보낼 수 있어요. 화면의 「수강카드 작성」을 확인해 체크해 주세요.';
+const CARD_MARK = '[수강카드 작성 확인] ';
 import { normId, str, kstDateTime, fmtTs } from '../lib/util.js';
 import { findTeacher, isApprover, isOwner } from './roster.js';
 import { ownedTarget, targetDossier } from './targets.js';
@@ -241,6 +244,7 @@ async function decideCenterReferral(body) {
 async function sendToCenter(body) {
   const acc = await accessOf(body.memberId);
   if (!acc.hq && !acc.scopes.length) return { error: '지역장·교관만 센터로 보낼 수 있어요.' };
+  if (body.cardDone !== true) return { error: CARD_FIRST };
   const [center] = await run(db().from('centers').select('*').eq('id', Number(body.centerId)).limit(1));
   if (!center || !center.active) return { error: '보낼 센터를 골라 주세요(닫힌 센터는 안 돼요).' };
   const { ok, skipped, error } = await pickRows(acc, body.ids, '승인');
@@ -249,7 +253,7 @@ async function sendToCenter(body) {
   for (const r of ok) {
     await run(db().from('center_referrals').update({
       status: '전달', sent_by: signer(acc), sent_by_id: str(body.memberId), sent_at: now, center_id: center.id,
-      send_note: String(body.note || '').slice(0, 1000), snapshot: await refreshSnapshot(r), center_read_at: null,
+      send_note: (CARD_MARK + String(body.note || '')).slice(0, 1000), snapshot: await refreshSnapshot(r), center_read_at: null,
     }).eq('id', r.id).eq('status', '승인'));
   }
   return { ok: true, done: ok.length, skipped, center: centerLabel(center) };
@@ -335,6 +339,7 @@ async function findCenterStaff(body) {
 async function approveAndSend(body) {
   const acc = await accessOf(body.memberId);
   if (!acc.hq && !acc.scopes.length) return { error: '지역장·교관만 승인할 수 있어요.' };
+  if (body.cardDone !== true) return { error: CARD_FIRST };
   const cid = Number(body.centerId);
   const [center] = cid ? await run(db().from('centers').select('*').eq('id', cid).limit(1)) : [];
   if (!center || !center.active) return { error: '보낼 센터 기수를 먼저 골라 주세요(닫힌 기수는 안 돼요).' };
@@ -348,7 +353,7 @@ async function approveAndSend(body) {
   const ok = mine.filter((r) => (stages.get(r.target_id) ?? str(r.stage)) === '복음방');
   const notGospel = mine.filter((r) => !ok.includes(r)).map((r) => `${r.target_name}(${stages.get(r.target_id) ?? r.stage ?? '-'})`);
   if (!ok.length && notGospel.length) return { error: `복음방 단계인 분만 승인할 수 있어요: ${notGospel.join(', ')} — 반려로 돌려보내 주세요.` };
-  const now = kstDateTime(), note = String(body.note || '').slice(0, 1000);
+  const now = kstDateTime(), note = (CARD_MARK + String(body.note || '')).slice(0, 1000);
   for (const r of ok) {
     const snapshot = await refreshSnapshot(r);
     const patch = {

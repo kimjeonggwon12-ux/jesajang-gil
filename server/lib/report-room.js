@@ -118,6 +118,30 @@ async function sendText(chatId, text, reply) {
 const RP_LINE = '━━━━━━━━━━━━━━';
 const RP_LABEL = { '피드백': '섭외자피드백', '섭외': '섭외찾기(전단지)', '만남1': '만남', '센터수강': '센터수강생관리', '동아리': '동호회활동', '동행교사': '동행 복음방' };
 const emptyLine = (l) => /^• [^:]+ :\s*$/.test(l) || /^\s+-?\s*$/.test(l) || /^\d+\.\s*$/.test(l);
+
+// ── 11/4 개인정보(사용자: "섭외자 전화번호 뒷자리 등 법적 문제가 될 부분은 텔레에는 빠지게") ──
+//   텔레그램(앱 밖)으로 나가는 보고 글에서 섭외자를 가린다. 앱 안의 기록·보고 글 원본은 그대로 둔다.
+//   이름 = 가운데 ○ (홍길동 → 홍○동, 두 글자 → 홍○), 정확한 나이 → 연령대, 전화 뒷자리·신앙·섭외유형 줄은 뺀다.
+export const maskName = (n) => {
+  const first = String(n || '').replace(/^#/, '').trim().split(/[\s(（/·,]/)[0];
+  const a = [...first];
+  if (a.length <= 1) return first;
+  return a.length === 2 ? a[0] + '○' : a[0] + '○'.repeat(a.length - 2) + a[a.length - 1];
+};
+const CHAT_DROP = /^• (전화번호 뒷자리|전화번호|연락처|신앙|섭외유형|섭외 경로|주소) :/;
+/** 보고 글(앱이 만든 서식, esc 전) → 텔레그램에 올릴 모양. row.target_name 을 글 전체에서 가린다. */
+export function maskForChat(text, row) {
+  const full = String((row && row.target_name) || '').replace(/^#/, '').trim();
+  const names = [...new Set([full, full.split(/[\s(（/·,]/)[0]].filter((x) => [...x].length >= 2))].sort((a, b) => b.length - a.length);
+  return String(text || '').split('\n')
+    .filter((l) => !CHAT_DROP.test(l))
+    .map((l) => {
+      let s = l;
+      for (const nm of names) s = s.split('#' + nm).join(maskName(nm)).split(nm).join(maskName(nm));
+      if (/^• 이름 :/.test(s)) s = s.replace(/(\d{1,3})\s*세/g, (m, n) => `${Math.floor(Number(n) / 10) * 10}대`);
+      return s;
+    }).join('\n');
+}
 /** 보고 문자(앱이 만든 전체 서식) → 역할에 맞게 줄인 글. row = activities 행. */
 export function shapeReport(row) {
   const text = String(row.report_text || '').replace(/\n?✍️ 보고 :[^\n]*$/, '').trim();
@@ -197,7 +221,7 @@ export async function postReport(row, room, kind) {
     : `🙋 보고자 : ${who}${tags ? ` · ${esc(tags)}` : ''}  <code>${esc(row.member_id)}</code>`;
   const affil = String((t && (t.affiliation || t.region)) || '').trim();
   const foot = `🙋 보고자 : ${who}${deptLabel ? ` · ${esc(deptLabel)}` : ''}${affil && affil !== deptLabel ? ` · ${esc(affil)}` : ''}`;
-  const body = esc(shapeReport(row));   // 11/3: 교사 = 전체, 인도·섬김 = 필요한 칸만, 협력 = 협력 항목만
+  const body = esc(maskForChat(shapeReport(row), row));   // 11/3: 교사 = 전체, 인도·섬김 = 필요한 칸만, 협력 = 협력 항목만 · 11/4: 섭외자 가림
   const text = `${head}\n\n${body}\n${foot}`;
   const reply = kind === 'edit' && first ? first.msg : null;
 
@@ -253,7 +277,7 @@ export function dailyText(roomTitle, date, acts, newSet, leaders, only = null) {
       const leader = leaderName(lv) || (a.teacher && a.teacher.name) || a.name || '';
       const gu = guOf(lt || a.teacher);
       const key = `${name}|${leader}`;
-      if (!seen.has(key)) seen.set(key, { gu, line: `${gu ? gu + ' ' : ''}${name}-${leader}${newSet.has(name) ? '✅신규' : ''}` });
+      if (!seen.has(key)) seen.set(key, { gu, line: `${gu ? gu + ' ' : ''}${maskName(name)}-${leader}${newSet.has(name) ? '✅신규' : ''}` });   // 11/4: 섭외자 이름 가림
     }
     const rows = [...seen.values()].sort((p, q) => (p.gu || '99').localeCompare(q.gu || '99') || p.line.localeCompare(q.line, 'ko'));
     if (only) { if (label !== only[0]) out.push(si === 3 ? '' : LINE); }
