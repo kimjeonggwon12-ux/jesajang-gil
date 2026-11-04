@@ -383,5 +383,78 @@ async function tsTest(body) {
   return { ok: true };
 }
 
+// ── 나만의 교사광장(시험 방) ── 11/4(사용자): "-1004460094453 여기는 나만의 교사광장이야, 여기에 테스트 같은 거 해보려고 해"
+//   실제 방에는 보내지 않고 이 방에만 하루 서머리 세트를 순서대로(설명 붙여) 올린다. 중복 표시(alert_log)도 남기지 않는다.
+//   { action:'tsTestRoom', key, date?, only?:['morning','noon','dept','evening','status'], intro?:false }
+const MY_TEST_CHAT = '-1004460094453';
+
+/** 시험 방에 글·사진 — 교사광장 봇으로, 안 되면 출석 봇으로(어느 봇이 들어가 있든). */
+async function testSend(method, fields, photo) {
+  const tokens = [process.env.TEACHERSQUARE_BOT_TOKEN, process.env.ATT_BOT_TOKEN].filter(Boolean);
+  let last = '';
+  for (const token of tokens) {
+    const form = new FormData();
+    form.set('chat_id', MY_TEST_CHAT);
+    form.set('parse_mode', 'HTML');
+    for (const [k, v] of Object.entries(fields)) form.set(k, v);
+    if (photo) form.set('photo', new Blob([photo], { type: 'image/png' }), 'summary.png');
+    const j = await (await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', body: form })).json().catch((e) => ({ description: String(e) }));
+    if (j.ok) return { ok: true };
+    last = j.description || '';
+  }
+  return { ok: false, error: last };
+}
+const testText = (text) => testSend('sendMessage', { text: text.slice(0, 4000), link_preview_options: JSON.stringify({ is_disabled: true }) });
+const testPhoto = async (png, caption, fallback) => {
+  if (png) { const r = await testSend('sendPhoto', { caption: caption.slice(0, 1024) }, png); if (r.ok) return r; }
+  return testText(fallback || caption);
+};
+
+async function tsTestRoom(body) {
+  if (!authorized(body)) return { error: 'unauthorized' };
+  const day = body.date || kstDate();
+  const yesterday = kstDate(new Date(new Date(day + 'T12:00:00+09:00').getTime() - 24 * 3600 * 1000));
+  const only = Array.isArray(body.only) && body.only.length ? body.only : ['morning', 'noon', 'dept', 'evening', 'status'];
+  const tag = (n, what) => `🧪 <b>[시험 ${n}] ${what}</b>\n\n`;
+  const out = [];
+  const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+  if (body.intro !== false) {
+    out.push(['intro', await testText([
+      '🧪 <b>나만의 교사광장 — 하루 서머리 세트 시험</b>',
+      `${md(day)} 기록으로 만든 하루 세트예요. 실제 방에는 보내지 않았어요.`, '',
+      '① ☀️ <b>아침 7시</b> — 어제 활동, 부서별 이름·활동 글 (소통 방)',
+      '② 🕛 <b>정오</b> — 교자장부청 × 활동 항목 <b>보라</b> 표 + 항목별 5개 조직 총합 (소통 방)',
+      '③ 📊 <b>밤 10시</b> — 부서별 지역 일일 보고 총합 <b>민트</b> 표 (각 부서 총합 방·활동현황 방)',
+      '④ 🌙 <b>밤 10시</b> — 교자장부청 하루 <b>보라</b> 표 + 항목별 5개 조직 총합 (소통 방)',
+      '⑤ 🌃 <b>밤 11시</b> — 교사 활동 현황 서머리: 명함·기록·입장 + 등급(휴·활·정·우) 채움 막대 (소통 방)', '',
+      '🚫 이제 안 올리는 것: 저녁 참여율 막대그래프, 교사 등급 현황 글',
+      '📌 표 셈: 섭외자-인도자 한 쌍 = 1건, 섭외자 없는 기록(협력 등)은 한 건씩',
+    ].join('\n'))]);
+  }
+  if (only.includes('morning')) {
+    const { parts } = await composeDaily(yesterday);
+    for (const [i, p] of parts.entries()) out.push(['morning', await testText((i ? '' : tag('①', `아침 7시 서머리 — 어제(${md(yesterday)}) 활동`)) + p)]);
+  }
+  if (only.includes('noon')) {
+    const r = await composeBoard(day, 'noon');
+    out.push(['noon', await testPhoto(r.png, tag('②', '정오 서머리 — 교자장부청 오전 보고 총합(보라)') + r.caption)]);
+  }
+  if (only.includes('dept')) {
+    const { buildSummaryReports } = await import('../lib/report-room.js');
+    const sums = (await buildSummaryReports(day)).filter((s) => /#총합$/.test(s.room.dept));   // 같은 표를 여러 방에 보내는 사본(:활동현황·:회장단)은 한 번만
+    if (!sums.length) out.push(['dept', await testText(tag('③', '부서별 지역 일일 보고 총합(민트)') + '총합 방이 연결된 부서가 없어요.')]);
+    for (const s of sums) out.push(['dept:' + s.room.dept, await testPhoto(s.png, tag('③', '밤 10시 — 부서 지역별 총합(민트)') + s.caption, tag('③', '부서 지역별 총합') + s.text)]);
+  }
+  if (only.includes('evening')) {
+    const r = await composeBoard(day, 'evening');
+    out.push(['evening', await testPhoto(r.png, tag('④', '밤 10시 서머리 — 교자장부청 일일 보고 총합(보라)') + r.caption)]);
+  }
+  if (only.includes('status')) {
+    const r = await composeStatus(day);
+    out.push(['status', await testPhoto(r.png, tag('⑤', '밤 11시 — 교사 활동 현황 서머리') + r.caption, tag('⑤', '교사 활동 현황 서머리') + r.text)]);
+  }
+  return { ok: out.every(([, r]) => r.ok), chat: MY_TEST_CHAT, date: day, sent: out.map(([k, r]) => [k, r.ok ? '성공' : '실패 ' + (r.error || '')]) };
+}
+
 export { composeDaily, composeEvening };
-export default { tsDailySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest };
+export default { tsDailySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };
