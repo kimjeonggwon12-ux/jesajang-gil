@@ -14,10 +14,10 @@ const comma = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
  * 마지막 조직을 합계 줄로 굵게 그리려면 sumLabel 에 그 이름.
  */
 export function progressPng(b) {
-  const W = 960, PAD = 28, LABEL_W = 150, NUM_W = 210, BAR_H = 26, ROW_H = 40, PANEL_GAP = 22;
+  const W = 1100, PAD = 30, LABEL_W = 180, NUM_W = 275, BAR_H = 38, ROW_H = 54, PANEL_GAP = 24, TOP = 58;   // 11/4(사용자): 글자·막대 두껍게(가독성)
   const barX = PAD + LABEL_W, barW = W - PAD * 2 - LABEL_W - NUM_W;
-  const titleH = 92;
-  const panelH = 44 + b.labels.length * ROW_H;
+  const titleH = 100;
+  const panelH = TOP + b.labels.length * ROW_H;
   const H = titleH + b.panels.length * (panelH + PANEL_GAP) + PAD - PANEL_GAP + 10;
   /**
    * 11/4(사용자): 쌓는 막대 — p.stack = [{ label:'휴', name:'휴교사', color, values:[조직별 인원] }…]. 막대 전체 = 그 조직 인원 합(100%),
@@ -27,18 +27,18 @@ export function progressPng(b) {
     // 범례(제목 줄 오른쪽)
     let lx = W - PAD;
     [...p.stack].reverse().forEach((s) => {
-      const w = 18 + s.name.length * 16 + 14;
+      const w = 24 + s.name.length * 19 + 16;
       lx -= w;
-      out.push(`<rect x="${lx}" y="${y0 + 17}" width="14" height="14" rx="4" fill="${paint(s.color)}"/>`,
-        `<text x="${lx + 19}" y="${y0 + 29}" font-size="15" fill="#333">${esc(s.name)}</text>`);
+      out.push(`<rect x="${lx}" y="${y0 + 19}" width="18" height="18" rx="5" fill="${paint(s.color)}"/>`,
+        `<text x="${lx + 24}" y="${y0 + 34}" font-size="18" font-weight="700" fill="#333">${esc(s.name)}</text>`);
     });
     b.labels.forEach((label, i) => {
-      const y = y0 + 44 + i * ROW_H;
+      const y = y0 + TOP + i * ROW_H;
       const vals = p.stack.map((s) => s.values[i] || 0);
       const total = vals.reduce((a, v) => a + v, 0);
       const sum = label === b.sumLabel;
       const clip = `cl${i}_${y0}`;
-      out.push(`<text x="${PAD}" y="${y + BAR_H - 7}" font-size="18" font-weight="${sum ? 700 : 400}" fill="#111">${esc(label)}</text>`,
+      out.push(`<text x="${PAD}" y="${y + BAR_H / 2 + 8}" font-size="22" font-weight="700" fill="#111">${esc(label)}</text>`,
         `<clipPath id="${clip}"><rect x="${barX}" y="${y}" width="${barW}" height="${BAR_H}" rx="${BAR_H / 2}"/></clipPath>`,
         `<rect x="${barX}" y="${y}" width="${barW}" height="${BAR_H}" rx="${BAR_H / 2}" fill="#e3e8e5"/>`);
       let x = barX;
@@ -48,41 +48,41 @@ export function progressPng(b) {
         if (w > 0) {
           segs.push(`<rect x="${x}" y="${y}" width="${w}" height="${BAR_H}" fill="${paint(s.color)}"/>`);
           const pct = Math.round((vals[k] / total) * 100);
-          const fits = (t) => [...t].reduce((n, ch) => n + (/[가-힣]/.test(ch) ? 14 : 8.2), 0) + 10 <= w;   // 칸 안에 들어가는 글만
+          const fits = (t) => [...t].reduce((n, ch) => n + (/[가-힣]/.test(ch) ? 18 : 10.6), 0) + 12 <= w;   // 칸 안에 들어가는 글만
           const txt = [`${s.label} ${comma(vals[k])} (${pct}%)`, `${s.label} ${comma(vals[k])}`, comma(vals[k])].find(fits) || '';
-          if (txt) segs.push(`<text x="${x + w / 2}" y="${y + BAR_H - 8}" font-size="14" font-weight="700" text-anchor="middle" fill="${s.color === 'gold' ? '#5c3d00' : '#ffffff'}">${esc(txt)}</text>`);
+          if (txt) segs.push(`<text x="${x + w / 2}" y="${y + BAR_H / 2 + 6.5}" font-size="18" font-weight="700" text-anchor="middle" fill="${s.color === 'gold' ? '#5c3d00' : '#ffffff'}">${esc(txt)}</text>`);
           x += w;
         }
       });
       out.push(`<g clip-path="url(#${clip})">${segs.join('')}</g>`);
       const top = p.stack[p.stack.length - 1];
       const topPct = total ? Math.round((vals[vals.length - 1] / total) * 1000) / 10 : 0;
-      out.push(`<text x="${barX + barW + 14}" y="${y + BAR_H - 7}" font-size="18" fill="#111"><tspan font-weight="700" fill="#b8860b">${esc(top.label)} ${topPct}%</tspan>  ${comma(total)}명</text>`);
+      out.push(`<text x="${barX + barW + 14}" y="${y + BAR_H / 2 + 8}" font-size="22" font-weight="700" fill="#111"><tspan font-weight="700" fill="#b8860b">${esc(top.label)} ${topPct}%</tspan>  ${comma(total)}명</text>`);
     });
   };
   const out = [`<rect width="${W}" height="${H}" fill="#ffffff"/>`,
-    `<text x="${PAD}" y="44" font-size="28" font-weight="700" fill="#111">${esc(b.title)}</text>`,
-    `<text x="${PAD}" y="74" font-size="17" fill="#6b7772">${esc(b.sub || '')}</text>`];
+    `<text x="${PAD}" y="48" font-size="32" font-weight="700" fill="#111">${esc(b.title)}</text>`,
+    `<text x="${PAD}" y="80" font-size="19" fill="#6b7772">${esc(b.sub || '')}</text>`];
   // 11/4: 'gold' = 금빛 그라데이션(우수교사)
   out.unshift(`<defs><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe58a"/><stop offset="0.5" stop-color="#f4c430"/><stop offset="1" stop-color="#c9930a"/></linearGradient></defs>`);
   const paint = (c) => (c === 'gold' ? 'url(#gold)' : c);
   b.panels.forEach((p, pi) => {
     const y0 = titleH + pi * (panelH + PANEL_GAP);
     out.push(`<rect x="${PAD - 12}" y="${y0}" width="${W - PAD * 2 + 24}" height="${panelH}" rx="14" fill="#f7f9f8"/>`,
-      `<rect x="${PAD}" y="${y0 + 15}" width="6" height="20" rx="3" fill="${paint(p.color || (p.stack && p.stack[p.stack.length - 1].color) || '#888')}"/>`,
-      `<text x="${PAD + 16}" y="${y0 + 32}" font-size="20" font-weight="700" fill="#111">${esc(p.title)}</text>`);
+      `<rect x="${PAD}" y="${y0 + 16}" width="7" height="24" rx="3" fill="${paint(p.color || (p.stack && p.stack[p.stack.length - 1].color) || '#888')}"/>`,
+      `<text x="${PAD + 16}" y="${y0 + 36}" font-size="24" font-weight="700" fill="#111">${esc(p.title)}</text>`);
     if (p.stack) { stackRows(p, y0); return; }
     b.labels.forEach((label, i) => {
-      const y = y0 + 44 + i * ROW_H;
+      const y = y0 + TOP + i * ROW_H;
       const total = b.totals[i] || 0, v = p.values[i] || 0;
       const ratio = total ? Math.min(1, v / total) : 0;
       const sum = label === b.sumLabel;
       const pct = total ? Math.round((v / total) * 1000) / 10 : 0;
       out.push(
-        `<text x="${PAD}" y="${y + BAR_H - 7}" font-size="18" font-weight="${sum ? 700 : 400}" fill="#111">${esc(label)}</text>`,
+        `<text x="${PAD}" y="${y + BAR_H / 2 + 8}" font-size="22" font-weight="700" fill="#111">${esc(label)}</text>`,
         `<rect x="${barX}" y="${y}" width="${barW}" height="${BAR_H}" rx="${BAR_H / 2}" fill="#e3e8e5"/>`,
         ratio > 0 ? `<rect x="${barX}" y="${y}" width="${Math.max(BAR_H, barW * ratio)}" height="${BAR_H}" rx="${BAR_H / 2}" fill="${p.color}" ${sum ? '' : 'fill-opacity="0.85"'}/>` : '',
-        `<text x="${barX + barW + 14}" y="${y + BAR_H - 7}" font-size="18" fill="#111"><tspan font-weight="700" fill="${p.color}">${pct}%</tspan>  ${comma(v)} / ${comma(total)}명</text>`,
+        `<text x="${barX + barW + 14}" y="${y + BAR_H / 2 + 8}" font-size="22" font-weight="700" fill="#111"><tspan font-weight="700" fill="${p.color}">${pct}%</tspan>  ${comma(v)} / ${comma(total)}명</text>`,
       );
     });
   });
