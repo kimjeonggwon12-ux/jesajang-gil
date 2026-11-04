@@ -37,6 +37,9 @@
     if (h < 1) return { rows: [], problems: ['"고유번호"·"이름" 머리글 줄을 찾지 못했습니다.'] };
     var head = sheet[h], group = sheet[h - 1] || [], top = sheet[0] || [];
     var col = function (label) { return findCol(head, function (t) { return t === label; }); };
+    // 11/4(사용자): 신43 "교사활동현황" 서식 — 부서기록(교육·상담·복음방·식구복방·동행교사·과제제출) + 전도부기록(인도·교사·섬김)
+    //   + 활동·우수,정 + 구분(= 등급). '구분' 열이 있고 '결과' 열이 없으면 이 서식으로 읽는다.
+    if (col('구분') !== -1 && col('결과') === -1) return parseActivitySheet(sheet, h, col, tabName);
     var C = { id: col('고유번호'), name: col('이름'), dept: col('부서'), region: col('지역'), note: col('소속비고'),
               counsel: col('상담'), gospel: col('복음방'), companion: col('동행교사'), result: col('결과') };
     ['dept', 'region', 'note', 'result'].forEach(function (k) {
@@ -96,6 +99,40 @@
     }
     if (!rows.length) problems.push('명단을 한 명도 읽지 못했습니다.');
     return { rows: rows, dormant: Object.keys(dormant).length, problems: problems };
+  }
+
+  var TIERS = ['휴교사', '활동교사', '정교사', '우수교사'];
+  /** 신43 교사활동현황 서식. 구분이 네 등급 중 하나면 그 등급, '기타' 등은 tier '' (앱의 지금 등급을 그대로 둔다). */
+  function parseActivitySheet(sheet, h, col, tabName) {
+    var C = { id: col('고유번호'), name: col('이름'), dept: col('부서'), region: col('지역'), note: col('소속비고'),
+              edu: col('교육'), counsel: col('상담'), gospel: col('복음방'), family: col('식구복방'), companion: col('동행교사'),
+              task: col('과제제출'), lead: col('인도'), teach: col('교사'), serve: col('섬김'), active: col('활동'),
+              excel: col('우수,정'), tier: col('구분') };
+    var problems = [];
+    ['dept', 'region', 'note'].forEach(function (k) { if (C[k] === -1) problems.push('"' + { dept: '부서', region: '지역', note: '소속비고' }[k] + '" 열을 찾지 못했습니다.'); });
+    if (problems.length) return { rows: [], problems: problems };
+    var v = function (x, c) { return c === -1 ? 0 : num(x[c]); };
+    var rows = [], dup = {}, other = 0;
+    for (var r = h + 1; r < sheet.length; r++) {
+      var x = sheet[r] || [];
+      if (!isMemberId(x[C.id]) || !text(x[C.name])) continue;
+      var id = text(x[C.id]), n = normId(id);
+      if (dup[n]) continue;
+      dup[n] = true;
+      var raw = text(x[C.tier]);
+      var tier = TIERS.indexOf(raw) !== -1 ? raw : '';
+      if (!tier) other++;
+      var stats = { month: tabName, edu: v(x, C.edu), counsel: v(x, C.counsel), gospel: v(x, C.gospel), family: v(x, C.family),
+                    companion: v(x, C.companion), task: v(x, C.task), lead: v(x, C.lead), teach: v(x, C.teach), serve: v(x, C.serve),
+                    active: v(x, C.active), excellent: v(x, C.excel), tierRaw: raw };
+      rows.push({
+        memberId: id, name: text(x[C.name]), dept: text(x[C.dept]), region: text(x[C.region]), note: text(x[C.note]),
+        counsel: stats.counsel, gospelRoom: stats.gospel, companion: stats.companion, activeState: raw,
+        tier: tier, monthStats: stats, format: 'activity'
+      });
+    }
+    if (!rows.length) problems.push('명단을 한 명도 읽지 못했습니다.');
+    return { rows: rows, dormant: 0, other: other, format: 'activity', problems: problems };
   }
 
   var api = { monthTabs: monthTabs, parse: parse };

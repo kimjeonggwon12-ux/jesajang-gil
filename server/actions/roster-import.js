@@ -28,11 +28,17 @@ function cleanRows(rows) {
     if (memberId.replace(/\D/g, '').length < 11 || !name || seen.has(nid)) continue;
     seen.add(nid);
     const count = (v) => Math.max(0, Math.round(Number(v) || 0));
+    // 11/4: 신43 교사활동현황 서식(format 'activity') — 센터등록·미등록 칸이 없어 앱 값을 그대로 두고, 그 달 기록(monthStats)을 담는다.
+    //   구분이 '기타' 등이면 tier '' → 앱의 지금 등급 유지(새 사람은 활동교사).
+    const activity = r.format === 'activity';
+    const ms = activity && r.monthStats && typeof r.monthStats === 'object'
+      ? Object.fromEntries(Object.entries(r.monthStats).slice(0, 20).map(([k, v]) => [clip(k, 20), typeof v === 'number' ? count(v) : clip(v, 20)])) : null;
     out.push({
       memberId, nid, name, dept: clip(r.dept, 20), region: clip(r.region, 20), note: clip(r.note, 60),
       regLeads: count(r.regLeads), unregLeads: count(r.unregLeads), counsel: count(r.counsel),
       gospelRoom: count(r.gospelRoom), companion: count(r.companion), activeState: clip(r.activeState, 20),
-      tier: TEACHER_TIERS.includes(r.tier) ? r.tier : '활동교사',
+      tier: TEACHER_TIERS.includes(r.tier) ? r.tier : activity ? '' : '활동교사',
+      activity, monthStats: ms,
     });
   }
   return out;
@@ -61,13 +67,15 @@ async function plan(excel, options) {
     const t = current.get(r.nid);
     const base = {
       member_id: t ? t.member_id : r.memberId, dept: r.dept, region: r.region, affiliation: r.note, note: r.note,
-      reg_leads: r.regLeads, unreg_leads: r.unregLeads, counsel: r.counsel, gospel_room: r.gospelRoom,
-      companion: r.companion, active_state: r.activeState, sort_order: i + 1,
+      reg_leads: r.activity && t ? t.reg_leads : r.regLeads, unreg_leads: r.activity && t ? t.unreg_leads : r.unregLeads,
+      counsel: r.counsel, gospel_room: r.gospelRoom,
+      companion: r.companion, active_state: r.activeState, month_stats: r.activity ? r.monthStats : (t ? t.month_stats : null), sort_order: i + 1,
       ...(FIXED_PLACE[r.nid] || {}),
     };
     if (!t) {
-      added.push({ ...who(r), tier: r.tier });
-      upserts.push({ ...base, name: FIXED_NAMES[r.nid] || r.name, position: '', tier: r.tier, tier_changed_at: null });
+      const tier = r.tier || '활동교사';
+      added.push({ ...who(r), tier });
+      upserts.push({ ...base, name: FIXED_NAMES[r.nid] || r.name, position: '', tier, tier_changed_at: options.tierDate || null });
       return;
     }
     if (!FIXED_PLACE[r.nid] && (t.dept !== r.dept || t.region !== r.region)) moved.push({ ...who(r), name: t.name, from: `${t.dept} ${t.region}`.trim(), to: `${r.dept} ${r.region}`.trim() });
@@ -77,12 +85,13 @@ async function plan(excel, options) {
     const takeName = !fixedName && t.name !== r.name && rename.has(r.nid);
     if (!fixedName && t.name !== r.name) renamed.push({ ...who(t), excelName: r.name, apply: takeName });
     const currentTier = t.tier || '활동교사';
-    const takeTier = options.applyTiers && currentTier !== r.tier;
-    if (currentTier !== r.tier) tierChanges.push({ ...who(t), from: currentTier, to: r.tier });
+    const excelTier = r.tier || currentTier;   // 엑셀 구분이 '기타'면 지금 등급 그대로
+    const takeTier = options.applyTiers && currentTier !== excelTier;
+    if (currentTier !== excelTier) tierChanges.push({ ...who(t), from: currentTier, to: excelTier });
     upserts.push({
       ...base, name: fixedName || (takeName ? r.name : t.name), position: t.position,
-      tier: takeTier ? r.tier : t.tier, tier_changed_at: takeTier ? today : t.tier_changed_at,
-      _history: takeTier ? { name: t.name, from: currentTier, to: r.tier } : null,
+      tier: takeTier ? excelTier : t.tier, tier_changed_at: takeTier ? (options.tierDate || today) : t.tier_changed_at,
+      _history: takeTier ? { name: t.name, from: currentTier, to: excelTier } : null,
     });
   });
 
@@ -97,7 +106,7 @@ async function plan(excel, options) {
         member_id: t.member_id, name: t.name, dept: t.dept, region: t.region, affiliation: t.affiliation, note: t.note,
         position: t.position, tier: t.tier, tier_changed_at: t.tier_changed_at, reg_leads: t.reg_leads, unreg_leads: t.unreg_leads,
         counsel: t.counsel, gospel_room: t.gospel_room, companion: t.companion, active_state: t.active_state,
-        sort_order: excel.length + kept.length,
+        month_stats: t.month_stats, sort_order: excel.length + kept.length,
       });
     } else {
       removed.push(info);
@@ -129,7 +138,9 @@ function sanityError(excel, teacherCount) {
   return '';
 }
 
-const optionsOf = (body) => ({ applyTiers: !!body.applyTiers, renameIds: body.renameIds, keepIds: body.keepIds });
+// tierDate: 등급 적용일(예: 11/5 시작) — 비우면 오늘
+const optionsOf = (body) => ({ applyTiers: !!body.applyTiers, renameIds: body.renameIds, keepIds: body.keepIds,
+  tierDate: /^\d{4}-\d{2}-\d{2}$/.test(String(body.tierDate || '')) ? String(body.tierDate) : '' });
 
 /** 미리보기: 아무것도 바꾸지 않고, 반영하면 무엇이 달라지는지만 돌려준다. */
 async function previewRosterImport(body) {

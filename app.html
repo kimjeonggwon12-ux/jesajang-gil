@@ -6610,7 +6610,7 @@
       // 2026-10-05 속도 개선: 6개 요청 모두 이 기기에 저장된 지난 결과가 있으면 그것으로 먼저 화면을 그리고,
       // 서버 결과가 오는 대로 해당 부분만 바꿔 다시 그린다(apiSWR). 저장된 게 하나도 없으면 예전처럼 다 받은 뒤 그림.
       const sets = {
-        getMyTierStatus: r => { if (r && !r.error) home.tierStatus = r; },
+        getMyTierStatus: r => { if (r && !r.error) { home.tierStatus = r; setTimeout(maybeShowTierStart, 300); } },
         getMyActivities: r => { home.monthlyActRes = (r && !r.error) ? r : { rows: [], roleCounts: {}, roleItemCounts: {} }; },
         getMyGospelLeads: r => { home.gospelLeads = (r && r.rows) || []; },
         getMyCenterLeads: r => { home.centerLeads = (r && r.rows) || []; },
@@ -6680,7 +6680,7 @@
         callApi({ action: 'getMyActivities', memberId }),
         callApi({ action: 'getMyTargets', memberId })
       ]);
-      if (tierRes && !tierRes.error) home.tierStatus = tierRes;
+      if (tierRes && !tierRes.error) { home.tierStatus = tierRes; setTimeout(maybeShowTierStart, 300); }
       if (actRes && !actRes.error) home.monthlyActRes = actRes;
       if (targetRes && !targetRes.error) { home.targets = targetRes.rows || []; home.stages = targetRes.stages || home.stages; }
     }
@@ -6717,9 +6717,10 @@
       }
       const rows = [];
       // 11/2: 휴교사 → 활동교사 = 최근 한 달 활동 기록 4회 이상(자동 전환)
-      if (ts.tier === '휴교사') rows.push(conditionRowHtml('최근 한 달 내 활동 기록', ts.recentRecords || 0, ts.activeGoal || 4, `최근 한 달 ${ts.activeGoal || 4}회 이상 기록하면 자동으로 활동교사`));
+      // 11/4: 11/5부터 달력 한 달 단위 — 이번 달 4건이면 활동교사
+      if (ts.tier === '휴교사') rows.push(conditionRowHtml('이번 달 내 활동 기록', ts.recentRecords || 0, ts.activeGoal || 4, `이번 달 ${ts.activeGoal || 4}건 기록하면 바로 활동교사`));
       if (ts.leadGoal != null) rows.push(conditionRowHtml('센터 인도(등록)', ts.leadCount || 0, ts.leadGoal, `최근 1년 ${ts.leadGoal}명 이상`));
-      if (ts.tier !== '휴교사' && ts.monthlyGoal != null) rows.push(conditionRowHtml('이번 달 활동', ts.monthlyCount || 0, ts.monthlyGoal, `매달 ${ts.monthlyGoal}회 이상(한 달 기록이 없으면 휴교사)`));
+      if (ts.tier === '활동교사') rows.push(conditionRowHtml('이번 달 활동 기록', ts.recentRecords || 0, ts.activeGoal || 4, `매달 ${ts.activeGoal || 4}건 이상(4건 미만이면 다음 달 휴교사)`));
       body.innerHTML = guide + `
         <div class="text-sm text-base-content/60 mb-3" style="margin-top:14px">${esc(ts.nextTier)} 승급까지 필요한 조건이에요. 하나씩 달성해봐요!</div>
         <div class="flex flex-col gap-2">${rows.join('') || '<div class="text-xs text-base-content/40">조건 정보가 없습니다.</div>'}</div>`;
@@ -6798,12 +6799,12 @@
     const TIER_GUIDE = {
       '휴교사': {
         who: '지금은 잠시 쉬어가는 중이에요.',
-        why: '한 달 동안 활동 기록이 없으면 휴교사가 됩니다. 최근 한 달 동안 내 활동 기록을 4회 이상 남기면 자동으로 활동교사로 돌아와요. (출석만으로는 바뀌지 않아요)',
+        why: '한 달 활동 기록이 4건 미만이면 휴교사가 됩니다. 이번 달 내 활동 기록을 4건 남기면 바로 활동교사로 돌아와요. (출석만으로는 바뀌지 않아요)',
         goal: '활동교사로 복귀하기'
       },
       '활동교사': {
         who: '복음방 교사로 활동하고 계세요.',
-        why: '최근 1년 안에 센터 등록 1명을 이루면 정교사가 됩니다. 한 달 동안 활동 기록이 없으면 휴교사로 바뀌니 꾸준히 기록해 주세요.',
+        why: '최근 1년 안에 센터 등록 1명을 이루면 정교사가 됩니다. 매달 활동 기록 4건 이상을 남겨야 활동교사가 유지돼요(4건 미만이면 다음 달 휴교사).',
         goal: '정교사 되기'
       },
       '정교사': {
@@ -7631,7 +7632,7 @@
           return;
         }
         const rpMsg = (res.reported ? ' 보고방에도 올렸어요 📤' : res.reportError ? ' (보고방에는 못 올렸어요: ' + res.reportError + ')' : '')   // 10/23: 저장하면 보고방 자동 올림
-          + (res.tierNow ? ' 🌱 활동교사로 바뀌었어요!' : res.restGoal ? ` 🌱 활동교사까지 ${res.restCount}/${res.restGoal}회` : '');   // 11/2: 휴교사는 최근 한 달 4회 기록하면 활동교사
+          + (res.tierNow ? ' 🌱 활동교사로 바뀌었어요!' : res.restGoal ? ` 🌱 활동교사까지 이번 달 ${res.restCount}/${res.restGoal}건` : '');   // 11/2: 휴교사는 최근 한 달 4회 기록하면 활동교사
         const submittedItem = f.activityItem, goal = targetNameTrimmed && !rpIsEnrolled(f) ? f.goalCohort : '';   // 수강생은 개강 목표 없음
         if (f.draftId) rpDraftRemove(f.draftId);   // 임시 저장에서 불러와 올린 것이면 임시 저장 목록에서 뺀다
         rpResetForm(f);
@@ -8211,14 +8212,58 @@
               <span style="font-size:13px;font-weight:700;color:${fg};white-space:nowrap;opacity:.8">조건 ›</span></div>${gauge || ''}
           </div>
         </div>`;
-      if (ts.tier === '휴교사') {
-        const goal = ts.activeGoal || 4, n = Math.min(ts.recentRecords || 0, goal), left = goal - n;
-        const gauge = `<div style="display:flex;gap:6px;margin-top:10px">${Array.from({ length: goal }, (_, i) => `<i style="flex:1;height:8px;border-radius:99px;background:${i < n ? '#00AE82' : '#d9dedb'}"></i>`).join('')}</div>`;
-        return wrap('#EEF2F0', '#33413B', '⚪', `지금은 <b>휴교사</b>예요 · 최근 한 달 기록 <b>${n}/${goal}회</b><br><span style="font-weight:500;font-size:13px">${left > 0 ? `${left}번 더 기록하면 자동으로 <b>활동교사</b>가 돼요` : '곧 활동교사로 바뀌어요'}</span>`, gauge);
+      // 11/4(사용자): 등급제 시작 안내 창에서 [확인]을 눌러야 이 띠(기능)가 보인다
+      if (!tierStartOk()) return '';
+      const goal = ts.activeGoal || 4, n = Math.min(ts.recentRecords || 0, goal), left = goal - n;
+      const gauge = `<div style="display:flex;gap:6px;margin-top:10px">${Array.from({ length: goal }, (_, i) => `<i style="flex:1;height:8px;border-radius:99px;background:${i < n ? '#00AE82' : '#d9dedb'}"></i>`).join('')}</div>`;
+      const before = ts.monthStart && todayStr() < ts.monthStart;
+      if (before && (ts.tier === '휴교사' || ts.tier === '활동교사'))
+        return wrap('#EEF6F2', '#0B5E44', '📅', `지금 등급 <b>${esc(ts.tier)}</b> · <b>11월 5일</b>부터 기록이 세어져요<br><span style="font-weight:500;font-size:13px">한 달에 활동 기록 <b>${goal}건</b>이면 활동교사</span>`, gauge);
+      const dl = ts.monthDaysLeft != null ? ` · 이번 달 ${ts.monthDaysLeft}일 남음` : '';
+      // 11/4(김논 서무님): 엑셀 구분 '기타'였던 분 — 출석 2번이면 바로 활동교사
+      if (ts.otherPending && !before) {
+        const og = ts.otherGoal || 2, on = Math.min(ts.otherAttend || 0, og);
+        return wrap('#EEF2F0', '#33413B', '🙋', `교육 <b>출석 ${on}/${og}번</b> 하면 바로 <b>활동교사</b>예요<br><span style="font-weight:500;font-size:13px">또는 이번 달 활동 기록 ${goal}건(지금 ${n}건)</span>`, `<div style="display:flex;gap:6px;margin-top:10px">${Array.from({ length: og }, (_, i) => `<i style="flex:1;height:8px;border-radius:99px;background:${i < on ? '#00AE82' : '#d9dedb'}"></i>`).join('')}</div>`);
       }
-      if (ts.tier === '활동교사' && ts.restInDays != null && ts.restInDays <= 7)
-        return wrap('#FFF4E5', '#8A4B00', '⏳', `마지막 기록 뒤 <b>${ts.restInDays}일</b> 안에 기록이 없으면 휴교사로 바뀌어요<br><span style="font-weight:500;font-size:13px">오늘 활동을 기록해 활동교사를 지켜요</span>`);
+      if (ts.tier === '휴교사')
+        return wrap('#EEF2F0', '#33413B', '⚪', `지금은 <b>휴교사</b>예요 · 이번 달 기록 <b>${n}/${goal}건</b><br><span style="font-weight:500;font-size:13px">${left > 0 ? `${left}건 더 기록하면 바로 <b>활동교사</b>가 돼요${dl}` : '곧 활동교사로 바뀌어요'}</span>`, gauge);
+      if (ts.tier === '활동교사')
+        return left > 0
+          ? wrap('#FFF4E5', '#8A4B00', '⏳', `<b>활동교사</b> · 이번 달 기록 <b>${n}/${goal}건</b><br><span style="font-weight:500;font-size:13px">${left}건 더 남기면 다음 달도 활동교사${dl}</span>`, gauge)
+          : wrap('#E8F7F1', '#0B5E44', '✅', `<b>활동교사</b> · 이번 달 ${goal}건 달성!<br><span style="font-weight:500;font-size:13px">다음 달도 활동교사가 유지돼요</span>`, gauge);
       return '';
+    }
+    // ── 11/4(사용자): "내일부터 휴활정우가 시작된다는 것을 팝업으로 알리고, 확인을 누르면 기능이 시작" ──
+    const TIER_START_KEY = 'ts_tier_start_1105';
+    function tierStartOk() { try { return localStorage.getItem(TIER_START_KEY) === '1'; } catch (e) { return true; } }
+    let tierStartShown = false;
+    function maybeShowTierStart() {
+      const ts = home.tierStatus;
+      if (tierStartShown || tierStartOk() || !ts || !ts.tier) return;
+      tierStartShown = true;
+      const starts = todayStr() < '2026-11-05';
+      const el = document.createElement('div');
+      el.id = 'tierStartPop';
+      el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,30,25,.55);display:flex;align-items:center;justify-content:center;padding:18px';
+      el.innerHTML = `<div style="background:#fff;border-radius:22px;max-width:420px;width:100%;padding:24px 22px 20px;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+        <div style="font-size:15px;font-weight:800;color:#00AE82">📢 교사 등급제 시작</div>
+        <div style="font-size:23px;font-weight:800;line-height:1.35;margin-top:6px">${starts ? '내일(11월 5일)부터' : '11월 5일부터'}<br>휴·활·정·우 등급이 시작돼요</div>
+        <div style="margin-top:14px;font-size:15px;line-height:1.65;color:#33413B">
+          ✅ 한 달에 <b>내 활동 기록 4건</b> 이상 → <b>활동교사</b><br>
+          ⚪ 4건 미만이면 다음 달 <b>휴교사</b><br>
+          🌱 휴교사도 그 달 <b>4건</b>을 채우면 바로 활동교사<br>
+          🏅 정교사·우수교사는 1년 센터 인도로 심사
+          ${ts.otherPending ? '<br>🙋 <b>11월 5일부터 교육 출석 2번</b>이면 바로 활동교사' : ''}
+        </div>
+        <div style="margin-top:14px;background:#F1F7F4;border-radius:14px;padding:12px 14px;font-size:15px">지금 내 등급 : <b style="color:#0B5E44">${esc(ts.tier)}</b><br><span style="font-size:13px;color:#5d6b64">10월 교사활동현황 기준 · 11월 기록은 5일부터 세어요</span></div>
+        <button type="button" id="tierStartOkBtn" style="margin-top:16px;width:100%;height:52px;border:0;border-radius:14px;background:#00AE82;color:#fff;font-size:17px;font-weight:800">확인 — 시작하기</button>
+      </div>`;
+      document.body.appendChild(el);
+      document.getElementById('tierStartOkBtn').onclick = () => {
+        try { localStorage.setItem(TIER_START_KEY, '1'); } catch (e) {}
+        el.remove();
+        try { if (typeof renderHome === 'function') renderHome(); else location.reload(); } catch (e) { location.reload(); }
+      };
     }
     // 11/2: 지역장·교관 = 승인·보낼 건, 센터 강사·전도사 = 새 서류 — 누르면 관리자 > 센터 보내기
     const csBadge = { at: 0, v: null };
@@ -14533,7 +14578,7 @@ const TL_GROUPS = [['피드백', '피드백', '사랑이 피드백'], ['섭외',
   ['협력', '협력', '잎사귀·만남 동행·밭보기·육상담·부스담당·은사·멘토교사'], ['센터 관리', '센터', '센터 관리 활동(센터소개·센터수강)'], ['전도 행사 지원', '행사', '전도 행사 지원']];
 // 휴교사인데 최근 한 달 출석이 있으면 '잠재 활동' — 등급은 활동 기록으로만 바뀐다
 function tlPotential(t) {
-  return t._rep && t.tier === '휴교사' && t.attend1m > 0 ? `<span class="tl-pot" title="최근 한 달 출석 ${esc(t.attend1m)}번 — 한 달 활동 기록 4회면 활동교사로 바뀌어요">잠재</span>` : '';
+  return t._rep && t.tier === '휴교사' && t.attend1m > 0 ? `<span class="tl-pot" title="최근 한 달 출석 ${esc(t.attend1m)}번 — 이번 달 활동 기록 4건이면 활동교사로 바뀌어요">잠재</span>` : '';
 }
 // 앱에서 기록한 활동 요약 — "상담1 3 · 만남1 2" 형태(많은 순, 상위 3개 + 나머지 개수).
 function actSummaryText(t, max) {
@@ -14839,7 +14884,8 @@ function teacherSheetHtml(t, extra) {
         <div class="tls-stat"><b>${t.unregLeads != null ? esc(t.unregLeads) : '-'}</b><span>센터 미등록</span></div>
         <div class="tls-stat"><b>${loaded ? esc(t.monthlyCount || 0) : '…'}</b><span>이번 달 활동</span></div>
       </div>
-      ${(t.counsel || t.gospelRoom || t.companion)
+      ${t.monthStats ? (ms => `<div class="tls-grid">${tlKV(`${esc(ms.month || '')} 부서 기록`, `교육 ${esc(ms.edu || 0)} · 상담 ${esc(ms.counsel || 0)} · 복음방 ${esc(ms.gospel || 0)} · 식구복방 ${esc(ms.family || 0)} · 동행 ${esc(ms.companion || 0)} · 과제 ${esc(ms.task || 0)}`)}${tlKV(`${esc(ms.month || '')} 전도부 기록`, `인도 ${esc(ms.lead || 0)} · 교사 ${esc(ms.teach || 0)} · 섬김 ${esc(ms.serve || 0)}`)}${tlKV('엑셀 구분', esc(ms.tierRaw || '-'))}</div>`)(t.monthStats)
+        : (t.counsel || t.gospelRoom || t.companion)
         ? `<div class="tls-grid">${tlKV('부서 기록란', `상담 ${esc(t.counsel || 0)} · 복음방 ${esc(t.gospelRoom || 0)} · 동행교사 ${esc(t.companion || 0)}`)}</div>`
         : ''}
 
@@ -14854,7 +14900,7 @@ function teacherSheetHtml(t, extra) {
       </div>
       ${loaded ? `<div class="tls-sec-t">활동 항목별 <span style="font-weight:500;color:var(--dg-text-sub)">· 이번 달 / 누적</span></div>
       <div class="tls-grid">${TL_GROUPS.map(([g, , full]) => tlKV(g, `<span title="${esc(full)}"><b>${esc((t.groupsMonth || {})[g] || 0)}</b> / ${esc((t.groups || {})[g] || 0)}건</span>`)).join('')}</div>
-      <div class="text-[11px] text-base-content/40 mt-1">휴교사는 최근 한 달 활동 기록 4회 이상이면 활동교사, 한 달 동안 기록이 없으면 휴교사로 바뀌어요(정교사·우수교사는 1년 심사). 출석은 잠재 활동으로만 봐요.</div>` : ''}
+      <div class="text-[11px] text-base-content/40 mt-1">11/5부터 한 달(1일~말일) 활동 기록 4건 이상이면 활동교사, 4건 미만이면 다음 달 휴교사예요(휴교사는 그 달 4건이면 바로 활동교사, 엑셀 구분 '기타'였던 분은 출석 2번이면 활동교사). 정교사·우수교사는 1년 심사.</div>` : ''}
 
       <div class="tls-sec-t">연결 현황</div>
       ${connectBlock}

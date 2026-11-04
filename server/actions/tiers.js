@@ -12,7 +12,41 @@ import { TARGET_STAGES } from './targets.js';
 const REST_MONTHS = 1;
 const REST_MIN_TOTAL = 1;
 export const ACTIVE_MIN_RECORDS = 4;
-const AUTO_RULE_START = '2026-11-01';   // 이 날부터 한 달을 센다 — 그 전부터 기록 없던 사람을 첫날 한꺼번에 내리지 않게
+const AUTO_RULE_START = '2026-11-05';   // 11/4(사용자): 11/5부터 휴·활·정·우 시작 — 이 날부터 기록을 센다
+// 11/4(사용자): "내일부터 기록한 것이 달에 4건이면 활동교사, 4건 미만이면 휴교사" — 달력의 한 달(1일~말일) 단위.
+//   휴교사: 이번 달(11월은 5일부터) 기록이 4건이 되면 그 자리에서 활동교사.
+//   활동교사: 지난달 기록이 4건 미만이면 새 달 첫날 휴교사(지난달 중에 등급이 바뀐 사람은 그다음 달부터 본다).
+//   정교사·우수교사는 센터인도 1년 심사 그대로(이 규칙으로 내리지 않음). 기록 1건 = 활동 기록 한 번(항목 수와 상관없이).
+const ymd = (s) => String(s || '').slice(0, 10);
+const maxDay = (a, b) => (a > b ? a : b);
+/** 그 날이 든 달의 [시작, 끝] 'YYYY-MM-DD' — 시작은 규칙 시작일보다 앞서지 않는다. */
+function ruleMonth(day) {
+  const [y, m] = day.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const mm = String(m).padStart(2, '0');
+  return { start: maxDay(`${y}-${mm}-01`, AUTO_RULE_START), end: `${y}-${mm}-${String(last).padStart(2, '0')}` };
+}
+// 11/4(김논 서무님): 엑셀 구분 '기타'(293명)는 휴교사로 두고, 11/5 이후 출석(QR) 2번이면 활동교사 — 한 번만(그 뒤엔 일반 규칙).
+export const OTHER_ATTEND_GOAL = 2;
+const isOther = (t) => !!(t && t.month_stats && t.month_stats.tierRaw === '기타');
+const otherPending = (t) => isOther(t) && t.tier === '휴교사' && (!t.tier_changed_at || ymd(t.tier_changed_at) <= AUTO_RULE_START);
+/** 11/5 이후 출석한 모임 수(같은 모임 두 번은 한 번). */
+async function otherAttendCount(nid) {
+  const rows = await run(db().from('attend_records').select('meeting_id').eq('nid', nid).gte('at', `${AUTO_RULE_START} 00:00:00`).limit(50));
+  return new Set(rows.map((r) => r.meeting_id)).size;
+}
+/** 출석을 찍은 뒤(submitAttendance): 기타 → 출석 2번이면 그 자리에서 활동교사. */
+export async function promoteOnAttend(memberId) {
+  const nid = normId(memberId);
+  if (!nid || nid === '0') return null;
+  const [t] = await run(db().from('teachers').select('member_id, nid, name, tier, tier_changed_at, month_stats').eq('nid', nid).limit(1));
+  if (!otherPending(t)) return null;
+  const n = await otherAttendCount(nid);
+  if (n < OTHER_ATTEND_GOAL) return { otherAttend: n, otherGoal: OTHER_ATTEND_GOAL };
+  await writeTierChanges([{ t, tier: '활동교사', reason: `기타 → 출석 ${n}번 → 활동교사 전환` }]);
+  return { tierNow: '활동교사', otherAttend: n, otherGoal: OTHER_ATTEND_GOAL };
+}
+const prevMonthDay = (day) => { const [y, m] = day.split('-').map(Number); const d = new Date(Date.UTC(y, m - 2, 15)); return d.toISOString().slice(0, 10); };
 // ⚠️ app.html 의 활동 항목 목록과 같이 맞출 것.
 const ROLE_ACTIVITY_OPTIONS = ['피드백', '섭외', '친분', '만남1', '만남2', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
 const TEACHER_ONLY_ACTIVITY = '동행교사';
@@ -411,10 +445,10 @@ async function writeTierChanges(changes) {
   forgetRoster();
 }
 
-/** 최근 한 달 동안 남긴 활동 기록 건수(기록 한 번 = 1회, 항목 수와 상관없이). */
+/** 이번 달(11월은 5일부터) 남긴 활동 기록 건수(기록 한 번 = 1건, 항목 수와 상관없이). */
 async function recentRecordCount(nid) {
-  const from = kstDateTime(monthsAgo(new Date(), REST_MONTHS));
-  const rows = await run(db().from('activities').select('id').eq('nid', nid).gte('submitted_at', from));
+  const { start } = ruleMonth(kstDate());
+  const rows = await run(db().from('activities').select('id').eq('nid', nid).gte('submitted_at', `${start} 00:00:00`));
   return rows.length;
 }
 
@@ -429,7 +463,7 @@ export async function promoteOnRecord(memberId) {
   if (!t || t.tier !== '휴교사') return null;
   const n = await recentRecordCount(nid);
   if (n < ACTIVE_MIN_RECORDS) return { restCount: n, restGoal: ACTIVE_MIN_RECORDS };
-  await writeTierChanges([{ t, tier: '활동교사', reason: `최근 한 달 활동 기록 ${n}회 → 활동교사 전환` }]);
+  await writeTierChanges([{ t, tier: '활동교사', reason: `이번 달 활동 기록 ${n}건 → 활동교사 전환` }]);
   return { tierNow: '활동교사', restCount: n, restGoal: ACTIVE_MIN_RECORDS };
 }
 
@@ -439,36 +473,40 @@ export async function promoteOnRecord(memberId) {
  * dryRun 이면 바꾸지 않고 명단만.
  */
 async function autoRestTiers({ dryRun = false } = {}) {
-  const now = new Date();
-  const monthAgo = monthsAgo(now, REST_MONTHS);
+  const today = kstDate();
+  const cur = ruleMonth(today);
+  const prev = ruleMonth(prevMonthDay(today));
+  const prevOn = prev.end >= AUTO_RULE_START;   // 지난달이 규칙 시작 뒤에 끝났을 때만 강등을 본다
   const [teachers, activities] = await Promise.all([
-    selectAll(() => db().from('teachers').select('member_id, nid, name, dept, tier, tier_changed_at').order('sort_order')),
+    selectAll(() => db().from('teachers').select('member_id, nid, name, dept, tier, tier_changed_at, month_stats').order('sort_order')),
     loadActivities(),
   ]);
-  const lastOf = new Map(), recentN = new Map();
+  const attendRows = await selectAll(() => db().from('attend_records').select('id, nid, meeting_id').gte('at', `${AUTO_RULE_START} 00:00:00`).order('id'));
+  const attendN = new Map();
+  for (const r of attendRows) { if (!attendN.has(r.nid)) attendN.set(r.nid, new Set()); attendN.get(r.nid).add(r.meeting_id); }
+  const curN = new Map(), prevN = new Map();
   for (const a of activities) {
     if (!a.submitted_at || a.nid === '0') continue;
-    const d = new Date(a.submitted_at);
-    if (isNaN(d.getTime())) continue;
-    if (!lastOf.has(a.nid) || d > lastOf.get(a.nid)) lastOf.set(a.nid, d);
-    if (d >= monthAgo) recentN.set(a.nid, (recentN.get(a.nid) || 0) + 1);
+    const d = ymd(a.submitted_at);
+    if (d >= cur.start && d <= cur.end) curN.set(a.nid, (curN.get(a.nid) || 0) + 1);
+    if (prevOn && d >= prev.start && d <= prev.end) prevN.set(a.nid, (prevN.get(a.nid) || 0) + 1);
   }
-  const start = new Date(AUTO_RULE_START + 'T00:00:00');
   const changes = [];
   for (const t of teachers) {
-    const last = lastOf.get(t.nid);
-    const recent = last && last >= monthAgo;
-    const n = recentN.get(t.nid) || 0;
-    if (t.tier === '휴교사' && n >= ACTIVE_MIN_RECORDS) changes.push({ t, tier: '활동교사', reason: `최근 한 달 활동 기록 ${n}회 → 활동교사 전환` });
-    if (t.tier === '활동교사' && !recent) {
-      const changed = t.tier_changed_at ? new Date(t.tier_changed_at + 'T00:00:00') : null;
-      const from = changed && changed > start ? changed : start;
-      if (from <= monthAgo) changes.push({ t, tier: '휴교사', reason: `한 달 동안 활동 기록 없음${last ? `(마지막 ${fmtDate(last)})` : ''} → 휴교사 전환` });
+    const n = curN.get(t.nid) || 0;
+    if (t.tier === '휴교사' && n >= ACTIVE_MIN_RECORDS) { changes.push({ t, tier: '활동교사', reason: `이번 달 활동 기록 ${n}건 → 활동교사 전환` }); continue; }
+    const att = attendN.has(t.nid) ? attendN.get(t.nid).size : 0;
+    if (otherPending(t) && att >= OTHER_ATTEND_GOAL) { changes.push({ t, tier: '활동교사', reason: `기타 → 출석 ${att}번 → 활동교사 전환` }); continue; }
+    if (t.tier === '활동교사' && prevOn) {
+      const changed = ymd(t.tier_changed_at);
+      if (changed && changed > prev.start) continue;   // 지난달 중에 등급이 바뀐 사람은 다음 달부터
+      const p = prevN.get(t.nid) || 0;
+      if (p < ACTIVE_MIN_RECORDS) changes.push({ t, tier: '휴교사', reason: `${Number(prev.start.slice(5, 7))}월 활동 기록 ${p}건(4건 미만) → 휴교사 전환` });
     }
   }
   if (!dryRun) await writeTierChanges(changes);
   const pick = (tier) => changes.filter((c) => c.tier === tier).map((c) => ({ memberId: c.t.member_id, name: c.t.name, dept: c.t.dept }));
-  return { ok: true, dryRun, toActive: pick('활동교사'), toRest: pick('휴교사') };
+  return { ok: true, dryRun, month: cur, prevMonth: prevOn ? prev : null, toActive: pick('활동교사'), toRest: pick('휴교사') };
 }
 
 /** 5분 틱에서 부른다 — 하루 한 번만(alert_log 키 tierAuto:날짜). */
@@ -553,9 +591,12 @@ async function getMyTierStatus(body) {
     tier, tierChangedAt: person.tierChangedAt || '',
     monthlyCount: countIn(acts, monthBounds(now)), monthlyGoal: REST_MIN_TOTAL,
     // 11/2: 휴교사 → 활동교사 진행도(최근 한 달 기록 건수 / 4회), 활동교사 → 휴교사까지 남은 날
-    recentRecords: activities.filter((a) => a.submitted_at && new Date(a.submitted_at) >= monthsAgo(now, REST_MONTHS)).length,
-    activeGoal: ACTIVE_MIN_RECORDS,
-    restInDays: tier === '활동교사' && last ? Math.max(0, Math.ceil((addMonths(last, REST_MONTHS).getTime() - now.getTime()) / 86400000)) : null,
+    // 11/4: 이번 달(11월은 5일부터) 기록 건수 / 4건, 이번 달 남은 날 — 활동교사도 이번 달 4건을 채워야 다음 달에 활동교사 유지
+    recentRecords: activities.filter((a) => { const d = ymd(a.submitted_at); return d >= ruleMonth(kstDate()).start && d <= ruleMonth(kstDate()).end; }).length,
+    activeGoal: ACTIVE_MIN_RECORDS, ruleStart: AUTO_RULE_START,
+    otherPending: otherPending(teacher), otherAttend: otherPending(teacher) ? await otherAttendCount(nid) : null, otherGoal: OTHER_ATTEND_GOAL, monthStart: ruleMonth(kstDate()).start, monthEnd: ruleMonth(kstDate()).end,
+    monthDaysLeft: Math.max(0, Math.round((new Date(ruleMonth(kstDate()).end + 'T00:00:00Z') - new Date(kstDate() + 'T00:00:00Z')) / 86400000) + 1),
+    restInDays: null,
     leadCount: leads.filter((d) => d >= yearAgo && d <= now).length, leadGoal: next.leadGoal, nextTier: next.nextTier,
     lastActivityDate: fmtDate(last), daysSinceLastActivity: last ? Math.floor((now.getTime() - last.getTime()) / 86400000) : null,
     suggestion: result ? { suggestedTier: result.tier, reason: result.reason } : null,

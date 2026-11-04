@@ -27,6 +27,7 @@ export function toRosterRow(t) {
     gospelRoom: t.gospel_room,
     companion: t.companion,
     activeState: t.active_state,
+    monthStats: t.month_stats || null,   // 11/4: 신43 교사활동현황 엑셀의 그 달 기록(교육~섬김·구분)
   };
 }
 

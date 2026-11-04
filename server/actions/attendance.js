@@ -394,6 +394,8 @@ async function submitAttendance(body) {
     return (await alreadyDone()) || { retry: true, error: '접속이 몰려 순서대로 처리하고 있어요.' };
   }
   const record = toRecord(data[0]);
+  // 11/4(김논 서무님): 엑셀 구분 '기타'인 분은 11/5 이후 출석 2번이면 활동교사
+  try { const p = await (await import('./tiers.js')).promoteOnAttend(mid); if (p && p.tierNow) record.tierNow = p.tierNow; } catch (e) { console.log('기타 출석 승급 오류: ' + e.message); }
   runLater(m.cohortId && !isTestMeeting(m) ? notifyCohortAttendance(m, record) : notifyAttendance(m, record, data[0].id));   // 알림은 응답을 보낸 뒤에
   return { ok: true, record };
 }
