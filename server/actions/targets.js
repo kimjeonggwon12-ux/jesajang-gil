@@ -572,7 +572,8 @@ async function coachingAbout(target, mid) {
   return feedbacks.filter((f) => about(String(f.situation || ''))).sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1));
 }
 
-export async function targetDossier(target, mid) {
+export async function targetDossier(target, mid, budget = {}) {
+  const B = { acts: 30000, history: 4000, coaching: 15000, notes: 12000, info: 20000, ...budget };
   const [acts, history, allNotes, coach] = await Promise.all([
     activitiesAbout(target),
     run(db().from('target_history').select('*').eq('target_id', target.target_id).order('id')),
@@ -596,8 +597,8 @@ export async function targetDossier(target, mid) {
   const noteLines = notes.map((n) => `- ${day(n.created_at)} [${n.kind}] ${cut(n.input, 300)}\n  ${cut(n.text, 2500).replace(/\n/g, '\n  ')}`);
 
   return {
-    acts: keepNewest(actLines, 30000), history: keepNewest(histLines, 4000),
-    coaching: keepNewest(coachLines, 15000), notes: keepNewest(noteLines, 12000), info: keepNewest(infoLines, 20000), actN: acts.length, coachN: coach.length,
+    acts: keepNewest(actLines, B.acts), history: keepNewest(histLines, B.history),
+    coaching: keepNewest(coachLines, B.coaching), notes: keepNewest(noteLines, B.notes), info: keepNewest(infoLines, B.info), actN: acts.length, coachN: coach.length,
     basis: `활동 ${acts.length}건 · 파악 정보 ${info.length}건 · 단계 이력 ${history.length}건 · AI상담·교관 ${coach.length}건 · 이전 AI 기록 ${notes.length}건 종합`,
   };
 }
@@ -775,6 +776,40 @@ async function targetMasterFeedback(body) {
   await addTargetAiNote(target.target_id, mid, MASTER_KIND, basis, text);
   return { ok: true, text, at: fmtTs(kstDateTime()), basis, src };
 }
+// ── HEARTS 섭외자 불러오기 (2026-11-05) ── 사용자: "하츠에서 섭외자·수강생 이름을 불러오면 지금까지의 모든 데이터를 총합해
+//   하츠를 자동으로 돌려주게 — 단타성 한 번의 사실·사건으로만 하는 구조가 아쉽다". AI는 부르지 않고 쌓인 기록만 묶어 준다.
+//   앱이 이 글(context)을 HEARTS 프롬프트 뒤에 붙여 aiCoach 로 보낸다(aiCoach 의 withPrivacy 가 이름·연락처를 가림).
+const RP_LABEL = { center: '수강 센터', enroll: '개강', cohortNo: '기수', course: '수강 과정', age: '나이', faith: '신앙', recruitType: '섭외 유형', eduWeekly: '주 교육 횟수' };
+async function heartsDossier(body) {
+  const mid = str(body.memberId);
+  const target = await ownedTarget(mid, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  const d = await targetDossier(target, mid, { acts: 14000, history: 2000, coaching: 8000, notes: 6000, info: 8000 });
+  const p = target.report_profile || {};
+  const prof = Object.entries(RP_LABEL).filter(([k]) => str(p[k])).map(([k, l]) => `${l}: ${str(p[k])}${k === 'enroll' && /^\d+$/.test(str(p[k])) ? '월' : ''}`);
+  const lessons = Array.isArray(p.lessons) ? p.lessons.map((l) => l.title).filter(Boolean) : [];
+  const goal = target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '';
+  const context = [
+    `■ 기본: ${[target.gender, target.age_group].filter(Boolean).join(' ') || '-'} / 지금 단계: ${target.stage || '섭외'}${goal ? ` / 목표: ${goal}` : ''}${prof.length ? ' / ' + prof.join(' · ') : ''}`,
+    lessons.length ? `■ 지금까지 받은 교육(${lessons.length}과): ${cut(lessons.join(', '), 1500)}` : '',
+    '■ 교사가 파악한 정보', ...(d.info.length ? d.info : ['- 없음']),
+    '■ 활동 기록(만남·교육, 오래된 것부터)', ...d.acts,
+    '■ 단계 변경 이력', ...d.history,
+    target.swot ? '■ SWOT 표\n' + swotText(target.swot) : '',
+    target.swot_ai ? '■ SWOT AI 제안(요약)\n' + cut(target.swot_ai, 1500) : '',
+    target.goal_plan ? '■ 지금 개강 인도 계획(요약)\n' + cut(target.goal_plan, 2000) : '',
+    '■ 이전 HEARTS 상담·교관 답변', ...d.coaching,
+    '■ 이전에 받은 AI 피드백', ...d.notes,
+  ].filter(Boolean).join('\n');
+  // 이전 '심리상담' 결과 — 앱이 하츠 유형(추천 세부 유형)을 다시 뽑아 연동한다
+  const coach = await coachingAbout(target, mid);
+  const lastAnalyze = coach.filter((f) => String(f.situation || '').startsWith('[심리상담')).map((f) => f.ai_coach_text).filter(Boolean).at(-1) || '';
+  return {
+    ok: true,
+    target: { targetId: target.target_id, name: target.target_name, stage: target.stage || '섭외', gender: target.gender || '', ageGroup: target.age_group || '', goalCohort: target.goal_cohort || '', course: str(p.course) },
+    context, basis: d.basis, actN: d.actN, coachN: d.coachN, lastAnalyze,
+  };
+}
 /** 10/30(사용자: "누적 교육 제목이 밖에 안 보인다"): 사람 화면에서 바로 누적 교육 제목 목록을 고친다(추가·빼기). */
 async function setTargetLessons(body) {
   const target = await ownedTarget(body.memberId, body.targetId);
@@ -816,5 +851,5 @@ export default {
   getTargetStageDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
   getTargetJournal, deleteTarget, planCohortLead, swotAdvice, writeCaseDraft, getTargetFile,
-  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons, targetMasterFeedback,
+  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons, targetMasterFeedback, heartsDossier,
 };
