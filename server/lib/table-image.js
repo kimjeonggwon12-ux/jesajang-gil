@@ -20,8 +20,11 @@ const textW = (s, size) => [...fixGlyphs(s)].reduce((n, ch) => n + (/[ᄀ-ᇿ　
 export function tablePng(b) {
   const F = 17, H = 36, PAD = 22, CELLPAD = 14;
   const cols = b.head.length;
+  // 11/4: 머리 칸 글에 \n 이 있으면 두 줄로(칸이 너무 넓어지지 않게). headColor = 머리줄 색(민트·보라 등)
+  const headLines = b.head.map((h) => String(h ?? '').split('\n'));
+  const HH = headLines.some((l) => l.length > 1) ? Math.round(H * 1.6) : H;
   const colW = Array.from({ length: cols }, (_, c) => Math.max(
-    textW(b.head[c], F) + CELLPAD * 2,
+    ...headLines[c].map((l) => textW(l, F) + CELLPAD * 2),
     ...b.rows.map((r) => textW(r[c], F) + CELLPAD * 2),
     44,
   ));
@@ -40,7 +43,7 @@ export function tablePng(b) {
   const W = Math.max(tableW, textW(b.title, 22), ...footLines.map((l) => textW(l, 14))) + PAD * 2;
   const GH = b.groups ? H : 0;   // 묶음 머리 줄
   const tableTop = PAD + titleH + 6 + GH;
-  const Hgt = tableTop + H * (b.rows.length + 1) + (footLines.length ? 14 + footLines.length * 20 : 0) + PAD;
+  const Hgt = tableTop + HH + H * b.rows.length + (footLines.length ? 14 + footLines.length * 20 : 0) + PAD;
   const xs = colW.reduce((a, w, i) => (a.push(i ? a[i - 1] + colW[i - 1] : PAD), a), []);
   const align = b.align || [];
   const cellText = (v, c, y, opt = {}) => {
@@ -68,13 +71,18 @@ export function tablePng(b) {
     }
   }
   // 머리줄
-  parts.push(`<rect x="${PAD}" y="${tableTop}" width="${tableW}" height="${H}" fill="#00AE82"/>`);
-  (b.headFill || []).forEach((f, c) => { if (f) parts.push(`<rect x="${xs[c]}" y="${tableTop}" width="${colW[c]}" height="${H}" fill="${f}"/>`); });   // 칸마다 머리 색
-  b.head.forEach((h, c) => parts.push(cellText(h, c, tableTop, { color: '#ffffff', bold: true })));
+  parts.push(`<rect x="${PAD}" y="${tableTop}" width="${tableW}" height="${HH}" fill="${b.headColor || '#00AE82'}"/>`);
+  (b.headFill || []).forEach((f, c) => { if (f) parts.push(`<rect x="${xs[c]}" y="${tableTop}" width="${colW[c]}" height="${HH}" fill="${f}"/>`); });   // 칸마다 머리 색
+  headLines.forEach((lines, c) => {
+    if (lines.length === 1) { parts.push(cellText(lines[0], c, tableTop + (HH - H) / 2, { color: '#ffffff', bold: true })); return; }
+    const LH = F * 1.2, y0 = tableTop + HH / 2 - (LH * (lines.length - 1)) / 2;
+    lines.forEach((l, i) => parts.push(cellText(l, c, y0 + i * LH - H / 2, { color: '#ffffff', bold: true })));
+  });
   // 몸통
+  const rowY = (r) => tableTop + HH + H * r;   // r번째 몸통 줄의 위
   b.rows.forEach((row, r) => {
-    const y = tableTop + H * (r + 1);
-    parts.push(`<rect x="${PAD}" y="${y}" width="${tableW}" height="${H}" fill="${r % 2 ? '#f6f8f7' : '#ffffff'}"/>`);
+    const y = rowY(r);
+    parts.push(`<rect x="${PAD}" y="${y}" width="${tableW}" height="${H}" fill="${r % 2 ? (b.stripe || '#f6f8f7') : '#ffffff'}"/>`);
     row.forEach((v, c) => {
       const st = (b.style && b.style(r, c, v)) || {};
       if (st.fill) parts.push(`<rect x="${xs[c] + 2}" y="${y + 3}" width="${colW[c] - 4}" height="${H - 6}" rx="6" fill="${st.fill}"/>`);
@@ -82,9 +90,9 @@ export function tablePng(b) {
     });
   });
   // 줄
-  for (let r = 0; r <= b.rows.length + 1; r++) parts.push(`<line x1="${PAD}" x2="${PAD + tableW}" y1="${tableTop + H * r}" y2="${tableTop + H * r}" stroke="#dfe5e2"/>`);
-  for (let c = 0; c <= cols; c++) { const x = c < cols ? xs[c] : PAD + tableW; parts.push(`<line x1="${x}" x2="${x}" y1="${tableTop}" y2="${tableTop + H * (b.rows.length + 1)}" stroke="#dfe5e2"/>`); }
-  footLines.forEach((l, i) => parts.push(`<text x="${PAD}" y="${tableTop + H * (b.rows.length + 1) + 26 + i * 20}" font-size="14" fill="#4b5651">${esc(l)}</text>`));
+  for (let r = -1; r <= b.rows.length; r++) { const y = r < 0 ? tableTop : rowY(r); parts.push(`<line x1="${PAD}" x2="${PAD + tableW}" y1="${y}" y2="${y}" stroke="#dfe5e2"/>`); }
+  for (let c = 0; c <= cols; c++) { const x = c < cols ? xs[c] : PAD + tableW; parts.push(`<line x1="${x}" x2="${x}" y1="${tableTop}" y2="${rowY(b.rows.length)}" stroke="#dfe5e2"/>`); }
+  footLines.forEach((l, i) => parts.push(`<text x="${PAD}" y="${rowY(b.rows.length) + 26 + i * 20}" font-size="14" fill="#4b5651">${esc(l)}</text>`));
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(W)}" height="${Math.ceil(Hgt)}" font-family="NanumGothic">${parts.join('')}</svg>`;
   const png = new Resvg(svg, { font: { fontFiles: FONTS, loadSystemFonts: false, defaultFontFamily: 'NanumGothic' }, fitTo: { mode: 'zoom', value: 2 } }).render().asPng();
   return Buffer.from(png);

@@ -1,16 +1,20 @@
-// 교사광장 봇의 정기 서머리: 아침 7시(어제 활동), 정오(오늘 오전 교자장부청), 저녁 10시(오늘 교자장부청 + 이번 달 참여율·등급 현황), 밤 11시(명함·활동 기록·입장 현황)
+// 교사광장 봇의 정기 서머리: 아침 7시(어제 활동), 정오(오늘 오전 교자장부청 표), 저녁 10시(오늘 교자장부청 표), 밤 11시(교사 활동 현황: 명함·기록·입장·등급)
 // 10/30(사용자): 활동 방엔 개별 실시간 알림은 올리지 않고(events.js INSTANT_ALERTS) 서머리 세 번만.
+// 11/4(사용자): 정오·저녁 = 교자장부청 × 활동 항목 보라 표 사진 + 항목별 5개 조직 총합 글. 저녁 참여율 막대·등급 현황 글은 더 안 올림
+//   (등급은 밤 11시 '교사 활동 현황 서머리'에 휴·활·정·우 채움 막대로).
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { sendAlert, alreadySent, logAlert, esc } from '../lib/alerts.js';
 import { afterAction, onStageReached } from '../lib/events.js';
-import { teachersByNid, rosterCounts, loadRoster } from './roster.js';
+import { teachersByNid, rosterCounts, loadRoster, fixActivityNids, adminsAsTeachers } from './roster.js';
 import { progressPng } from '../lib/progress-image.js';
+import { boardTable, boardTotalLines } from '../lib/report-room.js';
 
 // [명단의 부서 이름, 알림에 쓰는 이름]
 const DEPTS = [['교역자', '교역자회'], ['자문회', '자문회'], ['장년회', '장년회'], ['부녀회', '부녀회'], ['청년회', '청년회']];
 const TIER_ICONS = [['휴교사', '🔴'], ['활동교사', '🟡'], ['정교사', '🟢'], ['우수교사', '🏆']];
-const DEPT_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444'];
+// 등급 채움 막대(왼쪽부터): 휴 = 붉은색 → 우수 = 금색('gold' = progress-image.js 의 금빛 그라데이션)
+const TIER_STACK = [['휴교사', '휴', '#e5484d'], ['활동교사', '활', '#f59e42'], ['정교사', '정', '#2f9e6e'], ['우수교사', '우수', 'gold']];
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 const comma = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -133,34 +137,49 @@ async function sendDailySummary({ date, force }) {
   }
 }
 
-// ── 정오·저녁 교자장부청 서머리 (10/30) ──
-// 단계 묶음 — 보고방 일일 보고(report-room.js DAILY_SECTIONS)와 같은 이름
-const STAGE_GROUPS = [['💜', '새찾기', ['섭외']], ['🟠', '만남', ['친분', '만남1', '만남2']], ['🟢', '상담', ['상담1', '상담2']], ['🔵', '복음방', ['복음방']], ['🏛', '센터', ['센터소개', '센터수강']]];
+// ── 정오·저녁 교자장부청 서머리 (10/30 → 11/4 표 사진) ──
+// 11/4(사용자): "정오 서머리도 같은 페이지(지역별 일일 보고 총합 표)로, 교자장부청 × 같은 항목으로, 교자장부청 토탈은 보라 계열.
+//   저녁 10시도 Y축 교자장부청, 옆으로 교사광장 활동 항목(동행 복음방·식구 복음방·섭외 전단지 등)을 쭉 — 표로.
+//   총합 글은 부서별로 나열하지 말고 항목만 5개 조직 합해서(예: 새찾기 00건)."
+//   셈은 부서 지역별 총합(report-room.js boardTable)과 같다: 섭외자-인도자 한 쌍 = 1건, 섭외자 없는 기록은 한 건씩.
+const BOARD_KIND = {
+  noon: { head: '🕛 <b>정오 서머리</b> 🕛  오늘 오전 활동', title: '교자장부청 오전 보고 총합', when: ' · 12시까지' },
+  evening: { head: '🌙 <b>저녁 10시 서머리</b> 🌙  오늘 하루 활동', title: '교자장부청 일일 보고 총합', when: '' },
+};
 
-/** 그날(지금까지) 활동을 교자장부청 + 전주교회 전체로 — 부서마다 참여 인원·기록 건수·단계별 건수. */
-async function composeDepts(day, title) {
-  const activities = await activitiesBetween(day, day);
-  const byNid = await teachersByNid(activities.map((a) => a.nid));
-  const blank = () => ({ people: new Set(), n: 0, stages: STAGE_GROUPS.map(() => 0) });
-  const stat = Object.fromEntries(DEPTS.map(([d]) => [d, blank()]));
-  const all = blank();
-  for (const a of activities) {
-    const items = a.activities.flatMap((x) => x.split(',')).map((x) => x.trim());
-    for (const s of [stat[byNid.get(a.nid)?.dept], all].filter(Boolean)) {
-      s.people.add(a.nid); s.n++;
-      STAGE_GROUPS.forEach(([, , list], i) => { if (items.some((x) => list.includes(x))) s.stages[i]++; });
-    }
-  }
-  const stageLine = (s) => { const t = STAGE_GROUPS.map(([e, l], i) => (s.stages[i] ? `${e}${l} ${s.stages[i]}` : '')).filter(Boolean).join(' · '); return t ? '   ' + t : ''; };
-  const lines = [title, `📅 ${day} (${weekdayOf(day)})`, ''];
-  for (const [dept, label] of DEPTS) {
-    const s = stat[dept];
-    lines.push(`🏢 <b>${label}</b>  ${s.n ? `참여 ${comma(s.people.size)}명 · 기록 ${comma(s.n)}건` : '기록 없음'}`);
-    const st = stageLine(s); if (st) lines.push(st);
-  }
-  lines.push('', `⛪ <b>전주교회 전체</b>  참여 ${comma(all.people.size)}명 · 기록 ${comma(all.n)}건`);
-  const st = stageLine(all); if (st) lines.push(st);
-  return { text: lines.join('\n'), total: all.n };
+/** 그날(지금까지) 기록 → 교자장부청 × 활동 항목 보라 표 사진 + 설명 글(항목별 5개 조직 총합, 한 줄에 하나). */
+async function composeBoard(day, kind = 'evening') {
+  const K = BOARD_KIND[kind] || BOARD_KIND.evening;
+  const acts = await fixActivityNids(await selectAll(() => db().from('activities')
+    .select('id, member_id, nid, name, activities, roles, target_name, report, submitted_at')
+    .gte('submitted_at', `${day} 00:00:00`).lte('submitted_at', `${day} 23:59:59`).order('id')));
+  const byNid = await teachersByNid(acts.map((a) => a.nid));
+  const missing = [...new Set(acts.map((a) => a.nid).filter((n) => n && !byNid.has(n)))];
+  for (const t of await adminsAsTeachers(missing)) byNid.set(t.nid, t);   // 관리자 명단에만 있는 분(회장 등)
+  const byDept = new Map(DEPTS.map(([d]) => [d, []]));
+  for (const a of acts) { const list = byDept.get(String(byNid.get(a.nid)?.dept || '').trim()); if (list) list.push(a); }
+  const counted = [...byDept.values()].flat();
+  const people = new Set(counted.map((a) => a.nid)).size;
+  const [y, m, d] = day.split('-').map(Number);
+  const { total, sum, png } = boardTable({
+    title: K.title, theme: 'purple', firstHead: '부서', sumLabel: '5개 조직 총합',
+    sub: `${y - 1983}.${m}.${d}.${weekdayOf(day)}요일${K.when} · 섭외자-인도자 한 쌍 = 1건 (섭외자 없는 기록은 한 건씩)`,
+    groups: DEPTS.map(([dept, label]) => [label, byDept.get(dept)]),
+  });
+  const lines = boardTotalLines(total);
+  const caption = [K.head, `📅 ${day} (${weekdayOf(day)})`, '',
+    `👥 참여 ${comma(people)}명 · 기록 ${comma(counted.length)}건 · 합계 <b>${comma(sum)}건</b>`, '',
+    '🧭 <b>항목별 총합</b> (교자장부청 5개 조직)',
+    ...(lines.length ? lines : ['아직 기록 없음'])].join('\n');
+  return { caption, text: caption, png, total: counted.length };
+}
+
+/** 표 사진 + 설명을 소통 방(TEACHERSQUARE_CHAT_ID)에. 사진을 못 보내면 글로. */
+async function sendBoard(day, kind, key, logKind) {
+  const r = await composeBoard(day, kind);
+  let ok = r.png ? await sendChart(r.png, r.caption, key, logKind) : false;
+  if (!ok) ok = await sendAlert(r.text, logKind, key);
+  return { ok, date: day, total: r.total, photo: !!r.png };
 }
 
 /** 정오 서머리: 오늘 0시~지금(12시) 교자장부청. 같은 날 한 번만. */
@@ -168,17 +187,17 @@ async function sendNoonSummary({ date, force } = {}) {
   const day = date || kstDate();
   const key = force ? '' : 'noon_' + day;
   if (key && await alreadySent(key)) return { ok: false, date: day, skipped: true };
-  const { text, total } = await composeDepts(day, '🕛 <b>정오 서머리</b> 🕛  오늘 오전 활동');
-  return { ok: await sendAlert(text, '정오서머리', key), date: day, total };
+  return sendBoard(day, 'noon', key, '정오서머리');
 }
 
 // ── 밤 11시 현황 (10/30) ── 사용자: "교자장부청별 명함 등록·활동 기록 참여자·입장 1회 이상 — 몇 명 중 몇 명"
 async function composeStatus(day) {
-  const [roster, cards, acts, visits] = await Promise.all([
+  const [roster, cards, acts, visits, tierCounts] = await Promise.all([
     loadRoster(),
     selectAll(() => db().from('connect_cards').select('id, nid').neq('member_id', '').order('id')),
     selectAll(() => db().from('activities').select('id, nid').order('id')),
     selectAll(() => db().from('app_visits').select('nid, visits').gt('visits', 0).order('nid')),
+    rosterCounts(),
   ]);
   const card = new Set(cards.map((c) => c.nid)), act = new Set(acts.map((a) => a.nid)), seen = new Set(visits.map((v) => v.nid));
   const blank = () => ({ total: 0, card: 0, act: 0, seen: 0 });
@@ -196,24 +215,29 @@ async function composeStatus(day) {
   const cell = (n, total) => `${comma(n)} / ${comma(total)}명 (${percent(n, total)})`;
   const block = (label, s) => [`🏢 <b>${label}</b> (교사 ${comma(s.total)}명)`,
     `   🪪 명함 등록 ${cell(s.card, s.total)}`, `   📝 활동 기록 참여 ${cell(s.act, s.total)}`, `   📲 앱 입장 1회 이상 ${cell(s.seen, s.total)}`];
-  const lines = ['🌃 <b>밤 11시 교사광장 참여 현황</b>', `📅 ${day} (${weekdayOf(day)}) 기준 · 누적`, ''];
+  const lines = ['🌃 <b>교사 활동 현황 서머리</b>', `📅 ${day} (${weekdayOf(day)}) 기준 · 누적`, ''];
   for (const [dept, label] of DEPTS) lines.push(...block(label, stat[dept]), '');
   lines.push(...block('⛪ 전주교회 전체', all).map((l, i) => (i ? l : l.replace('🏢 ', ''))));
   // 10/30(사용자): 옆으로 뻗는 채움 막대 사진(조직마다 막대 = 전체 인원, 채운 만큼 = 해당 인원) + 짧은 설명
+  // 11/4(사용자): 등급(휴·활·정·우)을 4번째로 묶어 '교사 활동 현황 서머리' 4종 — 막대 전체 = 100%, 왼쪽부터 휴→활→정→우 채움
   const orgs = [...DEPTS.map(([d, label]) => [label, stat[d]]), ['전주교회 전체', all]];
+  const tierOf = Object.fromEntries([...DEPTS.map(([d]) => d), '*'].map((d) => [d, {}]));
+  for (const c of tierCounts) for (const k of [String(c.dept || '').trim(), '*']) if (tierOf[k]) tierOf[k][c.tier] = (tierOf[k][c.tier] || 0) + c.n;
+  const tierRows = [...DEPTS.map(([d]) => tierOf[d]), tierOf['*']];
   let png = null;
   try {
     png = progressPng({
-      title: '교사광장 참여 현황', sub: `${day} (${weekdayOf(day)}) 기준 · 누적 · 막대 끝 = 그 조직 전체 교사`,
+      title: '교사 활동 현황 서머리', sub: `${day} (${weekdayOf(day)}) 기준 · 누적 · 막대 끝 = 그 조직 전체 교사`,
       labels: orgs.map(([l]) => l), totals: orgs.map(([, s]) => s.total), sumLabel: '전주교회 전체',
       panels: [
         { title: '명함 등록', color: '#00AE82', values: orgs.map(([, s]) => s.card) },
         { title: '활동 기록 참여', color: '#2F6BFF', values: orgs.map(([, s]) => s.act) },
         { title: '앱 입장 1회 이상', color: '#F08A00', values: orgs.map(([, s]) => s.seen) },
+        { title: '교사 등급 (휴·활·정·우)', stack: TIER_STACK.map(([tier, short, color]) => ({ label: short, name: tier, color, values: tierRows.map((t) => t[tier] || 0) })) },
       ],
     });
   } catch (e) { console.log('[교사광장 봇] 참여 현황 그림 오류 ' + e); }
-  const caption = ['🌃 <b>교사광장 참여 현황</b>', `📅 ${day} (${weekdayOf(day)}) 기준 · 누적`, '',
+  const caption = ['🌃 <b>교사 활동 현황 서머리</b>', `📅 ${day} (${weekdayOf(day)}) 기준 · 누적`, '',
     ...orgs.map(([l, s]) => `${l === '전주교회 전체' ? '⛪' : '🏢'} <b>${l}</b> ${comma(s.total)}명 — 명함 ${comma(s.card)} · 기록 ${comma(s.act)} · 입장 ${comma(s.seen)}`)].join('\n');
   return { text: lines.join('\n'), caption, png };
 }
@@ -291,38 +315,7 @@ async function composeEvening(day) {
   return { caption: caption.join('\n'), tiers: lines.join('\n'), labels, totals, joined, month };
 }
 
-/** 부서별 참여율 막대그래프(PNG). 못 만들면 null. */
-async function participationChart({ labels, totals, joined, month }) {
-  try {
-    const pcts = labels.map((_, i) => (totals[i] ? Math.round((joined[i] / totals[i]) * 1000) / 10 : 0));
-    const max = Math.max(...pcts, 1);
-    const xLabels = labels.map((l, i) => [l, `${comma(joined[i])} / ${comma(totals[i])}명`]);
-    // QuickChart 는 함수가 든 차트 설정을 글자로 받는다.
-    const chart = `{type:'bar',data:{labels:${JSON.stringify(xLabels)},datasets:[{data:${JSON.stringify(pcts)},backgroundColor:${JSON.stringify(DEPT_COLORS)}}]},` +
-      `options:{legend:{display:false},title:{display:true,text:${JSON.stringify(month + '월 부서별 참여율 (%)')},fontSize:22,fontColor:'#111'},` +
-      `layout:{padding:{top:10}},scales:{yAxes:[{ticks:{beginAtZero:true,suggestedMax:${Math.ceil(max * 1.25 * 10) / 10},fontSize:14,callback:function(v){return v+'%';}}}],` +
-      `xAxes:[{ticks:{fontSize:16,fontColor:'#111'}}]},` +
-      `plugins:{datalabels:{anchor:'end',align:'end',color:'#111',font:{size:18,weight:'bold'},formatter:function(v){return v+'%';}}}}}`;
-    const r = await fetch('https://quickchart.io/chart', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ width: 720, height: 460, backgroundColor: 'white', format: 'png', devicePixelRatio: 2, chart }),
-    });
-    return r.status === 200 ? Buffer.from(await r.arrayBuffer()) : null;
-  } catch (e) {
-    console.log('[교사광장 봇] 차트 오류 ' + e);
-    return null;
-  }
-}
-
-/** 그래프를 못 보낼 때 대신 쓰는 글 막대. */
-function textBars({ labels, totals, joined }) {
-  const pcts = labels.map((_, i) => (totals[i] ? (joined[i] / totals[i]) * 100 : 0));
-  const max = Math.max(...pcts, 0.0001);
-  return labels.map((l, i) => {
-    const n = Math.round((pcts[i] / max) * 10);
-    return `<b>${l.slice(0, 2)}</b> ${n ? '🟩'.repeat(n) : '▫️'} ${percent(joined[i], totals[i])}`;
-  }).join('\n');
-}
+// 11/4: 저녁 참여율 막대그래프(participationChart·textBars)는 지움 — 사용자: "일반 참여율이니 삭제하고 앞으론 올리지 마"
 
 /** 그래프 사진 + 설명을 보낸다. 같은 중복키로 이미 보냈으면 다시 보내지 않는다. */
 async function sendChart(png, caption, dedupKey, kind = '저녁서머리') {
@@ -344,7 +337,7 @@ async function sendChart(png, caption, dedupKey, kind = '저녁서머리') {
   }
 }
 
-/** 저녁 서머리 세 통: ⓪ 오늘 교자장부청·교회 전체 ① 참여율 그래프(안 되면 글 막대) ② 등급 현황. */
+/** 저녁 서머리: 오늘 하루 교자장부청 × 활동 항목 표(11/4부터 한 통). */
 async function sendEveningSummary({ date, force, tick }) {
   try {
     // 10/30: 22시로 옮김 — 21시에 도는 옛 예약(ts-evening-summary)은 건너뛰고 5분 틱(summaryTick)이 22시에 보낸다
@@ -352,17 +345,9 @@ async function sendEveningSummary({ date, force, tick }) {
     const day = date || kstDate();
     const dedupKey = 'evening_' + day;
     if (!force && await alreadySent(dedupKey + '|0')) return { ok: false, date: day, skipped: true };
-    const summary = await composeEvening(day);
-    const key0 = force ? '' : dedupKey + '|0';
-    const key1 = force ? '' : dedupKey;
-    const key2 = force ? '' : dedupKey + '|2';
-    const today = await composeDepts(day, '🌙 <b>저녁 10시 서머리</b> 🌙  오늘 하루 교자장부청 활동');
-    await sendAlert(today.text, '저녁서머리', key0);
-    const chart = await participationChart(summary);
-    let ok1 = chart ? await sendChart(chart, summary.caption, key1) : false;
-    if (!ok1) ok1 = await sendAlert(summary.caption + '\n\n' + textBars(summary), '저녁서머리', key1);
-    const ok2 = await sendAlert(summary.tiers, '저녁서머리', key2);
-    return { ok: ok1 && ok2, date: day, chart: !!chart, skipped: false };
+    // 11/4(사용자): 교자장부청 × 활동 항목 보라 표 한 통만. 참여율 막대그래프(일반 참여율)·등급 현황 글은 더 안 올림
+    const r = await sendBoard(day, 'evening', force ? '' : dedupKey + '|0', '저녁서머리');
+    return { ...r, skipped: false };
   } catch (err) {
     console.log('[교사광장 봇] 저녁 서머리 오류 ' + err);
     return { ok: false, error: String(err) };
@@ -380,8 +365,8 @@ const tsNoonSummary = async (body) => (authorized(body) ? sendNoonSummary({ date
 async function tsStatus(body) {
   if (!authorized(body)) return { error: 'unauthorized' };
   if (body.preview === 'daily') return { ok: true, ...(await composeDaily(body.date || kstDate(new Date(Date.now() - 24 * 3600 * 1000)))) };
-  if (body.preview === 'status') { const r = await composeStatus(body.date || kstDate()); return { ok: true, text: r.text, caption: r.caption, photo: !!r.png }; }
-  if (body.preview === 'noon' || body.preview === 'today') return { ok: true, ...(await composeDepts(body.date || kstDate(), body.preview === 'noon' ? '🕛 정오 서머리' : '🌙 오늘 하루')) };
+  if (body.preview === 'status') { const r = await composeStatus(body.date || kstDate()); return { ok: true, text: r.text, caption: r.caption, photo: !!r.png, png: body.png && r.png ? r.png.toString('base64') : undefined }; }
+  if (body.preview === 'noon' || body.preview === 'today') { const r = await composeBoard(body.date || kstDate(), body.preview === 'noon' ? 'noon' : 'evening'); return { ok: true, caption: r.caption, total: r.total, photo: !!r.png, png: body.png ? r.png.toString('base64') : undefined }; }
   if (body.preview === 'evening') { const { caption, tiers } = await composeEvening(body.date || kstDate()); return { ok: true, caption, tiers }; }
   const recent = await run(db().from('alert_log').select('*').order('id', { ascending: false }).limit(10));
   return {

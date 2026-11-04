@@ -310,7 +310,6 @@ export async function buildDailyReports(date, onlyDept = '') {
 //   맨 아래에는 단계별 토탈(새찾기~센터수강)" → 부녀회 지역장+교관방. 방 열쇠 '부녀회#총합'(사람 보고는 이 방으로 안 감).
 //   조직 = 그 부서의 지역 방들(지역 방과 같은 묶음·같은 건수: 섭외자-인도자 한 쌍을 한 건).
 //   10/27(사용자: "글 표는 보기 사납다"): 한글 문서 표처럼 사진 표(1열 = 14개 조직, 옆으로 단계 칸) + 아래 설명 글(신청 현황 글 모양).
-const SUMMARY_COLS = [['새찾기', '💜'], ['만남', '🟠'], ['상담1', '🟢'], ['상담2', '🟢'], ['복음방', '🔵'], ['센터소개', '🏛'], ['센터수강', '🎓']];
 // 10/29(사용자): 장년회 1~13지역·새신자 — 13지역은 방이 아직 없지만 총합 표엔 넣는다(방이 생기면 그대로 이어짐)
 const SUMMARY_EXTRA_ORGS = { '장년회': ['13지역'] };
 const DEPT_ORDER =['교역자', '자문회', '장년회', '부녀회', '청년회'];
@@ -322,48 +321,88 @@ const countPairs = (acts, items) => new Set(acts.filter((a) => (a.activities || 
     ? `${String(a.target_name).trim()}|${leaderName((a.report && a.report.team && a.report.team.leader) || '') || a.nid}`
     : `#${a.id}`))).size;
 
-export function summaryBoard(dept, date, orgs, actsByOrg) {
-  const [y, m, d] = date.split('-').map(Number);
-  const wd = WD[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
-  const total = DAILY_SECTIONS.map(() => 0);
-  const per = orgs.map((org) => {
-    const nums = DAILY_SECTIONS.map(([, items], i) => { const n = countPairs(actsByOrg.get(org) || [], items); total[i] += n; return n; });
-    return { org: orgLabel(dept, org), nums, sum: nums.reduce((a, b) => a + b, 0) };
+// 11/4(사용자): 총합 표 칸 = 지금 앱의 활동 항목(새로 바뀐 이름 + 동행·식구 복음방·동호회·전도 행사 지원·협력 항목). [표 머리(\n = 두 줄), 이모지, 저장값들]
+//   부서 지역별 표 = 민트, 교자장부청(소통 방 정오·저녁 서머리, bot.js) = 보라. 칸 순서·이름은 두 곳이 같다.
+export const BOARD_COLS = [
+  ['섭외자\n피드백', '🗣', ['피드백']],
+  ['섭외찾기\n(전단지)', '💜', ['섭외', '전도 섭외']],
+  ['만남', '🟠', ['친분', '만남1', '만남2']],
+  ['상담1', '🟢', ['상담1', '육상담']],
+  ['상담2', '🟢', ['상담2']],
+  ['복음방', '🔵', ['복음방']],
+  ['센터수강\n생관리', '🎓', ['센터소개', '센터수강']],
+  ['동행\n복음방', '🤝', ['동행교사']],
+  ['식구\n복음방', '🏠', ['식구 복음방']],
+  ['동호회\n활동', '🎨', ['동아리']],
+  ['전도 행사\n지원', '🎪', ['전도 행사 지원']],
+  ['잎사귀', '🍃', ['잎사귀']],
+  ['만남\n동행', '👣', ['만남 동행']],
+  ['밭보기', '🌾', ['밭보기']],
+  ['은사', '🎁', ['은사']],
+  ['멘토\n교사', '🧭', ['멘토교사']],
+  ['교육\n지원', '📚', ['교육 지원']],
+  ['특강', '🎤', ['특강']],
+];
+export const boardLabel = (c) => c[0].replace('\n', '');   // 글에 쓰는 이름
+export const BOARD_THEME = {
+  mint: { head: '#14b8a6', stripe: '#f3fbf9', sumFill: '#ccfbf1', sumFill0: '#99f6e4', sumText: '#0f766e', sumCol: '#0d9488', dash: '#b0bfbb' },
+  purple: { head: '#7c3aed', stripe: '#f8f6fe', sumFill: '#ede9fe', sumFill0: '#ddd6fe', sumText: '#5b21b6', sumCol: '#6d28d9', dash: '#bdb6cc' },
+};
+/** 행(조직) × BOARD_COLS 건수 표 → { per, total, sum, png }. groups = [[행 이름, 기록들]], firstHead = 첫 칸 머리 */
+export function boardTable({ title, sub, firstHead, groups, theme, sumLabel = '총합' }) {
+  const T = BOARD_THEME[theme] || BOARD_THEME.mint;
+  const total = BOARD_COLS.map(() => 0);
+  const per = groups.map(([label, acts]) => {
+    const nums = BOARD_COLS.map(([, , items], i) => { const n = countPairs(acts || [], items); total[i] += n; return n; });
+    return { label, nums, sum: nums.reduce((a, b) => a + b, 0) };
   });
   const sum = total.reduce((a, b) => a + b, 0);
-  const done = orgs.filter((o) => (actsByOrg.get(o) || []).length).length;
-  const title = `${deptLabelOf(dept)} 지역별 일일 보고 총합`;
-  const day = `${y - 1983}.${m}.${d}.${wd}요일`;
-  // 사진 표: 1열 조직, 옆으로 새찾기~센터수강 + 계, 맨 아래 총합 줄
-  const head = ['지역', ...SUMMARY_COLS.map(([l]) => l), '계'];
-  const rows = [...per.map((p) => [p.org, ...p.nums.map((n) => n || '-'), p.sum || '-']), ['총합', ...total, sum]];
+  const head = [firstHead, ...BOARD_COLS.map(([l]) => l), '계'];
+  const rows = [...per.map((p) => [p.label, ...p.nums.map((n) => n || '-'), p.sum || '-']), [sumLabel, ...total, sum]];
   const last = rows.length - 1, sumCol = head.length - 1;
   let png = null;
   try {
     png = tablePng({
-      title, sub: `${day} · 섭외자-인도자 한 쌍 = 1건`, head, rows, align: ['left'],
+      title, sub, head, rows, align: ['left'], headColor: T.head, stripe: T.stripe,
       style: (r, c, v) => {
-        if (r === last) return { fill: c ? '#e3f6ef' : '#d3efe4', bold: true, color: '#0b5e44' };
-        if (v === '-') return { color: '#b0b8b4' };
+        if (r === last) return { fill: c ? T.sumFill : T.sumFill0, bold: true, color: T.sumText };
+        if (v === '-') return { color: T.dash };
         if (c === 0) return { bold: true };
-        if (c === sumCol) return { bold: true, color: '#00875f' };
+        if (c === sumCol) return { bold: true, color: T.sumCol };
         return null;
       },
     });
   } catch (e) { console.log('총합 표 이미지 오류: ' + e.message); }
+  return { per, total, sum, png };
+}
+/** 항목 총합을 한 줄에 하나씩(0건은 뺌) */
+export const boardTotalLines = (total) => BOARD_COLS.map((c, i) => (total[i] ? `${c[1]} <b>${esc(boardLabel(c))}</b> : ${total[i]}건` : '')).filter(Boolean);
+
+export function summaryBoard(dept, date, orgs, actsByOrg) {
+  const [y, m, d] = date.split('-').map(Number);
+  const wd = WD[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  const done = orgs.filter((o) => (actsByOrg.get(o) || []).length).length;
+  const title = `${deptLabelOf(dept)} 지역별 일일 보고 총합`;
+  const day = `${y - 1983}.${m}.${d}.${wd}요일`;
+  // 사진 표(민트): 1열 조직, 옆으로 활동 항목 + 계, 맨 아래 총합 줄
+  const { per, total, sum, png } = boardTable({
+    title, sub: `${day} · 섭외자-인도자 한 쌍 = 1건 (섭외자 없는 기록은 한 건씩)`, firstHead: '지역', theme: 'mint',
+    groups: orgs.map((org) => [orgLabel(dept, org), actsByOrg.get(org) || []]),
+  });
   // 사진 아래 설명(신청 현황 글 모양)
+  const lines = boardTotalLines(total);
   const caption = [
     `📊 <b>${esc(title)}</b> (${day})`, '',
     `📌 <b>합계</b> : <b>${sum}건</b>`,
     `🗂️ <b>보고 올라온 조직</b> : ${done}/${orgs.length}`, '',
-    '🧭 <b>단계별 토탈</b>',
-    ...SUMMARY_COLS.map(([l, e], i) => `${e} <b>${l}</b> : ${total[i]}건`),
+    '🧭 <b>항목별 토탈</b>',
+    ...(lines.length ? lines : ['기록 없음']),
   ].join('\n');
-  // 사진을 못 보낼 때의 글: 조직마다 줄을 바꿔 단계별 숫자
+  // 사진을 못 보낼 때의 글: 조직마다, 항목은 한 줄에 하나씩
   const text = [
     caption, '', '🗂️ 지역별 현황',
-    ...per.flatMap((p) => [` ▸ ${esc(p.org)} (총 ${p.sum}건)`,
-      p.sum ? '   ' + p.nums.map((n, i) => (n ? `${SUMMARY_COLS[i][0]} ${n}` : '')).filter(Boolean).join(' · ') : '   보고 없음']),
+    ...per.flatMap((p) => [` ▸ ${esc(p.label)} (총 ${p.sum}건)`,
+      ...(p.sum ? p.nums.map((n, i) => (n ? `   ${esc(boardLabel(BOARD_COLS[i]))} ${n}` : '')).filter(Boolean) : ['   보고 없음'])]),
   ].join('\n');
   return { caption, text, png };
 }
@@ -384,7 +423,7 @@ export async function buildSummaryReports(date, onlyKey = '') {
   const byNid = new Map(teachers.map((t) => [t.nid, t]));
   return sums.map((room) => {
     const dept = room.dept.split('#')[0];
-    const orgs = [...new Set([...all.filter((r) => r.dept.startsWith(dept + '/')).map((r) => r.dept.split('/')[1]), ...(SUMMARY_EXTRA_ORGS[dept] || [])])]
+    const orgs = [...new Set([...all.filter((r) => r.dept.startsWith(dept + '/') && !r.dept.includes('#')).map((r) => r.dept.split('/')[1]), ...(SUMMARY_EXTRA_ORGS[dept] || [])])]
       .sort((a, b) => { const k = (o) => (ORG_LABEL[`${dept}/${o}`] ? [-1, 0] : orgOrder(o)); const p = k(a), q = k(b); return p[0] - q[0] || p[1] - q[1]; });   // 회장단 맨 위
     const actsByOrg = new Map(orgs.map((o) => [o, []]));
     for (const a of acts) {
