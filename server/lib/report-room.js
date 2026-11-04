@@ -346,6 +346,9 @@ export const BOARD_COLS = [
 export const boardLabel = (c) => c[0].replace('\n', '');   // 글에 쓰는 이름
 export const BOARD_THEME = {
   mint: { head: '#14b8a6', stripe: '#f3fbf9', sumFill: '#ccfbf1', sumFill0: '#99f6e4', sumText: '#0f766e', sumCol: '#0d9488', dash: '#b0bfbb' },
+  // 11/4(사용자): 출석 표는 활동 표(민트·보라)와 헷갈리지 않게 — 지역별 = 노랑, 교자장부청 총합 = 파랑
+  yellow: { head: '#e5a000', stripe: '#fffbeb', sumFill: '#fef3c7', sumFill0: '#fde68a', sumText: '#92400e', sumCol: '#b45309', dash: '#c9bfa5' },
+  blue: { head: '#2563eb', stripe: '#f5f8ff', sumFill: '#dbeafe', sumFill0: '#bfdbfe', sumText: '#1e40af', sumCol: '#1d4ed8', dash: '#b3bccb' },
   purple: { head: '#7c3aed', stripe: '#f8f6fe', sumFill: '#ede9fe', sumFill0: '#ddd6fe', sumText: '#5b21b6', sumCol: '#6d28d9', dash: '#bdb6cc' },
 };
 /** 행(조직) × BOARD_COLS 건수 표 → { per, total, sum, png }. groups = [[행 이름, 기록들]], firstHead = 첫 칸 머리 */

@@ -3,8 +3,8 @@
 //   교사는 명단에 등록된 지역(고른 지역이 아니라), 비교사는 적은 부서·지역 방으로. 교육 과정(cohort)·[TEST] 모임은 뺀다.
 // 11/4(사용자: "출석도 이런 식으로 정갈하게, 조직적으로"): 활동 서머리와 같은 틀 — 지역 → 부서 → 교자장부청.
 //   지역 방(교역자 방) = 숫자 요약(한 줄에 하나) + 타임별 정상/지각으로 나눈 이름(한 줄에 4명).
-//   부서 총합·전체 방 = 지역 × (재적·타임·총 참석·출석률·정상·지각·비교사) 민트 표 사진 + 요약 글.
-//   교자장부청 = 같은 칸의 보라 표(ATT_TOTAL_ROOM — 사용자 확인 전까지는 시험 방에만).
+//   부서 총합·전체 방 = 지역 × (재적·타임·총 참석·출석률·정상·지각·비교사) 노랑 표(11/4 민트→노랑) 사진 + 요약 글.
+//   교자장부청 = 같은 칸의 파랑 표(11/4 보라→파랑)(ATT_TOTAL_ROOM — 사용자 확인 전까지는 시험 방에만).
 import { db, run, selectAll } from './db.js';
 import { kstDate, kstDateTime } from './util.js';
 import { sendRoomText, sendRoomBoard, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
@@ -128,7 +128,8 @@ function attBoard({ m, title, firstHead, groups, phase, order, theme, sumLabel, 
   let png = null;
   try {
     png = tablePng({
-      title, sub: `${m.title} · ${dayOf(m)} · ${headOf(phase)} · 출석률 = 교사 참석 ÷ 재적(비교사 제외) · 정상·지각 = 출석 건수`,
+      title, sub: `${m.title} · ${dayOf(m)} · ${headOf(phase)}`,
+      foot: '※ 출석률 = 교사 참석 ÷ 재적(비교사 제외) · 정상·지각 = 출석 건수',
       head, rows, align: ['left'], headColor: T.head, stripe: T.stripe,
       style: (r, c, v) => {
         if (r === last) return { fill: c ? T.sumFill : T.sumFill0, bold: true, color: T.sumText };
@@ -154,7 +155,7 @@ function deptBoard(m, dept, by, counts, phase, order) {
   const o = regionOrder(dept);
   const keys = [...new Set([...counts.keys(), ...by.keys()])].filter((k) => k.startsWith(dept + '/'))
     .sort((a, b) => o(a) - o(b) || (a < b ? -1 : 1));
-  return attBoard({ m, title: `${dept} 지역별 출석 현황`, firstHead: '지역', theme: 'mint', sumLabel: '총합', place: '지역', phase, order,
+  return attBoard({ m, title: `${dept} 지역별 출석 현황`, firstHead: '지역', theme: 'yellow', sumLabel: '총합', place: '지역', phase, order,
     groups: keys.map((k) => [orgLabel(dept, regionShow(k.split('/')[1])), by.get(k) || {}, counts.get(k) || 0]) });
 }
 /** 교자장부청: 부서 × 출석 보라 표. */
@@ -166,7 +167,7 @@ function orgBoard(m, by, counts, phase, order) {
     const roster = [...counts].filter(([k]) => keys(k)).reduce((a, [, n]) => a + n, 0);
     return [label, sess, roster];
   });
-  return attBoard({ m, title: '교자장부청 출석 현황', firstHead: '부서', theme: 'purple', sumLabel: '5개 조직 총합', place: '조직', phase, order, groups });
+  return attBoard({ m, title: '교자장부청 출석 현황', firstHead: '부서', theme: 'blue', sumLabel: '5개 조직 총합', place: '조직', phase, order, groups });
 }
 
 async function prepare(m, phase) {
