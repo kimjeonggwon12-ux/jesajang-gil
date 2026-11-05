@@ -13,7 +13,8 @@ const guOf = (t) => { const m = String((t && (t.affiliation || t.note)) || '').m
 // 텔레그램 해시태그 — 띄어쓰기·기호가 있으면 태그가 끊기므로 글자만 남긴다
 const tag = (s) => { const v = String(s || '').replace(/[^0-9A-Za-z가-힣_]/g, ''); return v ? '#' + v : ''; };
 // 10/29(사용자): 청년회 '기타' 방 = "기타(교문,새신자,회장단) 교사방" — 명단 지역 '새신자'도 기타 방으로(교회문화·회장단은 명단에서 이미 '기타').
-const REGION_ROOM_ALIAS = { '청년회/새신자': '청년회/기타' };
+// 11/5(방 점검): 11/4 엑셀 반영 뒤 명단 지역이 '문화부'(교회문화)·'회장단'으로 따로 들어옴 → 같은 '기타(교문,새신자,회장단)' 방으로
+const REGION_ROOM_ALIAS = { '청년회/새신자': '청년회/기타', '청년회/문화부': '청년회/기타', '청년회/회장단': '청년회/기타' };
 const roomKeyOf = (dept, region) => { const k = `${String(dept).trim()}/${String(region).trim()}`; return REGION_ROOM_ALIAS[k] || k; };
 export const regionRoomKey = (t) => (t && t.dept && t.region ? roomKeyOf(t.dept, t.region) : '');
 // 11/2(사용자): 부녀회 명단 지역 '기타' = 회장단(15명, 소속 '기타회장단') — 회장단 방이 이 사람들의 지역 방, 총합 표에선 '회장단'으로 맨 위
