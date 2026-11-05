@@ -336,7 +336,10 @@ export async function buildDailyReports(date, onlyDept = '') {
 //   조직 = 그 부서의 지역 방들(지역 방과 같은 묶음·같은 건수: 섭외자-인도자 한 쌍을 한 건).
 //   10/27(사용자: "글 표는 보기 사납다"): 한글 문서 표처럼 사진 표(1열 = 14개 조직, 옆으로 단계 칸) + 아래 설명 글(신청 현황 글 모양).
 // 10/29(사용자): 장년회 1~13지역·새신자 — 13지역은 방이 아직 없지만 총합 표엔 넣는다(방이 생기면 그대로 이어짐)
-const SUMMARY_EXTRA_ORGS = { '장년회': ['13지역'] };
+// 11/5(사용자, 교역자 방): 글 일일 보고 대신 "지역마다 잘 정돈된" 총합 표 — 교역자는 지역 방이 없어 지역(교회·신학)을 여기서
+const SUMMARY_EXTRA_ORGS = { '장년회': ['13지역'], '교역자': ['교회', '신학'] };
+// 총합 표로 바꾼 방 — 22시 글 일일 보고(📍…-일일 보고)는 보내지 않는다
+const NO_DAILY_TEXT = new Set(['교역자']);
 const DEPT_ORDER =['교역자', '자문회', '장년회', '부녀회', '청년회'];
 const deptRank = (key) => { const i = DEPT_ORDER.indexOf(key.split(/[#/]/)[0]); return i < 0 ? 9 : i; };
 const orgOrder = (r) => { const m = r.match(/^0*(\d+)/); return m ? [0, Number(m[1])] : [1, ['유아모', '새신자'].indexOf(r) + 1 || 9]; };
@@ -590,7 +593,7 @@ export async function reportDailyTick() {
   if (kstDateTime().slice(11, 16) < '22:00') return [];
   const date = kstDate();
   const sent = [];
-  for (const r of [...await buildDailyReports(date), ...await buildSummaryReports(date)]) {
+  for (const r of [...(await buildDailyReports(date)).filter((x) => !NO_DAILY_TEXT.has(x.room.dept)), ...await buildSummaryReports(date)]) {
     const { room, count } = r;
     if (!count) continue;   // 그날 기록이 하나도 없는 방은 보내지 않는다(빈 보고로 방을 채우지 않게)
     if (topicPending(room)) continue;   // 정한 주제 번호를 아직 모름

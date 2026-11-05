@@ -463,7 +463,9 @@ function newsPlain(F) {
 /** 마크다운(**굵게**) 조금 → 텔레그램 HTML. */
 const mdToTg = (t) => esc(String(t).replace(/^#+\s*/gm, '').replace(/\r/g, '')).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^\s*[-*]\s+/gm, '• ').replace(/\n{3,}/g, '\n\n').trim();
 
-export async function composeNews(day) {
+// 11/5(사용자): "교자장부청 한 줄 뉴스 — 소속을 굵게, ● 기호를 앞에, '한 줄 데이터 뉴스'라고" → opts.oneline
+//   opts.today: 그날 저녁에 그날 것('어제' 대신 '오늘')
+export async function composeNews(day, opts = {}) {
   const F = await newsFacts(day);
   const md = `${Number(day.slice(5, 7))}월 ${Number(day.slice(8, 10))}일(${weekdayOf(day)})`;
   const head = ['📰 <b>교사광장 전도 뉴스</b>', `🗞 ${md} · 헤드라인`, ''];
@@ -492,11 +494,11 @@ export async function composeNews(day) {
   ].join('\n');
   let body = '', ai = false, raw = '';
   try {
-    const t = await askAiModels(prompt, NEWS_MODELS);
+    const t = await askAiModels(opts.today ? prompt.replaceAll('어제', '오늘') : prompt, NEWS_MODELS);
     if (t && !t.startsWith('⚠️')) { body = mdToTg(t); ai = true; raw = t; }
   } catch (e) { console.log('[교사광장 봇] 뉴스 AI 오류 ' + e); }
   if (!body) body = newsPlain(F);
-  const text = [...head, body, '', `📎 데이터: 서머리 ①~⑤ · 기록 ${F.total.records}건 · 교사 ${F.total.teachers}명`].join('\n');
+  let text = [...head, body, '', `📎 데이터: 서머리 ①~⑤ · 기록 ${F.total.records}건 · 교사 ${F.total.teachers}명`].join('\n');
   // 11/5 4차(사용자): "가독성 있게 카드 뉴스로 — 텍스트는 밑에 달고, 데이터는 가독성 있는 카드" → 사진 = 카드, 글 = 사진 아래 설명
   const rawLines = raw.split('\n').map((l) => l.replace(/\*\*/g, '').trim()).filter(Boolean);
   const headline = (rawLines.find((l) => l.startsWith('🔴')) || '').replace(/^🔴\s*/, '') || `어제 기록 ${comma(F.total.records)}건 · 활동 교사 ${comma(F.total.teachers)}명`;
@@ -505,8 +507,13 @@ export async function composeNews(day) {
     const line = l ? l.slice(l.indexOf(d.label) + d.label.length).replace(/^\s*·\s*/, '') : (d.items[0] ? `${d.items[0][0]} 중심(${d.items[0][1]}건)` : '기록 없음');
     return { label: d.label, records: d.records, prevRecords: d.prevRecords, teachers: d.teachers, rate: d.status.total ? pct(d.teachers, d.status.total) : '', line };
   });
+  if (opts.oneline) {
+    text = ['📰 <b>한 줄 데이터 뉴스</b>', `🗞 ${md} · 교자장부청`, '',
+      ...depts.map((d) => `● <b>${esc(d.label)}</b> · ${esc(d.line)}`), '',
+      `📎 데이터: 서머리 ①~⑤ · 기록 ${comma(F.total.records)}건 · 교사 ${comma(F.total.teachers)}명`].join('\n');
+  }
   let png = null;
-  try { png = newsCardPng({ date: md, headline, total: F.total, depts }); } catch (e) { console.log('[교사광장 봇] 뉴스 카드 그림 오류 ' + e); }
+  try { png = newsCardPng({ date: md, headline: opts.today ? headline.replace(/^어제/, '오늘') : headline, total: F.total, depts, title: opts.oneline ? '한 줄 데이터 뉴스' : '' }); } catch (e) { console.log('[교사광장 봇] 뉴스 카드 그림 오류 ' + e); }
   return { text: text.length > 1000 ? text.slice(0, 990) + '…' : text, ai, facts: F, png };
 }
 
@@ -643,7 +650,22 @@ async function tsTestRoom(body) {
 }
 
 export { composeDaily, composeEvening };
+// 11/5(사용자): "오늘 부서별 총합 카드 뉴스를 소통 방에 — 교자장부청 한 줄 데이터 뉴스"
+//   { action:'tsNewsSend', key, date?, today?:true, to?:'test' } — 카드 사진 + 아래 한 줄 뉴스 글. 같은 날 한 번만(force로 다시).
+async function tsNewsSend(body) {
+  if (!authorized(body)) return { error: 'unauthorized' };
+  const day = body.date || kstDate();
+  // 11/5(사용자): "이미지는 하지 말고 한 줄 데이터 뉴스 텍스트만" → photo:false. text 를 주면 확인한 글 그대로(AI 다시 안 씀)
+  const r = body.text ? { text: String(body.text), png: null, ai: false } : await composeNews(day, { oneline: true, today: body.today !== false });
+  if (body.photo === false) r.png = null;
+  if (body.to === 'test') return { ...(await testPhoto(r.png, r.text, r.text)), ai: r.ai, text: r.text };
+  const key = body.force ? '' : 'news1_' + day;
+  if (key && await alreadySent(key)) return { ok: false, skipped: true, date: day };
+  let ok = r.png ? await sendChart(r.png, r.text, key, '데이터뉴스') : false;
+  if (!ok) ok = await sendAlert(r.text, '데이터뉴스', key);
+  return { ok, date: day, ai: r.ai, photo: !!r.png, text: r.text };
+}
 // 11/5: 전체 텔레그램 방 연결 점검(보내지 않음)
 const tsRoomHealth = async (body) => (authorized(body) ? (await import('../lib/room-health.js')).roomHealth() : { error: 'unauthorized' });
 
-export default { tsRoomHealth, tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };
+export default { tsNewsSend, tsRoomHealth, tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };

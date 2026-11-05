@@ -45,7 +45,7 @@ export function newsCardPng(n) {
   const headH = 150 + hlLines.length * 60 + 30;
   out.push(`<rect x="0" y="0" width="${W}" height="${headH}" fill="#0F1E3D"/>`,
     `<rect x="${PAD}" y="48" width="8" height="34" rx="3" fill="#00AE82"/>`,
-    `<text x="${PAD + 22}" y="76" font-size="30" font-weight="700" fill="#7DE3C4">교사광장 전도 뉴스</text>`,
+    `<text x="${PAD + 22}" y="76" font-size="30" font-weight="700" fill="#7DE3C4">${esc(n.title || '교사광장 전도 뉴스')}</text>`,
     `<text x="${W - PAD}" y="76" font-size="28" fill="#C7D2E8" text-anchor="end">${esc(n.date)}</text>`,
     `<text x="${PAD}" y="128" font-size="24" fill="#93A4C6">HEADLINE</text>`);
   hlLines.forEach((l, i) => out.push(`<text x="${PAD}" y="${188 + i * 60}" font-size="46" font-weight="700" fill="#FFFFFF">${esc(l)}</text>`));
