@@ -1,4 +1,5 @@
-// 교사광장 봇의 정기 서머리: 아침 7시(어제 활동), 정오(오늘 오전 교자장부청 표), 저녁 10시(오늘 교자장부청 표), 밤 11시(교사 활동 현황: 명함·기록·입장·등급)
+// 교사광장 봇의 정기 서머리: 아침 7시(교사 활동 현황: 명함·기록·입장·등급, 누적), 정오(오늘 오전 교자장부청 표), 저녁 10시(오늘 교자장부청 표), 밤 11시(오늘 활동, 부서별 이름)
+// 11/5(사용자): 아침 7시 서머리(활동 글)를 전날 밤 11시에 올리고, 밤 11시 '교사 활동 현황 서머리'를 아침 7시로 — 서로 맞바꿈.
 // 10/30(사용자): 활동 방엔 개별 실시간 알림은 올리지 않고(events.js INSTANT_ALERTS) 서머리 세 번만.
 // 11/4(사용자): 정오·저녁 = 교자장부청 × 활동 항목 보라 표 사진 + 항목별 5개 조직 총합 글. 저녁 참여율 막대·등급 현황 글은 더 안 올림
 //   (등급은 밤 11시 '교사 활동 현황 서머리'에 휴·활·정·우 채움 막대로).
@@ -95,7 +96,7 @@ async function composeDaily(day) {
     people.add(key);
   }
 
-  const lines = ['☀️ <b>아침 7시 서머리</b> ☀️', `📅 ${day} (${weekdayOf(day)}) 활동`, ''];
+  const lines = ['🌃 <b>밤 11시 서머리</b> 🌃', `📅 ${day} (${weekdayOf(day)}) 오늘 활동`, ''];
   const sections = byDept['기타'].size ? [...DEPTS, ['기타', '기타']] : DEPTS;
   for (const [dept, label] of sections) {
     const list = [...byDept[dept].values()].sort((a, b) => b.n - a.n || (a.name < b.name ? -1 : 1));
@@ -119,10 +120,10 @@ async function composeDaily(day) {
   return { parts, total: activities.length };
 }
 
-/** 어제(또는 지정한 날) 활동 서머리를 보낸다. 같은 날 것은 한 번만(force 면 다시, 중복 표시도 남기지 않는다). */
+/** 오늘(또는 지정한 날) 활동 서머리를 보낸다 — 11/5부터 밤 11시. 같은 날 것은 한 번만(force 면 다시, 중복 표시도 남기지 않는다). */
 async function sendDailySummary({ date, force }) {
   try {
-    const day = date || kstDate(new Date(Date.now() - 24 * 3600 * 1000));
+    const day = date || kstDate();
     const { parts, total } = await composeDaily(day);
     if (!force && await alreadySent('서머리|' + day)) return { ok: false, date: day, total, skipped: true };
     let ok = true;
@@ -215,7 +216,7 @@ async function composeStatus(day) {
   const cell = (n, total) => `${comma(n)} / ${comma(total)}명 (${percent(n, total)})`;
   const block = (label, s) => [`🏢 <b>${label}</b> (교사 ${comma(s.total)}명)`,
     `   🪪 명함 등록 ${cell(s.card, s.total)}`, `   📝 활동 기록 참여 ${cell(s.act, s.total)}`, `   📲 앱 입장 1회 이상 ${cell(s.seen, s.total)}`];
-  const lines = ['🌃 <b>교사 활동 현황 서머리</b>', `📅 ${day} (${weekdayOf(day)}) 기준 · 누적`, ''];
+  const lines = ['☀️ <b>교사 활동 현황 서머리</b>', `📅 ${day} (${weekdayOf(day)}) 아침 7시 기준 · 누적`, ''];
   for (const [dept, label] of DEPTS) lines.push(...block(label, stat[dept]), '');
   lines.push(...block('⛪ 전주교회 전체', all).map((l, i) => (i ? l : l.replace('🏢 ', ''))));
   // 10/30(사용자): 옆으로 뻗는 채움 막대 사진(조직마다 막대 = 전체 인원, 채운 만큼 = 해당 인원) + 짧은 설명
@@ -227,7 +228,7 @@ async function composeStatus(day) {
   let png = null;
   try {
     png = progressPng({
-      title: '교사 활동 현황 서머리', sub: `${day} (${weekdayOf(day)}) 기준 · 누적 · 막대 끝 = 그 조직 전체 교사`,
+      title: '교사 활동 현황 서머리', sub: `${day} (${weekdayOf(day)}) 아침 7시 기준 · 누적 · 막대 끝 = 그 조직 전체 교사`,
       labels: orgs.map(([l]) => l), totals: orgs.map(([, s]) => s.total), sumLabel: '전주교회 전체',
       panels: [
         { title: '명함 등록', color: '#00AE82', values: orgs.map(([, s]) => s.card) },
@@ -237,7 +238,7 @@ async function composeStatus(day) {
       ],
     });
   } catch (e) { console.log('[교사광장 봇] 참여 현황 그림 오류 ' + e); }
-  const caption = ['🌃 <b>교사 활동 현황 서머리</b>', `📅 ${day} (${weekdayOf(day)}) 기준 · 누적`, '',
+  const caption = ['☀️ <b>교사 활동 현황 서머리</b>', `📅 ${day} (${weekdayOf(day)}) 아침 7시 기준 · 누적`, '',
     ...orgs.map(([l, s]) => `${l === '전주교회 전체' ? '⛪' : '🏢'} <b>${l}</b> ${comma(s.total)}명 — 명함 ${comma(s.card)} · 기록 ${comma(s.act)} · 입장 ${comma(s.seen)}`)].join('\n');
   return { text: lines.join('\n'), caption, png };
 }
@@ -251,13 +252,13 @@ async function sendStatusSummary({ date, force } = {}) {
   return { ok, date: day, photo: !!r.png };
 }
 
-/** 5분마다(attAutoSummary): 12시가 지나면 정오 서머리(오후 3시까지만 — 늦게 켜져도 밤에 '정오'가 나가지 않게), 22시 저녁 서머리, 23시 참여 현황. */
+/** 5분마다(attAutoSummary): 12시가 지나면 정오 서머리(오후 3시까지만 — 늦게 켜져도 밤에 '정오'가 나가지 않게), 22시 저녁 서머리, 23시 오늘 활동 서머리(11/5~, 예전 아침 7시 것). */
 export async function summaryTick() {
   const hm = kstDateTime().slice(11, 16);
   const out = {};
   if (hm >= '12:00' && hm < '15:00') out.noon = await sendNoonSummary().catch((e) => ({ error: String(e) }));
   if (hm >= '22:00') out.evening = await sendEveningSummary({ tick: true }).catch((e) => ({ error: String(e) }));
-  if (hm >= '23:00') out.status = await sendStatusSummary().catch((e) => ({ error: String(e) }));
+  if (hm >= '23:00') out.daily = await sendDailySummary({ date: kstDate() }).catch((e) => ({ error: String(e) }));
   return out;
 }
 
@@ -356,7 +357,9 @@ async function sendEveningSummary({ date, force, tick }) {
 
 // ── 주기 실행·운영용 action ── (key = TEACHERSQUARE_CRON_KEY)
 
-const tsDailySummary = async (body) => (authorized(body) ? sendDailySummary({ date: body.date, force: !!body.force }) : { error: 'unauthorized' });
+// 11/5: 아침 7시 예약(ts-daily-summary → tsDailySummary)은 이제 '교사 활동 현황 서머리'. 활동 글을 손으로 다시 보낼 땐 tsActivitySummary.
+const tsDailySummary = async (body) => (authorized(body) ? sendStatusSummary({ date: body.date, force: !!body.force }) : { error: 'unauthorized' });
+const tsActivitySummary = async (body) => (authorized(body) ? sendDailySummary({ date: body.date, force: !!body.force }) : { error: 'unauthorized' });
 const tsEveningSummary = async (body) => (authorized(body) ? sendEveningSummary({ date: body.date, force: !!body.force }) : { error: 'unauthorized' });
 const tsStatusSummary = async (body) => (authorized(body) ? sendStatusSummary({ date: body.date, force: !!body.force }) : { error: 'unauthorized' });
 const tsNoonSummary = async (body) => (authorized(body) ? sendNoonSummary({ date: body.date, force: !!body.force }) : { error: 'unauthorized' });
@@ -414,7 +417,7 @@ async function tsTestRoom(body) {
   if (!authorized(body)) return { error: 'unauthorized' };
   const day = body.date || kstDate();
   const yesterday = kstDate(new Date(new Date(day + 'T12:00:00+09:00').getTime() - 24 * 3600 * 1000));
-  const only = Array.isArray(body.only) && body.only.length ? body.only : ['morning', 'noon', 'dept', 'evening', 'status'];
+  const only = Array.isArray(body.only) && body.only.length ? body.only : ['status', 'noon', 'dept', 'evening', 'morning'];
   const tag = (n, what) => `🧪 <b>[시험 ${n}] ${what}</b>\n\n`;
   const out = [];
   const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
@@ -422,18 +425,18 @@ async function tsTestRoom(body) {
     out.push(['intro', await testText([
       '🧪 <b>나만의 교사광장 — 하루 서머리 세트 시험</b>',
       `${md(day)} 기록으로 만든 하루 세트예요. 실제 방에는 보내지 않았어요.`, '',
-      '① ☀️ <b>아침 7시</b> — 어제 활동, 부서별 이름·활동 글 (소통 방)',
+      '① ☀️ <b>아침 7시</b> — 교사 활동 현황 서머리: 명함·기록·입장 + 등급(휴·활·정·우) 채움 막대 (소통 방)',
       '② 🕛 <b>정오</b> — 교자장부청 × 활동 항목 <b>보라</b> 표 + 항목별 5개 조직 총합 (소통 방)',
       '③ 📊 <b>밤 10시</b> — 부서별 지역 일일 보고 총합 <b>민트</b> 표 (각 부서 총합 방·활동현황 방)',
       '④ 🌙 <b>밤 10시</b> — 교자장부청 하루 <b>보라</b> 표 + 항목별 5개 조직 총합 (소통 방)',
-      '⑤ 🌃 <b>밤 11시</b> — 교사 활동 현황 서머리: 명함·기록·입장 + 등급(휴·활·정·우) 채움 막대 (소통 방)', '',
+      '⑤ 🌃 <b>밤 11시</b> — 오늘 활동, 부서별 이름·활동 글 (소통 방)', '',
       '🚫 이제 안 올리는 것: 저녁 참여율 막대그래프, 교사 등급 현황 글',
       '📌 표 셈: 섭외자-인도자 한 쌍 = 1건, 섭외자 없는 기록(협력 등)은 한 건씩',
     ].join('\n'))]);
   }
-  if (only.includes('morning')) {
-    const { parts } = await composeDaily(yesterday);
-    for (const [i, p] of parts.entries()) out.push(['morning', await testText((i ? '' : tag('①', `아침 7시 서머리 — 어제(${md(yesterday)}) 활동`)) + p)]);
+  if (only.includes('status')) {
+    const r = await composeStatus(day);
+    out.push(['status', await testPhoto(r.png, tag('①', '아침 7시 — 교사 활동 현황 서머리') + r.caption, tag('①', '교사 활동 현황 서머리') + r.text)]);
   }
   if (only.includes('noon')) {
     const r = await composeBoard(day, 'noon');
@@ -449,9 +452,9 @@ async function tsTestRoom(body) {
     const r = await composeBoard(day, 'evening');
     out.push(['evening', await testPhoto(r.png, tag('④', '밤 10시 서머리 — 교자장부청 일일 보고 총합(보라)') + r.caption)]);
   }
-  if (only.includes('status')) {
-    const r = await composeStatus(day);
-    out.push(['status', await testPhoto(r.png, tag('⑤', '밤 11시 — 교사 활동 현황 서머리') + r.caption, tag('⑤', '교사 활동 현황 서머리') + r.text)]);
+  if (only.includes('morning')) {   // 11/5부터 밤 11시: 그날 활동
+    const { parts } = await composeDaily(day);
+    for (const [i, p] of parts.entries()) out.push(['morning', await testText((i ? '' : tag('⑤', `밤 11시 서머리 — 오늘(${md(day)}) 활동`)) + p)]);
   }
   // 11/4: 출석 서머리 시험 — { only:['att'], meetingId, phase:'최종'|'오전'… } 지역 글 몇 개 + 부서 민트 표 + 교자장부청 보라 표
   if (only.includes('att')) {
@@ -478,4 +481,4 @@ async function tsTestRoom(body) {
 }
 
 export { composeDaily, composeEvening };
-export default { tsDailySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };
+export default { tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };

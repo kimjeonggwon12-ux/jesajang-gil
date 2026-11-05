@@ -13,7 +13,7 @@ const key = process.env.TEACHERSQUARE_CRON_KEY;
 if (!key) { console.error('TEACHERSQUARE_CRON_KEY 가 없습니다.'); process.exit(1); }
 
 const JOBS = [
-  ['ts-daily-summary', '0 22 * * *', { action: 'tsDailySummary' }],       // 매일 아침 7시: 어제 활동 서머리
+  ['ts-daily-summary', '0 22 * * *', { action: 'tsDailySummary' }],       // 매일 아침 7시: 교사 활동 현황 서머리(11/5~; 오늘 활동 글은 밤 11시 5분 틱)
   ['ts-evening-summary', '0 12 * * *', { action: 'tsEveningSummary' }],   // 매일 저녁 9시: 참여율·등급 서머리
   ['video-package', '7,37 * * * *', { action: 'vtAuto' }],                // 30분마다: 밀린 영상 녹취·자료
   ['attendance-closing', '*/5 * * * *', { action: 'attAutoSummary' }],    // 5분마다: 끝난 출석 모임 마감 집계

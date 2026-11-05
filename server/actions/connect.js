@@ -78,7 +78,8 @@ async function saveCardOnce(body) {
     schedule = { from_date: from, to_date: to, days: pickList(d.days, DAYS), times: pickList(d.times, TIMES), sched_note: clip(d.schedNote, 60) };
   }
   const raw = String(d.photoUrl || '');
-  const photo = raw.length > PHOTO_MAX ? '' : await storeImage(raw, 'connect');   // R2 에 올리고 주소만(설정이 없으면 그대로)
+  if (raw.length > PHOTO_MAX) return { error: '사진이 너무 커요. 다른 사진으로 해 주세요.' };
+  const photo = await storeImage(raw, 'connect');   // R2 에 올리고 주소만(설정이 없으면 그대로)
   const card = {
     member_id: mid, name, photo_url: photo, phone,
     intro: clip(d.intro, 800), career: clip(d.career, 800), has_major: !!d.hasMajor, major_name: d.hasMajor ? clip(d.majorName, 40) : '',
@@ -319,8 +320,24 @@ async function getCoachList(body) {
   return { rows };
 }
 
+// 11/5(사용자: "명함 사진을 삭제·수정할 수 있게 — 수정 저장이 안 눌러져서 사진이 그대로"): 사진만 바로 바꾸거나 지운다(다른 칸 검사 없이).
+async function setConnectCardPhoto(body) {
+  const mid = clip(body.memberId, 40);
+  if (!mid) return { error: 'memberId 가 필요합니다.' };
+  const raw = String(body.photoUrl || '');
+  if (raw.length > PHOTO_MAX) return { error: '사진이 너무 커요. 다른 사진으로 해 주세요.' };
+  const photo = raw ? await storeImage(raw, 'connect') : '';
+  if (raw && !photo) return { error: '사진을 읽지 못했어요. 다른 사진으로 해 주세요.' };
+  const cards = await run(db().from('connect_cards').select('*').eq('nid', normId(mid)).order('id'));
+  const card = cards.find((c) => sameId(c.member_id, mid));
+  if (!card) return { error: '먼저 명함을 등록해 주세요.' };
+  const saved = await run(db().from('connect_cards').update({ photo_url: photo, updated_at: kstDateTime() }).eq('id', card.id).select());
+  const roster = await teachersByNid([mid]);
+  return { ok: true, card: toCard(saved[0], roster, mid) };
+}
+
 export default {
-  saveConnectCard, getConnectCard, searchConnectCards, deleteConnectCard,
+  saveConnectCard, setConnectCardPhoto, getConnectCard, searchConnectCards, deleteConnectCard,
   saveHelpPost, getHelpPosts, closeHelpPost, deleteHelpPost,
   recordMatch, setMatchDone, getConnectAdminOverview, getCoachList,
 };
