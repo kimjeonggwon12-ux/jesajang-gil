@@ -86,7 +86,7 @@ export function newsCardPng(n) {
     const dw = widthOf(dl.t, 22) + 28;
     out.push(`<rect x="${x + cw - 30 - dw}" y="${y + 30}" width="${dw}" height="36" rx="18" fill="${dl.bg}"/>`,
       `<text x="${x + cw - 30 - dw / 2}" y="${y + 55}" font-size="22" font-weight="700" fill="${dl.c}" text-anchor="middle">${esc(dl.t)}</text>`,
-      `<text x="${x + cw - 30 - dw - 18}" y="${y + 60}" font-size="38" font-weight="700" fill="#111827" text-anchor="end">${comma(d.records)}<tspan font-size="24" fill="#6B7280" font-weight="400">건 · ${comma(d.teachers)}명</tspan></text>`);
+      `<text x="${x + cw - 30 - dw - 18}" y="${y + 60}" font-size="38" font-weight="700" fill="#111827" text-anchor="end">${comma(d.records)}<tspan font-size="24" fill="#6B7280" font-weight="400">건 · ${comma(d.teachers)}명${d.rate ? ` · 참여 ${esc(d.rate)}` : ''}</tspan></text>`);
     // 비중 막대(가장 많은 부서 = 꽉 참)
     const bx = x + 40, bw = cw - 80, by = y + 84;
     out.push(`<rect x="${bx}" y="${by}" width="${bw}" height="12" rx="6" fill="#EEF1F5"/>`);
