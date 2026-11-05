@@ -101,7 +101,7 @@
     return { rows: rows, dormant: Object.keys(dormant).length, problems: problems };
   }
 
-  var TIERS = ['휴교사', '활동교사', '정교사', '우수교사'];
+  var TIERS = ['휴교사', '기타', '활동교사', '정교사', '우수교사'];   // 11/5: 구분 '기타'도 등급으로
   /** 신43 교사활동현황 서식. 구분이 네 등급 중 하나면 그 등급, '기타' 등은 tier '' (앱의 지금 등급을 그대로 둔다). */
   function parseActivitySheet(sheet, h, col, tabName) {
     var C = { id: col('고유번호'), name: col('이름'), dept: col('부서'), region: col('지역'), note: col('소속비고'),

@@ -3,7 +3,8 @@ import { db, run, selectAll } from '../lib/db.js';
 import { normId, str } from '../lib/util.js';
 
 // 교사구분(낮음→높음). 프런트에는 getRoster 응답의 tiers 로 내려간다.
-export const TEACHER_TIERS = ['휴교사', '활동교사', '정교사', '우수교사'];
+// 11/5(사용자·서무님): 엑셀 구분 '기타'(교육 미참석, 활동 또는 인교 1명 이상)를 교사광장에서도 '기타'로 — 휴교사와 활동교사 사이
+export const TEACHER_TIERS = ['휴교사', '기타', '활동교사', '정교사', '우수교사'];
 
 // 관리자 화면에 들어갈 수 있는 직책. ⚠️ app.html 의 ADMIN_POSITIONS 와 같은 값이어야 한다.
 const LEADER_POSITIONS = ['회장', '총무', '지역장', '섭외 교관', '복음방 교관', '교육부장', '전도부장', '전도과장',

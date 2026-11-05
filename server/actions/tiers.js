@@ -29,7 +29,8 @@ function ruleMonth(day) {
 // 11/4(김논 서무님): 엑셀 구분 '기타'(293명)는 휴교사로 두고, 11/5 이후 출석(QR) 2번이면 활동교사 — 한 번만(그 뒤엔 일반 규칙).
 export const OTHER_ATTEND_GOAL = 2;
 const isOther = (t) => !!(t && t.month_stats && t.month_stats.tierRaw === '기타');
-const otherPending = (t) => isOther(t) && t.tier === '휴교사' && (!t.tier_changed_at || ymd(t.tier_changed_at) <= AUTO_RULE_START);
+// 11/5: 이제 등급 자체가 '기타'(예전처럼 휴교사로 들어간 기타도 같이 본다)
+const otherPending = (t) => !!t && (t.tier === '기타' || (isOther(t) && t.tier === '휴교사' && (!t.tier_changed_at || ymd(t.tier_changed_at) <= AUTO_RULE_START)));
 /** 11/5 이후 출석한 모임 수(같은 모임 두 번은 한 번). */
 async function otherAttendCount(nid) {
   const rows = await run(db().from('attend_records').select('meeting_id').eq('nid', nid).gte('at', `${AUTO_RULE_START} 00:00:00`).limit(50));
@@ -460,7 +461,7 @@ export async function promoteOnRecord(memberId) {
   const nid = normId(memberId);
   if (!nid || nid === '0') return null;
   const [t] = await run(db().from('teachers').select('member_id, nid, name, tier').eq('nid', nid).limit(1));
-  if (!t || t.tier !== '휴교사') return null;
+  if (!t || (t.tier !== '휴교사' && t.tier !== '기타')) return null;   // 11/5: 기타도 이번 달 4건이면 활동교사
   const n = await recentRecordCount(nid);
   if (n < ACTIVE_MIN_RECORDS) return { restCount: n, restGoal: ACTIVE_MIN_RECORDS };
   await writeTierChanges([{ t, tier: '활동교사', reason: `이번 달 활동 기록 ${n}건 → 활동교사 전환` }]);
@@ -494,7 +495,7 @@ async function autoRestTiers({ dryRun = false } = {}) {
   const changes = [];
   for (const t of teachers) {
     const n = curN.get(t.nid) || 0;
-    if (t.tier === '휴교사' && n >= ACTIVE_MIN_RECORDS) { changes.push({ t, tier: '활동교사', reason: `이번 달 활동 기록 ${n}건 → 활동교사 전환` }); continue; }
+    if ((t.tier === '휴교사' || t.tier === '기타') && n >= ACTIVE_MIN_RECORDS) { changes.push({ t, tier: '활동교사', reason: `이번 달 활동 기록 ${n}건 → 활동교사 전환` }); continue; }
     const att = attendN.has(t.nid) ? attendN.get(t.nid).size : 0;
     if (otherPending(t) && att >= OTHER_ATTEND_GOAL) { changes.push({ t, tier: '활동교사', reason: `기타 → 출석 ${att}번 → 활동교사 전환` }); continue; }
     if (t.tier === '활동교사' && prevOn) {
@@ -582,6 +583,7 @@ async function getMyTierStatus(body) {
   const tier = person.tier || '활동교사';
   const next = {
     휴교사: { nextTier: '활동교사', leadGoal: null },
+    기타: { nextTier: '활동교사', leadGoal: null },
     활동교사: { nextTier: '정교사', leadGoal: PROMO_ACTIVE_MIN_LEADS },
     정교사: { nextTier: '우수교사', leadGoal: PROMO_EXCELLENT_MIN_LEADS },
   }[tier] || { nextTier: null, leadGoal: null };

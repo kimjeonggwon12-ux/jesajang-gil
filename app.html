@@ -277,7 +277,8 @@
     .me-chip b, .me-chip small { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .me-chip b { font-size:13px; font-weight:700; }
     .me-chip small { font-size:11px; font-weight:500; opacity:.7; }
-    @media (max-width: 380px) { .me-chip { display:none !important; } }   /* 10/27(2차): 아주 좁은 폰은 이름표 글자를 빼고 계정 아이콘만(앱 설치 자리) */
+    .me-chip .me-tier { display:inline-flex; align-items:center; gap:3px; margin-top:2px; padding:1px 8px; border-radius:999px; font-size:11.5px; font-weight:800; white-space:nowrap; }
+    @media (max-width: 380px) { .me-chip b, .me-chip small { display:none !important; } .me-chip .me-tier { margin-top:0; } }   /* 11/5: 아주 좁은 폰도 내 등급 알약은 보이게 */   /* 10/27(2차): 아주 좁은 폰은 이름표 글자를 빼고 계정 아이콘만(앱 설치 자리) */
     @media (max-width: 420px) {
       .me-chip { max-width:64px; }   /* 10/27: 오른쪽 위 '앱 설치' 자리 */
       .hdr-inst { padding:0 9px 0 7px !important; font-size:12px !important; }
@@ -3982,6 +3983,24 @@
     if (!window.__FRAMED__) window.addEventListener('DOMContentLoaded', () => { pdWireLogin(); pdBoot(); });
 
     /** 헤더 프로필 아이콘 → 내 계정 시트(저장된 고유번호 확인 / 다른 번호로 입장) */
+    // 11/5(사용자): 이름을 누르면 내 등급이 딱 보이게 — 등급·뜻·이번 달 진행
+    function acctTierCardHtml() {
+      const tier = myTierNow(); if (!tier) return '';
+      const st = TIER_BADGE_STYLE[tier] || { icon: '', bg: '#F3F4F6', fg: '#374151' };
+      const g = TIER_GUIDE[tier] || {}, ts = (typeof home !== 'undefined' && home.tierStatus) || {};
+      const goal = ts.activeGoal || 4, n = Math.min(ts.recentRecords || 0, goal);
+      let prog = '';
+      if (ts.otherPending) prog = `교육 출석 <b>${Math.min(ts.otherAttend || 0, ts.otherGoal || 2)}/${ts.otherGoal || 2}번</b> · 이번 달 기록 <b>${n}/${goal}건</b>`;
+      else if (tier === '휴교사' || tier === '활동교사') prog = `이번 달 활동 기록 <b>${n}/${goal}건</b>`;
+      else if (ts.leadGoal) prog = `최근 1년 센터 인도 <b>${ts.leadCount || 0}/${ts.leadGoal}명</b>`;
+      return `<div style="border-radius:16px;padding:14px 16px;margin-bottom:14px;background:${st.bg};color:${st.fg}">
+          <div style="font-size:12.5px;font-weight:700;opacity:.8">지금 내 등급</div>
+          <div style="font-size:24px;font-weight:900;letter-spacing:-.03em;margin-top:2px">${st.icon} ${esc(tier)}</div>
+          ${g.who ? `<div style="font-size:13.5px;font-weight:600;margin-top:4px;line-height:1.5">${esc(g.who)}</div>` : ''}
+          ${prog ? `<div style="font-size:13.5px;margin-top:6px">${prog}</div>` : ''}
+          <button type="button" id="acct-tier" style="margin-top:10px;height:36px;padding:0 14px;border:0;border-radius:10px;background:rgba(255,255,255,.75);color:inherit;font-size:13.5px;font-weight:800">등급 조건 보기 ›</button>
+        </div>`;
+    }
     function openAccountSheet() {
       const saved = pdLoadSaved();
       openSheet(`
@@ -3992,6 +4011,7 @@
             <div style="font-size:13px;color:var(--dg-text-sub);margin-top:2px">${esc(App.memberId || '-')}</div>
           </div>
         </div>
+        ${acctTierCardHtml()}
         <div style="font-size:13px;color:var(--dg-text-sub);line-height:1.6;background:var(--dg-bg-soft);border-radius:14px;padding:12px 14px;margin-bottom:14px">
           ${saved
             ? '고유번호가 이 기기에 저장돼 있어요. 다음에 열 때도 입력 없이 바로 들어옵니다.'
@@ -4011,6 +4031,7 @@
       if (home) home.onclick = goToCover;
       const other = document.getElementById('acct-other');
       if (other) other.onclick = () => { pdSetOwnerDevice(false); goToCover(); };
+      const tierB = document.getElementById('acct-tier'); if (tierB) tierB.onclick = () => { closeSheet(); openGrowthModal(); };
       const pinB = document.getElementById('acct-pin'); if (pinB) pinB.onclick = pinOpenSettings;
       const pinR = document.getElementById('acct-pin-reset'); if (pinR) pinR.onclick = pinOpenReset;
     }
@@ -4309,13 +4330,19 @@
      * 부서·직책은 관리자 명단(교관명단 탭)을 먼저 쓰고, 없으면 교사명단 행. 이름표도 버튼 안이라 누르면 내 계정 시트가 열린다.
      */
     // 2026-10-07: 머리줄 이름표 버튼(AI상담·교재처럼 화면을 다시 그리는 머리줄용) — renderMeChips와 같은 글
+    /** 내 지금 등급 — 등급 상태(getMyTierStatus)가 오면 그것, 아니면 명단 행 값 */
+    function myTierNow() {
+      try { return (typeof home !== 'undefined' && home.tierStatus && home.tierStatus.tier) || (myRosterRow && myRosterRow.tier) || ''; } catch (e) { return ''; }
+    }
     function meChipInner() {
       const r = myRosterRow || {}, a = myAdminInfo || {};
       const nm = a.name || r.name || App.name || '';
       const dept = a.dept || r.dept || '';
       const pos = a.position || r.position || (isOwnerSession() ? '관리자' : '');
       const sub = [dept, pos].filter((v, i, arr) => v && arr.indexOf(v) === i).join(' · ');
-      return nm ? `<b>${esc(nm)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}` : '';
+      const tier = myTierNow(); let st = null; try { st = tier && TIER_BADGE_STYLE[tier]; } catch (e) {}
+      const pill = st ? `<span class="me-tier" style="background:${st.bg};color:${st.fg}">${st.icon} ${esc(tier)}</span>` : '';
+      return nm ? `<b>${esc(nm)}</b>${pill || (sub ? `<small>${esc(sub)}</small>` : '')}` : '';
     }
     function meBtnHtml() { const h = meChipInner(); return INSTALL_BTN_HTML + HOME_BTN_HTML + `<button type="button" class="hdr-me" title="내 계정" onclick="openAccountSheet()"><span class="me-chip"${h ? '' : ' style="display:none"'}>${h}</span><svg class="lucide-i" style="width:22px;height:22px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>`; }
     // 2026-10-14: 교사광장 운영 담당(구분표 ②~⑧) — 코너 한 귀퉁이 "문의 이름 전화" 칩. 전화는 비면 이름만 보임.
@@ -6731,11 +6758,13 @@
 
     const TIER_BADGE_STYLE = {
       '휴교사':   { icon: '⚪', bg: '#E0E0E0', fg: '#555555' },
+      '기타':     { icon: '🙋', bg: '#E3EAF5', fg: '#334766' },   // 11/5: 엑셀 구분 '기타'(교육 미참석, 활동 또는 인교 1명 이상)
       '활동교사': { icon: '🟡', bg: '#FFE58A', fg: '#6B4E00' },
       '정교사':   { icon: '🟢', bg: '#BFEBD3', fg: '#11623B' },
       '우수교사': { icon: '🟣', bg: '#6B21A8', fg: '#FFFFFF' }
     };
     function updateTierBadge() {
+      try { renderMeChips(); } catch (e) {}
       const tier = home.tierStatus && home.tierStatus.tier;
       const st = TIER_BADGE_STYLE[tier];
       // 공용 보라 헤더의 뱃지(다른 탭용)와 활동 탭 전용 앱바의 칩 둘 다 갱신.
@@ -6801,6 +6830,11 @@
         who: '지금은 잠시 쉬어가는 중이에요.',
         why: '한 달 활동 기록이 4건 미만이면 휴교사가 됩니다. 이번 달 내 활동 기록을 4건 남기면 바로 활동교사로 돌아와요. (출석만으로는 바뀌지 않아요)',
         goal: '활동교사로 복귀하기'
+      },
+      '기타': {
+        who: '활동은 하고 계신데 아직 교육 출석이 없어요.',
+        why: '11월 5일부터 교육 출석 2번이면 바로 활동교사가 됩니다. 이번 달 내 활동 기록 4건을 남겨도 활동교사가 돼요.',
+        goal: '활동교사 되기'
       },
       '활동교사': {
         who: '복음방 교사로 활동하고 계세요.',
@@ -10005,7 +10039,8 @@
       '우수교사': { icon: '🏆', bg: '#FEF3C7', fg: '#92400E' },
       '정교사':   { icon: '🟢', bg: '#D1FAE5', fg: '#065F46' },
       '활동교사': { icon: '',   bg: '#F3F4F6', fg: '#6B7280' },
-      '휴교사':   { icon: '',   bg: '#F3F4F6', fg: '#9CA3AF' }
+      '휴교사':   { icon: '',   bg: '#F3F4F6', fg: '#9CA3AF' },
+      '기타':     { icon: '',   bg: '#E3EAF5', fg: '#334766' }
     };
     function cnTierBadgeHtml(tier) {
       const t = CN_TIER_STYLE[tier];
@@ -13258,9 +13293,9 @@ function tbSearchRender() {
     function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
     // 활동 섹션(home.html)의 roleShortLabel과 이름이 겹치지만 로직이 다름(협력교사만 축약, 나머지는 그대로 통과) — 별도 이름 사용.
     function adminRoleShortLabel(role) { return role === '협력교사' ? '협력' : role; }
-    const TIER_ORDER = ['휴교사', '활동교사', '정교사', '우수교사'];
-    const TIER_TEXT_COLOR = { '휴교사': 'text-base-content/50', '활동교사': 'text-primary', '정교사': 'text-accent', '우수교사': 'text-secondary' };
-    const TIER_CHART_COLOR = { '휴교사': '#9ca3af', '활동교사': '#4f46e5', '정교사': '#059669', '우수교사': '#d97706' };
+    const TIER_ORDER = ['휴교사', '기타', '활동교사', '정교사', '우수교사'];
+    const TIER_TEXT_COLOR = { '휴교사': 'text-base-content/50', '기타': 'text-info', '활동교사': 'text-primary', '정교사': 'text-accent', '우수교사': 'text-secondary' };
+    const TIER_CHART_COLOR = { '휴교사': '#9ca3af', '기타': '#7c93b8', '활동교사': '#4f46e5', '정교사': '#059669', '우수교사': '#d97706' };
     const AI_ANALYSIS_SECTIONS = ['📊 전체 활동 패턴', '🏆 강세 지역/항목', '⚠️ 보완 필요 지역/항목', '💡 다음 달 제안'];
     function parseAiSections(text) {
       const sections = {};
@@ -14264,7 +14299,7 @@ function buildRosterStats() {
 // 2026-09-23: 막대그래프 제거 요청 — 부서×등급을 표로 본다.
 // 행 = 교역자/자문회/장년회/부녀회/청년회, 열 = 총 / 휴 / 교 / 활 / 우.
 // (짧은 머리글은 폰에서 한 줄에 들어가게 하려는 것 — title 속성에 원래 이름을 넣어둠)
-const TIER_SHORT = { '휴교사': '휴', '활동교사': '활', '정교사': '정', '우수교사': '우' };
+const TIER_SHORT = { '휴교사': '휴', '기타': '기', '활동교사': '활', '정교사': '정', '우수교사': '우' };
 
 function renderRosterSection() {
   if (roster.length === 0) return '';
@@ -14507,7 +14542,7 @@ function regionOnlyLabel(dept, region) {
   return (dept === '교역자') ? '전체' : (dept || '전체');
 }
 
-const TIER_BADGE = { '우수교사': 'badge-secondary', '정교사': 'badge-accent', '활동교사': 'badge-primary', '휴교사': 'badge-ghost' };
+const TIER_BADGE = { '우수교사': 'badge-secondary', '정교사': 'badge-accent', '활동교사': 'badge-primary', '기타': 'badge-info', '휴교사': 'badge-ghost' };
 
 const TEACHER_VIEW = false; // 2026-09-22: 별도 URL 라우트 없이 아래 탭 버튼(👥 교사 명단)으로 진입
 const TEACHER_LIST_TAB = '__teacherList__'; // state.dept 의 특수값 — "👥 교사 명단" 탭(전체 교사 flat list)
