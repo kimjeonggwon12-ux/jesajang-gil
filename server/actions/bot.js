@@ -436,11 +436,9 @@ function factsText(F) {
 /** 숫자만으로 쓴 기사(AI가 안 될 때). */
 function newsPlain(F) {
   const up = (a, b) => (a > b ? `▲${a - b}` : a < b ? `▼${b - a}` : '전날과 같음');
-  const lines = [`어제 교자장부청 5개 조직에서 <b>${F.total.teachers}명</b>이 <b>${F.total.records}건</b>을 기록했습니다 (전날보다 ${up(F.total.records, F.total.prevRecords)}).`, ''];
+  const lines = [`🔴 <b>어제 ${F.total.records}건 · 교사 ${F.total.teachers}명</b> (${up(F.total.records, F.total.prevRecords)})`];
   for (const d of F.depts) {
-    lines.push(`🏢 <b>${d.label}</b> — ${d.records}건 · ${d.teachers}명 (${up(d.records, d.prevRecords)})`);
-    if (d.records) lines.push(`  가장 많은 활동: ${d.items.slice(0, 2).map(([k, n]) => `${esc(k)} ${n}건`).join(', ')}${d.topRegions[0] ? ` · 앞선 지역: ${esc(d.topRegions[0][0])}` : ''}`);
-    else lines.push('  어제는 기록이 없었어요.');
+    lines.push(`🏢 ${d.label} · ${d.records ? `${d.records}건 (${up(d.records, d.prevRecords)})${d.items[0] ? `, ${esc(d.items[0][0])} ${d.items[0][1]}건` : ''}` : '기록 없음'}`);
   }
   return lines.join('\n');
 }
@@ -451,25 +449,25 @@ const mdToTg = (t) => esc(String(t).replace(/^#+\s*/gm, '').replace(/\r/g, '')).
 export async function composeNews(day) {
   const F = await newsFacts(day);
   const md = `${Number(day.slice(5, 7))}월 ${Number(day.slice(8, 10))}일(${weekdayOf(day)})`;
-  const head = ['📰 <b>교사광장 전도 뉴스</b>', `🗞 ${md} 소식 · 서머리 ①~⑤ 데이터로 쓴 아침 뉴스`, ''];
+  const head = ['📰 <b>교사광장 전도 뉴스</b>', `🗞 ${md} · 헤드라인`, ''];
+  // 11/5 2차(사용자): "활기차게·힘을 보탰다 같은 기사 문체는 줄이고 헤드라인 뉴스처럼 포인트만, 내용은 1/4로 — 실제 기사를 쓸 필요는 없다"
   const prompt = [
-    '당신은 교회 전도 교사들의 소식을 전하는 "교사광장 전도 뉴스"의 아침 앵커 겸 기자입니다. 아래 어제 하루 데이터(서머리 ①~⑤의 숫자)로 아침 뉴스를 쓰세요.',
-    '읽는 사람: 교자장부청(교역자회·자문회·장년회·부녀회·청년회) 전도 교사들. 텔레그램 방에 올라가는 짧은 뉴스입니다.',
+    '아래 어제 하루 데이터(교사광장 서머리 ①~⑤)로 "헤드라인 뉴스"를 만드세요. 기사 본문은 쓰지 않습니다. 화면 아래 자막처럼 한 줄 포인트만.',
     '',
     '[데이터]', factsText(F), '',
-    '[쓰는 법]',
-    '- 진짜 아침 뉴스처럼: 헤드라인 → 리드 → 부서별 소식 → 숫자로 보는 어제 → 칭찬 릴레이 → 오늘의 응원.',
-    '- 부서별 소식은 다섯 부서 모두, 부서마다 2~3문장으로 그 부서만의 특징을 짚으세요(오전에 강했는지, 어떤 활동이 두드러졌는지, 앞선 지역, 전날과 비교, 누적 현황에서 눈에 띄는 점). 기록이 없는 부서는 부드럽게 응원으로.',
-    '- 데이터에 있는 숫자·이름만 쓰고 지어내지 마세요. 비교는 데이터에 있는 전날 숫자로만. 과장·경쟁 부추김·꾸중 금지, 따뜻하고 힘 있는 말투.',
-    '- 교사 이름은 데이터에 있는 이름만, "○○○ 교사"처럼. 섭외자 이야기는 쓰지 마세요.',
-    '- 형식: 굵게는 **두 별표**만. 표·링크·### 제목 쓰지 말고, 아래 이모지 머리를 그대로 쓰세요. 전체 1,800자 안쪽.',
-    '🔴 헤드라인: (한 줄)',
-    '(리드 2문장)',
-    '🏢 부서별 소식',
-    '⛪ 교역자회 / 🌿 자문회 / 🌳 장년회 / 🌸 부녀회 / 🔥 청년회 (각 부서 이름으로 시작하는 문단)',
-    '🔢 숫자로 보는 어제 (3줄)',
-    '👏 칭찬 릴레이 (한 문단)',
-    '🌅 오늘의 응원 (한 줄)',
+    '[규칙]',
+    '- 한 줄 = 한 포인트, 15~35자. 명사형·개조식으로 끝내기(예: "부녀회 202건, 전체의 87%", "청년회 유일하게 증가 ▲2"). "~했습니다/~했어요" 문장 금지.',
+    '- 꾸밈말 금지: 활기차게, 힘을 보탰다, 뜨거운, 빛났다, 감동, 응원합니다, 함께해요 같은 말은 쓰지 마세요. 숫자와 사실만.',
+    '- 데이터에 있는 숫자·이름만. 지어내기·추측 금지. 전날 비교는 ▲/▼ 숫자로.',
+    '- 섭외자 이야기는 쓰지 마세요. 교사 이름은 꼭 필요할 때만 한두 명.',
+    '- 아래 형식 그대로, 다른 줄·제목·인사말 없이. 전체 450자 안쪽. 굵게는 **두 별표**만.',
+    '🔴 (오늘의 톱 헤드라인 한 줄)',
+    '⛪ 교역자회 · (포인트 한 줄)',
+    '🌿 자문회 · (포인트 한 줄)',
+    '🌳 장년회 · (포인트 한 줄)',
+    '🌸 부녀회 · (포인트 한 줄)',
+    '🔥 청년회 · (포인트 한 줄)',
+    '🔢 (어제 숫자 3개를 " · "로 이은 한 줄)',
   ].join('\n');
   let body = '', ai = false;
   try {
@@ -586,6 +584,7 @@ async function tsTestRoom(body) {
   if (only.includes('news')) {   // 11/5: 📰 전도 뉴스(아침 7시에 전날 것) — 시험 방에서 먼저
     const r = await composeNews(body.newsDate || day);
     out.push(['news' + (r.ai ? '' : ':plain'), await testText(tag() + r.text)]);
+    if (body.echo) out.push(['newsText', r.text]);
   }
   // 11/4: 출석 서머리 시험 — { only:['att'], meetingId, phase:'최종'|'오전'… } 지역 글 몇 개 + 부서 민트 표 + 교자장부청 보라 표
   if (only.includes('att')) {
