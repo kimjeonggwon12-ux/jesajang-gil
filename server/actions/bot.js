@@ -11,6 +11,7 @@ import { teachersByNid, rosterCounts, loadRoster, fixActivityNids, adminsAsTeach
 import { progressPng } from '../lib/progress-image.js';
 import { boardTable, boardTotalLines, BOARD_COLS, boardLabel, countPairs } from '../lib/report-room.js';
 import { askAiModels } from '../lib/gemini.js';
+import { newsCardPng } from '../lib/news-card.js';
 
 // 11/5(사용자): "서머리 다섯 개에 번호를 매기고 머릿말에 어떤 서머리인지 설명" — 하루 순서대로 ①~⑤
 const SUMMARY_HEAD = {
@@ -470,14 +471,24 @@ export async function composeNews(day) {
     '🌸 부녀회 · (특징 한 줄)',
     '🔥 청년회 · (특징 한 줄)',
   ].join('\n');
-  let body = '', ai = false;
+  let body = '', ai = false, raw = '';
   try {
     const t = await askAiModels(prompt, NEWS_MODELS);
-    if (t && !t.startsWith('⚠️')) { body = mdToTg(t); ai = true; }
+    if (t && !t.startsWith('⚠️')) { body = mdToTg(t); ai = true; raw = t; }
   } catch (e) { console.log('[교사광장 봇] 뉴스 AI 오류 ' + e); }
   if (!body) body = newsPlain(F);
   const text = [...head, body, '', `📎 데이터: 서머리 ①~⑤ · 기록 ${F.total.records}건 · 교사 ${F.total.teachers}명`].join('\n');
-  return { text: text.length > 4000 ? text.slice(0, 3990) + '…' : text, ai, facts: F };
+  // 11/5 4차(사용자): "가독성 있게 카드 뉴스로 — 텍스트는 밑에 달고, 데이터는 가독성 있는 카드" → 사진 = 카드, 글 = 사진 아래 설명
+  const rawLines = raw.split('\n').map((l) => l.replace(/\*\*/g, '').trim()).filter(Boolean);
+  const headline = (rawLines.find((l) => l.startsWith('🔴')) || '').replace(/^🔴\s*/, '') || `어제 기록 ${comma(F.total.records)}건 · 활동 교사 ${comma(F.total.teachers)}명`;
+  const depts = F.depts.map((d) => {
+    const l = rawLines.find((x) => new RegExp(d.label + '\\s*·').test(x));
+    const line = l ? l.slice(l.indexOf(d.label) + d.label.length).replace(/^\s*·\s*/, '') : (d.items[0] ? `${d.items[0][0]} 중심(${d.items[0][1]}건)` : '기록 없음');
+    return { label: d.label, records: d.records, prevRecords: d.prevRecords, teachers: d.teachers, line };
+  });
+  let png = null;
+  try { png = newsCardPng({ date: md, headline, total: F.total, depts }); } catch (e) { console.log('[교사광장 봇] 뉴스 카드 그림 오류 ' + e); }
+  return { text: text.length > 1000 ? text.slice(0, 990) + '…' : text, ai, facts: F, png };
 }
 
 // ── 주기 실행·운영용 action ── (key = TEACHERSQUARE_CRON_KEY)
@@ -585,7 +596,7 @@ async function tsTestRoom(body) {
   }
   if (only.includes('news')) {   // 11/5: 📰 전도 뉴스(아침 7시에 전날 것) — 시험 방에서 먼저
     const r = await composeNews(body.newsDate || day);
-    out.push(['news' + (r.ai ? '' : ':plain'), await testText(tag() + r.text)]);
+    out.push(['news' + (r.ai ? '' : ':plain') + (r.png ? ':card' : ''), await testPhoto(r.png, tag() + r.text, tag() + r.text)]);
     if (body.echo) newsEcho = r.text;
   }
   // 11/4: 출석 서머리 시험 — { only:['att'], meetingId, phase:'최종'|'오전'… } 지역 글 몇 개 + 부서 민트 표 + 교자장부청 보라 표
