@@ -271,6 +271,8 @@ export async function summaryTick() {
   if (hm >= '12:00' && hm < '15:00') out.noon = await sendNoonSummary().catch((e) => ({ error: String(e) }));
   if (hm >= '22:00') out.evening = await sendEveningSummary({ tick: true }).catch((e) => ({ error: String(e) }));
   if (hm >= '23:00') out.daily = await sendDailySummary({ date: kstDate() }).catch((e) => ({ error: String(e) }));
+  // 11/5(사용자): "한 줄 데이터 뉴스 — 매일 밤 10시 맨 마지막, 글만, 내일(11/6)부터" → 22시 표들(③·④)이 먼저 나가게 22:05부터, 하루 한 번
+  if (hm >= '22:05' && hm < '23:00' && kstDate() >= NEWS_START) out.news = await sendNewsOneline({ date: kstDate() }).catch((e) => ({ error: String(e) }));
   return out;
 }
 
@@ -367,6 +369,8 @@ async function sendEveningSummary({ date, force, tick }) {
   }
 }
 
+const NEWS_START = '2026-11-06';
+const NEWS_INTRO = ['🔴오늘 하루에 올라온 데이터를 한 줄로 요약한', '한 줄 데이터 뉴스입니다.', '읽어보시고, 오늘 하루 올라온 데이터를 이해하실 수 있습니다.'];
 // ── 📰 교사광장 전도 뉴스 (2026-11-05) ── 사용자: "다섯 개 서머리의 부서별 특징을 그날그날 — 전도 뉴스처럼. 아침 7시에 전날 것이,
 //   뉴스처럼 느껴지게." 전날 기록을 부서별 숫자로 모으고(오전·하루·지역·항목·교사·첫 기록·누적 현황) AI가 기사로 쓴다.
 //   AI에는 숫자와 교사 이름만 보낸다(섭외자 이름·연락처는 보내지 않음). AI가 안 되면 숫자 기사(newsPlain)로.
@@ -508,7 +512,7 @@ export async function composeNews(day, opts = {}) {
     return { label: d.label, records: d.records, prevRecords: d.prevRecords, teachers: d.teachers, rate: d.status.total ? pct(d.teachers, d.status.total) : '', line };
   });
   if (opts.oneline) {
-    text = ['📰 <b>한 줄 데이터 뉴스</b>', `🗞 ${md} · 교자장부청`, '',
+    text = ['📰 <b>한 줄 데이터 뉴스</b>', `🗞 ${md} · 교자장부청`, '', ...NEWS_INTRO, '',
       ...depts.map((d) => `● <b>${esc(d.label)}</b> · ${esc(d.line)}`), '',
       `📎 데이터: 서머리 ①~⑤ · 기록 ${comma(F.total.records)}건 · 교사 ${comma(F.total.teachers)}명`].join('\n');
   }
@@ -652,8 +656,8 @@ async function tsTestRoom(body) {
 export { composeDaily, composeEvening };
 // 11/5(사용자): "오늘 부서별 총합 카드 뉴스를 소통 방에 — 교자장부청 한 줄 데이터 뉴스"
 //   { action:'tsNewsSend', key, date?, today?:true, to?:'test' } — 카드 사진 + 아래 한 줄 뉴스 글. 같은 날 한 번만(force로 다시).
-async function tsNewsSend(body) {
-  if (!authorized(body)) return { error: 'unauthorized' };
+const tsNewsSend = async (body) => (authorized(body) ? sendNewsOneline(body) : { error: 'unauthorized' });
+async function sendNewsOneline(body) {
   const day = body.date || kstDate();
   // 11/5(사용자): "이미지는 하지 말고 한 줄 데이터 뉴스 텍스트만" → photo:false. text 를 주면 확인한 글 그대로(AI 다시 안 씀)
   const r = body.text ? { text: String(body.text), png: null, ai: false } : await composeNews(day, { oneline: true, today: body.today !== false });
@@ -661,6 +665,7 @@ async function tsNewsSend(body) {
   if (body.to === 'test') return { ...(await testPhoto(r.png, r.text, r.text)), ai: r.ai, text: r.text };
   const key = body.force ? '' : 'news1_' + day;
   if (key && await alreadySent(key)) return { ok: false, skipped: true, date: day };
+  if (body.photo !== true) r.png = null;   // 11/5: 글만이 기본(사진은 photo:true)
   let ok = r.png ? await sendChart(r.png, r.text, key, '데이터뉴스') : false;
   if (!ok) ok = await sendAlert(r.text, '데이터뉴스', key);
   return { ok, date: day, ai: r.ai, photo: !!r.png, text: r.text };
