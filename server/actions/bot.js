@@ -544,6 +544,7 @@ async function tsTestRoom(body) {
   const only = Array.isArray(body.only) && body.only.length ? body.only : ['status', 'noon', 'dept', 'evening', 'morning'];
   const tag = () => '🧪 <b>[시험 발송]</b>\n';
   const out = [];
+  let newsEcho;
   const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
   if (body.intro !== false && !only.every((x) => x === 'att')) {
     out.push(['intro', await testText([
@@ -584,7 +585,7 @@ async function tsTestRoom(body) {
   if (only.includes('news')) {   // 11/5: 📰 전도 뉴스(아침 7시에 전날 것) — 시험 방에서 먼저
     const r = await composeNews(body.newsDate || day);
     out.push(['news' + (r.ai ? '' : ':plain'), await testText(tag() + r.text)]);
-    if (body.echo) out.push(['newsText', r.text]);
+    if (body.echo) newsEcho = r.text;
   }
   // 11/4: 출석 서머리 시험 — { only:['att'], meetingId, phase:'최종'|'오전'… } 지역 글 몇 개 + 부서 민트 표 + 교자장부청 보라 표
   if (only.includes('att')) {
@@ -607,7 +608,7 @@ async function tsTestRoom(body) {
     for (const d of p.depts) out.push(['att:' + d.dept, await testPhoto(d.png, tag('②', `${d.dept} 총합 방`) + d.caption, tag('②', d.dept) + d.text)]);
     if (p.org) out.push(['att:org', await testPhoto(p.org.png, tag('③', '교자장부청') + p.org.caption, tag('③', '교자장부청') + p.org.text)]);
   }
-  return { ok: out.every(([, r]) => r.ok), chat: MY_TEST_CHAT, date: day, sent: out.map(([k, r]) => [k, r.ok ? '성공' : '실패 ' + (r.error || '')]) };
+  return { ok: out.every(([, r]) => r.ok), chat: MY_TEST_CHAT, date: day, sent: out.map(([k, r]) => [k, r.ok ? '성공' : '실패 ' + (r.error || '')]), ...(newsEcho ? { newsText: newsEcho } : {}) };
 }
 
 export { composeDaily, composeEvening };
