@@ -339,7 +339,7 @@ const SUMMARY_EXTRA_ORGS = { '장년회': ['13지역'] };
 const DEPT_ORDER =['교역자', '자문회', '장년회', '부녀회', '청년회'];
 const deptRank = (key) => { const i = DEPT_ORDER.indexOf(key.split(/[#/]/)[0]); return i < 0 ? 9 : i; };
 const orgOrder = (r) => { const m = r.match(/^0*(\d+)/); return m ? [0, Number(m[1])] : [1, ['유아모', '새신자'].indexOf(r) + 1 || 9]; };
-const countPairs = (acts, items) => new Set(acts.filter((a) => (a.activities || []).some((x) => items.includes(x)))
+export const countPairs = (acts, items) => new Set(acts.filter((a) => (a.activities || []).some((x) => items.includes(x)))
   // 11/3(사용자: "교관 2건+1건 올렸는데 총 서머리엔 1건"): 섭외자 이름을 비운 보고는 예전엔 아예 빠졌다 → 보고 한 건을 1건으로 센다
   .map((a) => (String(a.target_name || '').trim()
     ? `${String(a.target_name).trim()}|${leaderName((a.report && a.report.team && a.report.team.leader) || '') || a.nid}`
@@ -419,7 +419,7 @@ export function summaryBoard(dept, date, orgs, actsByOrg) {
   // 사진 아래 설명(신청 현황 글 모양)
   const lines = boardTotalLines(total);
   const caption = [
-    `📊 <b>${esc(title)}</b> (${day})`, '',
+    `📊 <b>서머리 ③ 밤 10시 · ${esc(title)}</b> (${day})`, '📖 우리 부서 지역마다 오늘 보고를 활동 항목별로 합친 표예요. 지역끼리 나란히 비교해요.', '',
     `📌 <b>합계</b> : <b>${sum}건</b>`,
     `🗂️ <b>보고 올라온 조직</b> : ${done}/${orgs.length}`, '',
     '🧭 <b>항목별 토탈</b>',
