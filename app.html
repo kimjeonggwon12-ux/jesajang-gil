@@ -4412,7 +4412,7 @@
       const dept = a.dept || r.dept || '';
       const pos = a.position || r.position || (isOwnerSession() ? '관리자' : '');
       const sub = [dept, pos].filter((v, i, arr) => v && arr.indexOf(v) === i).join(' · ');
-      const html = nm ? `<b>${esc(nm)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}` : '';
+      const html = meChipInner() || (nm ? `<b>${esc(nm)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}` : '');   // 11/5: 내 등급 알약 포함
       document.querySelectorAll('button[onclick="openAccountSheet()"]').forEach(btn => {
         const prev = btn.previousElementSibling;
         if (!(prev && prev.classList.contains('hdr-home')) && !btn.closest('.sheet')) btn.insertAdjacentHTML('beforebegin', HOME_BTN_HTML);
@@ -6637,7 +6637,7 @@
       // 2026-10-05 속도 개선: 6개 요청 모두 이 기기에 저장된 지난 결과가 있으면 그것으로 먼저 화면을 그리고,
       // 서버 결과가 오는 대로 해당 부분만 바꿔 다시 그린다(apiSWR). 저장된 게 하나도 없으면 예전처럼 다 받은 뒤 그림.
       const sets = {
-        getMyTierStatus: r => { if (r && !r.error) { home.tierStatus = r; setTimeout(maybeShowTierStart, 300); } },
+        getMyTierStatus: r => { if (r && !r.error) { home.tierStatus = r; setTimeout(maybeShowTierStart, 300); try { renderMeChips(); } catch (e) {} } },
         getMyActivities: r => { home.monthlyActRes = (r && !r.error) ? r : { rows: [], roleCounts: {}, roleItemCounts: {} }; },
         getMyGospelLeads: r => { home.gospelLeads = (r && r.rows) || []; },
         getMyCenterLeads: r => { home.centerLeads = (r && r.rows) || []; },
@@ -6707,7 +6707,7 @@
         callApi({ action: 'getMyActivities', memberId }),
         callApi({ action: 'getMyTargets', memberId })
       ]);
-      if (tierRes && !tierRes.error) { home.tierStatus = tierRes; setTimeout(maybeShowTierStart, 300); }
+      if (tierRes && !tierRes.error) { home.tierStatus = tierRes; setTimeout(maybeShowTierStart, 300); try { renderMeChips(); } catch (e) {} }
       if (actRes && !actRes.error) home.monthlyActRes = actRes;
       if (targetRes && !targetRes.error) { home.targets = targetRes.rows || []; home.stages = targetRes.stages || home.stages; }
     }
