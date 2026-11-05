@@ -643,4 +643,7 @@ async function tsTestRoom(body) {
 }
 
 export { composeDaily, composeEvening };
-export default { tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };
+// 11/5: 전체 텔레그램 방 연결 점검(보내지 않음)
+const tsRoomHealth = async (body) => (authorized(body) ? (await import('../lib/room-health.js')).roomHealth() : { error: 'unauthorized' });
+
+export default { tsRoomHealth, tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };
