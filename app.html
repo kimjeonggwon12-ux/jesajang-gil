@@ -185,7 +185,7 @@
     #bottomTabBar .tab .tab-icon { width: 100%; max-width: 52px; height: 36px; align-items: center; justify-content: center; border-radius: 999px; transition: background .15s ease; }
     #bottomTabBar .tab .tab-icon svg { width: 26px; height: 26px; }
     #bottomTabBar .tab.tab-active .tab-icon { background: #E3F6EF; }
-    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #storyDot, #bottomTabBar .tab .tab-icon #joinDot, #bottomTabBar .tab .tab-icon #connectDot { top: 3px !important; right: 9px !important; }
+    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #storyDot, #bottomTabBar .tab .tab-icon #joinDot, #bottomTabBar .tab .tab-icon #connectDot, #bottomTabBar .tab .tab-icon #textbookDot { top: 3px !important; right: 9px !important; }
     #appSections { padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
     /* 2026-10-10(사용자 요청): 하단 메인 탭 — 표지에서 '창' 하나만 가져옴(린넨·금박 전체는 과해서 뺌).
        흰 바탕 + 표지 린넨색(#2E483D) 아이콘, 지금 탭 = 표지에 뚫린 창(살구색 첫 장 #F2B995가 비치는 오목한 칸). */
@@ -201,7 +201,7 @@
     #bottomTabBar .tab.tab-active .tab-icon svg rect[fill="currentColor"] { stroke: var(--bk-page); }   /* 교재·영상: 화면 테두리·재생 삼각형 = 창 색 */
     #bottomTabBar .tab.tab-active .tab-icon svg path[fill="#fff"] { fill: var(--bk-page); }
     #bottomTabBar .tab:active .tab-icon { opacity: 1; }
-    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #storyDot, #bottomTabBar .tab .tab-icon #joinDot, #bottomTabBar .tab .tab-icon #connectDot { top: 3px !important; right: 6px !important; }
+    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #storyDot, #bottomTabBar .tab .tab-icon #joinDot, #bottomTabBar .tab .tab-icon #connectDot, #bottomTabBar .tab .tab-icon #textbookDot { top: 3px !important; right: 6px !important; }
     @media (max-width: 359px) { #bottomTabBar .tab .tab-icon { width: 46px; max-width: 46px; } }
     /* 2026-10-19: 하단 탭이 8칸(일정·광고·사례·참여 추가)이라 좁은 폰에선 칸 폭에 맞춰 줄어들게 */
     #bottomTabBar .tab .tab-icon { width: min(54px, calc(100% - 4px)); }
@@ -2123,16 +2123,19 @@
     #sec-calendar .pz-wr-m small { font-size:12.5px; color:var(--dg-text-sub); }
     #sec-calendar .pz-wr-c { flex-shrink:0; font-size:13px; font-weight:800; color:var(--dg-text-sub); }   /* 교사 마당 안 탭(이달의 교사·이름 공모·질문하기·불편신고) */
     /* 10/28: 사례 탭 NEW 배지 — 누르고 싶게(빨강→주황 알약, 살짝 통통 + 반짝) */
-    #bottomTabBar .tab .tab-icon #storyDot, #storyDot { display:none; position:absolute; top:-5px !important; right:-6px !important; width:auto; height:17px; padding:0 6px; align-items:center; border-radius:99px;
-      background:linear-gradient(135deg,#FF3B5C,#FF8A00); border:1.5px solid #fff; color:#fff; font-size:9.5px; font-weight:900; letter-spacing:.02em; line-height:1; overflow:hidden;
-      box-shadow:0 2px 6px rgba(255,59,92,.45); animation:newBob 1.6s ease-in-out infinite; z-index:2; }
-    #storyDot::after, .new-badge::after { content:''; position:absolute; top:0; left:-60%; width:40%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent); transform:skewX(-20deg); animation:newShine 2.4s ease-in-out infinite; }
+    .new-badge::after { content:''; position:absolute; top:0; left:-60%; width:40%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent); transform:skewX(-20deg); animation:newShine 2.4s ease-in-out infinite; }
     .new-badge { position:relative; display:inline-flex; align-items:center; height:18px; margin-left:5px; padding:0 7px; border-radius:99px; vertical-align:2px; overflow:hidden;
       background:linear-gradient(135deg,#FF3B5C,#FF8A00); color:#fff; font-size:10px; font-weight:900; box-shadow:0 2px 6px rgba(255,59,92,.4); animation:newBob 1.6s ease-in-out infinite; }
     @keyframes newBob { 0%,100% { transform:translateY(0) scale(1); } 50% { transform:translateY(-2px) scale(1.08); } }
     @keyframes newShine { 0%,55% { left:-60%; } 100% { left:130%; } }
-    @media (prefers-reduced-motion: reduce) { #storyDot, .new-badge, #storyDot::after, .new-badge::after { animation:none; } }
-    #plazaDot, #joinDot { display:none; position:absolute; top:-2px; right:-4px; width:9px; height:9px; border-radius:50%; background:#E5322D; border:1.5px solid #fff; }
+    @media (prefers-reduced-motion: reduce) { .new-badge, .new-badge::after { animation:none; } }
+    /* 2026-11-06(사용자): 일정·광고·사례·연결·교재·영상에 새 것이 올라오면 아래 탭에 'N' 뱃지 */
+    #bottomTabBar .tab .tab-icon .tab-n, .tab-n { display:none; position:absolute; top:-4px !important; right:-2px !important; width:18px; height:18px; padding:0; align-items:center; justify-content:center; border-radius:50%;
+      background:linear-gradient(135deg,#FF3B5C,#FF8A00); border:1.5px solid #fff; color:#fff; font-size:11px; font-weight:900; line-height:1; overflow:hidden; letter-spacing:0;
+      box-shadow:0 2px 6px rgba(255,59,92,.45); animation:newBob 1.6s ease-in-out infinite; z-index:2; }
+    .tab-n::after { content:''; position:absolute; top:0; left:-60%; width:40%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent); transform:skewX(-20deg); animation:newShine 2.4s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .tab-n, .tab-n::after { animation:none; } }
+    #joinDot { display:none; position:absolute; top:-2px; right:-4px; width:9px; height:9px; border-radius:50%; background:#E5322D; border:1.5px solid #fff; }
     /* 2026-10-19: 쪽 탭(전도부 게시판·교사 이야기·교사 마당)은 하단 탭(일정·광고 / 사례 / 참여)으로 옮김 — 다른 화면에 끼워 넣은 embed=plaza만 위 쪽 탭을 씀 */
     html:not(.embed-plaza) #sec-calendar #pzPills { display:none !important; }
     /* 2026-10-19: [+ 일정 추가]가 잘 안 보여서 — 초록 꽉 찬 단추 */
@@ -3250,11 +3253,11 @@
            관리자 탭은 isAdmin()이 true일 때만 노출(현재는 라이브 코드와 동일하게 임시 전체 개방 —
            복구 지점은 isAdmin() 함수 주석 참고). -->
       <button role="tab" class="tab" data-tab="calendar" onclick="switchTab('calendar')" title="일정·광고" aria-label="일정·광고">
-        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 일정·광고 = 달력 + 확성기 --><path d="M8.2 19.5H4a2.5 2.5 0 0 1-2.5-2.5V6.5A2.5 2.5 0 0 1 4 4h11a2.5 2.5 0 0 1 2.5 2.5v1.3"/><path d="M6 2v4M13 2v4M1.5 9.5h10.4"/><g stroke-width="1.7"><path d="M11.5 15.2l9.6-3.2v9.2l-9.6-3.2z"/><path d="M14.2 18.9a1.9 1.9 0 0 1-3.6 1"/></g></svg><span id="plazaDot"></span></span>
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 일정·광고 = 달력 + 확성기 --><path d="M8.2 19.5H4a2.5 2.5 0 0 1-2.5-2.5V6.5A2.5 2.5 0 0 1 4 4h11a2.5 2.5 0 0 1 2.5 2.5v1.3"/><path d="M6 2v4M13 2v4M1.5 9.5h10.4"/><g stroke-width="1.7"><path d="M11.5 15.2l9.6-3.2v9.2l-9.6-3.2z"/><path d="M14.2 18.9a1.9 1.9 0 0 1-3.6 1"/></g></svg><span id="plazaDot" class="tab-n">N</span></span>
         <span class="tab-label">일정·광고</span>
       </button>
       <button role="tab" class="tab" data-tab="story" onclick="switchTab('story')" title="사례" aria-label="사례">
-        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 사례 = 말풍선 안 하트(전도 사례 나눔) --><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 13.2c-1.6-1.2-3.2-2.5-3.2-4.2a1.75 1.75 0 0 1 3.2-1 1.75 1.75 0 0 1 3.2 1c0 1.7-1.6 3-3.2 4.2z" fill="currentColor" stroke="none"/></svg><span id="storyDot">NEW</span></span>
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 사례 = 말풍선 안 하트(전도 사례 나눔) --><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 13.2c-1.6-1.2-3.2-2.5-3.2-4.2a1.75 1.75 0 0 1 3.2-1 1.75 1.75 0 0 1 3.2 1c0 1.7-1.6 3-3.2 4.2z" fill="currentColor" stroke="none"/></svg><span id="storyDot" class="tab-n">N</span></span>
         <span class="tab-label">사례</span>
       </button>
       <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="나의교실" aria-label="나의교실">
@@ -3262,7 +3265,7 @@
         <span class="tab-label">나의교실</span>
       </button>
       <button role="tab" class="tab" data-tab="connect" onclick="switchTab('connect')" title="연결" aria-label="연결">
-        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-13: 연결 = 두 사람 사이 하트 --><circle cx="4.8" cy="10" r="2.3" /><circle cx="19.2" cy="10" r="2.3" /><path d="M1.5 20.5a3.6 4.6 0 0 1 7.2 0" /><path d="M15.3 20.5a3.6 4.6 0 0 1 7.2 0" /><path d="M12 11.6C10.4 10.4 8.8 9.1 8.8 7.4a1.75 1.75 0 0 1 3.2-1 1.75 1.75 0 0 1 3.2 1c0 1.7-1.6 3-3.2 4.2z" fill="currentColor" stroke="none" /></svg><span id="connectDot" style="display:none;position:absolute;top:-2px;right:-4px;width:9px;height:9px;border-radius:50%;background:#E5322D;border:1.5px solid #fff"></span></span>
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-13: 연결 = 두 사람 사이 하트 --><circle cx="4.8" cy="10" r="2.3" /><circle cx="19.2" cy="10" r="2.3" /><path d="M1.5 20.5a3.6 4.6 0 0 1 7.2 0" /><path d="M15.3 20.5a3.6 4.6 0 0 1 7.2 0" /><path d="M12 11.6C10.4 10.4 8.8 9.1 8.8 7.4a1.75 1.75 0 0 1 3.2-1 1.75 1.75 0 0 1 3.2 1c0 1.7-1.6 3-3.2 4.2z" fill="currentColor" stroke="none" /></svg><span id="connectDot" class="tab-n">N</span></span>
         <span class="tab-label">연결</span>
       </button>
       <button role="tab" class="tab" data-tab="ai" onclick="switchTab('ai')" title="AI상담" aria-label="AI상담">
@@ -3270,7 +3273,7 @@
         <span class="tab-label">AI상담</span>
       </button>
       <button role="tab" class="tab" data-tab="textbook" onclick="switchTab('textbook')" title="교재와 영상" aria-label="교재와 영상">
-        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(-0.6 -1.6) scale(.78)" stroke-width="2.4"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></g><rect x="10.6" y="11.6" width="13" height="9.8" rx="3" fill="currentColor" stroke="#fff" stroke-width="1.6" /><path d="M15.6 14.4v4.2l3.6-2.1z" fill="#fff" stroke="none" /></svg></span>
+        <span class="tab-icon" style="position:relative"><span id="textbookDot" class="tab-n">N</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(-0.6 -1.6) scale(.78)" stroke-width="2.4"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></g><rect x="10.6" y="11.6" width="13" height="9.8" rx="3" fill="currentColor" stroke="#fff" stroke-width="1.6" /><path d="M15.6 14.4v4.2l3.6-2.1z" fill="#fff" stroke="none" /></svg></span>
         <span class="tab-label">교재·영상</span>
       </button>
       <button role="tab" class="tab" data-tab="join" onclick="switchTab('join')" title="참여" aria-label="참여">
@@ -4513,7 +4516,7 @@
       if (!gnb) return;
       gnb.innerHTML = [...document.querySelectorAll('#bottomTabBar .tab')]
         .filter(b => getComputedStyle(b).display !== 'none')
-        .map(b => `<button type="button" class="${b.dataset.tab === App.currentTab ? 'on' : ''}" onclick="switchTab('${b.dataset.tab}')">${b.querySelector('.tab-label').textContent}${b.dataset.tab === 'story' && document.getElementById('storyDot')?.style.display === 'flex' ? '<span class="new-badge">NEW</span>' : ''}</button>`).join('');
+        .map(b => `<button type="button" class="${b.dataset.tab === App.currentTab ? 'on' : ''}" onclick="switchTab('${b.dataset.tab}')">${b.querySelector('.tab-label').textContent}${b.querySelector('.tab-n')?.style.display === 'flex' ? '<span class="new-badge">N</span>' : ''}</button>`).join('');
     }
     function pzLayout() {
       const wrap = document.querySelector('#sec-calendar .pz-wrap'), bar = document.querySelector('#sec-calendar .pz-appbar');
@@ -4586,6 +4589,7 @@
 
       if (tab === 'connect') { const d = document.getElementById('connectDot'); if (d) d.style.display = 'none'; }
       else if (window.refreshConnectDot) refreshConnectDot();
+      if (window.newMarks) { newMarks.opened(tab); newMarks.check(); }   // 2026-11-06: 교재·영상·연결 N 뱃지
 
       if (!App.mounted[secTab] && window.Sections[secTab] && typeof window.Sections[secTab].mount === 'function') {
         App.mounted[secTab] = true;
@@ -4630,10 +4634,64 @@
       if (!dot) return;
       try {
         const res = await callApi({ action: 'getConnectUnread', memberId: MEMBER_ID });
-        dot.style.display = (res && res.total > 0) ? 'block' : 'none';
+        connectUnread = !!(res && res.total > 0);
+        paintConnectDot();
       } catch (e) { /* 알림 점은 부가 기능 — 실패해도 조용히 무시 */ }
     }
     window.refreshConnectDot = refreshConnectDot;
+    let connectUnread = false;
+    function paintConnectDot() {
+      const dot = document.getElementById('connectDot');
+      if (!dot) return;
+      dot.style.display = App.currentTab !== 'connect' && (connectUnread || (window.newMarks && newMarks.has('connect'))) ? 'flex' : 'none';
+      if (typeof fillGnb === 'function') { fillGnb(document.getElementById('pzGnb')); fillGnb(document.getElementById('dkGnb')); }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 2026-11-06(사용자): 교재·영상 / 연결에 새 것이 올라오면 아래 탭에 N 뱃지.
+    // 서버 getNewMarks = 번호·키만(교재 마지막 번호, 게시된 영상 키, 남이 만든 명함·도움 요청 마지막 번호).
+    // 이 기기에서 그 탭을 마지막으로 연 때 값(localStorage 'nm_seen_v1')보다 새 것이 있으면 N, 탭을 열면 사라짐.
+    // 처음엔 지금 있는 것을 본 것으로(옛 것으로 N 안 뜨게). 확인은 탭 바꿀 때·화면 다시 켤 때, 5분에 한 번까지만.
+    // ════════════════════════════════════════════════════════════════
+    const newMarks = (() => {
+      const KEY = 'nm_seen_v1';
+      let seen = null, cur = null, last = 0, busy = false;
+      try { seen = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+      const save = () => { try { localStorage.setItem(KEY, JSON.stringify(seen)); } catch (e) {} };
+      function has(tab) {
+        if (!cur || !seen) return false;
+        if (tab === 'textbook') { const sv = new Set(seen.video || []); return cur.course > (seen.course || 0) || (cur.video || []).some(k => !sv.has(k)); }
+        if (tab === 'connect') return cur.card > (seen.card || 0) || cur.help > (seen.help || 0);
+        return false;
+      }
+      function opened(tab) {
+        if (!cur || !seen) return;
+        if (tab === 'textbook') { seen.course = cur.course; seen.video = (cur.video || []).slice(-1000); save(); }
+        else if (tab === 'connect') { seen.card = cur.card; seen.help = cur.help; save(); }
+        else return;
+        paint();
+      }
+      function paint() {
+        const d = document.getElementById('textbookDot');
+        if (d) d.style.display = App.currentTab !== 'textbook' && has('textbook') ? 'flex' : 'none';
+        paintConnectDot();
+      }
+      async function check(force) {
+        if (busy || !MEMBER_ID || (!force && Date.now() - last < 5 * 60e3)) return;
+        busy = true; last = Date.now();
+        try {
+          const r = await callApiOnce({ action: 'getNewMarks', memberId: MEMBER_ID });
+          if (!r || r.error) return;
+          cur = { course: Number(r.course) || 0, card: Number(r.card) || 0, help: Number(r.help) || 0, video: r.video || [] };
+          if (!seen) { seen = { course: cur.course, card: cur.card, help: cur.help, video: cur.video.slice(-1000) }; save(); }
+          if (['textbook', 'connect'].includes(App.currentTab)) opened(App.currentTab); else paint();
+        } catch (e) { /* 뱃지는 부가 기능 — 실패해도 조용히 */ } finally { busy = false; }
+      }
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+      setInterval(() => { if (!document.hidden) check(); }, 15 * 60e3);
+      return { has, opened, check, paint };
+    })();
+    window.newMarks = newMarks;
     window.addEventListener('hashchange', () => {
       const h = (location.hash || '').replace('#', '');
       const am = h.match(/^attend=([A-Za-z0-9_-]+)/);
@@ -4664,7 +4722,7 @@
       function isNew(page, at) { const s = load(); const base = openedAt[page] || s[page]; return !!at && String(at) > String(base); }
       function count(page) { return tot(page) || 0; }
       function paint(fromPoll) {
-        [['board', 'plazaDot'], ['story', 'storyDot'], ['etc', 'joinDot']].forEach(([pg, id]) => { const d = document.getElementById(id); if (d) d.style.display = tot(pg) ? (pg === 'story' ? 'flex' : 'block') : 'none'; });
+        [['board', 'plazaDot'], ['story', 'storyDot'], ['etc', 'joinDot']].forEach(([pg, id]) => { const d = document.getElementById(id); if (d) d.style.display = tot(pg) ? (pg === 'etc' ? 'block' : 'flex') : 'none'; });
         if (typeof fillGnb === 'function') { fillGnb(document.getElementById('pzGnb')); fillGnb(document.getElementById('dkGnb')); }   // PC 위 메뉴 '사례' 옆 NEW
         if (window.pzRenderPills) pzRenderPills();
         ['board', 'story', 'etc'].forEach(pg => {
