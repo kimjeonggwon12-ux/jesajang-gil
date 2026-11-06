@@ -10666,6 +10666,10 @@
       .tr-card { padding:12px 14px; border-radius:12px; background:#fff; border:1px solid #EDEDED; margin-bottom:8px; font-size:14px; line-height:1.6; }
       .tr-card .h { display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:#6B7280; margin-bottom:4px; }
       .tr-card .h b { color:#111; font-size:13.5px; }
+      .tr-fb summary { cursor:pointer; font-size:13.5px; color:#374151; list-style:none; } .tr-fb summary::before { content:'▸ '; color:#9CA3AF; } .tr-fb[open] summary::before { content:'▾ '; }
+      .tr-fb-b { margin-top:8px; font-size:14px; line-height:1.65; }
+      .tr-fb-sit { padding:8px 10px; border-radius:10px; background:#F9FAFB; color:#4B5563; font-size:13px; white-space:pre-wrap; margin-bottom:8px; }
+      .tr-fb-ans { margin-top:10px; padding:10px 12px; border-radius:10px; background:#EEF8F4; } .tr-fb-ans b { display:block; margin-bottom:4px; }
       .tr-chip { display:inline-block; padding:1px 8px; border-radius:99px; background:#EEF2FF; color:#4338CA; font-size:12px; font-weight:800; }
       .tr-card .k { color:#6B7280; font-weight:700; }
       .tr-sec { font-size:14.5px; font-weight:900; margin:14px 2px 8px; }
@@ -10734,11 +10738,25 @@
         ${trSt.sel === m.id && !m.deleted ? `<div class="tr-acts"><button type="button" data-tr-pin="${m.id}">${m.pinned ? '📌 고정 풀기' : '📌 고정'}</button>${m.text ? `<button type="button" data-tr-copy="${m.id}">복사</button>` : ''}${canDel ? `<button type="button" class="red" data-tr-del="${m.id}">지우기</button>` : ''}</div>` : ''}
       </div>`;
     }
+    const TR_REC_TABS = ['info', 'acts', 'stagefb', 'plan', 'hearts', 'master'];
+    const trMd = x => typeof glMd === 'function' ? glMd(x || '') : esc(x || '').replace(/\n/g, '<br>');
+    // 받아 둔 AI 피드백 목록(새것부터, 맨 위만 펼침)
+    function trFbList(list, empty, title) {
+      if (!list || !list.length) return `<div class="tr-note">${empty}</div>`;
+      return list.map((f, i) => `<details class="tr-card tr-fb" ${i === 0 ? 'open' : ''}><summary><b>${esc(f.at.slice(0, 10))}</b> · ${esc(title(f))}</summary><div class="tr-fb-b">${f.body || trMd(f.text)}</div></details>`).join('');
+    }
     function trRecHtml() {
       if (trSt.recBusy || !trSt.rec) return trSt.rec && trSt.rec.error ? `<div class="tr-note">⚠️ ${esc(trSt.rec.error)}</div>` : '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>';
       const r = trSt.rec, ro = trSt.isOwner ? '' : '<div class="tr-note" style="margin-bottom:10px">👀 담당 교사가 남긴 기록이에요. <b>보기만</b> 할 수 있어요.</div>';
+      if (trSt.tab === 'stagefb') return ro + trFbList(r.stageFb, '아직 받은 단계향상 피드백이 없어요.', f => f.about + ' 기록에 대한 피드백');
+      if (trSt.tab === 'plan') return ro + trFbList(r.plans, '아직 받은 센터 인도(개강) 계획이 없어요.', f => (f.basis || '센터 인도 계획').slice(0, 60));
+      if (trSt.tab === 'master') return ro + trFbList(r.master, '아직 받은 종합 피드백이 없어요.', f => (f.basis || '종합 피드백').slice(0, 60));
+      if (trSt.tab === 'hearts') return ro + trFbList((r.hearts || []).map(h => ({ at: h.at, source: h.source, answer: h.answer,
+          body: `<div class="tr-fb-sit">${esc(h.situation || '')}</div>${h.ai ? trMd(h.ai) : ''}${h.answer ? `<div class="tr-fb-ans"><b>🧑‍🏫 ${esc(h.handler || '교관')} 답</b>${trMd(h.answer)}</div>` : ''}` })),
+        '아직 이 섭외자 이야기로 받은 HEARTS 상담이 없어요.', f => (f.source || '상담') + (f.answer ? ' · 교관 답 있음' : ''));
       if (trSt.tab === 'info') return ro + (r.info.length ? r.info.map(n => `<div class="tr-card"><div class="h">${String(n.cat).split(',').map(c => `<span class="tr-chip">${esc(c.trim())}</span>`).join('')}<span>${esc(n.at.slice(0, 10))}</span></div>${esc(n.text).replace(/\n/g, '<br>')}</div>`).join('')
-        : '<div class="tr-note">아직 정보 기록이 없어요.</div>');
+        : '<div class="tr-note">아직 정보 기록이 없어요.</div>')
+        + ((r.infoFeedback || []).length ? '<div class="tr-sec">🤖 정보 기록 AI 피드백</div>' + trFbList(r.infoFeedback, '', f => (f.basis || 'AI 피드백').slice(0, 60)) : '');
       const kv = (k, v) => v ? `<div><span class="k">${k}</span> ${esc(v).replace(/\n/g, '<br>')}</div>` : '';
       return ro + '<div class="tr-sec">📝 활동 이력 <span style="color:#6B7280;font-weight:700">' + r.acts.length + '건</span></div>'
         + (r.acts.length ? r.acts.map(a => `<div class="tr-card"><div class="h"><b>${esc(a.at.slice(0, 10))}</b>${a.by ? `<span>${esc(a.by)}</span>` : ''}${a.roles.length ? `<span class="tr-chip">${esc(a.roles.join('·'))}</span>` : ''}${a.stage ? `<span>단계 ${esc(a.stage)}</span>` : ''}</div>
@@ -10761,7 +10779,11 @@
     function trRender(scrollEnd) {
       const layer = document.getElementById('trLayer'); if (!layer) return;
       const r = trSt.room;
-      const tabs = [['chat', '💬 대화'], ['pins', `📌 고정${trSt.pins.length ? ' ' + trSt.pins.length : ''}`], ['info', '🗂 정보 기록'], ['acts', '📝 활동 이력'], ['members', `👥 ${trSt.members.length || ''}`]];
+      // 11/6(사용자): 정보 기록 옆에 받아 둔 피드백 — 단계향상 · ○월 센터 인도 계획 · HEARTS 상세피드백 · 종합
+      const gm = (r && r.goalMonth) || (trSt.rec && trSt.rec.goalMonth) || 0;
+      const tabs = [['chat', '💬 대화'], ['pins', `📌 고정${trSt.pins.length ? ' ' + trSt.pins.length : ''}`], ['info', '🗂 정보 기록'], ['acts', '📝 활동 이력'],
+        ['stagefb', '📈 단계향상 피드백'], ['plan', `🧭 ${gm ? gm + '월 ' : ''}센터 인도 계획`], ['hearts', '❤️ HEARTS 상세피드백'], ['master', '🧠 종합 피드백'],
+        ['members', `👥 ${trSt.members.length || ''}`]];
       let body;
       if (trSt.busy) body = '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 방을 여는 중…</div>';
       else if (trSt.err) body = `<div class="tr-note">⚠️ ${esc(trSt.err)}</div>`;
@@ -10790,7 +10812,7 @@
         if (g('[data-tr-close]')) return trClose();
         if ((el = g('[data-tr-tab]'))) {
           trSt.tab = el.dataset.trTab; trSt.sel = 0;
-          if ((trSt.tab === 'info' || trSt.tab === 'acts') && !trSt.rec && !trSt.recBusy) {
+          if (TR_REC_TABS.includes(trSt.tab) && !trSt.rec && !trSt.recBusy) {
             trSt.recBusy = true; trRender();
             const res = await trApi({ action: 'getRoomRecords' });
             trSt.recBusy = false; trSt.rec = res && !res.error ? res : { error: (res && res.error) || '불러오지 못했어요.' };

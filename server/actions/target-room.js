@@ -9,9 +9,10 @@ import { normId, str, kstDateTime, fmtTs } from '../lib/util.js';
 import { maskName } from '../lib/report-room.js';
 import { storeImage } from '../lib/images.js';
 import { findTeacherLoose } from './roster.js';
-import { findTarget, owns, activitiesAbout } from './targets.js';
+import { findTarget, owns, activitiesAbout, coachingAbout } from './targets.js';
 
-const INFO_KIND = '파악정보';   // targets.js 의 정보 기록과 같은 값
+// targets.js 와 같은 값
+const INFO_KIND = '파악정보', INFO_FB_KIND = 'AI 파악정보 피드백', MASTER_KIND = 'AI 종합 피드백', PLAN_KIND = '개강 인도 계획';
 const MAX_TEXT = 3000;
 
 /** 이 사람이 이 방에 들어올 수 있는지 — { target, isOwner, member } 또는 null. 담당이면 멤버 줄을 만들어 둔다(읽음 표시용). */
@@ -44,6 +45,7 @@ const toMsg = (m, nid) => ({
 const targetView = (t, isOwner) => ({
   id: t.target_id, name: isOwner ? t.target_name : maskName(t.target_name), stage: t.stage || '섭외',
   gender: t.gender || '', ageGroup: t.age_group || '', teacher: t.teacher_name || '',
+  goalMonth: t.goal_cohort ? Number(t.goal_cohort.slice(5)) : 0,
 });
 
 async function markRead(a, lastId) {
@@ -161,19 +163,34 @@ async function leaveRoom(body) {
   return { ok: true };
 }
 
-/** 정보 기록 + 활동 이력 + 단계 이력(읽기만) — 방에 있는 누구나. */
+/**
+ * 정보 기록 + 활동 이력 + 단계 이력 + 받아 둔 피드백(읽기만) — 방에 있는 누구나.
+ * 11/6(사용자): "피드백 받아 놓은 것들도 정보 기록 옆에서 — 단계향상 피드백, ○월 센터 인도 피드백, 하츠 피드백 등 칸"
+ *   단계향상 = activities.ai_feedback / ○월 개강(센터 인도) 계획 = target_ai_notes '개강 인도 계획'(없으면 targets.goal_plan)
+ *   HEARTS = 이 섭외자 이야기로 받은 AI상담·교관 답(coachingAbout) / 정보 기록 AI 피드백 / 종합 피드백
+ */
 async function getRoomRecords(body) {
   const a = await access(body.memberId, body.targetId, body.name);
   if (!a) return DENIED;
   const t = a.target;
-  const [notes, acts, hist] = await Promise.all([
-    run(db().from('target_ai_notes').select('id, input, text, created_at').eq('target_id', t.target_id).eq('kind', INFO_KIND).order('id', { ascending: false })),
+  const [notes, acts, hist, coach] = await Promise.all([
+    run(db().from('target_ai_notes').select('id, kind, input, text, created_at').eq('target_id', t.target_id)
+      .in('kind', [INFO_KIND, INFO_FB_KIND, MASTER_KIND, PLAN_KIND]).order('id', { ascending: false })),
     activitiesAbout(t),
     run(db().from('target_history').select('*').eq('target_id', t.target_id).order('id', { ascending: false })),
+    coachingAbout(t, t.creator_id).catch(() => []),
   ]);
+  const of = (k) => notes.filter((n) => n.kind === k).map((n) => ({ at: fmtTs(n.created_at).slice(0, 16), basis: n.input, text: n.text }));
+  const plans = of(PLAN_KIND);
+  if (!plans.length && t.goal_plan) plans.push({ at: fmtTs(t.goal_plan_at).slice(0, 16), basis: '', text: t.goal_plan });
   return {
     ok: true,
-    info: notes.map((n) => ({ cat: n.input || '기타', text: n.text, at: fmtTs(n.created_at).slice(0, 16) })),
+    goalMonth: t.goal_cohort ? Number(t.goal_cohort.slice(5)) : 0,
+    infoFeedback: of(INFO_FB_KIND), master: of(MASTER_KIND), plans,
+    stageFb: acts.filter((x) => x.ai_feedback).sort((x, y) => (String(x.submitted_at) < String(y.submitted_at) ? 1 : -1))
+      .map((x) => ({ at: fmtTs(x.ai_feedback_at || x.submitted_at).slice(0, 16), about: `${fmtTs(x.submitted_at).slice(5, 10).replace('-', '/')} ${(x.activities || []).join(', ')}`, text: x.ai_feedback })),
+    hearts: coach.slice().reverse().map((f) => ({ at: fmtTs(f.submitted_at).slice(0, 16), source: f.source, situation: f.situation, ai: f.ai_coach_text, handler: f.handler, answer: f.handler_answer })),
+    info: notes.filter((n) => n.kind === INFO_KIND).map((n) => ({ cat: n.input || '기타', text: n.text, at: fmtTs(n.created_at).slice(0, 16) })),
     acts: acts.sort((x, y) => (String(x.submitted_at) < String(y.submitted_at) ? 1 : -1)).map((x) => ({
       at: fmtTs(x.submitted_at).slice(0, 16), by: x.name, roles: x.roles || [], items: x.activities || [], stage: x.target_stage,
       consult: x.consult_title, subject: x.gospel_subject, reaction: x.reaction, reactionNote: x.reaction_note,

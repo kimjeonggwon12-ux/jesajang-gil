@@ -495,7 +495,7 @@ export async function ownedTarget(memberId, targetId) {
 }
 
 /** 이 대상자 이야기가 든 AI상담(HEARTS)·교관 요청 — 오래된 것부터. */
-async function coachingAbout(target, mid) {
+export async function coachingAbout(target, mid) {
   const name = target.target_name.trim();
   const owners = [...new Set([target.creator_id, target.leader_id, target.helper_id, mid].filter((id) => str(id)).map(normId))];
   const [mine, feedbacks] = await Promise.all([
