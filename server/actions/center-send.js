@@ -77,7 +77,7 @@ async function buildSnapshot(target, teacherId) {
         center: p.center || '', enroll: p.enroll || '', cohortNo: p.cohortNo || '', course: p.course || '',
         lessons: (p.lessons || []).map((l) => (l && l.title) || l).filter(Boolean),
       },
-      swot: target.swot || null, goalPlan: target.goal_plan || '',
+      goalPlan: target.goal_plan || '',
     },
     teacher: teacher ? { name: teacher.name, dept: teacher.dept, region: teacher.region, affiliation: teacher.affiliation, tier: teacher.tier } : null,
     master: master[0] ? { at: fmtTs(master[0].created_at), text: master[0].text } : null,

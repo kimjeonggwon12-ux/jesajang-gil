@@ -62,7 +62,7 @@ export const actions = {
 // 11/4 개인정보: AI(제미나이)를 부르는 기능은 요청한 교사의 섭외자 이름을 '섭외자A·B…'로 가려서 보낸다(lib/gemini.js withPrivacy).
 import { withPrivacy } from './lib/gemini.js';
 const AI_ACTIONS = ['generateContent', 'getActivityFeedback', 'analyzeDistrictData', 'aiCoach',
-  'planCohortLead', 'swotAdvice', 'writeCaseDraft', 'targetInfoFeedback', 'targetMasterFeedback'];
+  'planCohortLead', 'writeCaseDraft', 'targetInfoFeedback', 'targetMasterFeedback'];
 for (const name of AI_ACTIONS) {
   const fn = actions[name];
   if (fn) actions[name] = (body) => withPrivacy(body || {}, () => fn(body));

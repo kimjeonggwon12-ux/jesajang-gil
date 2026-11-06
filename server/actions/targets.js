@@ -378,69 +378,6 @@ async function planCohortLead(body) {
   return { text, goalPlanAt: at, basis: d.basis };
 }
 
-// ── SWOT AI 전략 제안 (2026-10-22, SWOT 분석 2안) ── 교사가 쓴 SWOT(저장 안 한 것도) + 그 사람의 누적 기록 → 칸별 전략 제안.
-// 받을 때 지금 SWOT도 같이 저장한다(제안과 SWOT이 어긋나지 않게). 무료 한도를 지키려고 교사 한 명 하루 SWOT_AI_DAILY번.
-
-const SWOT_AI_DAILY = 10;
-const SWOT_AI_KIND = 'SWOT AI 제안';
-const SWOT_LABELS = { s: '강점(S, 내부)', w: '약점(W, 내부)', o: '기회(O, 외부)', t: '위협(T, 외부)', so: 'SO 전략(강점으로 기회 잡기)', st: 'ST 전략(강점으로 위협 막기)', wo: 'WO 전략(기회로 약점 채우기)', wt: 'WT 전략(약점·위협 피하거나 줄이기)' };
-const swotCount = (v) => String(v || '').split('\n').filter((l) => l.trim()).length;
-
-async function swotAdvice(body) {
-  const mid = str(body.memberId);
-  const targetId = str(body.targetId);
-  if (!mid || !targetId) return { error: 'memberId, targetId 가 필요합니다.' };
-  const target = await findTarget(targetId);
-  if (!target) return { error: '해당 대상자를 찾을 수 없습니다.' };
-  if (!owns(target, normId(mid))) return { error: '본인 담당의 전도 대상자가 아닙니다.' };
-  const sw = body.swot !== undefined ? cleanSwot(body.swot) : target.swot;
-  if (!sw || !['s', 'w', 'o', 't'].some((k) => str(sw[k]))) return { error: '먼저 강점·약점·기회·위협을 한 칸 이상 적어 주세요.' };
-
-  const today = kstDate();
-  const used = await run(db().from('target_ai_notes').select('id').eq('member_id', mid).eq('kind', SWOT_AI_KIND).gte('created_at', `${today} 00:00:00`));
-  if (used.length >= SWOT_AI_DAILY) return { error: `SWOT AI 제안은 하루 ${SWOT_AI_DAILY}번까지예요. 내일 다시 받아 보세요.` };
-
-  const n = { s: swotCount(sw.s), w: swotCount(sw.w), o: swotCount(sw.o), t: swotCount(sw.t) };
-  const rec = (n.s >= n.w ? 'S' : 'W') + (n.o >= n.t ? 'O' : 'T');
-  const d = await targetDossier(target, mid);
-  const next = sw.next || {};
-  const prompt = [
-    '당신은 교회 전도 교사를 돕는 전도 코치입니다. 교사가 섭외자(전도 대상자) 한 명에 대해 쓴 SWOT 분석을 보고, 칸별 전략을 다듬어 제안하세요.',
-    '',
-    `- 오늘: ${today} / 대상자: ${[target.gender, target.age_group].filter(Boolean).join(' ') || '정보 없음'} / 지금 단계: ${target.stage || '섭외'}`,
-    target.goal_cohort ? `- 목표: ${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '',
-    `- 단계 순서: ${FLOW}`,
-    '',
-    '[교사가 쓴 SWOT]',
-    ...Object.entries(SWOT_LABELS).map(([k, l]) => `■ ${l}: ${str(sw[k]) ? cut(sw[k], 1500).replace(/\n/g, ' / ') : '(비어 있음)'}`),
-    next.text ? `■ 교사가 정한 다음 행동: ${cut(next.text, 300)}${next.date ? ` (${next.date})` : ''}` : '',
-    `■ 개수 비교로 앱이 고른 추천 칸: ${rec} (강점 ${n.s} : 약점 ${n.w}, 기회 ${n.o} : 위협 ${n.t})`,
-    '',
-    '[참고: 이 사람에 대한 지금까지의 기록 — 오래된 것부터]',
-    '■ 활동 기록', ...d.acts,
-    '■ 교사가 파악한 정보(가족·직장·관심사·고민 등)', ...(d.info.length ? d.info : ['(없음)']),
-    '■ 단계 변경 이력', ...d.history,
-    '■ AI 상담·교관 답변', ...d.coaching,
-    '■ 이전에 받은 AI 계획·피드백', ...d.notes,
-    '',
-    '규칙:',
-    '1. 교사가 쓴 SWOT과 기록을 함께 보세요. 기록에는 있는데 SWOT에 빠진 점, 서로 어긋나는 점이 있으면 "상황 진단"에서 짚으세요.',
-    '2. 네 전략 칸마다 교사의 초안을 살려 실제로 해 볼 방법을 2~3줄로 쓰세요. 초안이 비어 있으면 새로 제안하세요.',
-    '3. 가장 먼저 할 전략 하나를 고르고 이유를 쓰세요. 앱의 추천 칸과 다르게 고르면 왜 다른지 한 줄로 쓰세요.',
-    '4. 상대를 속이거나 압박하는 방법은 쓰지 마세요. 상대의 뜻과 시간을 존중하고 관계와 신뢰를 지키는 방향으로 쓰세요.',
-    '5. 한국어, 900자 안팎. 반드시 아래 4개 마크다운 제목만 정확히 그대로 쓰세요:',
-    '## 🧭 상황 진단', '## 🎯 칸별 전략', '## ⭐ 먼저 할 것', '## 👣 이번 주 할 일',
-    '"칸별 전략" 안에서는 "### SO 전략", "### ST 전략", "### WO 전략", "### WT 전략" 소제목을 이 순서대로 달고 그 아래 "- " 줄로 쓰세요. "이번 주 할 일"도 "- " 줄 2~3개로 쓰세요.',
-  ].filter((l) => l !== '').join('\n');
-
-  const text = await askAiModels(prompt, PLAN_MODELS);
-  const at = kstDateTime();
-  if (text.startsWith('⚠️')) return { text };
-  await run(db().from('targets').update({ swot: sw, swot_at: at, swot_ai: text, swot_ai_at: at, updated_at: at }).eq('id', target.id));
-  await addTargetAiNote(target.target_id, mid, SWOT_AI_KIND, `${target.stage || '섭외'} 단계 · 추천 ${rec} · ${d.basis}`, text);
-  return { text, swotAiAt: at, swotAt: at, basis: d.basis };
-}
-
 // ── 섭외자 한 사람 화면(2026-10-25, 내 활동 보고) ── HEARTS(AI상담·교관 답) 누적 + 지금까지 받은 AI 개강 계획 누적. 새것부터.
 async function getTargetFile(body) {
   const mid = str(body.memberId);
@@ -740,7 +677,6 @@ async function deleteTargetInfo(body) {
 // ── 종합 피드백 (2026-10-30) ── 사용자: "파악 정보·단계 향상·SWOT·HEARTS·개강 계획 피드백을 모두 취합해 받을 수 있게, 쌓일수록 모두 취합되게".
 //   부를 때마다 그 사람에 대해 쌓인 것 전부(targetDossier + SWOT 표·SWOT AI·지금 개강 계획)를 다시 읽어 한 번에 정리. 결과는 kind 'AI 종합 피드백'.
 const MASTER_KIND = 'AI 종합 피드백';
-const swotText = (sw) => (sw ? [['강점', sw.s], ['약점', sw.w], ['기회', sw.o], ['위협', sw.t]].map(([k, v]) => `${k}: ${String(v || '').replace(/\n+/g, ' / ') || '-'}`).join('\n') : '');
 async function targetMasterFeedback(body) {
   const mid = str(body.memberId);
   const target = await ownedTarget(mid, body.targetId);
@@ -751,7 +687,7 @@ async function targetMasterFeedback(body) {
   ]);
   const n = (k) => notes.filter((x) => x.kind === k).length;
   const src = { info: n(INFO_KIND), stage: n('AI 단계향상 피드백'), swot: target.swot ? 1 : 0, hearts: d.coachN || 0, plan: n('개강 인도 계획') };
-  if (!d.acts.length && !src.info) return { error: '아직 모을 기록이 없어요. 활동 기록이나 파악한 정보를 먼저 남겨 주세요.' };
+  if (!d.acts.length && !src.info) return { error: '아직 모을 기록이 없어요. 활동 기록이나 정보 기록을 먼저 남겨 주세요.' };
   const goal = target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '아직 정하지 않음';
   const prompt = [
     '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 한 섭외자에 대해 지금까지 쌓인 모든 기록과 여러 AI·교관 피드백을 하나로 취합해, 교사가 이것 하나만 보면 되는 종합 피드백을 주세요.',
@@ -760,8 +696,6 @@ async function targetMasterFeedback(body) {
     '■ 교사가 파악한 정보', ...(d.info.length ? d.info : ['(없음)']),
     '■ 활동 기록', ...d.acts,
     '■ 단계 변경 이력', ...d.history,
-    '■ SWOT 표', swotText(target.swot) || '(없음)',
-    '■ SWOT AI 제안', target.swot_ai ? cut(target.swot_ai, 3000) : '(없음)',
     '■ 지금 개강 인도 계획', target.goal_plan ? cut(target.goal_plan, 4000) : '(없음)',
     '■ HEARTS(AI상담)·교관 답변', ...d.coaching,
     '■ 이전에 받은 AI 피드백(단계향상·개강 계획·파악 정보 등)', ...d.notes,
@@ -772,7 +706,7 @@ async function targetMasterFeedback(body) {
   ].join('\n');
   const text = await askAiModels(prompt, PLAN_MODELS);
   if (text.startsWith('⚠️')) return { error: text.replace(/^⚠️\s*/, '') };
-  const basis = `활동 ${d.actN || 0}건 · 파악 정보 ${src.info}건 · 단계향상 ${src.stage}회 · SWOT ${src.swot ? '있음' : '없음'} · HEARTS·교관 ${src.hearts}건 · 개강 계획 ${src.plan}회 취합`;
+  const basis = `활동 ${d.actN || 0}건 · 정보 기록 ${src.info}건 · 단계향상 ${src.stage}회 · HEARTS·교관 ${src.hearts}건 · 개강 계획 ${src.plan}회 취합`;
   await addTargetAiNote(target.target_id, mid, MASTER_KIND, basis, text);
   return { ok: true, text, at: fmtTs(kstDateTime()), basis, src };
 }
@@ -795,8 +729,6 @@ async function heartsDossier(body) {
     '■ 교사가 파악한 정보', ...(d.info.length ? d.info : ['- 없음']),
     '■ 활동 기록(만남·교육, 오래된 것부터)', ...d.acts,
     '■ 단계 변경 이력', ...d.history,
-    target.swot ? '■ SWOT 표\n' + swotText(target.swot) : '',
-    target.swot_ai ? '■ SWOT AI 제안(요약)\n' + cut(target.swot_ai, 1500) : '',
     target.goal_plan ? '■ 지금 개강 인도 계획(요약)\n' + cut(target.goal_plan, 2000) : '',
     '■ 이전 HEARTS 상담·교관 답변', ...d.coaching,
     '■ 이전에 받은 AI 피드백', ...d.notes,
@@ -850,6 +782,6 @@ async function targetInfoFeedback(body) {
 export default {
   getTargetStageDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
-  getTargetJournal, deleteTarget, planCohortLead, swotAdvice, writeCaseDraft, getTargetFile,
+  getTargetJournal, deleteTarget, planCohortLead, writeCaseDraft, getTargetFile,
   getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons, targetMasterFeedback, heartsDossier,
 };
