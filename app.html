@@ -3639,18 +3639,33 @@
     async function pdGate(id, nm, keepCover) {
       const sv = pdSavedRaw();
       if (!sv.guest && !sv.dept && !/^#attend=/.test(location.hash || '')) {   // 11/6: 부서를 아직 안 고른 저장 입장 → 한 번만 다시(번호·이름은 채워 둠)
-        try { sessionStorage.setItem('pd_err', '보안을 위해 한 번만 다시 들어와 주세요. 부서를 고르고 [입장하기]를 누르면 돼요.'); sessionStorage.setItem('pd_prefill', JSON.stringify({ id, nm })); localStorage.removeItem(PD_KEY); sessionStorage.removeItem('pd_in'); } catch (e) {}
-        pdSetToken(''); location.replace(location.pathname + (location.hash || '')); return;
+        return pdToLogin('보안을 위해 한 번만 다시 들어와 주세요. 부서를 고르고 [입장하기]를 누르면 돼요.', { id, nm });
       }
       let r;
       try { r = sv.guest ? await callApiOnce({ action: 'guestLogin', memberId: id, name: nm, dept: sv.dept }) : await callApiOnce({ action: 'verifyLogin', memberId: id, name: nm, dept: sv.dept }); }
       catch (e) { r = { error: '서버에 연결하지 못했어요. 잠시 후 다시 열어 주세요.', net: true }; }
       if (r && r.ok) { pdSetToken(r.token); if (r.guest) App.guest = true; pdEnter(id, nm, keepCover); return; }
       if (/^#attend=/.test(location.hash || '') && !(r && r.net)) { App.guest = true; pdEnter(id, nm, keepCover); return; }   // 명단에 없는 분: 출석만
-      if (r && r.net) { toast(r.error, true); return; }
-      try { localStorage.removeItem(PD_KEY); sessionStorage.removeItem('pd_in'); sessionStorage.setItem('pd_err', r && r.error || '고유번호와 이름을 확인해 주세요.'); if (r && (r.needPin || r.mismatch === 'dept')) sessionStorage.setItem('pd_prefill', JSON.stringify({ id, nm, dept: sv.dept, pin: !!r.needPin })); } catch (e) {}
-      pdSetToken('');
-      location.replace(location.pathname + (/^#room=/.test(location.hash || '') ? location.hash : ''));
+      if (r && r.net) return pdToLogin(r.error, { id, nm, dept: sv.dept }, true);   // 연결 실패: 저장은 남기고 입장 화면으로(표지에 멈추지 않게)
+      return pdToLogin(r && r.error || '고유번호와 이름을 확인해 주세요.', { id, nm, dept: sv.dept, pin: !!(r && r.needPin) });
+    }
+    // 11/6: 입장 화면으로 — 새로 고침은 이 창에서 한 번만(그래도 안 되면 그 자리에서 입장 칸을 보여 줌)
+    function pdToLogin(msg, prefill, keepSaved) {
+      try {
+        sessionStorage.setItem('pd_err', msg || '');
+        if (prefill) sessionStorage.setItem('pd_prefill', JSON.stringify(prefill));
+        sessionStorage.removeItem('pd_in');
+        if (!keepSaved) { localStorage.removeItem(PD_KEY); pdSetOwnerDevice(false); pdSetToken(''); }
+      } catch (e) {}
+      let again = false;
+      try { again = sessionStorage.getItem('pd_gate_once') === '1'; sessionStorage.setItem('pd_gate_once', '1'); } catch (e) {}
+      if (!again) { location.replace(location.pathname + (/^#(room|attend)=/.test(location.hash || '') ? location.hash : '')); return; }
+      // 이미 한 번 새로 고쳤으면: 표지를 걷고 입장 칸을 바로 보여 줌
+      const panel = document.getElementById('loginPanel'), app = document.getElementById('appPanel');
+      if (app) app.style.display = 'none';
+      if (panel) { panel.style.display = 'block'; panel.classList.remove('pd-leave'); }
+      try { const sp = document.getElementById('pdSplash'), form = document.getElementById('pdForm'); if (sp && form) { sp.classList.add('bk-instant', 'pd-with-form'); sp.onclick = null; sp.appendChild(form); } const i = document.getElementById('memberId'), n = document.getElementById('name'); if (i) i.disabled = false; if (n) n.disabled = false; } catch (e) {}
+      pdLoginMsg(msg || '');
     }
     /** 로그인 화면의 "입장 중..." 표시 후 실제 입장 */
     function pdEnterWithSpinner(id, nm, msg) {
@@ -3690,6 +3705,7 @@
           if (g && g.error) r = { error: g.error };
         }
         if (r && r.ok) {
+          try { sessionStorage.removeItem('pd_gate_once'); } catch (e) {}
           pdSetToken(r.token);
           if (r.pinVer && typeof pinRemember === 'function') pinRemember(fixed, r.pinVer);   // 핀은 방금 확인 — 입장 뒤 다시 묻지 않게
           pdSave(fixed, nm, dept);               // ← 다음부터 안 쳐도 되게 기억(명단 확인된 사람만)
@@ -3905,7 +3921,8 @@
 
       // 2026-10-07: 표지 미리보기(app.html?cover) — 저장된 로그인이 있어도 입장하지 않고 표지+입력 카드를 보여 주고, [다시 보기]로 반복
       const preview = /[?&]cover\b/.test(location.search);
-      const saved = preview ? null : (pdLoadSaved() || (pdIsOwnerDevice() ? { memberId: OWNER_ID, name: OWNER_NAME } : null));
+      // 11/6: 관리자 기기 자동 입장(번호만)은 뺌 — 부서 확인 관문에서 새로 고침이 끝없이 반복되며 표지만 돌던 원인
+      const saved = preview ? null : pdLoadSaved();
       // 2026-10-08(사용자 요청): 출석 QR(#attend=모임ID)로 들어오면 표지를 건너뜀 —
       // 로그인해 둔 사람은 바로 출석 제출 화면(enterFromHash → attOpen), 처음 오는 사람은 애니메이션 없이 입장 카드부터.
       const qrAttend = !preview && /^#attend=/.test(location.hash || '');
