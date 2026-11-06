@@ -120,6 +120,7 @@
       if (dup[n]) continue;
       dup[n] = true;
       var raw = text(x[C.tier]);
+      if (raw === '기타교사') raw = '기타';   // 11/6: 엑셀 구분이 '기타교사'로 바뀜 — 앱 등급 '기타'
       var tier = TIERS.indexOf(raw) !== -1 ? raw : '';
       if (!tier) other++;
       var stats = { month: tabName, edu: v(x, C.edu), counsel: v(x, C.counsel), gospel: v(x, C.gospel), family: v(x, C.family),
