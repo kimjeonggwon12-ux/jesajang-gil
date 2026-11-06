@@ -5,6 +5,7 @@ import { db, run } from './db.js';
 import { kstDate, kstDateTime, normId } from './util.js';
 import { findTeacher, findTeacherLoose, fixActivityNids, adminsAsTeachers, loadRoster, isApprover } from '../actions/roster.js';
 import { tablePng } from './table-image.js';
+import { targetNamesOf, scrubNames } from './name-scrub.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const deptLabelOf = (dept) => { const d = String(dept || '').trim(); return !d ? '' : /(회|부)$/.test(d) ? d : d + '회'; };
@@ -219,10 +220,11 @@ export async function postReport(row, room, kind) {
   const day = String(row.submitted_at || '').slice(5, 10).replace('-', '/').replace(/^0/, '');
   const head = kind === 'edit'
     ? `✏️ <b>[수정본]</b>  🙋 보고자 : ${who}${tags ? ` · ${esc(tags)}` : ''}\n${day} 보고를 고쳐 다시 올립니다`
-    : `🙋 보고자 : ${who}${tags ? ` · ${esc(tags)}` : ''}  <code>${esc(row.member_id)}</code>`;
+    : `🙋 보고자 : ${who}${tags ? ` · ${esc(tags)}` : ''}`;   // 11/6(사용자): 고유번호는 입장할 때만 — 텔레그램에 안 올림
   const affil = String((t && (t.affiliation || t.region)) || '').trim();
   const foot = `🙋 보고자 : ${who}${deptLabel ? ` · ${esc(deptLabel)}` : ''}${affil && affil !== deptLabel ? ` · ${esc(affil)}` : ''}`;
-  const body = esc(maskForChat(shapeReport(row), row));   // 11/3: 교사 = 전체, 인도·섬김 = 필요한 칸만, 협력 = 협력 항목만 · 11/4: 섭외자 가림
+  const names = await targetNamesOf([row.member_id], [row.target_name]);   // 11/6: 글 중간의 다른 섭외자 이름도
+  const body = esc(scrubNames(maskForChat(shapeReport(row), row), names));   // 11/3: 교사 = 전체, 인도·섬김 = 필요한 칸만, 협력 = 협력 항목만 · 11/4: 섭외자 가림
   const text = `${head}\n\n${body}\n${foot}`;
   const reply = kind === 'edit' && first ? first.msg : null;
 

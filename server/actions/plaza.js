@@ -6,6 +6,7 @@ import { afterAction } from '../lib/events.js';
 import { teachersByNid, isAdmin } from './roster.js';
 import { storeImage, isStoredUrl } from '../lib/images.js';
 import { TARGET_STAGES } from './targets.js';
+import { targetNamesOf, targetNamesByOwner, scrubDeep } from '../lib/name-scrub.js';
 
 const CATEGORIES = ['사례', '질문', '나눔', '불편신고', '전도부'];
 // 예전에 '성공사례'·'실패사례'로 나뉘어 있던 글도 '사례'로 본다.
@@ -40,6 +41,12 @@ async function commentCounts() {
 }
 
 /** DB 글 → 화면용. full 이면 본문·사진까지. */
+// 11/6(사용자): 글 속 섭외자 이름 가림 — 글쓴이 본인 화면은 그대로
+async function scrubPosts(list, viewerId) {
+  const byOwner = await targetNamesByOwner(list.map((o) => o.memberId));
+  return list.map((o) => (o.isMine ? o : scrubDeep(o, byOwner.get(normId(o.memberId)) || [])));
+}
+
 function toPost(p, roster, viewerId, counts, full) {
   const author = roster.get(normId(p.member_id)) || {};
   const post = {
@@ -84,13 +91,14 @@ async function listPlazaPosts(body) {
   const rows = all.filter((o) => inCategory(category, o.category)
     && (!keyword || `${o.title} ${o.summary} ${o.tags.join(' ')} ${o.name}`.toLowerCase().includes(keyword)));
 
-  const result = { rows: rows.slice(offset, offset + limit), total: rows.length, categories: CATEGORIES };
+  const result = { rows: await scrubPosts(rows.slice(offset, offset + limit), me), total: rows.length, categories: CATEGORIES };
   if (!offset) {
     const since = kstDateTime(new Date(Date.now() - 14 * 864e5));
     result.hot = all.filter((o) => o.createdAt >= since && inCategory(category, o.category))
       .map((o) => ({ o, score: o.likeCount * 2 + o.commentCount }))
       .sort((a, b) => b.score - a.score || newestFirst(a.o, b.o))
       .slice(0, 5).map((x) => x.o);
+    result.hot = await scrubPosts(result.hot, me);
     if (category === YARD) result.writers = topWriters(all, 5);
   }
   return result;
@@ -119,7 +127,9 @@ async function getPlazaPost(body) {
       createdAt: fmtTs(c.created_at), region: author.region || '', isMine: !!me && sameId(c.member_id, me),
     };
   }).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
-  return { post, comments };
+  // 11/6: 남이 보면 본문·댓글 속 섭외자 이름 가림(글쓴이·댓글쓴이들의 섭외자)
+  const names = post.isMine ? [] : await targetNamesOf([row.member_id, ...commentRows.map((c) => c.member_id)]);
+  return names.length ? { post: scrubDeep(post, names), comments: scrubDeep(comments, names) } : { post, comments };
 }
 
 const rosterName = async (memberId) => (await teachersByNid([memberId])).get(normId(memberId))?.name || '';

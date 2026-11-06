@@ -9,6 +9,7 @@ import { normId, str, kstDateTime, fmtTs } from '../lib/util.js';
 import { maskName } from '../lib/report-room.js';
 import { storeImage } from '../lib/images.js';
 import { findTeacherLoose } from './roster.js';
+import { targetNamesOf, scrubDeep, scrubNames } from '../lib/name-scrub.js';
 import { findTarget, owns, activitiesAbout, coachingAbout } from './targets.js';
 
 // targets.js 와 같은 값
@@ -52,6 +53,13 @@ async function markRead(a, lastId) {
   if (lastId > Number(a.member.last_read_id || 0)) await run(db().from('target_room_members').update({ last_read_id: lastId }).eq('id', a.member.id));
 }
 
+// 11/6(사용자): 담당이 아닌 분이 보는 것은 글 속 섭외자 이름까지 가림(담당 교사들의 섭외자 전부)
+const ownersOf = (t) => [t.creator_id, t.leader_id, t.helper_id].filter(Boolean);
+async function forViewer(a, out) {
+  if (a.isOwner) return out;
+  return scrubDeep(out, await targetNamesOf(ownersOf(a.target), [a.target.target_name]));
+}
+
 /** 방 열기·새 글 받기. afterId 가 있으면 그 뒤 글만(15초마다 확인용 — 가볍게). */
 async function getTargetRoom(body) {
   const a = await access(body.memberId, body.targetId, body.name);
@@ -64,19 +72,19 @@ async function getTargetRoom(body) {
   const lastId = rows.length ? Number(rows[rows.length - 1].id) : 0;
   await markRead(a, lastId);
   const out = { ok: true, messages: rows.map((m) => toMsg(m, a.nid)), isOwner: a.isOwner };
-  if (after) return out;
+  if (after) return forViewer(a, out);
   // 처음 열 때만: 섭외자·멤버·고정 글(300개보다 오래된 고정 글도)
   const [members, pins, invites] = await Promise.all([
     run(db().from('target_room_members').select('*').eq('target_id', a.target.target_id).order('id')),
     run(db().from('target_room_messages').select('*').eq('target_id', a.target.target_id).eq('pinned', true).eq('deleted', false).order('id')),
     a.isOwner ? activeInvites(a.target.target_id).catch(() => []) : [],
   ]);
-  return {
+  return forViewer(a, {
     ...out, target: targetView(a.target, a.isOwner),
     members: members.map((m) => ({ key: Number(m.id), name: m.name, role: m.role, by: m.invited_by, me: m.nid === a.nid, at: fmtTs(m.joined_at).slice(0, 10) })),
     pins: pins.map((m) => toMsg(m, a.nid)),
     invites,
-  };
+  });
 }
 
 // ── 초대 링크 (11/6) ── 교사명단에 없는 인도자·섬김이도. 24시간 · 최대 5명 · 담당이 끊기 가능.
@@ -253,7 +261,7 @@ async function getRoomRecords(body) {
   const of = (k) => notes.filter((n) => n.kind === k).map((n) => ({ at: fmtTs(n.created_at).slice(0, 16), basis: n.input, text: n.text }));
   const plans = of(PLAN_KIND);
   if (!plans.length && t.goal_plan) plans.push({ at: fmtTs(t.goal_plan_at).slice(0, 16), basis: '', text: t.goal_plan });
-  return {
+  return forViewer(a, {
     ok: true,
     goalMonth: t.goal_cohort ? Number(t.goal_cohort.slice(5)) : 0,
     infoFeedback: of(INFO_FB_KIND), master: of(MASTER_KIND), plans,
@@ -267,7 +275,7 @@ async function getRoomRecords(body) {
       today: x.today_work, next: x.next_work, special: x.special_note,
     })),
     history: hist.map((h) => ({ at: fmtTs(h.changed_at).slice(0, 10), from: h.from_stage, to: h.to_stage, memo: h.memo })),
-  };
+  });
 }
 
 /** 내가 들어가 있는 섭외자 대화방 목록(새 글 수·마지막 글). */
@@ -285,7 +293,7 @@ async function listMyRooms(body) {
     run(db().from('target_room_members').select('target_id').in('target_id', ids)),
   ]);
   const byId = new Map(targets.map((t) => [t.target_id, t]));
-  const rows = mine.map((m) => {
+  const rows = (await Promise.all(mine.map(async (m) => {
     const t = byId.get(m.target_id);
     if (!t) return null;
     const own = owns(t, nid);
@@ -294,9 +302,9 @@ async function listMyRooms(body) {
     const last = list[list.length - 1];
     return {
       ...targetView(t, own), isOwner: own, unread, members: counts.filter((c) => c.target_id === m.target_id).length,
-      last: last ? { text: last.deleted ? '(지운 글)' : last.body || (last.photo ? '📷 사진' : ''), from: last.from_name, at: fmtTs(last.created_at).slice(5, 16) } : null,
+      last: last ? { text: last.deleted ? '(지운 글)' : (own ? last.body : scrubNames(last.body, await targetNamesOf(ownersOf(t), [t.target_name]))) || (last.photo ? '📷 사진' : ''), from: last.from_name, at: fmtTs(last.created_at).slice(5, 16) } : null,
     };
-  }).filter(Boolean);
+  }))).filter(Boolean);
   return { rows: rows.sort((x, y) => (y.unread - x.unread) || String((y.last || {}).at || '').localeCompare(String((x.last || {}).at || ''))) };
 }
 
