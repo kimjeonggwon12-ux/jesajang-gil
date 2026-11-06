@@ -2946,6 +2946,14 @@
 
         <!-- 2026-10-06: 이 입력 묶음(#pdForm)은 처음 오는 사람에게 표지 화면 아래에 그대로 붙여 보여 준다(pdBoot) -->
         <div id="pdForm">
+        <!-- 2026-11-06(사용자): 부서·고유번호·이름이 명단과 맞아야 입장 -->
+        <div class="pd-field">
+          <label class="pd-label" for="pdDept">부서</label>
+          <select id="pdDept" class="pd-input" style="appearance:auto">
+            <option value="">부서를 고르세요</option>
+            <option>자문회</option><option>장년회</option><option>부녀회</option><option>청년회</option><option>교역자</option><option>중진</option><option>전도부</option>
+          </select>
+        </div>
         <!-- 2026-10-06(사용자 요청): 표지에서 이름 → 고유번호(비밀번호 역할) 순서로 입력 -->
         <div class="pd-field">
           <label class="pd-label" for="name">이름</label>
@@ -3302,9 +3310,11 @@
     App.esc = esc;
     // 2026-11-06(사용자): 입장 표 — 명단(교사·관리자)에 있는 고유번호+이름으로 들어온 사람만 서버가 받아 준다(server/lib/auth.js)
     const PD_TK = 'pd_tk_v1';
+    const idShow = v => /^r_/.test(String(v || '')) ? '' : String(v || '');   // 11/6: 남의 고유번호는 서버가 가려서 보냄 — 화면엔 안 보임
     const pdNid = id => String(id || '').replace(/\D/g, '').replace(/^0+/, '') || '0';
     function pdTokenNow() { try { return localStorage.getItem(PD_TK) || ''; } catch (e) { return ''; } }
-    function pdTokenFor(id) { const t = pdTokenNow(); return t && t.split('.')[0] === pdNid(id) ? t : ''; }
+    function pdTokenFor(id) { const t = pdTokenNow(); return /^[mg]\d+\./.test(t) && t.slice(1).split('.')[0] === pdNid(id) ? t : ''; }
+    const pdIsGuestTok = () => /^g\d+\./.test(pdTokenNow());
     function pdSetToken(t) { try { if (t) localStorage.setItem(PD_TK, t); else localStorage.removeItem(PD_TK); } catch (e) {} }
     let pdAuthLostOnce = false;
     function pdAuthLost(msg) {   // 서버가 '표 없음'이라고 하면: 저장된 입장을 지우고 입장 화면으로
@@ -3571,9 +3581,11 @@
         return (v && v.memberId && v.name) ? v : null;
       } catch (e) { return null; }
     }
-    function pdSave(memberId, name) {
-      try { localStorage.setItem(PD_KEY, JSON.stringify({ memberId, name })); } catch (e) {}
+    function pdSave(memberId, name, dept, guest) {
+      const old = pdSavedRaw(), same = old.memberId && pdNid(old.memberId) === pdNid(memberId);   // 부서·손님 여부는 같은 사람이면 이어 감
+      try { localStorage.setItem(PD_KEY, JSON.stringify({ memberId, name, dept: dept || (same ? old.dept : '') || '', guest: guest === undefined ? !!(same && old.guest) : !!guest })); } catch (e) {}
     }
+    function pdSavedRaw() { try { return JSON.parse(localStorage.getItem(PD_KEY) || 'null') || {}; } catch (e) { return {}; } }
     function pdClearSaved() {
       pdSetToken('');
       try { localStorage.removeItem(PD_KEY); } catch (e) {}
@@ -3590,6 +3602,7 @@
       document.getElementById('appPanel').style.display = 'flex';
       try { sessionStorage.setItem('pd_in', '1'); } catch (e) {}   // 이 창에서 이미 들어와 있음 → 새로 고침하면 표지 없이 보던 탭으로
       Back.enter();
+      if (App.guest && pdIsGuestTok()) { trGuestHome(); return; }   // 11/6: 손님 = 초대받은 대화방만
       updateAdminTabVisibility();
       renderMeChips();     // 우선 이름만 — 명단을 받으면 부서·직책까지 다시 그림
       // 2026-10-08: 출석 QR(#attend=)로 들어온 첫 화면 = '출석 전용' — 서버 요청을 출석 2번(모임 정보·제출)만.
@@ -3624,15 +3637,20 @@
 
     // 11/6: 저장된 입장(표 없음)으로 들어오는 사람 — 서버에서 명단 확인. 명단에 없으면 출석 QR만 허용, 아니면 입장 화면으로.
     async function pdGate(id, nm, keepCover) {
+      const sv = pdSavedRaw();
+      if (!sv.guest && !sv.dept && !/^#attend=/.test(location.hash || '')) {   // 11/6: 부서를 아직 안 고른 저장 입장 → 한 번만 다시(번호·이름은 채워 둠)
+        try { sessionStorage.setItem('pd_err', '보안을 위해 한 번만 다시 들어와 주세요. 부서를 고르고 [입장하기]를 누르면 돼요.'); sessionStorage.setItem('pd_prefill', JSON.stringify({ id, nm })); localStorage.removeItem(PD_KEY); sessionStorage.removeItem('pd_in'); } catch (e) {}
+        pdSetToken(''); location.replace(location.pathname + (location.hash || '')); return;
+      }
       let r;
-      try { r = await callApiOnce({ action: 'verifyLogin', memberId: id, name: nm }); }
+      try { r = sv.guest ? await callApiOnce({ action: 'guestLogin', memberId: id, name: nm, dept: sv.dept }) : await callApiOnce({ action: 'verifyLogin', memberId: id, name: nm, dept: sv.dept }); }
       catch (e) { r = { error: '서버에 연결하지 못했어요. 잠시 후 다시 열어 주세요.', net: true }; }
-      if (r && r.ok) { pdSetToken(r.token); pdEnter(id, nm, keepCover); return; }
+      if (r && r.ok) { pdSetToken(r.token); if (r.guest) App.guest = true; pdEnter(id, nm, keepCover); return; }
       if (/^#attend=/.test(location.hash || '') && !(r && r.net)) { App.guest = true; pdEnter(id, nm, keepCover); return; }   // 명단에 없는 분: 출석만
       if (r && r.net) { toast(r.error, true); return; }
-      try { localStorage.removeItem(PD_KEY); sessionStorage.removeItem('pd_in'); sessionStorage.setItem('pd_err', r && r.error || '고유번호와 이름을 확인해 주세요.'); } catch (e) {}
+      try { localStorage.removeItem(PD_KEY); sessionStorage.removeItem('pd_in'); sessionStorage.setItem('pd_err', r && r.error || '고유번호와 이름을 확인해 주세요.'); if (r && (r.needPin || r.mismatch === 'dept')) sessionStorage.setItem('pd_prefill', JSON.stringify({ id, nm, dept: sv.dept, pin: !!r.needPin })); } catch (e) {}
       pdSetToken('');
-      location.replace(location.pathname);
+      location.replace(location.pathname + (/^#room=/.test(location.hash || '') ? location.hash : ''));
     }
     /** 로그인 화면의 "입장 중..." 표시 후 실제 입장 */
     function pdEnterWithSpinner(id, nm, msg) {
@@ -3662,11 +3680,19 @@
       idEl.disabled = true; nmEl.disabled = true;
       const eb = document.getElementById('pdEnterBtn'), la = document.getElementById('pdLoading'), lt = document.getElementById('pdLoadingText');
       if (eb) eb.style.display = 'none'; if (la) la.classList.add('on'); if (lt) lt.textContent = '명단 확인 중...';
-      const fixed = pdFixId(id);
-      callApiOnce({ action: 'verifyLogin', memberId: fixed, name: nm }).catch(() => ({ error: '서버에 연결하지 못했어요. 잠시 후 다시 눌러 주세요.', net: true })).then(r => {
+      const fixed = pdFixId(id), deptEl = document.getElementById('pdDept'), dept = deptEl ? deptEl.value : '';
+      const roomCode = ((location.hash || '').match(/^#room=([A-Za-z0-9-]+)/) || [])[1] || '';
+      const pinEl = document.getElementById('pdPin'), pin = pinEl && pinEl.offsetParent ? pinEl.value.trim() : '';
+      callApiOnce({ action: 'verifyLogin', memberId: fixed, name: nm, dept, pin }).catch(() => ({ error: '서버에 연결하지 못했어요. 잠시 후 다시 눌러 주세요.', net: true })).then(async r => {
+        if (r && r.notListed && roomCode && dept) {   // 11/6: 명단에 없는 분 + 대화방 초대 링크 → 손님
+          const g = await callApiOnce({ action: 'guestLogin', memberId: fixed, name: nm, dept, code: roomCode }).catch(() => null);
+          if (g && g.ok) { pdSetToken(g.token); pdSave(fixed, nm, dept, true); App.guest = true; pdEnterWithSpinner(fixed, nm, '손님으로 입장 중...'); return; }
+          if (g && g.error) r = { error: g.error };
+        }
         if (r && r.ok) {
           pdSetToken(r.token);
-          pdSave(fixed, nm);               // ← 다음부터 안 쳐도 되게 기억(명단 확인된 사람만)
+          if (r.pinVer && typeof pinRemember === 'function') pinRemember(fixed, r.pinVer);   // 핀은 방금 확인 — 입장 뒤 다시 묻지 않게
+          pdSave(fixed, nm, dept);               // ← 다음부터 안 쳐도 되게 기억(명단 확인된 사람만)
           if (fixed.replace(/[^0-9]/g, '') === OWNER_ID) pdSetOwnerDevice(true);
           pdEnterWithSpinner(fixed, nm, '입장 중...');
           return;
@@ -3678,10 +3704,24 @@
         }
         idEl.disabled = false; nmEl.disabled = false;
         if (eb) eb.style.display = ''; if (la) la.classList.remove('on');
+        if (r && r.needPin) pdShowPin();   // 핀번호를 정한 분: 핀 칸을 보여 줌
         pdLoginMsg((r && r.error) || '고유번호와 이름을 확인해 주세요.');
-        (r && /이름/.test(r.error || '') ? nmEl : idEl).classList.add('pd-err');
+        ((r && r.mismatch === 'dept') || (r && r.needDept) ? (deptEl || idEl) : r && r.mismatch === 'name' ? nmEl : idEl).classList.add('pd-err');
+        setTimeout(() => { if (deptEl) deptEl.classList.remove('pd-err'); }, 1200);
         setTimeout(() => { idEl.classList.remove('pd-err'); nmEl.classList.remove('pd-err'); }, 1200);
       });
+    }
+    // 11/6: 핀번호를 정한 분 — 입장 화면에 핀 칸(서버가 핀까지 확인해야 입장 표를 줌)
+    function pdShowPin() {
+      let f = document.getElementById('pdPinField');
+      if (!f) {
+        const eb = document.getElementById('pdEnterBtn');
+        f = document.createElement('div'); f.className = 'pd-field'; f.id = 'pdPinField';
+        f.innerHTML = '<label class="pd-label" for="pdPin">핀번호</label><input type="password" id="pdPin" class="pd-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="숫자 4~6자리">';
+        eb.parentNode.insertBefore(f, eb);
+        f.querySelector('input').addEventListener('keydown', e => { if (e.key === 'Enter') startSession(); });
+      }
+      f.style.display = ''; setTimeout(() => { const i = document.getElementById('pdPin'); if (i) i.focus(); }, 50);
     }
     // 11/6: 입장 화면의 안내 글(명단에 없는 번호 등)
     function pdLoginMsg(msg) {
@@ -3853,6 +3893,8 @@
       const panel = document.getElementById('loginPanel');
       panel.style.display = 'block';
       try { const em = sessionStorage.getItem('pd_err'); if (em) { sessionStorage.removeItem('pd_err'); setTimeout(() => pdLoginMsg(em), 50); } } catch (e) {}
+      try { const pf = JSON.parse(sessionStorage.getItem('pd_prefill') || 'null'); if (pf) { sessionStorage.removeItem('pd_prefill'); document.getElementById('memberId').value = pf.id || ''; document.getElementById('name').value = pf.nm || ''; if (pf.dept) document.getElementById('pdDept').value = pf.dept; if (pf.pin) setTimeout(pdShowPin, 80); } } catch (e) {}
+      if (/^#room=/.test(location.hash || '')) setTimeout(() => pdLoginMsg('💬 섭외자 대화방 초대 링크로 오셨어요. 부서·이름·고유번호를 넣고 [입장하기]를 누르세요. (교사명단에 없는 분은 손님으로 대화방만 들어가요)'), 60);
 
       // 관리자 테스트링크(?memberId=&name=)는 표지를 건너뛰고 바로 입장
       if (window.TEST_MEMBER_ID && window.TEST_NAME) {
@@ -10791,6 +10833,7 @@
       document.getElementById('trLayer')?.remove();
       trSt.id = '';
       if (window.newMarks) newMarks.check(true);
+      if (App.guest && window.trGuestHome) { trGuestHome(); return; }
       if (window.trListLoad) trListLoad();
       if (typeof renderHome === 'function' && App.currentTab === 'activity') renderHome();
     };
@@ -11017,11 +11060,28 @@
       try { await navigator.clipboard.writeText(text + '\n' + url); toast('초대 링크를 복사했어요. 카톡·텔레그램에 붙여 넣어 보내세요.'); }
       catch (e) { prompt('이 글을 복사해 보내세요', text + '\n' + url); }
     };
+    // 11/6 손님(명단에 없는 분) 첫 화면 — 초대받은 대화방 목록만. 앱의 다른 화면은 안 보임.
+    window.trGuestHome = async function () {
+      trCss();
+      let g = document.getElementById('trGuest');
+      if (!g) { g = document.createElement('div'); g.id = 'trGuest'; g.className = 'tr-layer'; g.style.zIndex = '10005'; document.body.appendChild(g); }
+      const draw = () => { g.innerHTML = `<div class="tr-bar"><div class="tr-t"><b>💬 섭외자 대화방</b><small>${esc(MY_NAME)} 님 · 손님</small></div><button type="button" onclick="trGuestOut()" style="width:auto;padding:0 12px;font-size:13px">나가기</button></div>
+        <div class="tr-body"><div class="tr-note" style="margin-bottom:10px">교사명단에 없는 분은 <b>손님</b>으로, 초대받은 대화방만 볼 수 있어요.</div>${trSt.list ? (trSt.list.length ? trListHtml().replace(/^[\s\S]*?<\/form>/, '') : '<div class="tr-note">들어가 있는 대화방이 없어요. 담당 교사에게 초대 링크를 받아 주세요.</div>') : '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>'}</div>`; };
+      draw();
+      const code = ((location.hash || '').match(/^#room=([A-Za-z0-9-]+)/) || [])[1];
+      if (code) { history.replaceState(null, '', location.pathname + location.search); await trJoinCode(code); }
+      const res = await callApi({ action: 'listMyRooms', memberId: MEMBER_ID });
+      trSt.list = res && !res.error ? res.rows || [] : [];
+      trSt.byTarget = Object.fromEntries(trSt.list.map(r => [r.id, r]));
+      draw();
+    };
+    window.trGuestOut = function () { pdClearSaved(); try { sessionStorage.removeItem('pd_in'); } catch (e) {} location.replace(location.pathname); };
     // 초대 링크(#room=코드)나 코드로 들어오기
     window.trJoinCode = async function (code) {
       if (!MEMBER_ID) return;
       const res = await callApi({ action: 'joinRoomByCode', memberId: MEMBER_ID, name: MY_NAME, code });
       if (!res || res.error) { toast((res && res.error) || '들어가지 못했어요.', true); return; }
+      if (App.guest) { trOpen(res.targetId); return; }
       if (App.currentTab !== 'activity') switchTab('activity');
       if (typeof actSetPage === 'function') actSetPage('rooms');
       if (!res.already) toast('섭외자 대화방에 들어왔어요.');
@@ -13683,7 +13743,7 @@ function reqEduLogTableHtml() {
             ${list.map(r => `
               <tr>
                 <td class="text-xs whitespace-nowrap text-base-content/50">${esc(r.at)}</td>
-                <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.memberId)}</div></td>
+                <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(idShow(r.memberId))}</div></td>
                 <td class="text-xs">${REQ_EDU_ICON[r.category] || ''} ${esc(r.category)}</td>
                 <td class="text-xs">${r.kind === '취소' ? '<span class="text-base-content/30">-</span>' : esc(r.date)}</td>
                 <td class="text-xs">${r.registrar ? esc(r.registrar) : '<span class="text-base-content/30">미기재</span>'}</td>
@@ -13714,14 +13774,14 @@ function renderReqEduAdminSection() {
           <div class="mt-1.5 border border-base-300 rounded-box overflow-hidden">
             ${results.map(r => `
               <button class="reqedu-pick w-full text-left px-3 py-2 text-xs hover:bg-base-200 border-b border-base-200 last:border-b-0 ${f.picked && f.picked.memberId === r.memberId ? 'bg-primary/10 font-bold' : ''}" data-mid="${esc(r.memberId)}">
-                ${esc(r.name)} <span class="text-base-content/40">· ${esc(r.dept || '')} ${esc(r.region || '')} · ${esc(r.memberId)}</span>
+                ${esc(r.name)} <span class="text-base-content/40">· ${esc(r.dept || '')} ${esc(r.region || '')}</span>
               </button>`).join('')}
           </div>` : (f.query.trim() ? `<div class="text-[11px] text-base-content/40 mt-1.5">검색 결과가 없습니다.</div>` : '')}
       </div>
 
       ${f.picked ? `
         <div class="rounded-box border border-primary/30 bg-primary/5 px-3 py-2">
-          <div class="text-xs font-bold">선택됨: ${esc(f.picked.name)} <span class="font-normal text-base-content/50">(${esc(f.picked.memberId)} · ${esc(f.picked.dept)} ${esc(f.picked.region)})</span></div>
+          <div class="text-xs font-bold">선택됨: ${esc(f.picked.name)} <span class="font-normal text-base-content/50">(${esc(f.picked.dept)} ${esc(f.picked.region)})</span></div>
           ${f.current ? `<div class="flex flex-wrap gap-1 mt-1.5">
             ${REQ_EDU_CATEGORIES.map(c => `<span class="badge badge-xs ${cur[c] ? 'badge-success' : 'badge-ghost'}">${REQ_EDU_ICON[c] || ''} ${esc(c)}${cur[c] ? ' ' + esc(cur[c]) : ''}</span>`).join('')}
           </div>` : `<div class="text-[11px] text-base-content/40 mt-1">현재 이수 현황 불러오는 중...</div>`}
@@ -14339,7 +14399,7 @@ function leadsDetailHtml() {
             <tbody>${list.map((r, i) => `
               <tr>
                 <td class="text-base-content/40">${i + 1}</td>
-                <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.memberId)}</div></td>
+                <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(idShow(r.memberId))}</div></td>
                 <td class="text-base-content/60 text-xs">${esc(r.region || '')}</td>
                 <td class="text-base-content/60">${esc(r.tier)}</td>
                 <td class="font-bold text-accent">${r.leadCount}명</td>
@@ -14366,7 +14426,7 @@ function leadsDetailHtml() {
             <tbody>${memberList.map((r, i) => `
               <tr>
                 <td class="text-base-content/40">${i + 1}</td>
-                <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.memberId)}</div></td>
+                <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(idShow(r.memberId))}</div></td>
                 <td class="font-bold text-accent">${r.count}명</td>
               </tr>`).join('')}</tbody>
           </table>
@@ -14432,7 +14492,7 @@ function inactiveDetailHtml(s) {
           <tbody>${listFiltered.map(r => `
             <tr>
               <td><span class="badge ${INACT_BADGE[r.inactivity]} badge-sm">${r.inactivity === 'danger' ? '경고' : '주의'}</span></td>
-              <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(r.memberId)}</div></td>
+              <td class="font-medium">${esc(r.name)}<div class="text-[10px] text-base-content/40">${esc(idShow(r.memberId))}</div></td>
               <td class="text-base-content/60 text-xs">${esc(r.region || '')}${r.dept ? ' · ' + esc(r.dept) : ''}</td>
               <td class="text-base-content/60">${esc(r.tier)}</td>
               <td class="text-xs whitespace-nowrap ${r.lastActivityDate ? '' : 'text-base-content/40'}">${r.lastActivityDate ? esc(r.lastActivityDate) : '기록 없음'}</td>
@@ -15292,7 +15352,7 @@ function teacherSheetHtml(t, extra) {
         (교역자와 센터 사명자는 직책과 상관없이 들어갈 수 있어요)
       </div>
 
-      <div class="tls-id">고유번호 ${esc(t.memberId)}</div>
+      ${idShow(t.memberId) ? `<div class="tls-id">고유번호 ${esc(t.memberId)}</div>` : ''}
       <button class="kko-btn-outline" id="tls-encourage" style="margin-top:12px">💌 격려 메시지 보내기</button>
     </div>`;
 }
@@ -17315,7 +17375,7 @@ async function calAdmInit() {
             <button type="button" class="ra-row" onclick="rosterAdm.edit(${i})">
               <span style="flex:1;min-width:0">
                 <b>${esc(p.name)}</b>
-                <div class="ra-sub">${esc([p.dept, p.region, p.affiliation].filter(Boolean).join(' · '))} · ${esc(p.memberId)}</div>
+                <div class="ra-sub">${esc([p.dept, p.region, p.affiliation, idShow(p.memberId)].filter(Boolean).join(' · '))}</div>
               </span>
               ${p.admin ? `<span class="ra-tag adm">관리자 · ${esc(p.admin.position)}</span>` : ''}
               ${p.inRoster ? `<span class="ra-tag">${esc(p.tier || '활동교사')}</span>` : '<span class="ra-tag out">교사명단에 없음</span>'}
@@ -17363,7 +17423,7 @@ async function calAdmInit() {
 
       function teacherForm(p, isNew) {
         return `${lists}
-          ${field('raId', '고유번호', p.memberId, isNew ? 'placeholder="예: 00230901-00011" autocomplete="off"' : 'readonly')}
+          ${isNew ? field('raId', '고유번호', p.memberId, 'placeholder="예: 00230901-00011" autocomplete="off"') : `<input type="hidden" id="raId" value="${esc(p.memberId)}">`}   <!-- 11/6: 기존 교사의 고유번호는 화면에 안 보임 -->
           <div class="ra-two">${field('raName', '이름', p.name)}${field('raDept', '부서', p.dept, 'list="raDepts"')}</div>
           <div class="ra-two">${field('raRegion', '지역', p.region, 'list="raRegions"')}${field('raAffil', '소속(구역)', p.affiliation)}</div>
           <div class="ra-two">${field('raPos', '직책', p.position)}${field('raNote', '소속 비고', p.note)}</div>`;
@@ -17823,7 +17883,7 @@ async function calAdmInit() {
           await detail(cohortId);
           if (skipped.length) {
             openSheet(`${H('교육생 추가 결과')}<p class="ra-note">${res.added}명 등록 · 아래 ${skipped.length}명은 넣지 않았어요.</p>
-              ${skipped.map(s => `<div class="ra-log"><b>${esc(s.name || '(이름 없음)')}</b> <small>${esc(s.church)} ${esc(s.memberId)}</small><div class="ra-diff">${esc(s.why)}</div></div>`).join('')}`);
+              ${skipped.map(s => `<div class="ra-log"><b>${esc(s.name || '(이름 없음)')}</b> <small>${esc(s.church)} ${esc(idShow(s.memberId))}</small><div class="ra-diff">${esc(s.why)}</div></div>`).join('')}`);
           }
         } catch (e) { toast(e.message, true); }
         if (btn) btn.disabled = false;

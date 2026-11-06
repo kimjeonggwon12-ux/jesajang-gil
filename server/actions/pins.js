@@ -12,7 +12,7 @@ const hashPin = (pin, salt) => crypto.scryptSync(String(pin), salt, 32).toString
 const validPin = (pin) => /^\d{4,6}$/.test(String(pin || ''));
 const kstPlusMin = (min) => kstDateTime(new Date(Date.now() + min * 60e3));
 
-async function pinRow(memberId) {
+export async function pinRow(memberId) {
   const nid = normId(memberId);
   if (!nid) return null;
   const rows = await run(db().from('member_pins').select('*').eq('nid', nid).limit(1));
@@ -20,7 +20,7 @@ async function pinRow(memberId) {
 }
 
 /** 핀을 맞게 넣었는지 — 잠금·틀린 횟수까지 처리. { ok } 또는 { error } */
-async function checkPin(row, pin) {
+export async function checkPin(row, pin) {
   const now = kstDateTime();
   if (row.locked_until && row.locked_until > now) {
     return { error: `여러 번 틀려서 잠겼어요. ${row.locked_until.slice(11, 16)} 이후에 다시 해 주세요.`, locked: true };

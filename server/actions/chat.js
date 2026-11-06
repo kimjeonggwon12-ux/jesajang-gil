@@ -29,7 +29,7 @@ async function sendMessage(body) {
 
 /** 대화방의 메시지(오래된 것부터). after 를 주면 그 시각 뒤의 것만. */
 async function getMessages(body) {
-  const chatId = str(body.chatId);
+  const chatId = str(body.chatId).split('__').map((x) => x.trim()).sort().join('__');   // 11/6: 앱이 가린 번호로 만든 방 번호 → 원래 번호 순서로
   if (!chatId) return { error: 'chatId 가 필요합니다.' };
   const after = String(body.after || '');
   const data = await selectAll(() => db().from('chat_messages').select('*').eq('chat_id', chatId).order('id'));
@@ -76,7 +76,7 @@ async function getChatList(body) {
 
 /** 그 대화방에서 내가 받은 메시지를 모두 읽음으로. */
 async function markRead(body) {
-  const chatId = str(body.chatId);
+  const chatId = str(body.chatId).split('__').map((x) => x.trim()).sort().join('__');   // 11/6: 앱이 가린 번호로 만든 방 번호 → 원래 번호 순서로
   const me = str(body.memberId);
   if (!chatId || !me) return { error: 'chatId, memberId 가 필요합니다.' };
   const unread = await run(db().from('chat_messages').select('id, to_id').eq('chat_id', chatId).eq('is_read', false));

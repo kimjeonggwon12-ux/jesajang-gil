@@ -2,7 +2,9 @@
 // 아직 옮기지 않은 action 은 LEGACY_URL(Apps Script)로 그대로 넘긴다.
 import { actions } from '../server/registry.js';
 import { fixMemberIds } from '../server/lib/id-alias.js';
-import { tokenNid, PUBLIC_ACTIONS } from '../server/lib/auth.js';
+import { tokenInfo, PUBLIC_ACTIONS, GUEST_ACTIONS } from '../server/lib/auth.js';
+import { maskOut, unmaskIn } from '../server/lib/idref.js';
+import { normId } from '../server/lib/util.js';
 
 async function readBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -33,15 +35,23 @@ export default async function handler(req, res) {
   if (req.method === 'GET') return res.status(200).json({ status: '제사장의 길 API 서버가 작동 중입니다.' });
 
   try {
-    const body = fixMemberIds(await readBody(req));
+    // 2026-11-06: 요청 속 가린 번호(r_…)를 원래 번호로(server/lib/idref.js)
+    const body = fixMemberIds(unmaskIn(await readBody(req)));
     const action = body.action || 'generateContent';
-    // 2026-11-06: 입장 표(_tk) 없는 요청 거절 — 명단에 있는 번호+이름으로 들어온 사람만(server/lib/auth.js). 예외: PUBLIC(출석 QR 등)·예약 작업(key)
+    // 2026-11-06: 입장 표(_tk) 없는 요청 거절 — 명단(부서·번호·이름)으로 들어온 사람만(server/lib/auth.js). 예외: PUBLIC(출석 QR 등)·예약 작업(key)
     const tk = body._tk; delete body._tk;
     const cron = !!process.env.TEACHERSQUARE_CRON_KEY && body.key === process.env.TEACHERSQUARE_CRON_KEY;
-    if (!PUBLIC_ACTIONS.has(action) && !cron && !tokenNid(tk)) return res.status(200).json({ error: '로그인이 필요해요. 앱을 다시 열어 고유번호와 이름으로 들어와 주세요.', auth: false });
+    const who = tokenInfo(tk);
+    if (!PUBLIC_ACTIONS.has(action) && !cron && !who) return res.status(200).json({ error: '로그인이 필요해요. 앱을 다시 열어 부서·고유번호·이름으로 들어와 주세요.', auth: false });
+    // 손님(명단에 없는 분): 초대받은 대화방만, 그리고 자기 번호로만
+    if (who && who.guest && !PUBLIC_ACTIONS.has(action)) {
+      if (!GUEST_ACTIONS.has(action)) return res.status(200).json({ error: '손님은 초대받은 대화방과 출석만 쓸 수 있어요.', guestOnly: true });
+      if (normId(body.memberId) !== who.nid) return res.status(200).json({ error: '로그인이 필요해요.', auth: false });
+    }
     const fn = actions[action];
     const result = fn ? await fn(body) : await forwardToLegacy({ ...body, action });
-    return res.status(200).json(result);
+    // 2026-11-06(사용자): 고유번호는 입장할 때만 — 응답의 남의 번호는 가린다(본인 번호·예약 작업 응답은 그대로)
+    return res.status(200).json(cron ? result : maskOut(result, who ? who.nid : normId(body.memberId)));
   } catch (err) {
     return res.status(200).json({ error: String(err && err.message ? err.message : err) });
   }
