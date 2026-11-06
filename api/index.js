@@ -2,6 +2,7 @@
 // 아직 옮기지 않은 action 은 LEGACY_URL(Apps Script)로 그대로 넘긴다.
 import { actions } from '../server/registry.js';
 import { fixMemberIds } from '../server/lib/id-alias.js';
+import { tokenNid, PUBLIC_ACTIONS } from '../server/lib/auth.js';
 
 async function readBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -34,6 +35,10 @@ export default async function handler(req, res) {
   try {
     const body = fixMemberIds(await readBody(req));
     const action = body.action || 'generateContent';
+    // 2026-11-06: 입장 표(_tk) 없는 요청 거절 — 명단에 있는 번호+이름으로 들어온 사람만(server/lib/auth.js). 예외: PUBLIC(출석 QR 등)·예약 작업(key)
+    const tk = body._tk; delete body._tk;
+    const cron = !!process.env.TEACHERSQUARE_CRON_KEY && body.key === process.env.TEACHERSQUARE_CRON_KEY;
+    if (!PUBLIC_ACTIONS.has(action) && !cron && !tokenNid(tk)) return res.status(200).json({ error: '로그인이 필요해요. 앱을 다시 열어 고유번호와 이름으로 들어와 주세요.', auth: false });
     const fn = actions[action];
     const result = fn ? await fn(body) : await forwardToLegacy({ ...body, action });
     return res.status(200).json(result);

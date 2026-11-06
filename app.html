@@ -3299,13 +3299,29 @@
     };
     function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     App.esc = esc;
+    // 2026-11-06(사용자): 입장 표 — 명단(교사·관리자)에 있는 고유번호+이름으로 들어온 사람만 서버가 받아 준다(server/lib/auth.js)
+    const PD_TK = 'pd_tk_v1';
+    const pdNid = id => String(id || '').replace(/\D/g, '').replace(/^0+/, '') || '0';
+    function pdTokenNow() { try { return localStorage.getItem(PD_TK) || ''; } catch (e) { return ''; } }
+    function pdTokenFor(id) { const t = pdTokenNow(); return t && t.split('.')[0] === pdNid(id) ? t : ''; }
+    function pdSetToken(t) { try { if (t) localStorage.setItem(PD_TK, t); else localStorage.removeItem(PD_TK); } catch (e) {} }
+    let pdAuthLostOnce = false;
+    function pdAuthLost(msg) {   // 서버가 '표 없음'이라고 하면: 저장된 입장을 지우고 입장 화면으로
+      if (App.guest || pdAuthLostOnce) return;   // 명단에 없는 출석 손님은 출석만 — 다른 요청이 거절돼도 그대로 둠
+      pdAuthLostOnce = true;
+      pdSetToken(''); try { localStorage.removeItem(PD_KEY); sessionStorage.removeItem('pd_in'); sessionStorage.setItem('pd_err', msg || '다시 들어와 주세요.'); } catch (e) {}
+      location.replace(location.pathname);
+    }
     async function callApiOnce(payload) {
-      const res = await fetch(App.PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+      const tk = pdTokenNow();
+      const res = await fetch(App.PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(tk ? { ...payload, _tk: tk } : payload) });
       // 2026-09-16(home.html)~: Apps Script가 간헐적으로 JSON 대신 HTML(구글 로그인/오류 페이지 등)을
       // 반환하는 경우가 있어 Content-Type을 먼저 확인해 사람이 읽는 에러 메시지로 통일한다.
       const ct = res.headers.get('content-type') || '';
       if (!ct.includes('application/json')) throw new Error('서버 연결 오류. 잠시 후 다시 시도해주세요.');
-      return await res.json();
+      const out = await res.json();
+      if (out && out.auth === false) pdAuthLost(out.error);
+      return out;
     }
     // 2026-10-05 속도 개선: Apps Script는 요청마다 3~4초가 기본으로 걸리고, 동시에 여러 개를 보내면 가끔 하나가
     // HTML 오류 페이지로 튕긴다. 그래서 ① 읽기 요청은 실패하면 0.6초 뒤 1번 다시 시도하고
@@ -3340,6 +3356,7 @@
     }
     /** 첫 화면(광장 · 전도부 게시판)이 부르는 것과 글자 하나까지 같은 요청이어야 이어받는다. memberId 가 없으면 누구에게나 같은 것만. */
     function warmFirstScreen(memberId) {
+      if (!pdTokenNow() || (memberId && !pdTokenFor(memberId))) return;   // 11/6: 입장 표가 있어야 서버가 받아 줌
       const list = [{ action: 'getCalendarAds' }, { action: 'getAdQuestions' }];
       if (memberId) {
         // 2026-10-22: 첫 화면 = 나의교실 › 내 활동 — loadHome()이 부르는 6가지와 같은 요청
@@ -3557,12 +3574,14 @@
       try { localStorage.setItem(PD_KEY, JSON.stringify({ memberId, name })); } catch (e) {}
     }
     function pdClearSaved() {
+      pdSetToken('');
       try { localStorage.removeItem(PD_KEY); } catch (e) {}
     }
 
     /** 실제 입장 — 세션 변수 4개를 채우고 앱 화면으로 전환한다(기존 로직 그대로). */
     function pdEnter(id, nm, keepCover) {   // keepCover: 표지를 바로 숨기지 않음(부른 쪽이 걷어 냄)
       if (pdFixId(id) !== id) { id = pdFixId(id); pdSave(id, nm); }   // 잘못 넣은 번호로 다시 쳐서 들어와도 바른 번호로
+      if (!App.guest && !pdTokenFor(id)) { pdGate(id, nm, keepCover); return; }   // 11/6: 명단 확인 전에는 못 들어옴
       try { document.querySelector('meta[name="theme-color"]').content = '#00AE82'; } catch (e) {}   // 표지(책상 색) → 앱(초록)
       App.memberId = id; App.name = nm;
       MEMBER_ID = id; MY_NAME = nm; memberId = id; name = nm;
@@ -3591,6 +3610,10 @@
     }
     function attLeaveQrOnly() {
       if (!App.qrOnly) return;
+      if (App.guest) {   // 11/6: 명단에 없는 분은 출석까지만
+        try { sessionStorage.setItem('pd_err', '출석이 끝났어요. 교사광장은 교사명단에 등록된 분만 들어올 수 있어요.'); sessionStorage.removeItem('pd_in'); } catch (e) {}
+        location.replace(location.pathname); return;
+      }
       App.qrOnly = false;
       history.replaceState(history.state, '', location.pathname + location.search);
       loadMyRosterRow();
@@ -3598,6 +3621,18 @@
       showInstallToastIfNeeded();
     }
 
+    // 11/6: 저장된 입장(표 없음)으로 들어오는 사람 — 서버에서 명단 확인. 명단에 없으면 출석 QR만 허용, 아니면 입장 화면으로.
+    async function pdGate(id, nm, keepCover) {
+      let r;
+      try { r = await callApiOnce({ action: 'verifyLogin', memberId: id, name: nm }); }
+      catch (e) { r = { error: '서버에 연결하지 못했어요. 잠시 후 다시 열어 주세요.', net: true }; }
+      if (r && r.ok) { pdSetToken(r.token); pdEnter(id, nm, keepCover); return; }
+      if (/^#attend=/.test(location.hash || '') && !(r && r.net)) { App.guest = true; pdEnter(id, nm, keepCover); return; }   // 명단에 없는 분: 출석만
+      if (r && r.net) { toast(r.error, true); return; }
+      try { localStorage.removeItem(PD_KEY); sessionStorage.removeItem('pd_in'); sessionStorage.setItem('pd_err', r && r.error || '고유번호와 이름을 확인해 주세요.'); } catch (e) {}
+      pdSetToken('');
+      location.replace(location.pathname);
+    }
     /** 로그인 화면의 "입장 중..." 표시 후 실제 입장 */
     function pdEnterWithSpinner(id, nm, msg) {
       const la = document.getElementById('pdLoading'), lt = document.getElementById('pdLoadingText');
@@ -3623,10 +3658,36 @@
         return;
       }
 
-      pdSave(id, nm);               // ← 다음부터 안 쳐도 되게 기억
-      if (id.replace(/[^0-9]/g, '') === OWNER_ID) pdSetOwnerDevice(true);
       idEl.disabled = true; nmEl.disabled = true;
-      pdEnterWithSpinner(id, nm, '입장 중...');
+      const eb = document.getElementById('pdEnterBtn'), la = document.getElementById('pdLoading'), lt = document.getElementById('pdLoadingText');
+      if (eb) eb.style.display = 'none'; if (la) la.classList.add('on'); if (lt) lt.textContent = '명단 확인 중...';
+      const fixed = pdFixId(id);
+      callApiOnce({ action: 'verifyLogin', memberId: fixed, name: nm }).catch(() => ({ error: '서버에 연결하지 못했어요. 잠시 후 다시 눌러 주세요.', net: true })).then(r => {
+        if (r && r.ok) {
+          pdSetToken(r.token);
+          pdSave(fixed, nm);               // ← 다음부터 안 쳐도 되게 기억(명단 확인된 사람만)
+          if (fixed.replace(/[^0-9]/g, '') === OWNER_ID) pdSetOwnerDevice(true);
+          pdEnterWithSpinner(fixed, nm, '입장 중...');
+          return;
+        }
+        if (/^#attend=/.test(location.hash || '') && !(r && r.net)) {   // 명단에 없는 분 — 출석 QR이면 출석만
+          App.guest = true;
+          pdEnterWithSpinner(fixed, nm, '출석 화면으로...');
+          return;
+        }
+        idEl.disabled = false; nmEl.disabled = false;
+        if (eb) eb.style.display = ''; if (la) la.classList.remove('on');
+        pdLoginMsg((r && r.error) || '고유번호와 이름을 확인해 주세요.');
+        (r && /이름/.test(r.error || '') ? nmEl : idEl).classList.add('pd-err');
+        setTimeout(() => { idEl.classList.remove('pd-err'); nmEl.classList.remove('pd-err'); }, 1200);
+      });
+    }
+    // 11/6: 입장 화면의 안내 글(명단에 없는 번호 등)
+    function pdLoginMsg(msg) {
+      let el = document.getElementById('pdLoginMsg');
+      const eb = document.getElementById('pdEnterBtn');
+      if (!el && eb) { el = document.createElement('div'); el.id = 'pdLoginMsg'; el.style.cssText = 'margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;font-size:13.5px;line-height:1.5;white-space:pre-line;text-align:left'; eb.parentNode.insertBefore(el, eb.nextSibling); }
+      if (el) { el.textContent = msg; el.style.display = msg ? '' : 'none'; }
     }
 
     /**
@@ -3790,6 +3851,7 @@
       pdTakeCarry();
       const panel = document.getElementById('loginPanel');
       panel.style.display = 'block';
+      try { const em = sessionStorage.getItem('pd_err'); if (em) { sessionStorage.removeItem('pd_err'); setTimeout(() => pdLoginMsg(em), 50); } } catch (e) {}
 
       // 관리자 테스트링크(?memberId=&name=)는 표지를 건너뛰고 바로 입장
       if (window.TEST_MEMBER_ID && window.TEST_NAME) {
