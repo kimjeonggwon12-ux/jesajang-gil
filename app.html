@@ -185,7 +185,7 @@
     #bottomTabBar .tab .tab-icon { width: 100%; max-width: 52px; height: 36px; align-items: center; justify-content: center; border-radius: 999px; transition: background .15s ease; }
     #bottomTabBar .tab .tab-icon svg { width: 26px; height: 26px; }
     #bottomTabBar .tab.tab-active .tab-icon { background: #E3F6EF; }
-    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #storyDot, #bottomTabBar .tab .tab-icon #joinDot, #bottomTabBar .tab .tab-icon #connectDot, #bottomTabBar .tab .tab-icon #textbookDot { top: 3px !important; right: 9px !important; }
+    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #storyDot, #bottomTabBar .tab .tab-icon #joinDot, #bottomTabBar .tab .tab-icon #connectDot, #bottomTabBar .tab .tab-icon #textbookDot, #bottomTabBar .tab .tab-icon #activityDot { top: 3px !important; right: 9px !important; }
     #appSections { padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
     /* 2026-10-10(사용자 요청): 하단 메인 탭 — 표지에서 '창' 하나만 가져옴(린넨·금박 전체는 과해서 뺌).
        흰 바탕 + 표지 린넨색(#2E483D) 아이콘, 지금 탭 = 표지에 뚫린 창(살구색 첫 장 #F2B995가 비치는 오목한 칸). */
@@ -201,7 +201,7 @@
     #bottomTabBar .tab.tab-active .tab-icon svg rect[fill="currentColor"] { stroke: var(--bk-page); }   /* 교재·영상: 화면 테두리·재생 삼각형 = 창 색 */
     #bottomTabBar .tab.tab-active .tab-icon svg path[fill="#fff"] { fill: var(--bk-page); }
     #bottomTabBar .tab:active .tab-icon { opacity: 1; }
-    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #storyDot, #bottomTabBar .tab .tab-icon #joinDot, #bottomTabBar .tab .tab-icon #connectDot, #bottomTabBar .tab .tab-icon #textbookDot { top: 3px !important; right: 6px !important; }
+    #bottomTabBar .tab .tab-icon #plazaDot, #bottomTabBar .tab .tab-icon #storyDot, #bottomTabBar .tab .tab-icon #joinDot, #bottomTabBar .tab .tab-icon #connectDot, #bottomTabBar .tab .tab-icon #textbookDot, #bottomTabBar .tab .tab-icon #activityDot { top: 3px !important; right: 6px !important; }
     @media (max-width: 359px) { #bottomTabBar .tab .tab-icon { width: 46px; max-width: 46px; } }
     /* 2026-10-19: 하단 탭이 8칸(일정·광고·사례·참여 추가)이라 좁은 폰에선 칸 폭에 맞춰 줄어들게 */
     #bottomTabBar .tab .tab-icon { width: min(54px, calc(100% - 4px)); }
@@ -2539,6 +2539,7 @@
     .act-pages[data-act-page="attend"] > [data-ap]:not([data-ap="attend"]),
     .act-pages[data-act-page="targets"] > [data-ap]:not([data-ap="targets"]),
     .act-pages[data-act-page="edu"] > [data-ap]:not([data-ap="edu"]),
+    .act-pages[data-act-page="rooms"] > [data-ap]:not([data-ap="rooms"]),
     .act-pages[data-act-page="goal"] > [data-ap]:not([data-ap="goal"]),
     .act-pages[data-act-page="report"] > [data-ap]:not([data-ap="report"]) { display:none; }
     .hs-tabs { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; padding:12px 16px 14px; border-bottom:8px solid #F4F5F7; }
@@ -2688,7 +2689,7 @@
     .gl-detail span { font-size:20px; }
     .af-goal { padding:10px 12px; border-radius:12px; background:#FFF4EC; border:1px solid #FFD2B3; }
     .af-goal .act-chip-btn.on { background:#E8590C; border-color:#E8590C; color:#fff; }
-    .act-pages[data-act-page="attend"] ~ #act-fab, .act-pages[data-act-page="edu"] ~ #act-fab { display:none; }   /* + 활동 기록 버튼은 내 활동·센터 인도 계획에서만 */
+    .act-pages[data-act-page="attend"] ~ #act-fab, .act-pages[data-act-page="edu"] ~ #act-fab, .act-pages[data-act-page="rooms"] ~ #act-fab { display:none; }   /* + 활동 기록 버튼은 내 활동·센터 인도 계획에서만 */
     /* 출석 탭: QR 버튼 + 출석·지각·결석 요약 + 모임 전체 목록 */
     .att-sum { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:12px 0 4px; }
     .att-sum div { padding:10px 4px; border-radius:12px; background:#F5F7F8; text-align:center; font-size:12.5px; font-weight:700; color:#666; }
@@ -3124,7 +3125,6 @@
           <button type="button" class="on" data-tab="card">내 명함</button>
           <button type="button" data-tab="find">활동신청자</button>
           <button type="button" data-tab="board">도와주세요</button>
-          <button type="button" data-tab="rooms">섭외자 대화방</button>   <!-- 11/6 섭외자 대화방 목록 -->
         </nav>
         <div class="ctc-bar" id="cnCtc"></div>
         <main id="cnView" class="cn-wrap"></main>
@@ -3203,7 +3203,7 @@
         <span class="tab-label">사례</span>
       </button>
       <button role="tab" class="tab tab-active" data-tab="activity" onclick="switchTab('activity')" title="나의교실" aria-label="나의교실">
-        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-13: 나의교실 = 연필(기록) + 막대 그래프(쌓이는 활동) --><g transform="translate(10.6 -0.2) scale(.58)" stroke-width="3.1"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></g><g fill="currentColor" stroke="none"><rect x="2.4" y="17.6" width="3.6" height="4" rx=".9" /><rect x="8" y="15.4" width="3.6" height="6.2" rx=".9" /><rect x="13.6" y="13.2" width="3.6" height="8.4" rx=".9" /><rect x="19.2" y="11" width="3.6" height="10.6" rx=".9" /></g></svg></span>
+        <span class="tab-icon" style="position:relative"><span id="activityDot" class="tab-n">N</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-13: 나의교실 = 연필(기록) + 막대 그래프(쌓이는 활동) --><g transform="translate(10.6 -0.2) scale(.58)" stroke-width="3.1"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></g><g fill="currentColor" stroke="none"><rect x="2.4" y="17.6" width="3.6" height="4" rx=".9" /><rect x="8" y="15.4" width="3.6" height="6.2" rx=".9" /><rect x="13.6" y="13.2" width="3.6" height="8.4" rx=".9" /><rect x="19.2" y="11" width="3.6" height="10.6" rx=".9" /></g></svg></span>
         <span class="tab-label">나의교실</span>
       </button>
       <button role="tab" class="tab" data-tab="connect" onclick="switchTab('connect')" title="연결" aria-label="연결">
@@ -4547,6 +4547,8 @@
       if (EMBED_PLAZA) { switchTab('calendar', true); return; }
       const am = h.match(/^attend=([A-Za-z0-9_-]+)/);   // 2026-10-05: 출석 QR(app.html#attend=모임ID)
       if (am) { if (!App.qrOnly) switchTab('activity'); attOpen(decodeURIComponent(am[1]), 'qr'); return; }
+      const rm = h.match(/^room=([A-Za-z0-9-]+)/);   // 11/6: 섭외자 대화방 초대 링크
+      if (rm) { history.replaceState(null, '', location.pathname + location.search + '#activity'); switchTab('activity', true); trJoinCode(rm[1]); return; }
       // 2026-10-13: 새로 고침으로 다시 들어온 경우는 보던 탭 그대로
       if (App.resume) { App.resume = false; if (TAB_IDS.includes(h)) { switchTab(h, true); return; } }
       // 2026-10-06(사용자 요청): 들어가면 항상 광장. 주소의 #탭은 지난번에 보던 화면이 남은 것이라 무시하고,
@@ -4603,19 +4605,21 @@
       function has(tab) {
         if (!cur || !seen) return false;
         if (tab === 'textbook') { const sv = new Set(seen.video || []); return cur.course > (seen.course || 0) || (cur.video || []).some(k => !sv.has(k)); }
-        if (tab === 'connect') return cur.card > (seen.card || 0) || cur.help > (seen.help || 0) || cur.room > 0;   // 11/6: 섭외자 대화방 안 읽은 글(서버 읽음 표시라 탭을 열어도 안 사라짐)
+        if (tab === 'connect') return cur.card > (seen.card || 0) || cur.help > (seen.help || 0);
+        if (tab === 'activity') return cur.room > 0;   // 11/6: 섭외자 대화방 안 읽은 글 → 나의교실 N(서버 읽음 표시라 방을 읽어야 사라짐)
         return false;
       }
       function opened(tab) {
         if (!cur || !seen) return;
         if (tab === 'textbook') { seen.course = cur.course; seen.video = (cur.video || []).slice(-1000); save(); }
         else if (tab === 'connect') { seen.card = cur.card; seen.help = cur.help; save(); }
-        else return;
-        paint();
+        paint();   // 다른 탭으로 가도 다시 그림(나의교실 N 등)
       }
       function paint() {
         const d = document.getElementById('textbookDot');
         if (d) d.style.display = App.currentTab !== 'textbook' && has('textbook') ? 'flex' : 'none';
+        const ad = document.getElementById('activityDot');
+        if (ad) ad.style.display = App.currentTab !== 'activity' && has('activity') ? 'flex' : 'none';
         paintConnectDot();
       }
       async function check(force) {
@@ -4640,6 +4644,8 @@
       const h = (location.hash || '').replace('#', '');
       const am = h.match(/^attend=([A-Za-z0-9_-]+)/);
       if (am && App.memberId) { switchTab('activity'); attOpen(decodeURIComponent(am[1]), 'qr'); return; }
+      const rm = h.match(/^room=([A-Za-z0-9-]+)/);
+      if (rm && App.memberId) { history.replaceState(null, '', location.pathname + location.search + '#activity'); trJoinCode(rm[1]); return; }
       if (TAB_IDS.includes(h) && h !== App.currentTab) renderTab(h);
     });
 
@@ -8426,6 +8432,7 @@
       return `
         <div class="pb-6 act-pages" data-act-page="${actPage}">
           <div data-ap="attend">${attCardHtml()}</div>
+          <div data-ap="rooms" id="actRoomsBody" style="padding:12px 14px">${window.trListHtml ? trListHtml() : ''}</div>
           <div data-ap="targets">
             ${tierProgressBannerHtml()}
             ${centerBadgeBannerHtml()}
@@ -9086,7 +9093,8 @@
     // 2026-10-25(2차, 사용자): '내 활동'과 '내 교육 보고'가 겹침 → '내 활동 보고' 하나로(섭외자 그리드 + 사람별 교육 이력·피드백·보고·사례)
     // 10/25(3차): '내 센터 인도 계획' 탭 없앰 — 사람 화면의 '○월 개강 계획' 칸에서 목표·설계·지난 계획까지
     // 10/27(사용자): '내가 이수한 교육' 탭 없앰, '내 활동 보고'가 맨 앞(메인 중 메인)·'내 교육 출석'은 그 오른쪽
-    const ACT_PAGES = [['targets', '내 활동 보고'], ['attend', '내 교육 출석']];
+    // 11/6(사용자): 섭외자 대화방 = 나의교실, 내 활동 보고 오른쪽·내 교육 출석 왼쪽
+    const ACT_PAGES = [['targets', '내 활동 보고'], ['rooms', '섭외자 대화방'], ['attend', '내 교육 출석']];
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
@@ -9103,10 +9111,12 @@
     let actPage = 'targets';   // 2026-10-22: 들어오면 내 활동부터
     function renderActTabs() {
       const el = document.getElementById('actTabs'); if (!el) return;
-      el.innerHTML = ACT_PAGES.map(([k, l]) => `<button type="button" class="${k === actPage ? 'on' : ''}${k === 'goal' ? ' hot' : ''}" onclick="actSetPage('${k}')">${l}</button>`).join('');
+      const roomN = k => k === 'rooms' && window.trUnreadTotal ? trUnreadTotal() : 0;
+      el.innerHTML = ACT_PAGES.map(([k, l]) => `<button type="button" class="${k === actPage ? 'on' : ''}${k === 'goal' ? ' hot' : ''}" onclick="actSetPage('${k}')">${l}${roomN(k) ? '<span class="new-badge">N</span>' : ''}</button>`).join('');
     }
     window.actSetPage = function (k) {
       actPage = k;
+      if (k === 'rooms' && window.trListLoad) trListLoad();
       if (home.view === 'targetDetail') home.view = 'dashboard';
       renderHome();
       document.getElementById('appSections').scrollTop = 0;
@@ -10704,7 +10714,7 @@
       const res = await trApi({ action: 'getTargetRoom' });
       trSt.busy = false;
       if (!res || res.error) { trSt.err = (res && res.error) || '방을 열지 못했어요.'; trRender(); return; }
-      Object.assign(trSt, { room: res.target, msgs: res.messages || [], pins: res.pins || [], members: res.members || [], isOwner: !!res.isOwner });
+      Object.assign(trSt, { room: res.target, msgs: res.messages || [], pins: res.pins || [], members: res.members || [], isOwner: !!res.isOwner, invites: res.invites || [] });
       if (trSt.byTarget[targetId]) trSt.byTarget[targetId].unread = 0;
       trRender(true);
       clearInterval(trSt.timer);
@@ -10716,8 +10726,8 @@
       document.getElementById('trLayer')?.remove();
       trSt.id = '';
       if (window.newMarks) newMarks.check(true);
-      if (App.currentTab === 'connect' && window.trListLoad) trListLoad();
-      else if (typeof renderHome === 'function' && App.currentTab === 'activity') renderHome();
+      if (window.trListLoad) trListLoad();
+      if (typeof renderHome === 'function' && App.currentTab === 'activity') renderHome();
     };
     async function trPoll() {
       if (!trSt.id || trSt.busy) return;
@@ -10766,15 +10776,20 @@
         + (r.history.length ? '<div class="tr-sec">📈 단계 이력</div>' + r.history.map(h => `<div class="tr-card"><b>${esc(h.at)}</b> · ${esc(h.from || '처음')} → <b>${esc(h.to)}</b>${h.memo ? `<div style="color:#6B7280">${esc(h.memo)}</div>` : ''}</div>`).join('') : '');
     }
     function trMembersHtml() {
-      const mem = trSt.members.map(m => `<div class="tr-mem"><span class="av">${esc(String(m.name || '?').charAt(0))}</span><div class="m"><b>${esc(m.name)}</b>${m.me ? ' <small style="display:inline">(나)</small>' : ''}<small>${m.role === '담당' ? '담당 교사' : '초대'} · ${esc(m.at)}</small></div>
+      const mem = trSt.members.map(m => `<div class="tr-mem"><span class="av">${esc(String(m.name || '?').charAt(0))}</span><div class="m"><b>${esc(m.name)}</b>${m.me ? ' <small style="display:inline">(나)</small>' : ''}<small>${m.role === '담당' ? '담당 교사' : m.by && /링크$/.test(m.by) ? '초대 링크' : '초대'} · ${esc(m.at)}</small></div>
           ${m.me && m.role !== '담당' ? `<button type="button" class="red" data-tr-leave="${m.key}">방 나가기</button>` : !m.me && trSt.isOwner && m.role !== '담당' ? `<button type="button" class="red" data-tr-leave="${m.key}">내보내기</button>` : ''}</div>`).join('');
-      const inv = !trSt.isOwner ? '' : `<div class="tr-sec">➕ 초대하기 <span style="color:#6B7280;font-weight:700;font-size:12.5px">교사명단의 누구나</span></div>
+      const links = !trSt.isOwner ? '' : `<div class="tr-sec">🔗 초대 링크 <span style="color:#6B7280;font-weight:700;font-size:12.5px">교사명단에 없는 인도자·섬김이도</span></div>
+        <div class="tr-note" style="margin-bottom:8px">링크를 카톡·텔레그램으로 보내면, 받은 분이 <b>자기 고유번호·이름</b>으로 앱에 들어와 바로 이 방에 들어와요. <b>24시간</b> 동안 <b>최대 5명</b>까지, [끊기]를 누르면 바로 막혀요.</div>
+        ${(trSt.invites || []).map(v => `<div class="tr-mem"><span class="av">🔗</span><div class="m"><b>${esc(v.code)}</b><small>${esc(v.expires)}까지 · ${v.uses}/${v.max}명 들어옴</small></div>
+          <button type="button" class="go" data-tr-share="${esc(v.raw)}">보내기</button><button type="button" class="red" data-tr-revoke="${esc(v.raw)}">끊기</button></div>`).join('')}
+        <button type="button" class="er-o-main" data-tr-mklink style="width:100%;margin-bottom:6px">🔗 초대 링크 만들기</button>`;
+      const inv = !trSt.isOwner ? '' : `<div class="tr-sec">➕ 이름으로 초대 <span style="color:#6B7280;font-weight:700;font-size:12.5px">교사·관리자 명단</span></div>
         <form class="tr-search" data-tr-find><input id="trQ" type="search" enterkeyhint="search" placeholder="이름 두 글자 이상" value="${esc(trSt.q)}" autocomplete="off"><button type="submit">찾기</button></form>
         ${trSt.found === 'busy' ? '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 찾는 중…</div>'
           : Array.isArray(trSt.found) ? (trSt.found.length ? trSt.found.map(p => `<div class="tr-mem"><span class="av">${esc(p.name.charAt(0))}</span><div class="m"><b>${esc(p.name)}</b><small>${esc([p.dept, p.region, p.affiliation, p.position].filter(Boolean).join(' · '))}</small></div>
               ${p.joined ? '<button type="button" disabled>들어와 있음</button>' : `<button type="button" class="go" data-tr-inv="${esc(p.key)}">초대</button>`}</div>`).join('') : '<div class="tr-note">찾은 사람이 없어요.</div>') : ''}
         <div class="tr-note" style="margin-top:8px">초대받은 분은 <b>대화</b>와 이 섭외자의 <b>정보 기록·활동 이력</b>을 볼 수 있어요(고치기는 담당 교사만). 새 글은 앱 아래 <b>연결</b> 탭의 N으로 알려 드려요.</div>`;
-      return `<div class="tr-sec">👥 이 방에 있는 분 ${trSt.members.length}명</div>${mem}${inv}`;
+      return `<div class="tr-sec">👥 이 방에 있는 분 ${trSt.members.length}명</div>${mem}${links}${inv}`;
     }
     function trRender(scrollEnd) {
       const layer = document.getElementById('trLayer'); if (!layer) return;
@@ -10852,6 +10867,19 @@
           if (res.message.pinned) trSt.pins.push(res.message);
           trSt.photo = ''; trSt.pin = false; trRender(true); return;
         }
+        if ((el = g('[data-tr-mklink]'))) {
+          el.disabled = true;
+          const res = await trApi({ action: 'createRoomInvite' });
+          if (!res || res.error) { el.disabled = false; return toast((res && res.error) || '링크를 만들지 못했어요.', true); }
+          await trReload('members'); return trShareLink(res.raw);
+        }
+        if ((el = g('[data-tr-share]'))) return trShareLink(el.dataset.trShare);
+        if ((el = g('[data-tr-revoke]'))) {
+          if (!confirm('이 초대 링크를 끊을까요? 이미 들어온 분은 그대로 있어요.')) return;
+          const res = await trApi({ action: 'revokeRoomInvite', code: el.dataset.trRevoke });
+          if (!res || res.error) return toast((res && res.error) || '끊지 못했어요.', true);
+          toast('링크를 끊었어요.'); return trReload('members');
+        }
         if ((el = g('[data-tr-inv]'))) {
           el.disabled = true;
           const res = await trApi({ action: 'inviteToRoom', key: el.dataset.trInv, query: trSt.q });
@@ -10888,7 +10916,7 @@
     }
     async function trReload(tab) {
       const res = await trApi({ action: 'getTargetRoom' });
-      if (res && !res.error) Object.assign(trSt, { msgs: res.messages || [], pins: res.pins || [], members: res.members || [], room: res.target, isOwner: !!res.isOwner });
+      if (res && !res.error) Object.assign(trSt, { msgs: res.messages || [], pins: res.pins || [], members: res.members || [], room: res.target, isOwner: !!res.isOwner, invites: res.invites || [] });
       trSt.tab = tab || trSt.tab; trSt.found = null; trRender();
     }
     // 사진: 긴 변 1280px·약 400KB 안으로 줄여서(WebP 우선) — 서버가 R2에 올림
@@ -10915,7 +10943,32 @@
         rd.readAsDataURL(file);
       });
     }
-    // 연결 › 섭외자 대화방 목록
+    // 초대 링크 보내기 — 폰이면 공유 창(카톡·텔레그램), 아니면 복사. 섭외자 이름은 글에 넣지 않음.
+    const trLinkUrl = raw => location.origin + location.pathname + '#room=' + raw;
+    window.trShareLink = async function (raw) {
+      const code = raw.slice(0, 4) + '-' + raw.slice(4), url = trLinkUrl(raw);
+      const text = `[교사광장] 섭외자 대화방 초대\n아래 링크를 누르고 내 고유번호·이름으로 들어오면 바로 대화방이 열려요. (24시간)\n초대 코드: ${code}`;
+      try { if (navigator.share) { await navigator.share({ title: '섭외자 대화방 초대', text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+      try { await navigator.clipboard.writeText(text + '\n' + url); toast('초대 링크를 복사했어요. 카톡·텔레그램에 붙여 넣어 보내세요.'); }
+      catch (e) { prompt('이 글을 복사해 보내세요', text + '\n' + url); }
+    };
+    // 초대 링크(#room=코드)나 코드로 들어오기
+    window.trJoinCode = async function (code) {
+      if (!MEMBER_ID) return;
+      const res = await callApi({ action: 'joinRoomByCode', memberId: MEMBER_ID, name: MY_NAME, code });
+      if (!res || res.error) { toast((res && res.error) || '들어가지 못했어요.', true); return; }
+      if (App.currentTab !== 'activity') switchTab('activity');
+      if (typeof actSetPage === 'function') actSetPage('rooms');
+      if (!res.already) toast('섭외자 대화방에 들어왔어요.');
+      trOpen(res.targetId);
+    };
+    window.trJoinSubmit = function (e) {
+      e.preventDefault();
+      const v = (document.getElementById('trJoinCode').value || '').replace(/[^A-Za-z0-9]/g, '');
+      if (v.length !== 8) return toast('초대 코드 8자리를 넣어 주세요.', true);
+      trJoinCode(v);
+    };
+    // 나의교실 › 섭외자 대화방 목록
     window.trListLoad = async function () {
       if (trSt.listBusy) return;
       trSt.listBusy = true;
@@ -10923,12 +10976,16 @@
       trSt.listBusy = false;
       trSt.list = res && !res.error ? res.rows || [] : [];
       trSt.byTarget = Object.fromEntries(trSt.list.map(r => [r.id, r]));
-      if (window.cnRenderRooms) cnRenderRooms();
+      const box = document.getElementById('actRoomsBody'); if (box) box.innerHTML = trListHtml();
+      if (typeof renderActTabs === 'function') renderActTabs();
+      if (window.newMarks) newMarks.paint();
       if (App.currentTab === 'activity' && typeof renderHome === 'function' && typeof erSel !== 'undefined' && erSel) renderHome();
     };
+    window.trUnreadTotal = () => (trSt.list || []).reduce((n, r) => n + (r.unread || 0), 0);
     window.trListHtml = function () {
       trCss();
-      const head = '<div class="tr-note" style="margin-bottom:10px">💬 <b>섭외자 대화방</b> — 섭외자 한 사람에 관한 중요 정보를 텔레그램과 섞지 않고 여기 한곳에 모아요. 방은 <b>나의교실 › 섭외자 화면의 [💬 대화방]</b> 칸에서 열고, 함께할 분을 초대해요.</div>';
+      const head = '<div class="tr-note" style="margin-bottom:10px">💬 <b>섭외자 대화방</b> — 섭외자 한 사람에 관한 중요 정보를 텔레그램과 섞지 않고 여기 한곳에 모아요. 방은 <b>내 활동 보고 › 섭외자 화면의 [💬 대화방]</b> 칸에서 열고, 함께할 분을 초대해요.</div>'
+        + '<form class="tr-search" data-tr-join onsubmit="trJoinSubmit(event)"><input id="trJoinCode" placeholder="초대 코드 (예: K7P2-9QXM)" autocomplete="off" autocapitalize="characters" maxlength="9"><button type="submit">들어가기</button></form>';
       if (!trSt.list) return head + '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>';
       if (!trSt.list.length) return head + '<div class="tr-note">아직 들어가 있는 대화방이 없어요.</div>';
       return head + trSt.list.map(r => `<button type="button" class="tr-list-item" onclick="trOpen('${esc(r.id)}')"><span class="tr-mem" style="all:unset"><span class="av" style="width:40px;height:40px;border-radius:50%;background:#E6F7F1;color:#00875F;display:flex;align-items:center;justify-content:center;font-weight:900">${esc(String(r.name).charAt(0))}</span></span>
