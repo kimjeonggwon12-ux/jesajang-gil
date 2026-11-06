@@ -36,17 +36,26 @@ export async function targetNamesByOwner(memberIds) {
   return new Map([...map].map(([n, set]) => [n, [...set].sort((a, b) => b.length - a.length)]));
 }
 
-/** 글 속 섭외자 이름 → 홍○동 ('#홍길동' 꼴도). */
+// 11/6(사용자 화면: 정보 기록에 '-연락처: 010 7554 3078', '-나이/생년월일: 35세/91 11 10'): 연락처·생년월일·주민번호·주소도 가림
+const CONTACT_LABEL = /^([\s\-*•·]*[^:\n：]{0,12}(연락처|전화|휴대폰|핸드폰|폰번호|생년월일|생일|주민|주소|카톡\s*아이디|카카오톡)[^:\n：]{0,8}[:：])[^\n]*$/gm;
+export function scrubContacts(text) {
+  return String(text ?? '')
+    .replace(CONTACT_LABEL, '$1 [가림]')
+    .replace(/01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/g, '[연락처]')
+    .replace(/\d{6}\s?-\s?[1-4]\d{6}/g, '[주민번호]')
+    .replace(/(뒷자리\s*:?\s*)\d{4}/g, '$1[가림]');
+}
+
+/** 글 속 섭외자 이름 → 홍○동 ('#홍길동' 꼴도) + 연락처 등. */
 export function scrubNames(text, names) {
   let s = String(text ?? '');
-  if (!s || !names || !names.length) return s;
-  for (const n of names) if (s.includes(n)) s = s.split('#' + n).join(maskName(n)).split(n).join(maskName(n));
-  return s;
+  if (!s) return s;
+  for (const n of names || []) if (s.includes(n)) s = s.split('#' + n).join(maskName(n)).split(n).join(maskName(n));
+  return scrubContacts(s);
 }
 
 /** 객체 안의 모든 글(문자열)을 가린다 — skip 에 든 칸 이름은 그대로(번호·주소 등). */
 export function scrubDeep(x, names, skip = SKIP) {
-  if (!names || !names.length) return x;
   if (Array.isArray(x)) return x.map((v) => scrubDeep(v, names, skip));
   if (x && typeof x === 'object') {
     const o = {};

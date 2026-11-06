@@ -44,7 +44,7 @@ const toMsg = (m, nid) => ({
   pinned: !m.deleted && m.pinned, deleted: m.deleted, at: fmtTs(m.created_at),
 });
 const targetView = (t, isOwner) => ({
-  id: t.target_id, name: isOwner ? t.target_name : maskName(t.target_name), stage: t.stage || '섭외',
+  id: t.target_id, name: maskName(t.target_name), stage: t.stage || '섭외',
   gender: t.gender || '', ageGroup: t.age_group || '', teacher: t.teacher_name || '',
   goalMonth: t.goal_cohort ? Number(t.goal_cohort.slice(5)) : 0,
 });
@@ -55,8 +55,8 @@ async function markRead(a, lastId) {
 
 // 11/6(사용자): 담당이 아닌 분이 보는 것은 글 속 섭외자 이름까지 가림(담당 교사들의 섭외자 전부)
 const ownersOf = (t) => [t.creator_id, t.leader_id, t.helper_id].filter(Boolean);
+// 11/6(사용자): 대화방은 여럿이 보는 곳 — 담당 교사 본인에게도 이름·연락처를 가림(실명은 섭외자 화면에서)
 async function forViewer(a, out) {
-  if (a.isOwner) return out;
   return scrubDeep(out, await targetNamesOf(ownersOf(a.target), [a.target.target_name]));
 }
 
@@ -302,7 +302,7 @@ async function listMyRooms(body) {
     const last = list[list.length - 1];
     return {
       ...targetView(t, own), isOwner: own, unread, members: counts.filter((c) => c.target_id === m.target_id).length,
-      last: last ? { text: last.deleted ? '(지운 글)' : (own ? last.body : scrubNames(last.body, await targetNamesOf(ownersOf(t), [t.target_name]))) || (last.photo ? '📷 사진' : ''), from: last.from_name, at: fmtTs(last.created_at).slice(5, 16) } : null,
+      last: last ? { text: last.deleted ? '(지운 글)' : (scrubNames(last.body, await targetNamesOf(ownersOf(t), [t.target_name]))) || (last.photo ? '📷 사진' : ''), from: last.from_name, at: fmtTs(last.created_at).slice(5, 16) } : null,
     };
   }))).filter(Boolean);
   return { rows: rows.sort((x, y) => (y.unread - x.unread) || String((y.last || {}).at || '').localeCompare(String((x.last || {}).at || ''))) };
