@@ -11,9 +11,9 @@ export const TARGET_STAGES = ['섭외', '친분', '만남1', '만남2', '상담1
 
 /** 내가 담당(최초 등록·인도자·섬김이 중 하나)인 대상자만 고르는 조건. */
 const ownedBy = (nid) => `creator_nid.eq.${nid},leader_nid.eq.${nid},helper_nid.eq.${nid}`;
-const owns = (t, nid) => t.creator_nid === nid || t.leader_nid === nid || t.helper_nid === nid;
+export const owns = (t, nid) => t.creator_nid === nid || t.leader_nid === nid || t.helper_nid === nid;
 
-async function findTarget(targetId) {
+export async function findTarget(targetId) {
   const rows = await run(db().from('targets').select('*').eq('target_id', targetId).limit(1));
   return rows[0] || null;
 }
@@ -289,7 +289,7 @@ async function updateTarget(body) {
 }
 
 /** 대상자와 이름이 같고, 담당자(등록·인도·섬김) 중 한 명이 쓴 활동 기록. */
-async function activitiesAbout(target) {
+export async function activitiesAbout(target) {
   const owners = new Set([target.creator_id, target.leader_id, target.helper_id].filter((id) => str(id)).map(normId));
   if (!target.target_name.trim() || !owners.size) return [];
   const rows = await selectAll(() => db().from('activities').select('*').in('nid', [...owners]).order('id'));
@@ -570,6 +570,10 @@ async function deleteTarget(body) {
   if (activityIds.length) await run(db().from('activities').delete().in('id', activityIds));
   const history = await run(db().from('target_history').delete().eq('target_id', targetId).select('id'));
   try { await run(db().from('target_ai_notes').delete().eq('target_id', targetId)); } catch { /* 표가 없어도 삭제는 계속 */ }
+  try {   // 11/6: 섭외자 대화방(글·멤버)도 함께
+    await run(db().from('target_room_messages').delete().eq('target_id', targetId));
+    await run(db().from('target_room_members').delete().eq('target_id', targetId));
+  } catch { /* 표가 없어도 삭제는 계속 */ }
   await run(db().from('targets').delete().eq('id', target.id));
   return { ok: true, targetName: target.target_name.trim(), deletedActivities: activityIds.length, deletedHistory: history.length };
 }

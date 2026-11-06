@@ -27,6 +27,7 @@ import cohortSchedule from './actions/cohort-schedule.js';
 import pins from './actions/pins.js';
 import centerSend from './actions/center-send.js';
 import newMarks from './actions/new-marks.js';
+import targetRoom from './actions/target-room.js';
 
 export const actions = {
   ...roster,
@@ -57,6 +58,7 @@ export const actions = {
   ...pins,
   ...centerSend,
   ...newMarks,
+  ...targetRoom,
 };
 
 // 11/4 개인정보: AI(제미나이)를 부르는 기능은 요청한 교사의 섭외자 이름을 '섭외자A·B…'로 가려서 보낸다(lib/gemini.js withPrivacy).
