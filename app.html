@@ -10754,7 +10754,7 @@
         <form class="tr-search" data-tr-find><input id="trQ" type="search" enterkeyhint="search" placeholder="이름 두 글자 이상" value="${esc(trSt.q)}" autocomplete="off"><button type="submit">찾기</button></form>
         ${trSt.found === 'busy' ? '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 찾는 중…</div>'
           : Array.isArray(trSt.found) ? (trSt.found.length ? trSt.found.map(p => `<div class="tr-mem"><span class="av">${esc(p.name.charAt(0))}</span><div class="m"><b>${esc(p.name)}</b><small>${esc([p.dept, p.region, p.affiliation, p.position].filter(Boolean).join(' · '))}</small></div>
-              ${p.joined ? '<button type="button" disabled>들어와 있음</button>' : `<button type="button" class="go" data-tr-inv="${p.key}">초대</button>`}</div>`).join('') : '<div class="tr-note">찾은 사람이 없어요.</div>') : ''}
+              ${p.joined ? '<button type="button" disabled>들어와 있음</button>' : `<button type="button" class="go" data-tr-inv="${esc(p.key)}">초대</button>`}</div>`).join('') : '<div class="tr-note">찾은 사람이 없어요.</div>') : ''}
         <div class="tr-note" style="margin-top:8px">초대받은 분은 <b>대화</b>와 이 섭외자의 <b>정보 기록·활동 이력</b>을 볼 수 있어요(고치기는 담당 교사만). 새 글은 앱 아래 <b>연결</b> 탭의 N으로 알려 드려요.</div>`;
       return `<div class="tr-sec">👥 이 방에 있는 분 ${trSt.members.length}명</div>${mem}${inv}`;
     }
@@ -10832,7 +10832,7 @@
         }
         if ((el = g('[data-tr-inv]'))) {
           el.disabled = true;
-          const res = await trApi({ action: 'inviteToRoom', key: Number(el.dataset.trInv) });
+          const res = await trApi({ action: 'inviteToRoom', key: el.dataset.trInv, query: trSt.q });
           if (!res || res.error) { el.disabled = false; return toast((res && res.error) || '초대하지 못했어요.', true); }
           toast(`${res.name} 님을 초대했어요.`); return trReload('members');
         }

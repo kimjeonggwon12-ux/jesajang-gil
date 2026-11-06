@@ -2,7 +2,8 @@
 //   텔레그램 정보와 섞이지 않고 중요 정보는 한 곳에". 결정: 명단의 누구나 초대 / 초대받은 사람도 대화·정보 기록·활동 이력을 봄(읽기만) /
 //   알림은 앱 N 뱃지만(getNewMarks 의 room).
 // 들어올 수 있는 사람 = 그 섭외자의 담당(처음 기록한 교사·인도자·섬김이) + 담당이 초대한 사람. 초대·내보내기는 담당만.
-// 초대 화면의 명단 찾기는 고유번호를 돌려주지 않는다(로그인 = 번호·이름·부서라서) — teachers.id 를 열쇠로 쓴다.
+// 초대 화면의 명단 찾기는 고유번호를 돌려주지 않는다(로그인 = 번호·이름·부서라서) — 서버 서명(inviteKey)을 열쇠로 쓴다.
+import { createHmac } from 'node:crypto';
 import { db, run, isDuplicate } from '../lib/db.js';
 import { normId, str, kstDateTime, fmtTs } from '../lib/util.js';
 import { maskName } from '../lib/report-room.js';
@@ -109,24 +110,31 @@ async function deleteRoomMessage(body) {
   return { ok: true };
 }
 
-/** 초대할 사람 찾기(이름 두 글자 이상) — 담당만. 고유번호 대신 key(teachers.id). */
+/** 초대 열쇠 — 고유번호 대신 서버 비밀값으로 만든 서명(앱에 고유번호가 안 나가게). teachers 표엔 번호 칸(id)이 없다. */
+const inviteKey = (nid) => createHmac('sha256', process.env.SUPABASE_SERVICE_ROLE_KEY || 'room').update('room-invite:' + nid).digest('base64url').slice(0, 22);
+const findPeople = (q) => run(db().from('teachers').select('nid, member_id, name, dept, region, affiliation, position')
+  .ilike('name', `%${q.replace(/[%_\\]/g, '\\$&')}%`).order('sort_order').limit(30));
+
+/** 초대할 사람 찾기(이름 두 글자 이상) — 담당만. */
 async function searchRoomInvitees(body) {
   const a = await access(body.memberId, body.targetId, body.name);
   if (!a || !a.isOwner) return { error: '초대는 담당 교사만 할 수 있어요.' };
   const q = str(body.query).slice(0, 20);
   if (q.length < 2) return { rows: [] };
   const [rows, inRoom] = await Promise.all([
-    run(db().from('teachers').select('id, nid, name, dept, region, affiliation, position').ilike('name', `%${q.replace(/[%_\\]/g, '\\$&')}%`).order('sort_order').limit(30)),
+    findPeople(q),
     run(db().from('target_room_members').select('nid').eq('target_id', a.target.target_id)),
   ]);
   const joined = new Set(inRoom.map((m) => m.nid));
-  return { rows: rows.map((t) => ({ key: Number(t.id), name: t.name, dept: t.dept, region: t.region, affiliation: t.affiliation, position: t.position, joined: joined.has(t.nid) })) };
+  return { rows: rows.map((t) => ({ key: inviteKey(t.nid), name: t.name, dept: t.dept, region: t.region, affiliation: t.affiliation, position: t.position, joined: joined.has(t.nid) })) };
 }
 
+/** 초대 — 앱은 key 와 찾을 때 쓴 말(query)을 보낸다. 같은 검색을 다시 해서 서명이 맞는 사람만. */
 async function inviteToRoom(body) {
   const a = await access(body.memberId, body.targetId, body.name);
   if (!a || !a.isOwner) return { error: '초대는 담당 교사만 할 수 있어요.' };
-  const [t] = await run(db().from('teachers').select('member_id, name').eq('id', Number(body.key)).limit(1));
+  const q = str(body.query).slice(0, 20);
+  const t = q.length >= 2 ? (await findPeople(q)).find((p) => inviteKey(p.nid) === str(body.key)) : null;
   if (!t) return { error: '명단에서 찾지 못했어요.' };
   try {
     await run(db().from('target_room_members').insert({ target_id: a.target.target_id, member_id: t.member_id, name: t.name, role: '초대', invited_by: a.member.name, joined_at: kstDateTime() }));
