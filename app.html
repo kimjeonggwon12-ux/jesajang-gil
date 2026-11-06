@@ -228,7 +228,7 @@
       animation: kkoCardIn .3s ease;
     }
     /* [SHARED] 공용 토스트(연결/캘린더 등 여러 섹션이 쓰던 거의 동일한 toast()를 1개로 통합) */
-    #appToastHost { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 9998; }
+    #appToastHost { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 10070; }   /* 11/6: 대화방(10010) 위에서도 안내가 보이게 */
     .app-toast { background: rgba(26,26,46,.92); color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 14px; max-width: 88vw; text-align: center; }
     .app-toast.err { background: var(--color-error); }
     /* [SHARED] 공용 바텀시트(연결/캘린더 등 여러 섹션이 쓰던 거의 동일한 openSheet()/#sheetHost를
@@ -1314,7 +1314,7 @@
     #appSheetHost .cn-seg button.on { background:var(--color-primary); border-color:var(--color-primary); color:#fff; }
     #appSheetHost .cn-seg.small button { height:36px; font-size:14px; }
 
-    .cn-lightbox { position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:9995; display:flex; align-items:center; justify-content:center; }
+    .cn-lightbox { position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:10030; display:flex; align-items:center; justify-content:center; }
     .cn-lightbox img { max-width:94vw; max-height:90vh; border-radius:8px; }
     img.zoomable { cursor:zoom-in; }
     #sec-connect .cn-chat-wrap { display:flex; flex-direction:column; height:calc(100vh - 260px); }
@@ -9876,6 +9876,7 @@
       if (im && im.src) {
         e.stopPropagation();
         const host = document.getElementById('cnLightbox');
+        if (host.parentNode !== document.body) document.body.appendChild(host);   // 11/6: 연결 탭이 아닌 곳(대화방 등)에서도 확대가 보이게
         host.innerHTML = `<div class="cn-lightbox"><img src="${esc(im.src)}" alt="확대 사진"></div>`;
         const hideZoom = () => { host.innerHTML = ''; };
         Back.open('cnlb', hideZoom);
@@ -10637,7 +10638,7 @@
       if (document.getElementById('trCss')) return;
       const st = document.createElement('style'); st.id = 'trCss';
       st.textContent = `
-      .tr-layer { position:fixed; inset:0; z-index:9000; display:flex; flex-direction:column; background:#F4F5F7; }
+      .tr-layer { position:fixed; inset:0; z-index:10010; display:flex; flex-direction:column; background:#F4F5F7; }
       .tr-bar { display:flex; align-items:center; gap:8px; padding:10px 12px; padding-top:calc(10px + env(safe-area-inset-top, 0px)); background:#fff; border-bottom:1px solid #EDEDED; }
       .tr-bar > button { flex-shrink:0; width:38px; height:38px; border:none; border-radius:10px; background:#F3F4F6; font-size:20px; font-weight:800; cursor:pointer; }
       .tr-t { flex:1; min-width:0; display:flex; flex-direction:column; }
@@ -10709,7 +10710,7 @@
       trCss();
       Object.assign(trSt, { id: targetId, tab: 'chat', room: null, msgs: [], pins: [], members: [], busy: true, err: '', rec: null, sel: 0, pin: false, photo: '', q: '', found: null });
       let layer = document.getElementById('trLayer');
-      if (!layer) { layer = document.createElement('div'); layer.id = 'trLayer'; layer.className = 'tr-layer'; document.body.appendChild(layer); }
+      if (!layer) { layer = document.createElement('div'); layer.id = 'trLayer'; layer.className = 'tr-layer'; document.body.appendChild(layer); Back.open('troom', () => trClose(true)); }   // 폰 뒤로 가기 = 대화방만 닫기
       trRender();
       const res = await trApi({ action: 'getTargetRoom' });
       trSt.busy = false;
@@ -10721,7 +10722,8 @@
       trSt.timer = setInterval(() => { if (!document.hidden && trSt.tab === 'chat') trPoll(); }, 15e3);
       if (window.newMarks) newMarks.check(true);
     };
-    window.trClose = function () {
+    window.trClose = function (fromBack) {
+      if (fromBack !== true) Back.closed('troom');
       clearInterval(trSt.timer); trSt.timer = null;
       document.getElementById('trLayer')?.remove();
       trSt.id = '';
