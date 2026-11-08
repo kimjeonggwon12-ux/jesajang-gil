@@ -965,8 +965,50 @@ async function getChurchTopRegions() {
   return { byAspect, byRole, isSample };
 }
 
+/**
+ * 11/8(사용자): 관리자 전체 요약 맨 위 — 이번 달(1일~오늘) 활동 기록 0건인 교사(미활동) · 교육(QR 출석) 0번인 교사(교육 불참).
+ * 활동은 부서별 참여 현황(getOrgSummary activeCount)과 같은 기준, 교육은 지운 모임을 뺀 출석 기록.
+ */
+async function getNonParticipants() {
+  const now = new Date();
+  const bounds = monthBounds(now);
+  const from = kstDateTime(bounds.start);
+  const [roster, activities, attends, meetings] = await Promise.all([
+    loadRoster(),
+    selectAll(() => db().from('activities').select('member_id, nid, name, submitted_at, activities, roles').gte('submitted_at', from).order('id')),
+    selectAll(() => db().from('attend_records').select('id, nid, meeting_id').gte('at', from).order('id')),
+    selectAll(() => db().from('attend_meetings').select('meeting_id, title, date, status').gte('date', from.slice(0, 10)).order('date')),
+  ]);
+  const acted = new Set();
+  for (const a of await fixActivityNids(activities)) if (a.nid && a.nid !== '0') acted.add(a.nid);
+  const live = new Map(meetings.filter((m) => m.status !== '삭제').map((m) => [m.meeting_id, m]));
+  const attended = new Map();
+  for (const r of attends) {
+    if (!live.has(r.meeting_id)) continue;
+    if (!attended.has(r.nid)) attended.set(r.nid, new Set());
+    attended.get(r.nid).add(r.meeting_id);
+  }
+  const depts = Object.fromEntries(ORG_DEPTS.map((d) => [d, { dept: d, total: 0, inactive: 0, noEdu: 0, both: 0 }]));
+  const rows = [];
+  for (const p of roster) {
+    const nid = normId(p.memberId);
+    const d = depts[orgBucket(p.dept)];
+    const act = acted.has(nid), edu = attended.has(nid) ? attended.get(nid).size : 0;
+    d.total++;
+    if (!act) d.inactive++;
+    if (!edu) d.noEdu++;
+    if (!act && !edu) d.both++;
+    if (!act || !edu) rows.push({ memberId: p.memberId, name: p.name, dept: d.dept, region: p.region, tier: p.tier, inactive: !act, noEdu: !edu });
+  }
+  return {
+    asOf: fmtDate(now), month: fmtMonth(bounds.start), from: from.slice(0, 10),
+    meetings: [...live.values()].map((m) => ({ title: m.title, date: m.date })),
+    depts: ORG_DEPTS.map((d) => depts[d]), rows,
+  };
+}
+
 export default {
   checkTierChanges, getSettlementReport, registerLeaveReason, approveTierChange, applyTierChange, deleteApprovalRow,
   bulkChangeTier, tierAutoRest, getDistrictView, getMyTierStatus, getMyCenterLeads, getAllCenterLeads,
-  getDistrictReport, getOrgSummary, getTopRegions, getChurchTopRegions, getTeacherListReport, getConnectStats,
+  getDistrictReport, getOrgSummary, getTopRegions, getChurchTopRegions, getTeacherListReport, getConnectStats, getNonParticipants,
 };

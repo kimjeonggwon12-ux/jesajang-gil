@@ -14171,7 +14171,9 @@ let stageDist = {}, stageDistLoading = {}; // role('' = 전체) → getTargetSta
 let stageRole = '';
 let keyStage = null;
 const STAGE_ROLE_TABS = [['', '전체'], ['인도자', '인도자'], ['교사', '교사'], ['섬김이', '섬김이'], ['협력교사', '협력']];
-const STAGE_BAR_COLOR = { '섭외': '#93C5FD', '친분': '#60A5FA', '만남1': '#38BDF8', '만남2': '#0EA5E9', '상담1': '#FB923C', '상담2': '#F97316', '복음방': '#EF4444', '센터소개': '#DC2626', '센터수강': '#991B1B' };
+// 11/8(사용자): 막대 항목 = 활동 기록 화면의 칩 이름 그대로(저장값 → 칩 이름)
+const STAGE_ITEM_LABEL = { '피드백': '섭외자피드백', '섭외': '섭외찾기(전단지)', '만남1': '만남', '센터수강': '센터수강생관리', '동아리': '동호회활동', '동행교사': '동행 복음방' };
+const STAGE_BAR_COLOR = { '피드백': '#A78BFA', '동아리': '#34D399', '식구 복음방': '#F87171', '전도 행사 지원': '#FBBF24', '동행교사': '#B91C1C', '섭외': '#93C5FD', '친분': '#60A5FA', '만남1': '#38BDF8', '만남2': '#0EA5E9', '상담1': '#FB923C', '상담2': '#F97316', '복음방': '#EF4444', '센터소개': '#DC2626', '센터수강': '#991B1B' };
 
 async function loadConnectStats() {
   connectStatsLoading = true; eduRender();
@@ -14183,7 +14185,7 @@ async function loadConnectStats() {
 async function loadStageDist(role) {
   if (stageDist[role] || stageDistLoading[role]) return;
   stageDistLoading[role] = true; distRender();
-  try { const r = await callApi({ action: 'getTargetStageDistribution', role }); stageDist[role] = (r && !r.error) ? r : { error: (r && r.error) || '불러오기 실패' }; }
+  try { const r = await callApi({ action: 'getActivityItemDistribution', role }); stageDist[role] = (r && !r.error) ? r : { error: (r && r.error) || '불러오기 실패' }; }
   catch (e) { stageDist[role] = { error: String(e) }; }
   stageDistLoading[role] = false; distRender();
 }
@@ -14212,7 +14214,7 @@ function renderConnectStatsSection() {
 }
 
 function renderStageDistributionSection() {
-  const title = '전도 대상자 단계 분포', sub = '전체 교사의 대상자가 어느 단계에 있는지';
+  const title = '활동 기록 항목별 현황', sub = '활동 기록 화면의 항목 그대로 · 올해 기록 건수';
   const key = keyStage && !keyStage.error ? `
     <div class="rounded-box p-4 mb-4" style="background:linear-gradient(135deg,#FEF2F2,#FFF7ED);border:1px solid #FECACA">
       <div class="flex flex-col gap-1.5 text-sm font-bold" style="color:#991B1B">
@@ -14224,18 +14226,17 @@ function renderStageDistributionSection() {
   const tabs = `<div class="flex flex-wrap gap-1.5 mb-3">${STAGE_ROLE_TABS.map(([v, l]) => `<button type="button" class="stagerole-tab btn btn-xs ${stageRole === v ? 'btn-primary' : 'btn-ghost btn-outline'}" data-stagerole="${v}">${l}</button>`).join('')}</div>`;
   const d = stageDist[stageRole];
   let body;
-  if (!d) body = '<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>집계 중... (전 교사 대상자를 확인해 20초 정도 걸릴 수 있어요)</div>';
+  if (!d) body = '<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>집계 중...</div>';
   else if (d.error) body = `<div class="alert alert-error py-2 text-sm">${esc(d.error)}</div>`;
   else {
     const max = Math.max(1, ...d.stages.map(x => x.count));
-    const isItems = d.kind === 'items'; // 협력: 단계 대신 협력 9항목별 활동 건수(올해)
-    const unit = isItems ? '건' : '명';
-    body = `<div class="text-xs text-base-content/40 mb-2">${isItems ? `협력 활동 항목별 건수 (올해) · 총 ${d.total}건` : `${stageRole ? esc(adminRoleShortLabel(stageRole)) + ' 기준 ' : ''}진행 중인 대상자 ${d.total}명`}</div>
+    const isItems = true, unit = '건';   // 11/8: 모든 탭 = 활동 기록 항목별 올해 건수
+    body = `<div class="text-xs text-base-content/40 mb-2">${stageRole ? esc(adminRoleShortLabel(stageRole)) + ' 역할로 남긴 ' : '인도·교사·섬김 '}활동 기록 항목별 건수 (${d.year || '올해'}년) · 총 ${d.total.toLocaleString()}건</div>
       <div class="flex flex-col gap-1.5">${d.stages.map(x => `
         <div class="flex items-center gap-2">
-          <div class="text-xs font-bold shrink-0" style="width:${isItems ? 64 : 56}px">${esc(x.stage)}</div>
+          <div class="text-xs font-bold shrink-0" style="width:96px;line-height:1.2">${esc(STAGE_ITEM_LABEL[x.stage] || x.stage)}</div>
           <div class="flex-1 rounded" style="background:#F3F4F6;height:16px"><div class="rounded" style="height:16px;width:${x.count ? Math.max(3, Math.round(x.count / max * 100)) : 0}%;background:${STAGE_BAR_COLOR[x.stage] || '#00AE82'}"></div></div>
-          <div class="text-xs font-bold text-right shrink-0" style="width:44px">${x.count}${unit}</div>
+          <div class="text-xs font-bold text-right shrink-0" style="width:52px">${x.count.toLocaleString()}${unit}</div>
         </div>`).join('')}</div>`;
   }
   return sectionCard('accent', '📊', title, sub, key + tabs + body);
@@ -16403,7 +16404,7 @@ function distRender() {
       </div>` : ''}
 
     ${isOverview
-      ? `<div class="px-4 pt-3">${participationSectionHtml()}${renderSettlementSection()}${renderStageDistributionSection()}</div>${orgSummarySectionHtml()}`
+      ? `<div class="px-4 pt-3">${participationSectionHtml()}${nonPartSectionHtml()}${renderSettlementSection()}${renderStageDistributionSection()}</div>${orgSummarySectionHtml()}`
       : state.loading
         ? `<div class="text-sm text-base-content/40 text-center py-16"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`
         : state.error
@@ -16460,6 +16461,7 @@ function distRender() {
   });
   if (isOverview) wireSettlementFilters(); // "[전체] 결산"/"[전체] MVP·단계분포"는 이제 여기서만 렌더됨
   if (isOverview) drawParticipationChart();
+  if (isOverview) wireNonPart();
 
   destroyRegionCharts();
   if (isDeptDetail && report && !state.loading && !state.error) {
@@ -16547,6 +16549,105 @@ function roundRect(g, x, y, w, h, r) {
   g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
   g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
 }
+// ════════════════════════════════════════════════════════════════════
+// 11/8(사용자) 미활동·교육 불참 교사 — 참여 현황 바로 아래. 이번 달(1일~오늘)
+//   😴 미활동 = 활동 기록 0건(위 참여 현황과 같은 기준) · 📚 교육 불참 = 교육(QR 출석) 0번. 서버 getNonParticipants.
+// ════════════════════════════════════════════════════════════════════
+let nonPart = null, nonPartView = '', nonPartDept = '';
+async function loadNonPart() {
+  try { const r = await callApi({ action: 'getNonParticipants' }); nonPart = (r && !r.error) ? r : { error: (r && r.error) || '불러오기 실패' }; }
+  catch (e) { nonPart = { error: String(e) }; }
+  distRender();
+}
+function nonPartRows(view) {
+  const rows = (nonPart && nonPart.rows) || [];
+  return rows.filter(r => (view === 'both' ? r.inactive && r.noEdu : view === 'edu' ? r.noEdu : r.inactive) && (!nonPartDept || r.dept === nonPartDept));
+}
+const NP_LABEL = { act: '미활동 교사', edu: '교육 불참 교사', both: '활동·교육 모두 0회' };
+const npPct = (a, b) => (b > 0 ? Math.round(a / b * 1000) / 10 : 0);
+function nonPartSectionHtml() {
+  const title = '미활동 · 교육 불참 교사', sub = '이번 달 참여 1회 미만';
+  if (!nonPart) return sectionCard('warning', '😴', title, sub, '<div class="text-xs text-base-content/40 text-center py-6"><span class="loading loading-spinner loading-sm align-middle mr-1"></span>교사 명단과 이번 달 기록·출석을 맞춰 보는 중...</div>');
+  if (nonPart.error) return sectionCard('warning', '😴', title, sub, `<div class="alert alert-error py-2 text-sm">${esc(nonPart.error)}</div>`);
+  const depts = nonPart.depts.filter(d => d.total > 0);
+  const sum = k => depts.reduce((n, d) => n + d[k], 0);
+  const total = sum('total');
+  const pc = (n, t) => `<span style="color:#9CA3AF;font-weight:500;font-size:11px">${npPct(n, t)}%</span>`;
+  const box = (key, icon, value, color, note) => `
+    <button type="button" class="np-box settlement-box flex-1 min-w-[100px] rounded-box border p-3 text-center transition ${nonPartView === key ? 'border-primary bg-primary/10' : 'border-base-300 bg-base-100 hover:bg-base-200'}" data-np="${key}">
+      <div style="font-size:18px">${icon}</div>
+      <div style="font-size:22px;font-weight:900;color:${color}">${value.toLocaleString()}<span style="font-size:12px;font-weight:700;color:#9CA3AF">명</span></div>
+      <div style="font-size:12px;font-weight:800">${NP_LABEL[key]}</div>
+      <div style="font-size:10px;color:#9CA3AF">${note}</div>
+    </button>`;
+  const meet = nonPart.meetings || [];
+  const R = 'style="text-align:right"';
+  const table = `
+    <div class="overflow-x-auto border border-base-300 rounded-box mt-3">
+      <table class="table table-sm">
+        <thead><tr><th>부서</th><th ${R}>총 교사</th><th ${R}>😴 미활동</th><th ${R}>📚 교육 불참</th><th ${R}>모두 0회</th></tr></thead>
+        <tbody>${depts.map(d => `<tr>
+          <td style="font-weight:700">${esc(d.dept)}</td><td ${R}>${d.total.toLocaleString()}</td>
+          <td style="text-align:right;font-weight:700;color:#D97706">${d.inactive.toLocaleString()} ${pc(d.inactive, d.total)}</td>
+          <td style="text-align:right;font-weight:700;color:#DC2626">${d.noEdu.toLocaleString()} ${pc(d.noEdu, d.total)}</td>
+          <td ${R}>${d.both.toLocaleString()}</td></tr>`).join('')}
+          <tr style="background:#F9FAFB;font-weight:900"><td>합계</td><td ${R}>${total.toLocaleString()}</td>
+          <td style="text-align:right;color:#D97706">${sum('inactive').toLocaleString()} ${pc(sum('inactive'), total)}</td>
+          <td style="text-align:right;color:#DC2626">${sum('noEdu').toLocaleString()} ${pc(sum('noEdu'), total)}</td>
+          <td ${R}>${sum('both').toLocaleString()}</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+  let detail = '<div class="text-xs text-base-content/30 text-center py-2">▲ 박스를 누르면 명단이 나와요 (엑셀로도 받을 수 있어요)</div>';
+  if (nonPartView) {
+    const list = nonPartRows(nonPartView);
+    detail = `<div class="mt-3 pt-3 border-t border-base-300">
+      <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
+        <div class="text-sm font-bold">${NP_LABEL[nonPartView]} ${list.length.toLocaleString()}명</div>
+        <div class="flex items-center gap-2">
+          <select id="np-dept" class="select select-bordered select-xs w-32"><option value="">전체 부서</option>${depts.map(d => `<option value="${esc(d.dept)}" ${nonPartDept === d.dept ? 'selected' : ''}>${esc(d.dept)}</option>`).join('')}</select>
+          <button type="button" id="np-xlsx" class="btn btn-xs btn-primary">⬇ 엑셀</button>
+        </div>
+      </div>
+      ${list.length ? `<div class="border border-base-300 rounded-box overflow-hidden"><div class="max-h-72 overflow-y-auto overflow-x-auto">
+        <table class="table table-zebra table-sm"><thead class="sticky top-0 bg-base-100"><tr><th>#</th><th>이름</th><th>부서</th><th>지역</th><th>등급</th><th>활동</th><th>교육</th></tr></thead>
+        <tbody>${list.map((r, i) => `<tr><td class="text-base-content/40">${i + 1}</td><td style="font-weight:700">${esc(r.name)}</td><td>${esc(r.dept)}</td><td>${esc(r.region || '')}</td><td>${esc(r.tier || '')}</td>
+          <td>${r.inactive ? '<span style="color:#D97706;font-weight:700">0건</span>' : '✓'}</td><td>${r.noEdu ? '<span style="color:#DC2626;font-weight:700">0번</span>' : '✓'}</td></tr>`).join('')}</tbody></table>
+      </div></div>` : '<div class="text-xs text-base-content/40 border border-dashed border-base-300 rounded-box p-6 text-center">해당하는 교사가 없습니다.</div>'}
+    </div>`;
+  }
+  const body = `<div class="flex flex-wrap gap-2">
+      ${box('act', '😴', sum('inactive'), '#D97706', '이번 달 활동 기록 0건')}
+      ${box('edu', '📚', sum('noEdu'), '#DC2626', '이번 달 교육 출석 0번')}
+      ${box('both', '⚠️', sum('both'), '#6B7280', '활동도 교육도 0회')}
+    </div>
+    <div style="font-size:11px;color:#9CA3AF;margin-top:8px">총 교사 ${total.toLocaleString()}명 기준 · 교육 = QR 출석 모임${meet.length ? ` (이번 달 ${meet.length}번: ${meet.map(m => esc(m.title)).join(', ')})` : ' (이번 달은 아직 없음)'}</div>
+    ${table}${detail}`;
+  return sectionCard('warning', '😴', title, `${esc(nonPart.from)} ~ ${esc(nonPart.asOf)} · ${sub}`, body);
+}
+function wireNonPart() {
+  document.querySelectorAll('.np-box').forEach(b => { b.onclick = () => { nonPartView = nonPartView === b.dataset.np ? '' : b.dataset.np; distRender(); }; });
+  const sel = document.getElementById('np-dept');
+  if (sel) sel.onchange = () => { nonPartDept = sel.value; distRender(); };
+  const xl = document.getElementById('np-xlsx');
+  if (xl) xl.onclick = async () => {
+    xl.disabled = true;
+    try {
+      if (!window.XLSX) await new Promise((ok, fail) => { const el = document.createElement('script'); el.src = 'vendor/xlsx.full.min.js'; el.onload = ok; el.onerror = () => fail(new Error('엑셀 도구를 못 불러왔어요.')); document.head.appendChild(el); });
+      const wb = XLSX.utils.book_new();
+      for (const key of ['act', 'edu', 'both']) {
+        const list = nonPartRows(key);
+        const ws = XLSX.utils.aoa_to_sheet([[`${NP_LABEL[key]} (${nonPart.from} ~ ${nonPart.asOf})${nonPartDept ? ' · ' + nonPartDept : ''} ${list.length}명`], [],
+          ['번호', '이름', '부서', '지역', '등급', '이번 달 활동', '이번 달 교육'],
+          ...list.map((r, i) => [i + 1, r.name, r.dept, r.region || '', r.tier || '', r.inactive ? '0건' : '있음', r.noEdu ? '0번' : '있음'])]);
+        ws['!cols'] = [6, 10, 9, 9, 10, 12, 12].map(wch => ({ wch }));
+        XLSX.utils.book_append_sheet(wb, ws, { act: '미활동', edu: '교육불참', both: '모두0회' }[key]);
+      }
+      XLSX.writeFile(wb, `미활동_교육불참_${nonPartDept || '전체'}_${nonPart.asOf}.xlsx`);
+    } catch (e) { console.error(e); xl.textContent = '실패 — 다시'; }
+    xl.disabled = false;
+  };
+}
 window.addEventListener('resize', () => { if (document.getElementById('partCanvas')) drawParticipationChart(); });
 
 
@@ -16569,6 +16670,7 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         if (tab === 'edu') load();
         else if (tab === 'dist') {
           loadOrgSummary(false);
+          loadNonPart();
           // 2026-09-22: 결산/MVP·단계분포가 edu에서 여기로 이동 — "전체 요약" 화면 진입 시 함께 로드.
           loadSettlement();
           loadAllLeads();

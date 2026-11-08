@@ -582,7 +582,7 @@ async function deleteTarget(body) {
 
 const ROLES = ['인도자', '교사', '섬김이', '협력교사'];
 // 협력교사는 대상자를 맡지 않으므로 올해 협력 활동을 항목별로 센다. ⚠️ app.html COOP_ACTIVITY_OPTIONS 와 같이 맞출 것.
-const COOP_ITEMS = ['동아리', '잎사귀', '만남 동행', '밭보기', '육상담', '부스담당', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원'];
+const COOP_ITEMS = ['피드백', '동아리', '잎사귀', '만남 동행', '밭보기', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원', '교육 지원', '특강'];
 
 /** 진행 중인 대상자마다 { stage, roles } — roles 는 담당자들이 그 대상자 활동에 적은 역할 + 담당 배정. */
 async function openTargetsWithRoles() {
@@ -637,6 +637,38 @@ async function getTargetStageDistribution(body) {
     counts[t.stage]++; total++;
   }
   return { role, total, other, stages: TARGET_STAGES.map((stage) => ({ stage, count: counts[stage] })) };
+}
+
+// 11/8(사용자): 관리자 전체 요약의 막대 그래프 = 활동 기록 화면의 항목 그대로, 올해 기록 건수.
+//   ⚠️ app.html ROLE_ACTIVITY_OPTIONS·TEACHER_EXTRA_ACTIVITY·EXTRA_ACTIVITY_OPTIONS 와 같이 맞출 것.
+const ROLE_ITEMS = ['피드백', '섭외', '만남1', '상담1', '상담2', '복음방', '센터수강'];
+const EXTRA_ITEMS = ['동아리', '식구 복음방', '전도 행사 지원'];
+// 11/3에 칩에서 뺀 옛 항목은 지금 칩으로 묶어 센다(친분·만남2 → 만남, 센터소개 → 복음방, 동행 복음방 → 동행교사)
+const ITEM_FOLD = { '친분': '만남1', '만남2': '만남1', '센터소개': '복음방', '동행 복음방': '동행교사' };
+async function getActivityItemDistribution(body) {
+  let role = str(body.role);
+  if (role === '협력') role = '협력교사';
+  if (role && !ROLES.includes(role)) return { error: '알 수 없는 역할: ' + role };
+  const items = role === '협력교사' ? COOP_ITEMS
+    : [...ROLE_ITEMS, ...(role === '' || role === '교사' ? ['동행교사'] : []), ...EXTRA_ITEMS];
+  const year = Number(kstDate().slice(0, 4));
+  const rows = await selectAll(() => {
+    const q = db().from('activities').select('activities, roles').neq('member_id', '')
+      .gte('submitted_at', `${year}-01-01`).lt('submitted_at', `${year + 1}-01-01`);
+    return (role ? q.contains('roles', [role]) : q).order('id');
+  });
+  const counts = Object.fromEntries(items.map((s) => [s, 0]));
+  let total = 0, other = 0;
+  for (const a of rows) {
+    if (!role && a.roles.includes('협력교사')) continue;   // 전체 = 인도·교사·섬김 기록(협력은 항목 체계가 달라 따로)
+    for (const raw of a.activities) {
+      const item = ITEM_FOLD[str(raw)] || str(raw);
+      if (!item) continue;
+      if (counts[item] === undefined) { other++; continue; }
+      counts[item]++; total++;
+    }
+  }
+  return { role, kind: 'items', year, total, other, stages: items.map((stage) => ({ stage, count: counts[stage] })) };
 }
 
 /** 표지 숫자: 복음방·센터소개·센터수강 단계 대상자 수. */
@@ -784,7 +816,7 @@ async function targetInfoFeedback(body) {
 }
 
 export default {
-  getTargetStageDistribution, getKeyStageCount,
+  getTargetStageDistribution, getActivityItemDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
   getTargetJournal, deleteTarget, planCohortLead, writeCaseDraft, getTargetFile,
   getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons, targetMasterFeedback, heartsDossier,
