@@ -7,7 +7,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 import { db, run, isDuplicate } from '../lib/db.js';
 import { normId, str, kstDateTime, fmtTs } from '../lib/util.js';
 import { maskName } from '../lib/report-room.js';
-import { storeImage } from '../lib/images.js';
+import { storeImage, r2Configured, isStoredUrl, cleanFileName, putDoc, presignDoc, storedSize, deleteStored } from '../lib/images.js';
 import { findTeacherLoose } from './roster.js';
 import { targetNamesOf, scrubDeep, scrubNames } from '../lib/name-scrub.js';
 import { findTarget, owns, activitiesAbout, coachingAbout } from './targets.js';
@@ -41,6 +41,7 @@ const DENIED = { error: '이 섭외자 대화방에 초대받지 않았어요.' 
 
 const toMsg = (m, nid) => ({
   id: Number(m.id), from: m.from_name, mine: m.from_nid === nid, text: m.deleted ? '' : m.body, photo: m.deleted ? '' : m.photo,
+  file: !m.deleted && m.file_url ? { url: m.file_url, name: m.file_name, size: Number(m.file_size) || 0 } : null,
   pinned: !m.deleted && m.pinned, deleted: m.deleted, at: fmtTs(m.created_at),
 });
 const targetView = (t, isOwner) => ({
@@ -152,13 +153,47 @@ async function sendRoomMessage(body) {
   if (!a) return DENIED;
   const text = str(body.text).slice(0, MAX_TEXT);
   const photo = body.photo ? await storeImage(body.photo, 'room') : '';
-  if (!text && !photo) return { error: '내용을 적어 주세요.' };
+  // 11/10 문서 첨부 — roomFileUpload 로 먼저 올린 우리 R2 주소만 받는다(크기는 R2 에서 다시 확인)
+  let file = null;
+  if (body.file && body.file.url) {
+    const url = str(body.file.url), name = cleanFileName(body.file.name);
+    if (!isStoredUrl(url) || !url.includes(`/${FILE_FOLDER}/`) || !name) return { error: '첨부 파일을 확인하지 못했어요. 다시 올려 주세요.' };
+    const size = await storedSize(url);
+    if (!size) return { error: '첨부 파일이 다 올라가지 않았어요. 다시 올려 주세요.' };
+    file = { url, name, size };
+  }
+  if (!text && !photo && !file) return { error: '내용을 적어 주세요.' };
   const [row] = await run(db().from('target_room_messages').insert({
     target_id: a.target.target_id, from_id: str(body.memberId), from_name: a.member.name || str(body.name), body: text, photo,
+    file_url: file ? file.url : '', file_name: file ? file.name : '', file_size: file ? file.size : 0,
     pinned: !!body.pin, pinned_by: body.pin ? a.member.name : '', created_at: kstDateTime(),
   }).select('*'));
   await markRead(a, Number(row.id));
   return { ok: true, message: toMsg(row, a.nid) };
+}
+
+/**
+ * 11/10(사용자) 문서 첨부 올리기 — PPT·한글·PDF, 50MB 까지. 방에 있는 누구나.
+ *   작은 파일(3MB 이하): body.data(base64)를 서버가 R2 에 올림 → { url, name, size }
+ *   큰 파일: body.size 만 보내면 R2 로 바로 PUT 할 서명 주소 → { put, headers, url, name } (버킷 CORS 에 PUT 필요)
+ *   그다음 sendRoomMessage({ file: { url, name } }) 로 글을 남긴다.
+ */
+const FILE_FOLDER = 'room-files', FILE_MAX = 50 * 1024 * 1024, FILE_INLINE_MAX = 3 * 1024 * 1024;
+async function roomFileUpload(body) {
+  const a = await access(body.memberId, body.targetId, body.name);
+  if (!a) return DENIED;
+  if (!r2Configured()) return { error: '파일 저장소가 설정되지 않았어요.' };
+  const name = cleanFileName(body.fileName);
+  if (!name) return { error: 'PPT·한글(hwp·hwpx)·PDF 파일만 올릴 수 있어요.' };
+  if (body.data) {
+    const bytes = Buffer.from(String(body.data).replace(/^data:[^,]*,/, ''), 'base64');
+    if (!bytes.length) return { error: '빈 파일이에요.' };
+    if (bytes.length > FILE_INLINE_MAX) return { error: '파일이 커서 이 방법으로는 못 올려요.' };
+    return { ok: true, url: await putDoc(bytes, name, FILE_FOLDER), name, size: bytes.length };
+  }
+  const size = Number(body.size) || 0;
+  if (size > FILE_MAX) return { error: `파일은 ${FILE_MAX / 1024 / 1024}MB까지 올릴 수 있어요.` };
+  return { ok: true, name, ...(await presignDoc(name, FILE_FOLDER)) };
 }
 
 /** 📌 고정·풀기 — 방에 있는 누구나. */
@@ -175,10 +210,11 @@ async function pinRoomMessage(body) {
 async function deleteRoomMessage(body) {
   const a = await access(body.memberId, body.targetId, body.name);
   if (!a) return DENIED;
-  const [m] = await run(db().from('target_room_messages').select('id, from_nid, photo').eq('id', Number(body.id)).eq('target_id', a.target.target_id).limit(1));
+  const [m] = await run(db().from('target_room_messages').select('id, from_nid, photo, file_url').eq('id', Number(body.id)).eq('target_id', a.target.target_id).limit(1));
   if (!m) return { error: '없는 글이에요.' };
   if (m.from_nid !== a.nid && !a.isOwner) return { error: '내가 쓴 글만 지울 수 있어요.' };
-  await run(db().from('target_room_messages').update({ deleted: true, pinned: false, body: '', photo: '' }).eq('id', m.id));
+  await run(db().from('target_room_messages').update({ deleted: true, pinned: false, body: '', photo: '', file_url: '', file_name: '', file_size: 0 }).eq('id', m.id));
+  if (m.file_url) await deleteStored(m.file_url);
   return { ok: true };
 }
 
@@ -288,7 +324,7 @@ async function listMyRooms(body) {
   const ids = mine.map((m) => m.target_id);
   const [targets, msgs, counts] = await Promise.all([
     run(db().from('targets').select('*').in('target_id', ids)),
-    run(db().from('target_room_messages').select('id, target_id, from_nid, from_name, body, photo, created_at, deleted').in('target_id', ids)
+    run(db().from('target_room_messages').select('id, target_id, from_nid, from_name, body, photo, file_name, created_at, deleted').in('target_id', ids)
       .gt('id', Math.min(...mine.map((m) => Number(m.last_read_id) || 0))).order('id')),
     run(db().from('target_room_members').select('target_id').in('target_id', ids)),
   ]);
@@ -302,7 +338,7 @@ async function listMyRooms(body) {
     const last = list[list.length - 1];
     return {
       ...targetView(t, own), isOwner: own, unread, members: counts.filter((c) => c.target_id === m.target_id).length,
-      last: last ? { text: last.deleted ? '(지운 글)' : (scrubNames(last.body, await targetNamesOf(ownersOf(t), [t.target_name]))) || (last.photo ? '📷 사진' : ''), from: last.from_name, at: fmtTs(last.created_at).slice(5, 16) } : null,
+      last: last ? { text: last.deleted ? '(지운 글)' : (scrubNames(last.body, await targetNamesOf(ownersOf(t), [t.target_name]))) || (last.file_name ? '📎 ' + last.file_name : last.photo ? '📷 사진' : ''), from: last.from_name, at: fmtTs(last.created_at).slice(5, 16) } : null,
     };
   }))).filter(Boolean);
   return { rows: rows.sort((x, y) => (y.unread - x.unread) || String((y.last || {}).at || '').localeCompare(String((x.last || {}).at || ''))) };
@@ -318,4 +354,4 @@ export async function roomUnread(nid) {
   return msgs.filter((x) => Number(x.id) > last.get(x.target_id) && x.from_nid !== nid).length;
 }
 
-export default { createRoomInvite, revokeRoomInvite, joinRoomByCode, getTargetRoom, sendRoomMessage, pinRoomMessage, deleteRoomMessage, searchRoomInvitees, inviteToRoom, leaveRoom, getRoomRecords, listMyRooms };
+export default { createRoomInvite, revokeRoomInvite, joinRoomByCode, getTargetRoom, sendRoomMessage, roomFileUpload, pinRoomMessage, deleteRoomMessage, searchRoomInvitees, inviteToRoom, leaveRoom, getRoomRecords, listMyRooms };

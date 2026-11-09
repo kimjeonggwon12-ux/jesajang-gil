@@ -10755,7 +10755,7 @@
     //   서버: server/actions/target-room.js, 표 target_room_members·target_room_messages(0036).
     // ════════════════════════════════════════════════════════════════
     const trSt = { id: '', tab: 'chat', room: null, msgs: [], pins: [], members: [], isOwner: false, busy: false, err: '', rec: null, recBusy: false,
-      sel: 0, pin: false, photo: '', q: '', found: null, timer: null, list: null, listBusy: false, byTarget: {} };
+      sel: 0, pin: false, att: [], sending: '', q: '', found: null, timer: null, list: null, listBusy: false, byTarget: {} };
     function trCss() {
       if (document.getElementById('trCss')) return;
       const st = document.createElement('style'); st.id = 'trCss';
@@ -10793,9 +10793,19 @@
       .tr-in .ib.on { border-color:#F59E0B; background:#FFF7E6; }
       .tr-in .send { flex-shrink:0; height:42px; padding:0 16px; border-radius:12px; border:none; background:#00AE82; color:#fff; font-size:15px; font-weight:800; font-family:inherit; cursor:pointer; }
       .tr-in .send:disabled { opacity:.6; }
-      .tr-prev { display:flex; align-items:center; gap:8px; padding:6px 10px; background:#fff; border-top:1px solid #EDEDED; font-size:13px; color:#4B5563; }
-      .tr-prev img { width:48px; height:48px; object-fit:cover; border-radius:8px; }
-      .tr-prev button { margin-left:auto; border:none; background:none; color:#DC2626; font-weight:800; font-family:inherit; }
+      .tr-prev { display:flex; align-items:center; gap:8px; padding:6px 10px; background:#fff; border-top:1px solid #EDEDED; font-size:13px; color:#4B5563; overflow-x:auto; }
+      .tr-prev .it { position:relative; flex-shrink:0; display:flex; align-items:center; gap:6px; max-width:200px; height:52px; padding:2px 26px 2px 2px; border-radius:10px; border:1px solid #E5E7EB; background:#F9FAFB; }
+      .tr-prev .it img { width:46px; height:46px; object-fit:cover; border-radius:8px; }
+      .tr-prev .it .ic { width:40px; height:46px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; color:#fff; border-radius:8px; }
+      .tr-prev .it .nm { font-size:12px; line-height:1.3; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-all; }
+      .tr-prev .it button { position:absolute; top:2px; right:2px; width:22px; height:22px; border:none; border-radius:50%; background:#E5E7EB; color:#374151; font-weight:900; font-size:12px; cursor:pointer; }
+      .tr-file { display:flex; align-items:center; gap:10px; min-width:200px; max-width:100%; margin:2px 0; padding:8px 10px; border-radius:12px; background:#F9FAFB; border:1px solid #E5E7EB; color:#111; text-decoration:none; white-space:normal; }
+      .tr-file .ic { flex-shrink:0; width:40px; height:46px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; color:#fff; border-radius:8px; }
+      .tr-file .m { flex:1; min-width:0; } .tr-file .m b { display:block; font-size:14px; font-weight:800; word-break:break-all; } .tr-file .m small { font-size:12px; color:#6B7280; }
+      .tr-file .dl { flex-shrink:0; font-size:12.5px; font-weight:800; color:#00875F; }
+      .tr-drop { position:absolute; inset:0; z-index:5; display:none; align-items:center; justify-content:center; background:rgba(0,174,130,.12); border:3px dashed #00AE82; border-radius:16px; font-size:17px; font-weight:900; color:#00875F; pointer-events:none; }
+      .tr-layer.dragging .tr-drop { display:flex; }
+      .tr-sending { padding:6px 12px; background:#fff; border-top:1px solid #EDEDED; font-size:13px; color:#00875F; font-weight:800; }
       .tr-card { padding:12px 14px; border-radius:12px; background:#fff; border:1px solid #EDEDED; margin-bottom:8px; font-size:14px; line-height:1.6; }
       .tr-card .h { display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:#6B7280; margin-bottom:4px; }
       .tr-card .h b { color:#111; font-size:13.5px; }
@@ -10830,7 +10840,7 @@
     window.trOpen = async function (targetId) {
       if (!targetId) return;
       trCss();
-      Object.assign(trSt, { id: targetId, tab: 'chat', room: null, msgs: [], pins: [], members: [], busy: true, err: '', rec: null, sel: 0, pin: false, photo: '', q: '', found: null });
+      Object.assign(trSt, { id: targetId, tab: 'chat', room: null, msgs: [], pins: [], members: [], busy: true, err: '', rec: null, sel: 0, pin: false, att: [], sending: '', q: '', found: null });
       let layer = document.getElementById('trLayer');
       if (!layer) { layer = document.createElement('div'); layer.id = 'trLayer'; layer.className = 'tr-layer'; document.body.appendChild(layer); Back.open('troom', () => trClose(true)); }   // 폰 뒤로 가기 = 대화방만 닫기
       trRender();
@@ -10860,7 +10870,7 @@
       if (id !== trSt.id || !res || res.error || !(res.messages || []).length) return;
       const have = new Set(trSt.msgs.map(m => m.id));
       trSt.msgs.push(...res.messages.filter(m => !have.has(m.id)));
-      trRender(true);
+      trKeepText(() => {});   // 11/10: 새 글이 와도 쓰던 글은 그대로
     }
     function trMsgHtml(m) {
       if (!m.from && !m.mine) return `<div class="tr-sys"><span>${esc(m.text)}</span></div>`;
@@ -10868,7 +10878,7 @@
       return `<div class="tr-msg${m.mine ? ' mine' : ''}" id="trm${m.id}">
         ${m.mine ? '' : `<div class="tr-who">${esc(m.from)}</div>`}
         ${m.deleted ? '<div class="tr-bub del">지운 글이에요</div>'
-          : `<div class="tr-bub${m.pinned ? ' pinned' : ''}" data-tr-sel="${m.id}">${m.pinned ? '📌 ' : ''}${m.photo ? `<img class="zoomable" src="${esc(m.photo)}" alt="사진" loading="lazy">` : ''}${esc(m.text)}</div>`}
+          : `<div class="tr-bub${m.pinned ? ' pinned' : ''}" data-tr-sel="${m.id}">${m.pinned ? '📌 ' : ''}${m.photo ? `<img class="zoomable" src="${esc(m.photo)}" alt="사진" loading="lazy">` : ''}${trFileHtml(m.file)}${esc(m.text)}</div>`}
         <div class="tr-meta">${esc(String(m.at).slice(5, 16).replace('-', '/'))}</div>
         ${trSt.sel === m.id && !m.deleted ? `<div class="tr-acts"><button type="button" data-tr-pin="${m.id}">${m.pinned ? '📌 고정 풀기' : '📌 고정'}</button>${m.text ? `<button type="button" data-tr-copy="${m.id}">복사</button>` : ''}${canDel ? `<button type="button" class="red" data-tr-del="${m.id}">지우기</button>` : ''}</div>` : ''}
       </div>`;
@@ -10929,7 +10939,7 @@
       else if (trSt.err) body = `<div class="tr-note">⚠️ ${esc(trSt.err)}</div>`;
       else if (trSt.tab === 'chat') body = (trSt.pins.length ? `<div class="tr-pinbar" data-tr-tab="pins">📌 고정한 중요 정보 ${trSt.pins.length}개 — 눌러서 모아 보기 ›</div>` : '')
         + (trSt.msgs.length ? trSt.msgs.map(trMsgHtml).join('') : `<div class="tr-note">아직 글이 없어요.<br>이 섭외자에 관한 <b>중요 정보</b>는 여기서 나누세요. 중요한 글은 눌러서 <b>📌 고정</b>하면 '고정' 칸에 모여요.${trSt.isOwner ? '<br>👥 칸에서 함께할 분을 초대할 수 있어요.' : ''}</div>`);
-      else if (trSt.tab === 'pins') body = trSt.pins.length ? trSt.pins.map(m => `<div class="tr-card"><div class="h"><b>${esc(m.from || '')}</b><span>${esc(String(m.at).slice(0, 16))}</span></div>${m.photo ? `<img class="zoomable" src="${esc(m.photo)}" alt="사진" style="max-width:100%;border-radius:10px">` : ''}${esc(m.text).replace(/\n/g, '<br>')}<div class="tr-acts"><button type="button" data-tr-pin="${m.id}">📌 고정 풀기</button></div></div>`).join('')
+      else if (trSt.tab === 'pins') body = trSt.pins.length ? trSt.pins.map(m => `<div class="tr-card"><div class="h"><b>${esc(m.from || '')}</b><span>${esc(String(m.at).slice(0, 16))}</span></div>${m.photo ? `<img class="zoomable" src="${esc(m.photo)}" alt="사진" style="max-width:100%;border-radius:10px">` : ''}${trFileHtml(m.file)}${esc(m.text).replace(/\n/g, '<br>')}<div class="tr-acts"><button type="button" data-tr-pin="${m.id}">📌 고정 풀기</button></div></div>`).join('')
         : '<div class="tr-note">고정한 글이 없어요. 대화에서 중요한 글을 누르고 <b>📌 고정</b>을 누르세요.</div>';
       else if (trSt.tab === 'members') body = trMembersHtml();
       else body = trRecHtml();
@@ -10937,10 +10947,12 @@
       layer.innerHTML = `<div class="tr-bar"><button type="button" data-tr-close aria-label="닫기">‹</button><div class="tr-t"><b>💬 ${esc(r ? r.name : '섭외자 대화방')}</b><small>${r ? esc([r.stage, r.gender, r.ageGroup].filter(Boolean).join(' · ')) + ` · ${trSt.members.length}명` : ''}</small></div></div>
         <div class="tr-tabs">${tabs.map(([k, l]) => `<button type="button" class="${trSt.tab === k ? 'on' : ''}" data-tr-tab="${k}">${l}</button>`).join('')}</div>
         <div class="tr-body" id="trBody">${body}</div>
-        ${input && trSt.photo ? `<div class="tr-prev"><img src="${esc(trSt.photo)}" alt=""><span>사진 1장</span><button type="button" data-tr-unphoto>빼기</button></div>` : ''}
-        ${input ? `<div class="tr-in"><button type="button" class="ib" data-tr-photo title="사진">📷</button><button type="button" class="ib${trSt.pin ? ' on' : ''}" data-tr-pinmode title="고정해서 보내기">📌</button>
-          <textarea id="trText" rows="1" maxlength="3000" placeholder="${trSt.pin ? '📌 고정할 중요 정보' : '메시지'}"></textarea><button type="button" class="send" data-tr-send>보내기</button>
-          <input type="file" id="trFile" accept="image/*" hidden></div>` : ''}`;
+        ${input && trSt.att.length ? `<div class="tr-prev">${trSt.att.map((x, i) => `<div class="it">${x.photo ? `<img src="${esc(x.photo)}" alt="">` : trIcon(x.name)}<span class="nm">${x.photo ? '사진' : esc(x.name)}${x.size ? `<br><small>${trSize(x.size)}</small>` : ''}</span><button type="button" data-tr-unatt="${i}" aria-label="빼기">✕</button></div>`).join('')}</div>` : ''}
+        ${input && trSt.sending ? `<div class="tr-sending"><span class="loading loading-spinner loading-xs"></span> ${esc(trSt.sending)}</div>` : ''}
+        ${input ? `<div class="tr-in"><button type="button" class="ib" data-tr-photo title="사진·파일 첨부 (PPT·한글·PDF·사진)">📎</button><button type="button" class="ib${trSt.pin ? ' on' : ''}" data-tr-pinmode title="고정해서 보내기">📌</button>
+          <textarea id="trText" rows="1" maxlength="3000" placeholder="${trSt.pin ? '📌 고정할 중요 정보' : '메시지 · 파일은 끌어다 놓아도 돼요'}"></textarea><button type="button" class="send" data-tr-send ${trSt.sending ? 'disabled' : ''}>보내기</button>
+          <input type="file" id="trFile" accept="${TR_ACCEPT}" multiple hidden></div>` : ''}
+        ${input ? '<div class="tr-drop">📎 여기에 놓으면 첨부돼요 (PPT·한글·PDF·사진)</div>' : ''}`;
       const b = document.getElementById('trBody');
       if (scrollEnd && b && trSt.tab === 'chat') b.scrollTop = b.scrollHeight;
       trBind(layer);
@@ -10960,7 +10972,7 @@
           if (trSt.tab === 'chat') trPoll();
           return trRender(trSt.tab === 'chat');
         }
-        if (g('img.zoomable')) return;
+        if (g('img.zoomable') || g('a.tr-file')) return;
         if ((el = g('[data-tr-sel]'))) { const id = Number(el.dataset.trSel); trSt.sel = trSt.sel === id ? 0 : id; const keep = document.getElementById('trBody')?.scrollTop; trRender(); const b = document.getElementById('trBody'); if (b && keep != null) b.scrollTop = keep; return; }
         if ((el = g('[data-tr-pin]'))) {
           const id = Number(el.dataset.trPin), m = trSt.msgs.find(x => x.id === id) || trSt.pins.find(x => x.id === id), on = !(m && m.pinned);
@@ -10975,23 +10987,13 @@
           if (!confirm('이 글을 지울까요?')) return;
           const id = Number(el.dataset.trDel), res = await trApi({ action: 'deleteRoomMessage', id });
           if (!res || res.error) return toast((res && res.error) || '지우지 못했어요.', true);
-          trSt.msgs.forEach(x => { if (x.id === id) Object.assign(x, { deleted: true, text: '', photo: '', pinned: false }); });
+          trSt.msgs.forEach(x => { if (x.id === id) Object.assign(x, { deleted: true, text: '', photo: '', file: null, pinned: false }); });
           trSt.pins = trSt.pins.filter(x => x.id !== id); trSt.sel = 0; return trRender();
         }
         if (g('[data-tr-pinmode]')) { trSt.pin = !trSt.pin; const t = document.getElementById('trText').value; trRender(true); document.getElementById('trText').value = t; return; }
         if (g('[data-tr-photo]')) return document.getElementById('trFile').click();
-        if (g('[data-tr-unphoto]')) { const t = document.getElementById('trText').value; trSt.photo = ''; trRender(true); document.getElementById('trText').value = t; return; }
-        if ((el = g('[data-tr-send]'))) {
-          const ta = document.getElementById('trText'), text = ta.value.trim();
-          if (!text && !trSt.photo) return;
-          el.disabled = true;
-          const res = await trApi({ action: 'sendRoomMessage', text, photo: trSt.photo, pin: trSt.pin });
-          if (!res || res.error) { el.disabled = false; return toast((res && res.error) || '보내지 못했어요.', true); }
-          const have = new Set(trSt.msgs.map(m => m.id));
-          if (!have.has(res.message.id)) trSt.msgs.push(res.message);
-          if (res.message.pinned) trSt.pins.push(res.message);
-          trSt.photo = ''; trSt.pin = false; trRender(true); return;
-        }
+        if ((el = g('[data-tr-unatt]'))) { const i = Number(el.dataset.trUnatt); return trKeepText(() => trSt.att.splice(i, 1)); }
+        if ((el = g('[data-tr-send]'))) return trSendAll();
         if ((el = g('[data-tr-mklink]'))) {
           el.disabled = true;
           const res = await trApi({ action: 'createRoomInvite' });
@@ -11031,13 +11033,108 @@
         trRender();
       };
       const file = document.getElementById('trFile');
-      if (file) file.onchange = async () => {
-        const fl = file.files && file.files[0]; if (!fl) return;
-        try { const t = document.getElementById('trText').value; trSt.photo = await trShrink(fl); trRender(true); document.getElementById('trText').value = t; }
-        catch (err) { toast(err.message || '사진을 읽지 못했어요.', true); }
-      };
+      if (file) file.onchange = () => { const fs = Array.from(file.files || []); file.value = ''; trAddFiles(fs); };
       const ta = document.getElementById('trText');
-      if (ta) ta.oninput = () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; };
+      if (ta) {
+        ta.oninput = () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; };
+        // 11/10: 복사한 사진·파일 붙여넣기(Ctrl+V)
+        ta.onpaste = e => { const fs = Array.from((e.clipboardData && e.clipboardData.files) || []); if (fs.length) { e.preventDefault(); trAddFiles(fs); } };
+      }
+      // 11/10(사용자): 끌어다 놓기 — 대화 칸일 때만
+      let depth = 0;
+      const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+      layer.ondragenter = e => { if (!hasFiles(e) || trSt.tab !== 'chat') return; e.preventDefault(); depth++; layer.classList.add('dragging'); };
+      layer.ondragover = e => { if (!hasFiles(e) || trSt.tab !== 'chat') return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
+      layer.ondragleave = () => { if (--depth <= 0) { depth = 0; layer.classList.remove('dragging'); } };
+      layer.ondrop = e => {
+        depth = 0; layer.classList.remove('dragging');
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        if (trSt.tab !== 'chat' || trSt.busy || trSt.err) return;
+        trAddFiles(Array.from(e.dataTransfer.files || []));
+      };
+    }
+    // ── 11/10(사용자) 첨부: PPT·한글 문서·PDF·사진 — 📎 불러오기 / 끌어다 놓기 / 붙여넣기 ──
+    //   사진은 줄여서 그대로(서버가 R2에), 문서는 3MB 이하면 서버를 거쳐, 더 크면 R2로 바로 올린 뒤 글로 남긴다(roomFileUpload).
+    const TR_DOC_EXT = ['ppt', 'pptx', 'pps', 'ppsx', 'hwp', 'hwpx', 'pdf'];
+    const TR_ACCEPT = 'image/*,' + TR_DOC_EXT.map(x => '.' + x).join(',');
+    const TR_FILE_MAX = 50 * 1024 * 1024, TR_INLINE_MAX = 3 * 1024 * 1024, TR_ATT_MAX = 10;
+    const trExt = n => ((String(n || '').toLowerCase().match(/\.([a-z0-9]+)$/) || [])[1] || '');
+    const trSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(b / 1024)) + 'KB';
+    function trIcon(name) {
+      const x = trExt(name), c = /^pp/.test(x) ? '#D24726' : /^hw/.test(x) ? '#1F7BD8' : x === 'pdf' ? '#E5252A' : '#6B7280';
+      return `<span class="ic" style="background:${c}">${esc((/^hw/.test(x) ? '한글' : x.toUpperCase()).slice(0, 4))}</span>`;
+    }
+    function trFileHtml(f) {
+      if (!f || !f.url) return '';
+      return `<a class="tr-file" href="${esc(f.url)}" target="_blank" rel="noopener" download="${esc(f.name)}">${trIcon(f.name)}<span class="m"><b>${esc(f.name)}</b><small>${f.size ? trSize(f.size) : ''}</small></span><span class="dl">받기 ⬇</span></a>`;
+    }
+    function trKeepText(fn) {
+      const ta = document.getElementById('trText'), t = ta ? ta.value : '';
+      fn(); trRender(true);
+      const t2 = document.getElementById('trText'); if (t2) t2.value = t;
+    }
+    async function trAddFiles(files) {
+      if (!files.length) return;
+      const bad = [], big = [];
+      for (const f of files) {
+        if (trSt.att.length >= TR_ATT_MAX) { toast(`한 번에 ${TR_ATT_MAX}개까지 보낼 수 있어요.`, true); break; }
+        const isImg = /^image\//.test(f.type) && !TR_DOC_EXT.includes(trExt(f.name));
+        if (isImg) {
+          try { const photo = await trShrink(f); trKeepText(() => trSt.att.push({ photo })); }
+          catch (err) { toast(err.message || '사진을 읽지 못했어요.', true); }
+        } else if (!TR_DOC_EXT.includes(trExt(f.name))) bad.push(f.name);
+        else if (f.size > TR_FILE_MAX) big.push(f.name);
+        else if (!f.size) bad.push(f.name);
+        else trKeepText(() => trSt.att.push({ file: f, name: f.name, size: f.size }));
+      }
+      if (bad.length) toast(`PPT·한글(hwp·hwpx)·PDF·사진만 올릴 수 있어요: ${bad.slice(0, 2).join(', ')}`, true);
+      if (big.length) toast(`50MB가 넘는 파일은 못 올려요: ${big.slice(0, 2).join(', ')}`, true);
+    }
+    const trReadB64 = f => new Promise((ok, no) => { const rd = new FileReader(); rd.onerror = () => no(new Error('파일을 읽지 못했어요.')); rd.onload = () => ok(String(rd.result)); rd.readAsDataURL(f); });
+    // 문서 하나 올리기 → { url, name }
+    async function trUploadDoc(x) {
+      if (x.size <= TR_INLINE_MAX) {
+        const res = await trApi({ action: 'roomFileUpload', fileName: x.name, data: await trReadB64(x.file) });
+        if (!res || res.error) throw new Error((res && res.error) || '파일을 올리지 못했어요.');
+        return { url: res.url, name: res.name };
+      }
+      const res = await trApi({ action: 'roomFileUpload', fileName: x.name, size: x.size });
+      if (!res || res.error) throw new Error((res && res.error) || '파일을 올리지 못했어요.');
+      let r;
+      try { r = await fetch(res.put, { method: 'PUT', headers: res.headers, body: x.file }); }
+      catch (e) { throw new Error('3MB가 넘는 파일을 올리지 못했어요. 인터넷을 확인하거나, 파일을 줄여서 다시 올려 주세요.'); }
+      if (!r.ok) throw new Error(`파일을 올리지 못했어요(${r.status}).`);
+      return { url: res.url, name: res.name };
+    }
+    // 보내기: 글 + 첨부 하나씩(첨부가 여럿이면 글은 첫 첨부와 함께)
+    async function trSendAll() {
+      if (trSt.sending) return;
+      const ta = document.getElementById('trText'), text = ta ? ta.value.trim() : '';
+      const items = trSt.att.slice();
+      if (!text && !items.length) return;
+      const id = trSt.id, pin = trSt.pin;
+      const jobs = items.length ? items : [null];
+      for (let i = 0; i < jobs.length; i++) {
+        const x = jobs[i];
+        trKeepText(() => { trSt.sending = jobs.length > 1 ? `보내는 중 ${i + 1}/${jobs.length}…` : x && x.file ? `${x.name} 올리는 중…` : '보내는 중…'; });
+        try {
+          const p = { action: 'sendRoomMessage', text: i === 0 ? text : '', pin };
+          if (x && x.photo) p.photo = x.photo;
+          if (x && x.file) p.file = await trUploadDoc(x);
+          const res = await trApi(p);
+          if (!res || res.error) throw new Error((res && res.error) || '보내지 못했어요.');
+          if (id !== trSt.id) return;
+          if (!trSt.msgs.some(m => m.id === res.message.id)) trSt.msgs.push(res.message);
+          if (res.message.pinned) trSt.pins.push(res.message);
+          if (x) trSt.att.splice(trSt.att.indexOf(x), 1);
+          if (i === 0 && ta) { const t2 = document.getElementById('trText'); if (t2) t2.value = ''; }
+        } catch (err) {
+          trSt.sending = ''; trKeepText(() => {});
+          return toast((err && err.message) || '보내지 못했어요.', true);
+        }
+      }
+      trSt.sending = ''; trSt.pin = false; trRender(true);
     }
     async function trReload(tab) {
       const res = await trApi({ action: 'getTargetRoom' });

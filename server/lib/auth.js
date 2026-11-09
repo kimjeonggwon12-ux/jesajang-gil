@@ -30,5 +30,5 @@ export const PUBLIC_ACTIONS = new Set([
 ]);
 // 손님 표로 부를 수 있는 것: 초대받은 섭외자 대화방만
 export const GUEST_ACTIONS = new Set([
-  'getTargetRoom', 'sendRoomMessage', 'pinRoomMessage', 'deleteRoomMessage', 'leaveRoom', 'getRoomRecords', 'listMyRooms', 'joinRoomByCode',
+  'getTargetRoom', 'sendRoomMessage', 'roomFileUpload', 'pinRoomMessage', 'deleteRoomMessage', 'leaveRoom', 'getRoomRecords', 'listMyRooms', 'joinRoomByCode',
 ]);
