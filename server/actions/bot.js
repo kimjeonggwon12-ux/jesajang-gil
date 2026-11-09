@@ -9,7 +9,7 @@ import { sendAlert, alreadySent, logAlert, esc } from '../lib/alerts.js';
 import { afterAction, onStageReached } from '../lib/events.js';
 import { teachersByNid, rosterCounts, loadRoster, fixActivityNids, adminsAsTeachers } from './roster.js';
 import { progressPng } from '../lib/progress-image.js';
-import { boardTable, boardTotalLines, BOARD_COLS, boardLabel, countPairs } from '../lib/report-room.js';
+import { boardTable, boardTotalLines, BOARD_COLS, boardLabel, countPairs, sendRoomBoard, sendRoomText, topicPending } from '../lib/report-room.js';
 import { askAiModels } from '../lib/gemini.js';
 import { newsCardPng } from '../lib/news-card.js';
 
@@ -270,6 +270,7 @@ export async function summaryTick() {
   const out = {};
   if (hm >= '12:00' && hm < '15:00') out.noon = await sendNoonSummary().catch((e) => ({ error: String(e) }));
   if (hm >= '22:00') out.evening = await sendEveningSummary({ tick: true }).catch((e) => ({ error: String(e) }));
+  if (hm >= '22:00') out.eveningRooms = await sendEveningRooms(kstDate()).catch((e) => ({ error: String(e) }));
   if (hm >= '23:00') out.daily = await sendDailySummary({ date: kstDate() }).catch((e) => ({ error: String(e) }));
   // 11/5(사용자): "한 줄 데이터 뉴스 — 매일 밤 10시 맨 마지막, 글만, 내일(11/6)부터" → 22시 표들(③·④)이 먼저 나가게 22:05부터, 하루 한 번
   if (hm >= '22:05' && hm < '23:00' && kstDate() >= NEWS_START) out.news = await sendNewsOneline({ date: kstDate() }).catch((e) => ({ error: String(e) }));
@@ -367,6 +368,43 @@ async function sendEveningSummary({ date, force, tick }) {
     console.log('[교사광장 봇] 저녁 서머리 오류 ' + err);
     return { ok: false, error: String(err) };
   }
+}
+
+// ── 부서 전체 방·회장단 방 (2026-11-09) ── 사용자: "부서 전체 방엔 그 부서 전지역 통합 + 교자장부청 교회 통합 — 장부청이 자기 부서와 전체를 비교하게.
+//   회장단 방도 자기 부서와 교회 전체. 한 줄 데이터 뉴스도 각 부서 전체·회장단·소통 방에 매일."
+//   자기 부서 지역별 총합(③ 민트)은 report-room.js 총합 방('부서#총합…')이 보내고, 여기선 ④ 교자장부청 보라 표와 뉴스만. 방마다 하루 한 번.
+const CHURCH_ROOM_KEYS = ['교역자', '장년회', '부녀회', '청년회', '부녀회/기타'];   // 부서 전체 방(교역자 방 포함) + 부녀회 회장단 방
+async function churchRooms() {
+  const rows = await run(db().from('report_rooms').select('*').in('dept', CHURCH_ROOM_KEYS).eq('active', true)).catch(() => []);
+  const seen = new Set();
+  return CHURCH_ROOM_KEYS.map((k) => rows.find((r) => r.dept === k))
+    .filter((r) => r && !topicPending(r) && !seen.has(String(r.chat_id)) && seen.add(String(r.chat_id)));
+}
+/** 아직 오늘 kind 를 받지 않은 방들 */
+async function pendingChurchRooms(kind, day) {
+  const done = new Set((await run(db().from('cohort_summary_log').select('ref_id').eq('cohort_id', '#church-room').eq('kind', kind).eq('date', day)).catch(() => [])).map((x) => x.ref_id));
+  return (await churchRooms()).filter((r) => !done.has(r.dept));
+}
+async function sendToRooms(rooms, kind, day, send) {
+  const sent = [];
+  for (const room of rooms) {
+    const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#church-room', kind, ref_id: room.dept, date: day, sent_at: kstDateTime() });
+    if (error) continue;   // 이미 보냄
+    try { await send(room); sent.push(room.dept); }
+    catch (e) {
+      await db().from('cohort_summary_log').delete().eq('cohort_id', '#church-room').eq('kind', kind).eq('ref_id', room.dept).eq('date', day);   // 다음 5분에 다시
+      console.log(`[교사광장 봇] ${kind} 방 전송 실패(${room.dept}): ${e.message}`);
+    }
+  }
+  return sent;
+}
+/** 밤 10시: 부서 전체 방·회장단 방에 ④ 교자장부청 하루 보라 표(소통 방과 같은 것). */
+async function sendEveningRooms(day) {
+  const rooms = await pendingChurchRooms('교자장부청', day);
+  if (!rooms.length) return { sent: [] };
+  const r = await composeBoard(day, 'evening');
+  if (!r.total) return { sent: [], skipped: '기록 없음' };
+  return { sent: await sendToRooms(rooms, '교자장부청', day, (room) => sendRoomBoard(room, r.png, r.caption, r.text)) };
 }
 
 const NEWS_START = '2026-11-06';
@@ -660,15 +698,22 @@ const tsNewsSend = async (body) => (authorized(body) ? sendNewsOneline(body) : {
 async function sendNewsOneline(body) {
   const day = body.date || kstDate();
   // 11/5(사용자): "이미지는 하지 말고 한 줄 데이터 뉴스 텍스트만" → photo:false. text 를 주면 확인한 글 그대로(AI 다시 안 씀)
-  const r = body.text ? { text: String(body.text), png: null, ai: false } : await composeNews(day, { oneline: true, today: body.today !== false });
-  if (body.photo === false) r.png = null;
-  if (body.to === 'test') return { ...(await testPhoto(r.png, r.text, r.text)), ai: r.ai, text: r.text };
+  const compose = async () => (body.text ? { text: String(body.text), png: null, ai: false } : composeNews(day, { oneline: true, today: body.today !== false }));
+  if (body.to === 'test') { const r = await compose(); if (body.photo === false) r.png = null; return { ...(await testPhoto(r.png, r.text, r.text)), ai: r.ai, text: r.text }; }
   const key = body.force ? '' : 'news1_' + day;
-  if (key && await alreadySent(key)) return { ok: false, skipped: true, date: day };
+  // 11/9(사용자): 뉴스는 소통 방 + 각 부서 전체 방·회장단 방에도 매일(손으로 다시 보내는 force 는 소통 방만)
+  const rooms = body.force ? [] : await pendingChurchRooms('데이터뉴스', day);
+  const mainDone = !!key && await alreadySent(key);
+  if (mainDone && !rooms.length) return { ok: false, skipped: true, date: day };   // 다 보냈으면 AI 도 다시 부르지 않음
+  const r = await compose();
   if (body.photo !== true) r.png = null;   // 11/5: 글만이 기본(사진은 photo:true)
-  let ok = r.png ? await sendChart(r.png, r.text, key, '데이터뉴스') : false;
-  if (!ok) ok = await sendAlert(r.text, '데이터뉴스', key);
-  return { ok, date: day, ai: r.ai, photo: !!r.png, text: r.text };
+  let ok = mainDone;
+  if (!mainDone) {
+    ok = r.png ? await sendChart(r.png, r.text, key, '데이터뉴스') : false;
+    if (!ok) ok = await sendAlert(r.text, '데이터뉴스', key);
+  }
+  const roomsSent = await sendToRooms(rooms, '데이터뉴스', day, (room) => sendRoomText(room.chat_id, r.text));
+  return { ok, date: day, ai: r.ai, photo: !!r.png, text: r.text, rooms: roomsSent };
 }
 // 11/5: 전체 텔레그램 방 연결 점검(보내지 않음)
 const tsRoomHealth = async (body) => (authorized(body) ? (await import('../lib/room-health.js')).roomHealth() : { error: 'unauthorized' });

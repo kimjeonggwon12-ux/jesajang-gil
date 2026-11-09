@@ -341,7 +341,9 @@ export async function buildDailyReports(date, onlyDept = '') {
 // 11/5(사용자, 교역자 방): 글 일일 보고 대신 "지역마다 잘 정돈된" 총합 표 — 교역자는 지역 방이 없어 지역(교회·신학)을 여기서
 const SUMMARY_EXTRA_ORGS = { '장년회': ['13지역'], '교역자': ['교회', '신학'] };
 // 총합 표로 바꾼 방 — 22시 글 일일 보고(📍…-일일 보고)는 보내지 않는다
-const NO_DAILY_TEXT = new Set(['교역자']);
+// 11/9(사용자): 부서 전체 방(장년회·부녀회·청년회 전체방)은 자기 부서 지역별 총합(③ 민트, '부서#총합…') + 교자장부청 교회 통합(④ 보라, bot.js)으로 통일
+//   — 글 일일 보고(상담1~복음방 이름 목록)는 빼서 텔레그램 홍수를 줄인다. 지역 방 글 일일 보고는 그대로.
+const NO_DAILY_TEXT = new Set(['교역자', '장년회', '부녀회', '청년회']);
 const DEPT_ORDER =['교역자', '자문회', '장년회', '부녀회', '청년회'];
 const deptRank = (key) => { const i = DEPT_ORDER.indexOf(key.split(/[#/]/)[0]); return i < 0 ? 9 : i; };
 const orgOrder = (r) => { const m = r.match(/^0*(\d+)/); return m ? [0, Number(m[1])] : [1, ['유아모', '새신자'].indexOf(r) + 1 || 9]; };
