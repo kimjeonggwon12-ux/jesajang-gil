@@ -405,8 +405,22 @@ async function listOpeningRooms(body) {
       lastReport: lastOf(t),
     };
   });
-  rows.sort((a, b) => String(b.lastReport).localeCompare(String(a.lastReport)));
-  return { rows };
+  // 11/10(사용자): "중복건은 교사 기준으로 1건" — 같은 교사(이름)·같은 섭외자 이름이 여러 줄이면(번호를 달리 넣어 두 번 등록 등) 하나로.
+  //   남길 줄 = 피드백방 있는 것 → 부서가 있는 것 → 최근 보고. 부서·지역·최근 보고·단계(높은 쪽)·안 읽은 수는 합쳐서.
+  const groups = new Map();
+  for (const r of rows) { const k = `${r.teacher.trim()}|${r.name}`; groups.set(k, (groups.get(k) || []).concat(r)); }
+  const out = [...groups.values()].map((g) => {
+    if (g.length === 1) return g[0];
+    const pick = [...g].sort((a, b) => (b.room - a.room) || (!!b.dept - !!a.dept) || String(b.lastReport).localeCompare(String(a.lastReport)))[0];
+    const withDept = g.find((x) => x.dept) || {};
+    return {
+      ...pick, dept: pick.dept || withDept.dept || '', region: pick.region || withDept.region || '',
+      stage: g.map((x) => x.stage).sort((a, b) => COUNSEL_STAGES.indexOf(b) - COUNSEL_STAGES.indexOf(a))[0],
+      lastReport: g.map((x) => x.lastReport).sort().pop(), unread: g.reduce((n, x) => n + x.unread, 0), dup: g.length,
+    };
+  });
+  out.sort((a, b) => String(b.lastReport).localeCompare(String(a.lastReport)));
+  return { rows: out };
 }
 
 /**
