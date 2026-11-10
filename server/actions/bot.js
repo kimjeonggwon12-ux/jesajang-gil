@@ -191,7 +191,7 @@ async function composeBoard(day, kind = 'evening') {
 async function composeTotalCard(day, board) {
   const r = board || await composeBoard(day, 'evening');
   const [, m, d] = day.split('-').map(Number);
-  const date = `${m}월 ${d}일(${weekdayOf(day)})`;
+  const date = `${m}월 ${d}일(${weekdayOf(day)}) · 밤 10시`;   // 11/10(사용자): '10시 뉴스'처럼 10시 = 이 카드
   const png = totalCardPng({ date, title: '교자장부청 오늘 활동 기록', sum: r.sum, rows: r.per.map((p) => ({ label: p.label, n: p.sum })) });
   // 11/10(사용자): 카드에 나온 숫자를 아래 글로 또 적지 않는다 — 제목 한 줄만(데이터 뉴스가 바로 아래 이어짐)
   const caption = `📊 <b>교자장부청 오늘 활동 기록</b> · ${date}`;
@@ -283,8 +283,8 @@ export async function summaryTick() {
   if (hm >= '22:00') out.evening = await sendEveningSummary({ tick: true }).catch((e) => ({ error: String(e) }));
   // 11/10(사용자): 교자장부청 '계' 큰 카드 + 그 설명 글 = 한 줄 데이터 뉴스 → 한 통으로(22:05 뉴스가 맨 마지막, 소통 방·교자장부청 방)
   if (hm >= '23:00') out.daily = await sendDailySummary({ date: kstDate() }).catch((e) => ({ error: String(e) }));
-  // 11/5(사용자): "한 줄 데이터 뉴스 — 매일 밤 10시 맨 마지막, 글만, 내일(11/6)부터" → 22시 표들(③·④)이 먼저 나가게 22:05부터, 하루 한 번
-  if (hm >= '22:05' && hm < '23:00' && kstDate() >= NEWS_START) out.news = await sendNewsOneline({ date: kstDate() }).catch((e) => ({ error: String(e) }));
+  // 11/10(사용자): '10시 한 줄 데이터 뉴스' — 9시 뉴스처럼 22:00 틱에 바로(같은 틱에서 지역 표·보라 표 다음이라 맨 마지막). 옛: 11/5(사용자): "한 줄 데이터 뉴스 — 매일 밤 10시 맨 마지막, 글만, 내일(11/6)부터" → 22시 표들(③·④)이 먼저 나가게 22:05부터, 하루 한 번
+  if (hm >= '22:00' && hm < '23:00' && kstDate() >= NEWS_START) out.news = await sendNewsOneline({ date: kstDate() }).catch((e) => ({ error: String(e) }));
   return out;
 }
 
@@ -588,7 +588,7 @@ export async function composeNews(day, opts = {}) {
   });
   if (opts.oneline) {
     // 11/10(사용자): 빨간 점·"오늘 하루에 ~ 있습니다" 안내 문구는 지움
-    text = ['📰 <b>한 줄 데이터 뉴스</b>', `🗞 ${md} · 교자장부청`, '',
+    text = ['🕙📰 <b>10시 한 줄 데이터 뉴스</b>', `🗞 ${md} 밤 10시 · 교자장부청`, '',
       ...depts.map((d) => `● <b>${esc(d.label)}</b> · ${esc(d.line)}`), '',
       '🚨 <b>교사 할 일</b>', ...cheerLines(rawLines).map((l, i) => `${'①②③'[i]} ${esc(l)}`), '',   // 11/10: 우선순위처럼 동그라미 번호
       // 11/10(사용자): 위 카드의 숫자(항목별 건수 합)와 다르게 보이지 않게 — 건수는 빼고 활동 교사 수만
