@@ -17062,10 +17062,11 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
     //   방의 👥 초대 칸에서 인교섬협(인도자·교사·섬김이·협력교사)을 초대한다. 관리자가 쓴 글은 교사 앱에 '개강 피드백 도착' 창으로 뜬다.
     // ════════════════════════════════════════════════════════════════
     const ofbAdm = (() => {
-      const st = { rows: null, err: '', dept: '전체', stage: '', q: '', only: false, busy: false };
-      const DEPTS = ['전체', '장년회', '부녀회', '청년회', '그 밖'];
+      const st = { rows: null, err: '', dept: '전체', region: '', stage: '', q: '', only: false, busy: false };
+      // 11/10(사용자): 부서는 교역자·자문회·장년회·부녀회·청년회 전부 + 지역 고르기
+      const DEPTS = ['전체', '교역자', '자문회', '장년회', '부녀회', '청년회', '그 밖'];
       const STAGES = ['', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
-      const MAIN = ['장년회', '부녀회', '청년회'];
+      const MAIN = ['교역자', '자문회', '장년회', '부녀회', '청년회'];
       const regionNo = r => { const m = String(r || '').match(/\d+/); return m ? Number(m[0]) : 99; };
       function css() {
         if (document.getElementById('ofbCss')) return;
@@ -17098,9 +17099,9 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
       }
       const deptOf = r => MAIN.includes(r.dept) ? r.dept : '그 밖';
       function filtered() {
-        const q = st.q.trim();
-        return (st.rows || []).filter(r => (st.dept === '전체' || deptOf(r) === st.dept) && (!st.stage || r.stage === st.stage) && (!st.only || r.room)
-          && (!q || [r.teacher, r.region, r.dept, r.name].join(' ').includes(q)))
+        const q = st.q.trim(), qm = q.match(/^0*(\d{1,2})\s*(지역)?$/), qn = qm ? Number(qm[1]) : 0;   // "3", "3지역", "03지역" → 그 지역
+        return (st.rows || []).filter(r => (st.dept === '전체' || deptOf(r) === st.dept) && (!st.region || (r.region || '지역 없음') === st.region) && (!st.stage || r.stage === st.stage) && (!st.only || r.room)
+          && (!q || (qn ? regionNo(r.region) === qn : [r.teacher, r.region, r.dept, r.name].join(' ').includes(q))))
           .sort((a, b) => (b.unread - a.unread) || MAIN.concat(['그 밖']).indexOf(deptOf(a)) - MAIN.concat(['그 밖']).indexOf(deptOf(b)) || regionNo(a.region) - regionNo(b.region) || String(a.teacher).localeCompare(String(b.teacher)));
       }
       function card(r) {
@@ -17122,11 +17123,14 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         const list = filtered();
         root.innerHTML = head
           + `<div class="ofb-chips">${DEPTS.map(d => `<button type="button" class="${st.dept === d ? 'on' : ''}" data-ofb-dept="${d}">${d}<i>${cnt(d)}</i></button>`).join('')}</div>`
+          + (st.dept !== '전체' ? (regs => regs.length > 1 ? `<div class="ofb-chips">${[''].concat(regs).map(g => `<button type="button" class="${st.region === g ? 'on' : ''}" data-ofb-region="${esc(g)}">${g ? esc(g) : '모든 지역'}<i>${(st.rows || []).filter(r => deptOf(r) === st.dept && (!g || (r.region || '지역 없음') === g)).length}</i></button>`).join('')}</div>` : '')(
+              [...new Set((st.rows || []).filter(r => deptOf(r) === st.dept).map(r => r.region || '지역 없음'))].sort((a, b) => regionNo(a) - regionNo(b) || a.localeCompare(b))) : '')
           + `<div class="ofb-chips">${STAGES.map(g => `<button type="button" class="${st.stage === g ? 'on' : ''}" data-ofb-stage="${g}">${g || '모든 단계'}</button>`).join('')}</div>`
-          + `<div class="ofb-bar"><input type="search" id="ofbQ" placeholder="교사·지역·이름 찾기" value="${esc(st.q)}" autocomplete="off"><label><input type="checkbox" id="ofbOnly" ${st.only ? 'checked' : ''}>방 있는 것만</label></div>`
+          + `<div class="ofb-bar"><input type="search" id="ofbQ" placeholder="이름·교사·지역 찾기 (예: 3지역)" value="${esc(st.q)}" autocomplete="off"><label><input type="checkbox" id="ofbOnly" ${st.only ? 'checked' : ''}>방 있는 것만</label></div>`
           + (list.length ? `<div class="ofb-grp">${list.length}명</div>` + list.slice(0, 300).map(card).join('') + (list.length > 300 ? '<div class="tr-note">300명까지만 보여요. 부서·단계·찾기로 좁혀 주세요.</div>' : '')
             : '<div class="tr-note">해당하는 섭외자가 없어요.</div>');
-        root.querySelectorAll('[data-ofb-dept]').forEach(b => b.onclick = () => { st.dept = b.dataset.ofbDept; render(); });
+        root.querySelectorAll('[data-ofb-dept]').forEach(b => b.onclick = () => { st.dept = b.dataset.ofbDept; st.region = ''; render(); });
+        root.querySelectorAll('[data-ofb-region]').forEach(b => b.onclick = () => { st.region = b.dataset.ofbRegion; render(); });
         root.querySelectorAll('[data-ofb-stage]').forEach(b => b.onclick = () => { st.stage = b.dataset.ofbStage; render(); });
         const q = document.getElementById('ofbQ');
         if (q) q.oninput = () => { st.q = q.value; clearTimeout(st.qt); st.qt = setTimeout(() => { const pos = q.selectionStart; render(); const n = document.getElementById('ofbQ'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} } }, 250); };
