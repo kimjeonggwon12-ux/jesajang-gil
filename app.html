@@ -10879,6 +10879,22 @@
       .tr-layer { position:fixed; inset:0; z-index:10010; display:flex; flex-direction:column; background:#F4F5F7; }
       .fbn { display:flex; align-items:center; gap:12px; width:100%; margin:12px 0 0; padding:14px 12px; border:none; border-radius:16px; text-align:left; cursor:pointer; color:#fff;
         background:linear-gradient(135deg,#FF5A36 0%,#FF8A00 100%); box-shadow:0 8px 22px rgba(255,90,54,.35); animation:fbnPulse 2.2s ease-in-out infinite; }
+      .fbh { position:relative; overflow:hidden; margin-bottom:12px; padding:18px 16px 14px; border-radius:20px; color:#fff;
+        background:radial-gradient(circle at 100% 0%, rgba(255,214,0,.45), transparent 45%), linear-gradient(140deg,#0B4D3A 0%,#00AE82 60%,#14C79A 100%); box-shadow:0 10px 26px rgba(0,120,90,.28); }
+      .fbh-tag { display:inline-block; padding:4px 10px; border-radius:999px; background:#FFD600; color:#3A2E00; font-size:12px; font-weight:900; }
+      .fbh-t { margin-top:10px; font-size:24px; line-height:1.25; font-weight:900; letter-spacing:-.04em; }
+      .fbh-t em { font-style:normal; color:#FFE45C; }
+      .fbh-s { margin-top:6px; font-size:13.5px; line-height:1.55; color:#E3FFF5; }
+      .fbh-pts { display:flex; flex-direction:column; gap:7px; margin-top:12px; }
+      .fbh-pts div { display:grid; grid-template-columns:30px 1fr; column-gap:8px; padding:9px 10px; border-radius:12px; background:rgba(255,255,255,.14); }
+      .fbh-pts span { grid-row:span 2; font-size:22px; align-self:center; text-align:center; }
+      .fbh-pts b { font-size:14px; font-weight:900; }
+      .fbh-pts small { font-size:12px; line-height:1.4; color:#D5F3E8; }
+      .fbh-go { display:flex; flex-direction:column; align-items:center; width:100%; margin-top:14px; padding:13px 10px; border:none; border-radius:14px; cursor:pointer;
+        background:linear-gradient(135deg,#FF5A36,#FF8A00); color:#fff; font-size:16.5px; font-weight:900; box-shadow:0 6px 18px rgba(255,90,54,.45); animation:fbnPulse 2.2s ease-in-out infinite; }
+      .fbh-go i { font-style:normal; margin-top:2px; font-size:12px; font-weight:700; opacity:.95; }
+      .fbh-done { margin-top:14px; padding:11px 12px; border-radius:12px; background:rgba(255,255,255,.18); font-size:13.5px; font-weight:800; text-align:center; }
+      .fbh-how { margin-top:10px; font-size:12px; color:#C9F0E2; text-align:center; }
       .fbn-ok { margin-top:12px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.16); font-size:13px; font-weight:700; line-height:1.5; color:#fff; }
       .fbn-ic { font-size:30px; flex-shrink:0; animation:fbnWiggle 2.2s ease-in-out infinite; }
       .fbn-m { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
@@ -11410,7 +11426,23 @@
     window.trUnreadTotal = () => (trSt.list || []).reduce((n, r) => n + (r.unread || 0), 0);
     window.trListHtml = function () {
       trCss();
-      const head = '<div class="tr-note" style="margin-bottom:10px">💬 <b>피드백방</b> — 섭외자 한 사람에 관한 중요 정보를 텔레그램과 섞지 않고 여기 한곳에 모아요. 방은 <b>내 활동 보고 › 섭외자 화면의 [💬 피드백방]</b> 칸에서 열고, 함께할 분을 초대해요.</div>'
+      // 11/10(사용자): "완전 꼭 해야겠다는 생각이 드는 배너" — 피드백방 목록 맨 위
+      const need = trSt.list ? trNeedList() : [];
+      const head = `<div class="fbh">
+          <div class="fbh-tag">🔥 열매 맺는 교사의 비밀</div>
+          <div class="fbh-t">섭외자 한 명에<br><em>피드백방 하나!</em></div>
+          <div class="fbh-s">혼자 고민하지 마세요. 교관·지역장·인도자와 <b>한 방</b>에서 함께 키우면 센터까지 가는 길이 훨씬 짧아져요.</div>
+          <div class="fbh-pts">
+            <div><span>🧭</span><b>바로 받는 조언</b><small>교관·지역장님이 대화를 보고 다음 단계를 함께 짚어 줘요</small></div>
+            <div><span>📌</span><b>정보가 한곳에</b><small>텔레그램에 묻히지 않게 사진·PPT·한글 파일·고정 글로 모아요</small></div>
+            <div><span>🤝</span><b>함께 섬겨요</b><small>인도자·섬김이도 초대 링크로 바로 들어와 같은 마음으로</small></div>
+          </div>
+          ${need.length
+            ? `<button type="button" class="fbh-go" onclick="trNeedOpen()">💬 지금 피드백방 만들기 <i>${need.length}명 기다리는 중</i></button>`
+            : trSt.list && trSt.list.length ? '<div class="fbh-done">✅ 내 섭외자 모두 피드백방이 있어요. 오늘도 한 줄 나눠 주세요!</div>'
+            : `<button type="button" class="fbh-go" onclick="actSetPage('targets')">＋ 섭외자 등록하고 피드백방 열기</button>`}
+          <div class="fbh-how">방 여는 곳: <b>내 활동 보고 › 섭외자 이름 › [💬 피드백방]</b></div>
+        </div>`
         + '<form class="tr-search" data-tr-join onsubmit="trJoinSubmit(event)"><input id="trJoinCode" placeholder="초대 코드 (예: K7P2-9QXM)" autocomplete="off" autocapitalize="characters" maxlength="9"><button type="submit">들어가기</button></form>';
       if (!trSt.list) return head + '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>';
       if (!trSt.list.length) return head + '<div class="tr-note">아직 들어가 있는 피드백방이 없어요.</div>';
