@@ -590,7 +590,7 @@ export async function composeNews(day, opts = {}) {
     // 11/10(사용자): 빨간 점·"오늘 하루에 ~ 있습니다" 안내 문구는 지움
     text = ['📰 <b>한 줄 데이터 뉴스</b>', `🗞 ${md} · 교자장부청`, '',
       ...depts.map((d) => `● <b>${esc(d.label)}</b> · ${esc(d.line)}`), '',
-      '✅ <b>교사 할 일</b>', ...cheerLines(rawLines).map((l, i) => `${'①②③'[i]} ${esc(l)}`), '',   // 11/10: 우선순위처럼 동그라미 번호
+      '🚨 <b>교사 할 일</b>', ...cheerLines(rawLines).map((l, i) => `${'①②③'[i]} ${esc(l)}`), '',   // 11/10: 우선순위처럼 동그라미 번호
       // 11/10(사용자): 위 카드의 숫자(항목별 건수 합)와 다르게 보이지 않게 — 건수는 빼고 활동 교사 수만
       `📎 데이터: 서머리 ①~⑤ · 오늘 활동 교사 ${comma(F.total.teachers)}명`].join('\n');
   }
