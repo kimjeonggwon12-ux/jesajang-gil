@@ -190,7 +190,9 @@ function mergeProfile(prev, report, date) {
   // 10/30: 앱에서 누적 교육 제목을 한 줄씩 고쳤으면(report.lessons) 그 목록으로 바꾼 뒤 오늘 제목을 붙인다
   const lessons = Array.isArray(report.lessons) ? report.lessons.slice(-60) : Array.isArray(p.lessons) ? p.lessons.slice(-60) : [];
   const last = lessons[lessons.length - 1];
-  if (report.lesson && !(last && last.title === report.lesson)) lessons.push({ date, title: report.lesson });
+  // 11/10: 앱이 오늘 제목을 제자리에 넣어 보냈으면 다시 붙이지 않음
+  const placed = Array.isArray(report.lessons) && lessons.some((l) => l.title === report.lesson && l.date === date);
+  if (report.lesson && !placed && !(last && last.title === report.lesson)) lessons.push({ date, title: report.lesson });
   p.lessons = lessons;
   return p;
 }
@@ -228,7 +230,8 @@ export async function updateProfileFromEdit(memberId, targetName, report, date, 
   if (!target) return;
   const { lesson, ...rest } = report;
   const p = mergeProfile(target.report_profile, rest, date);
-  if (lesson !== undefined) {
+  // 11/10: 앱이 누적 제목 목록을 통째로(이 기록 제목도 제자리에) 보냈으면 그대로 둔다
+  if (lesson !== undefined && !Array.isArray(rest.lessons)) {
     const same = p.lessons.findIndex((l) => l.date === date && l.title === oldLesson);
     const at = same >= 0 ? same : p.lessons.findIndex((l) => l.title === oldLesson);
     if (oldLesson && at >= 0) { if (lesson) p.lessons[at] = { ...p.lessons[at], date, title: lesson }; else p.lessons.splice(at, 1); }

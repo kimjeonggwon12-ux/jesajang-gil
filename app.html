@@ -7246,10 +7246,19 @@
       return !d ? '' : /(회|부)$/.test(d) ? d : d + '회';
     }
     // 누적 교육 제목 = 이 섭외자에게 지난번까지 남긴 교육 제목 + 이번 제목
+    // 11/10(사용자): 번호는 적은 차례대로 — 오늘 제목(위 '교육 제목')은 그때까지 있던 제목 다음 번호, 그 뒤에 [＋ 제목 추가]한 줄은 그다음 번호.
+    //   f.rpTodayAt = 오늘 제목이 끼는 자리(r.lessons 의 앞에서 몇 개 뒤). null 이면 맨 뒤.
+    const rpTitleOf = l => String((l && l.title) || l || '').trim();
+    const rpTodayAt = f => { const n = (f.rp.lessons || []).length; return f.rpTodayAt == null ? n : Math.min(f.rpTodayAt, n); };
+    // 화면용: [{ i (r.lessons 번호) | today:true }] 차례대로
+    function rpLessonSlots(f) {
+      const ls = f.rp.lessons || [], at = rpTodayAt(f), cur = String(f.extraTitle || '').trim();
+      const before = ls.slice(0, at).map((l, i) => ({ i })), after = ls.slice(at).map((l, k) => ({ i: at + k }));
+      const lastBefore = [...ls.slice(0, at)].reverse().map(rpTitleOf).find(Boolean);
+      return before.concat(cur && lastBefore !== cur ? [{ today: true }] : [], after);
+    }
     function rpLessons(f) {
-      const prev = (f.rp.lessons || []).map(l => String((l && l.title) || l || '').trim()).filter(Boolean);
-      const cur = String(f.extraTitle || '').trim();
-      return cur && prev[prev.length - 1] !== cur ? prev.concat([cur]) : prev;
+      return rpLessonSlots(f).map(x => x.today ? String(f.extraTitle || '').trim() : rpTitleOf(f.rp.lessons[x.i])).filter(Boolean);
     }
     // 10/23(사용자): "해당 없는 부분도 다 표기" → 단계와 상관없이 늘 같은 칸·같은 순서(바뀌는 건 제목과 둘째 줄뿐).
     // 10/23(2차, 사용자): "기존과 같은 아이콘 말고 더 괜찮은 아이콘과 정리로" → 칸은 그대로, 묶음 머리(아이콘+이름) 아래 • 줄로 정리.
@@ -7303,7 +7312,7 @@
       const p = { tier, title: rpTitle(f.activityItem), age: r.age, faith: r.faith, recruitType: r.recruitType, time: r.time, nextDate: r.nextDate, request: r.request.trim(),
         phone4: r.phone4, team: r.team, checks: r.checks, stageMark: r.stageMark, plan: r.plan, eduTotal: r.eduTotal, eduWeekly: r.eduWeekly, lesson: f.extraTitle.trim() };
       // 10/30: 누적 교육 제목을 손으로 고쳤으면 목록 통째로(새 기록일 때만 — 고치기는 그 기록 앞까지만 보이므로 보내지 않음)
-      if (f.rpLessonsEdited) p.lessons = (r.lessons || []).map(l => ({ date: (l && l.date) || f.date, title: String((l && l.title) || l || '').trim() })).filter(l => l.title);
+      if (f.rpLessonsEdited) p.lessons = rpLessonSlots(f).map(x => x.today ? { date: f.date, title: String(f.extraTitle || '').trim() } : { date: (r.lessons[x.i] && r.lessons[x.i].date) || f.date, title: rpTitleOf(r.lessons[x.i]) }).filter(l => l.title);   // 11/10: 오늘 제목도 그 자리에
       if (rpIsEnrolled(f)) Object.assign(p, { enroll: r.enroll, center: r.center, cohortNo: r.cohortNo, course: r.course }); else p.center = r.center;
       return p;
     }
@@ -7368,12 +7377,12 @@
         <div class="act-form-group">
           <div class="act-step-label">📚 누적 교육 제목 <span class="rp-opt">· 이 섭외자에게 한 교육을 차례로</span></div>
           ${`<div class="rp-ls">
-            ${(r.lessons || []).map((l, i) => `<div class="rp-ls-row"><span class="rp-ls-n">${i + 1}</span>${rpIn('data-lesson', i, (l && l.title) || l || '', '교육 제목')}<button type="button" class="rp-ls-x" data-lesson-x="${i}" aria-label="이 제목 빼기">✕</button></div>`).join('')}
-            ${String(f.extraTitle || '').trim() && rpLessons(f).length > (r.lessons || []).filter(l => String((l && l.title) || l || '').trim()).length
-              ? `<div class="rp-ls-row today"><span class="rp-ls-n">${(r.lessons || []).length + 1}</span><span class="rp-ls-t">${esc(f.extraTitle.trim())}</span><em>오늘 · 위 '교육 제목'</em></div>` : ''}
+            ${rpLessonSlots(f).map((x, n) => x.today
+              ? `<div class="rp-ls-row today"><span class="rp-ls-n">${n + 1}</span><span class="rp-ls-t">${esc(f.extraTitle.trim())}</span><em>오늘 · 위 '교육 제목'</em></div>`
+              : `<div class="rp-ls-row"><span class="rp-ls-n">${n + 1}</span>${rpIn('data-lesson', x.i, rpTitleOf(r.lessons[x.i]), '교육 제목')}<button type="button" class="rp-ls-x" data-lesson-x="${x.i}" aria-label="이 제목 빼기">✕</button></div>`).join('')}
             <button type="button" class="rp-ls-add" id="rp-ls-add">＋ 제목 추가</button>
           </div>
-          <div class="rp-opt" style="margin-top:6px">지난 교육은 [＋ 제목 추가]로 한 줄씩 적어 나가요. 오늘 교육은 위 '교육 제목'에 적으면 맨 아래에 붙어요.</div>`}
+          <div class="rp-opt" style="margin-top:6px">위 '교육 제목'에 적으면 다음 번호로 붙고, [＋ 제목 추가]로 적은 줄은 그다음 번호로 이어져요.</div>`}
         </div>`,
         plan: `
         <div class="act-form-group">
@@ -7402,7 +7411,7 @@
     // 기록을 남긴 뒤·고치기를 마친 뒤 칸 비우기(역할은 다음 기록에도 그대로 둠)
     function rpResetForm(f) {
       if (f.editId) f.date = todayStr();
-      f.editId = null; f.rpLessonsEdited = false; f.draftId = null;
+      f.editId = null; f.rpLessonsEdited = false; f.rpTodayAt = null; f.draftId = null;
       f.targetName = ''; f.targetGender = ''; f.targetAgeGroup = ''; f.targetStage = ''; f.existingTargetId = ''; f.goalCohort = '';
       f.todayWork = ''; f.nextWork = '';
       f.extraTitle = ''; f.reaction = ''; f.reactionNote = '';
@@ -7438,6 +7447,7 @@
         lessons: at >= 0 ? base.lessons.filter((_, i) => i !== at) : base.lessons.filter(l => !l || l.title !== rep.lesson),
         team: { ...base.team, ...(rep.team || {}) }, checks: { ...base.checks, ...(rep.checks || {}) }, plan: { ...base.plan, ...(rep.plan || {}) },
         request: rep.request !== undefined ? rep.request : (a.note || '') };
+      f.rpTodayAt = at >= 0 ? at : null;   // 11/10: 이 기록의 제목은 원래 번호 자리에
       renderActivityFormSheet();
     };
     window.rpPostRow = async function (id, btn) {
@@ -7454,7 +7464,7 @@
     };
     function rpLoadTarget(f, t) {
       const time = f.rp.time, request = f.rp.request;
-      f.rp = { ...rpFromTarget(t), time, request }; f.rpAuto = {}; f.rpTotalAuto = false;
+      f.rp = { ...rpFromTarget(t), time, request }; f.rpAuto = {}; f.rpTotalAuto = false; f.rpTodayAt = null;
     }
     function wireRpForm(f) {
       const r = f.rp;
@@ -7469,10 +7479,13 @@
         const i = Number(el.dataset.lesson);
         el.oninput = () => { const l = r.lessons[i]; r.lessons[i] = { date: (l && l.date) || f.date, title: el.value }; f.rpLessonsEdited = true; rpRefreshPreview(); };
       });
-      document.querySelectorAll('[data-lesson-x]').forEach(b => { b.onclick = () => { r.lessons.splice(Number(b.dataset.lessonX), 1); f.rpLessonsEdited = true; renderActivityFormSheet(); }; });
+      document.querySelectorAll('[data-lesson-x]').forEach(b => { b.onclick = () => { const i = Number(b.dataset.lessonX), at = rpTodayAt(f); r.lessons.splice(i, 1); if (i < at) f.rpTodayAt = at - 1; f.rpLessonsEdited = true; renderActivityFormSheet(); }; });
       const lsAdd = document.getElementById('rp-ls-add');
       if (lsAdd) lsAdd.onclick = () => {
-        r.lessons = (r.lessons || []).filter(l => String((l && l.title) || l || '').trim());
+        // 11/10: 빈 줄을 치우되 오늘 제목 자리는 지키고, 새 줄은 오늘 제목 다음(맨 뒤)
+        const at = rpTodayAt(f), keep = (r.lessons || []).map((l, i) => ({ l, i })).filter(x => rpTitleOf(x.l));
+        f.rpTodayAt = String(f.extraTitle || '').trim() ? keep.filter(x => x.i < at).length : null;   // 오늘 제목을 아직 안 적었으면 맨 뒤(나중에 적으면 마지막 번호)
+        r.lessons = keep.map(x => x.l);
         r.lessons.push({ date: f.date, title: '' }); f.rpLessonsEdited = true; renderActivityFormSheet();
         const ins = document.querySelectorAll('[data-lesson]'); if (ins.length) ins[ins.length - 1].focus();
       };
@@ -7644,7 +7657,8 @@
               <textarea id="af-today" class="act-input" placeholder="${isEdu ? '예) 잘 먹고 잘 살기 위해 투자하듯, 영혼이 잘 되기 위한 투자도 필요하다' : '편하게 적어주세요. 짧아도 괜찮아요.'}">${esc(f.todayWork)}</textarea></div>
             <div><div class="act-field-label">2. 반응</div>
               <div class="act-chip-wrap">${REACTION_OPTIONS.map(r => `<button type="button" class="act-chip-btn af-reaction-chip ${f.reaction === r ? 'on' : ''}" data-reaction="${esc(r)}">${esc(r)}</button>`).join('')}</div>
-              <input type="text" id="af-reaction-note" placeholder="예) 인정하고 이해함" class="act-input" style="margin-top:10px" value="${esc(f.reactionNote)}"></div>
+              <div class="rp-opt" style="margin-top:10px">수강생의 깨달음이나 반응을 기록해주세요.</div>
+              <textarea id="af-reaction-note" class="act-input" rows="5" style="margin-top:6px;min-height:120px" placeholder="수강생의 깨달음이나 반응을 기록해주세요.">${esc(f.reactionNote)}</textarea></div>
             <div><div class="act-field-label">${isEdu ? '차후 교육 주제(계획)' : '다음 계획'}</div>
               <textarea id="af-next" class="act-input" style="min-height:56px" placeholder="${isEdu ? '다음 교육에서 다룰 주제' : '다음 만남에서 하고 싶은 것'}">${esc(f.nextWork)}</textarea></div>
             <div><div class="act-field-label">${isEdu ? '다음 교육 날짜' : '다음 만남 날짜'} <span class="rp-opt">· 선택</span></div>
@@ -10773,7 +10787,7 @@
     //   서버: server/actions/target-room.js, 표 target_room_members·target_room_messages(0036).
     // ════════════════════════════════════════════════════════════════
     const trSt = { id: '', tab: 'chat', room: null, msgs: [], pins: [], members: [], isOwner: false, busy: false, err: '', rec: null, recBusy: false,
-      sel: 0, pin: false, att: [], sending: '', q: '', found: null, timer: null, list: null, listBusy: false, byTarget: {} };
+      sel: 0, pin: false, att: [], sending: '', reads: [], q: '', found: null, timer: null, list: null, listBusy: false, byTarget: {} };
     function trCss() {
       if (document.getElementById('trCss')) return;
       const st = document.createElement('style'); st.id = 'trCss';
@@ -10800,6 +10814,7 @@
       .tr-bub img { display:block; max-width:100%; max-height:320px; border-radius:10px; margin:2px 0; }
       .tr-bub.del { color:#9CA3AF; font-style:italic; cursor:default; }
       .tr-meta { font-size:11px; color:#9CA3AF; margin:2px 6px 0; }
+      .tr-unread { color:#F5A300; font-weight:900; font-size:12px; margin-right:2px; }
       .tr-sys { text-align:center; font-size:12px; color:#6B7280; margin:10px 0; }
       .tr-sys span { display:inline-block; padding:4px 10px; border-radius:99px; background:#E5E7EB; }
       .tr-acts { display:flex; gap:6px; margin-top:5px; }
@@ -10865,7 +10880,7 @@
       const res = await trApi({ action: 'getTargetRoom' });
       trSt.busy = false;
       if (!res || res.error) { trSt.err = (res && res.error) || '방을 열지 못했어요.'; trRender(); return; }
-      Object.assign(trSt, { room: res.target, msgs: res.messages || [], pins: res.pins || [], members: res.members || [], isOwner: !!res.isOwner, invites: res.invites || [] });
+      Object.assign(trSt, { room: res.target, msgs: res.messages || [], pins: res.pins || [], members: res.members || [], isOwner: !!res.isOwner, invites: res.invites || [], reads: res.reads || [] });
       if (trSt.byTarget[targetId]) trSt.byTarget[targetId].unread = 0;
       trRender(true);
       clearInterval(trSt.timer);
@@ -10885,10 +10900,23 @@
     async function trPoll() {
       if (!trSt.id || trSt.busy) return;
       const id = trSt.id, res = await trApi({ action: 'getTargetRoom', afterId: trLast() });
-      if (id !== trSt.id || !res || res.error || !(res.messages || []).length) return;
-      const have = new Set(trSt.msgs.map(m => m.id));
-      trSt.msgs.push(...res.messages.filter(m => !have.has(m.id)));
-      trKeepText(() => {});   // 11/10: 새 글이 와도 쓰던 글은 그대로
+      if (id !== trSt.id || !res || res.error) return;
+      const readsChanged = JSON.stringify(res.reads || []) !== JSON.stringify(trSt.reads);
+      if (res.reads) trSt.reads = res.reads;
+      const have = new Set(trSt.msgs.map(m => m.id)), fresh = (res.messages || []).filter(m => !have.has(m.id));
+      if (!fresh.length && !readsChanged) return;
+      trSt.msgs.push(...fresh);
+      if (trSt.tab !== 'chat') return;
+      if (fresh.length) return trKeepText(() => {});   // 11/10: 새 글이 와도 쓰던 글은 그대로
+      // 읽음 숫자만 바뀜 — 보던 자리 그대로
+      const b = document.getElementById('trBody'), keep = b ? b.scrollTop : null;
+      trKeepText(() => {}, false);
+      const b2 = document.getElementById('trBody'); if (b2 && keep != null) b2.scrollTop = keep;
+    }
+    // 11/10(사용자): 카톡처럼 안 읽은 사람 수 — 보낸 사람 빼고, 이 글 번호까지 아직 안 읽은 방 사람 수
+    function trUnreadN(m) {
+      if (!m || m.deleted || (!m.from && !m.mine)) return 0;
+      return (trSt.reads || []).filter(([k, last]) => k !== m.fk && Number(last) < m.id).length;
     }
     function trMsgHtml(m) {
       if (!m.from && !m.mine) return `<div class="tr-sys"><span>${esc(m.text)}</span></div>`;
@@ -10897,7 +10925,7 @@
         ${m.mine ? '' : `<div class="tr-who">${esc(m.from)}</div>`}
         ${m.deleted ? '<div class="tr-bub del">지운 글이에요</div>'
           : `<div class="tr-bub${m.pinned ? ' pinned' : ''}" data-tr-sel="${m.id}">${m.pinned ? '📌 ' : ''}${m.photo ? `<img class="zoomable" src="${esc(m.photo)}" alt="사진" loading="lazy">` : ''}${trFileHtml(m.file)}${esc(m.text)}</div>`}
-        <div class="tr-meta">${esc(String(m.at).slice(5, 16).replace('-', '/'))}</div>
+        <div class="tr-meta">${(n => n ? `<b class="tr-unread">${n}</b> ` : '')(trUnreadN(m))}${esc(String(m.at).slice(5, 16).replace('-', '/'))}</div>
         ${trSt.sel === m.id && !m.deleted ? `<div class="tr-acts"><button type="button" data-tr-pin="${m.id}">${m.pinned ? '📌 고정 풀기' : '📌 고정'}</button>${m.text ? `<button type="button" data-tr-copy="${m.id}">복사</button>` : ''}${canDel ? `<button type="button" class="red" data-tr-del="${m.id}">지우기</button>` : ''}</div>` : ''}
       </div>`;
     }
@@ -11087,9 +11115,9 @@
       if (!f || !f.url) return '';
       return `<a class="tr-file" href="${esc(f.url)}" target="_blank" rel="noopener" download="${esc(f.name)}">${trIcon(f.name)}<span class="m"><b>${esc(f.name)}</b><small>${f.size ? trSize(f.size) : ''}</small></span><span class="dl">받기 ⬇</span></a>`;
     }
-    function trKeepText(fn) {
+    function trKeepText(fn, scrollEnd = true) {
       const ta = document.getElementById('trText'), t = ta ? ta.value : '';
-      fn(); trRender(true);
+      fn(); trRender(scrollEnd);
       const t2 = document.getElementById('trText'); if (t2) t2.value = t;
     }
     async function trAddFiles(files) {
@@ -11144,6 +11172,7 @@
           if (!res || res.error) throw new Error((res && res.error) || '보내지 못했어요.');
           if (id !== trSt.id) return;
           if (!trSt.msgs.some(m => m.id === res.message.id)) trSt.msgs.push(res.message);
+          trSt.reads = (trSt.reads || []).map(([k, last]) => k === res.message.fk ? [k, Math.max(Number(last), res.message.id)] : [k, last]);
           if (res.message.pinned) trSt.pins.push(res.message);
           if (x) trSt.att.splice(trSt.att.indexOf(x), 1);
           if (i === 0 && ta) { const t2 = document.getElementById('trText'); if (t2) t2.value = ''; }
@@ -11156,7 +11185,7 @@
     }
     async function trReload(tab) {
       const res = await trApi({ action: 'getTargetRoom' });
-      if (res && !res.error) Object.assign(trSt, { msgs: res.messages || [], pins: res.pins || [], members: res.members || [], room: res.target, isOwner: !!res.isOwner, invites: res.invites || [] });
+      if (res && !res.error) Object.assign(trSt, { msgs: res.messages || [], pins: res.pins || [], members: res.members || [], room: res.target, isOwner: !!res.isOwner, invites: res.invites || [], reads: res.reads || [] });
       trSt.tab = tab || trSt.tab; trSt.found = null; trRender();
     }
     // 사진: 긴 변 1280px·약 400KB 안으로 줄여서(WebP 우선) — 서버가 R2에 올림

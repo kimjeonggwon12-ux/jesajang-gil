@@ -39,8 +39,8 @@ async function access(memberId, targetId, name) {
 }
 const DENIED = { error: '이 섭외자 대화방에 초대받지 않았어요.' };
 
-const toMsg = (m, nid) => ({
-  id: Number(m.id), from: m.from_name, mine: m.from_nid === nid, text: m.deleted ? '' : m.body, photo: m.deleted ? '' : m.photo,
+const toMsg = (m, nid, keyOf) => ({
+  id: Number(m.id), from: m.from_name, mine: m.from_nid === nid, fk: (keyOf && m.from_id && keyOf.get(m.from_nid)) || 0, text: m.deleted ? '' : m.body, photo: m.deleted ? '' : m.photo,
   file: !m.deleted && m.file_url ? { url: m.file_url, name: m.file_name, size: Number(m.file_size) || 0 } : null,
   pinned: !m.deleted && m.pinned, deleted: m.deleted, at: fmtTs(m.created_at),
 });
@@ -72,18 +72,21 @@ async function getTargetRoom(body) {
   if (!after) rows = rows.reverse();
   const lastId = rows.length ? Number(rows[rows.length - 1].id) : 0;
   await markRead(a, lastId);
-  const out = { ok: true, messages: rows.map((m) => toMsg(m, a.nid)), isOwner: a.isOwner };
+  // 11/10(사용자): 카톡처럼 안 읽은 사람 수 — 방 사람마다 어디까지 읽었는지(reads = [멤버 키, 읽은 글 번호]), 글마다 보낸 사람 키(fk)
+  const members = await run(db().from('target_room_members').select('*').eq('target_id', a.target.target_id).order('id'));
+  const keyOf = new Map(members.map((m) => [m.nid, Number(m.id)]));
+  const reads = members.map((m) => [Number(m.id), m.nid === a.nid ? Math.max(lastId, Number(m.last_read_id) || 0) : Number(m.last_read_id) || 0]);
+  const out = { ok: true, messages: rows.map((m) => toMsg(m, a.nid, keyOf)), isOwner: a.isOwner, reads };
   if (after) return forViewer(a, out);
   // 처음 열 때만: 섭외자·멤버·고정 글(300개보다 오래된 고정 글도)
-  const [members, pins, invites] = await Promise.all([
-    run(db().from('target_room_members').select('*').eq('target_id', a.target.target_id).order('id')),
+  const [pins, invites] = await Promise.all([
     run(db().from('target_room_messages').select('*').eq('target_id', a.target.target_id).eq('pinned', true).eq('deleted', false).order('id')),
     a.isOwner ? activeInvites(a.target.target_id).catch(() => []) : [],
   ]);
   return forViewer(a, {
     ...out, target: targetView(a.target, a.isOwner),
     members: members.map((m) => ({ key: Number(m.id), name: m.name, role: m.role, by: m.invited_by, me: m.nid === a.nid, at: fmtTs(m.joined_at).slice(0, 10) })),
-    pins: pins.map((m) => toMsg(m, a.nid)),
+    pins: pins.map((m) => toMsg(m, a.nid, keyOf)),
     invites,
   });
 }
@@ -169,7 +172,7 @@ async function sendRoomMessage(body) {
     pinned: !!body.pin, pinned_by: body.pin ? a.member.name : '', created_at: kstDateTime(),
   }).select('*'));
   await markRead(a, Number(row.id));
-  return { ok: true, message: toMsg(row, a.nid) };
+  return { ok: true, message: { ...toMsg(row, a.nid), fk: Number(a.member.id) } };
 }
 
 /**
