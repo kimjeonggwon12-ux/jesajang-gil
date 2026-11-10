@@ -706,7 +706,7 @@ async function tsTestRoom(body) {
   return { ok: out.every(([, r]) => r.ok), chat: MY_TEST_CHAT, date: day, sent: out.map(([k, r]) => [k, r.ok ? '성공' : '실패 ' + (r.error || '')]), ...(newsEcho ? { newsText: newsEcho } : {}) };
 }
 
-export { composeDaily, composeEvening };
+export { composeDaily, composeEvening, composeTotalCard };
 // 11/5(사용자): "오늘 부서별 총합 카드 뉴스를 소통 방에 — 교자장부청 한 줄 데이터 뉴스"
 //   { action:'tsNewsSend', key, date?, today?:true, to?:'test' } — 카드 사진 + 아래 한 줄 뉴스 글. 같은 날 한 번만(force로 다시).
 const tsNewsSend = async (body) => (authorized(body) ? sendNewsOneline(body) : { error: 'unauthorized' });
