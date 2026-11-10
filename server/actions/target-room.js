@@ -8,7 +8,7 @@ import { db, run, isDuplicate } from '../lib/db.js';
 import { normId, str, kstDateTime, fmtTs } from '../lib/util.js';
 import { maskName } from '../lib/report-room.js';
 import { storeImage, r2Configured, isStoredUrl, cleanFileName, putDoc, presignDoc, storedSize, deleteStored } from '../lib/images.js';
-import { findTeacherLoose } from './roster.js';
+import { findTeacherLoose, isAdmin } from './roster.js';
 import { targetNamesOf, scrubDeep, scrubNames } from '../lib/name-scrub.js';
 import { findTarget, owns, activitiesAbout, coachingAbout } from './targets.js';
 
@@ -16,7 +16,18 @@ import { findTarget, owns, activitiesAbout, coachingAbout } from './targets.js';
 const INFO_KIND = '파악정보', INFO_FB_KIND = 'AI 파악정보 피드백', MASTER_KIND = 'AI 종합 피드백', PLAN_KIND = '개강 인도 계획';
 const MAX_TEXT = 3000;
 
-/** 이 사람이 이 방에 들어올 수 있는지 — { target, isOwner, member } 또는 null. 담당이면 멤버 줄을 만들어 둔다(읽음 표시용). */
+// 11/10(사용자) 개강피드백: 상담 이상 섭외자 방은 관리자(교관 이상)가 목록에서 눌러 바로 들어가고, 인교섬협 초대를 맡는다.
+export const COUNSEL_STAGES = ['상담1', '상담2', '복음방', '센터소개', '센터수강'];
+const adminCache = new Map();   // nid → { at, v } — 15초마다 새 글을 확인하므로 1분 기억
+async function isAdminCached(mid) {
+  const k = normId(mid), c = adminCache.get(k);
+  if (c && Date.now() - c.at < 60e3) return c.v;
+  const v = await isAdmin(mid).catch(() => false);
+  adminCache.set(k, { at: Date.now(), v });
+  return v;
+}
+
+/** 이 사람이 이 방에 들어올 수 있는지 — { target, isOwner, canManage, member } 또는 null. 담당·관리자면 멤버 줄을 만들어 둔다(읽음 표시용). */
 async function access(memberId, targetId, name) {
   const mid = str(memberId), tid = str(targetId);
   if (!mid || !tid) return null;
@@ -25,17 +36,24 @@ async function access(memberId, targetId, name) {
   const nid = normId(mid);
   const isOwner = owns(target, nid);
   let [member] = await run(db().from('target_room_members').select('*').eq('target_id', tid).eq('nid', nid).limit(1));
-  if (!member && !isOwner) return null;
+  const counsel = COUNSEL_STAGES.includes(String(target.stage || '').trim());
+  const admin = !isOwner && (!member || member.role !== '관리자') && counsel ? await isAdminCached(mid) : false;
+  if (!member && !isOwner && !admin) return null;
   if (!member) {
     const t = await findTeacherLoose(mid, name);
     try {
-      [member] = await run(db().from('target_room_members').insert({ target_id: tid, member_id: mid, name: (t && t.name) || str(name), role: '담당', joined_at: kstDateTime() }).select('*'));
+      [member] = await run(db().from('target_room_members').insert({ target_id: tid, member_id: mid, name: (t && t.name) || str(name), role: isOwner ? '담당' : '관리자', joined_at: kstDateTime() }).select('*'));
+      if (!isOwner) await run(db().from('target_room_messages').insert({ target_id: tid, from_id: '', from_name: '', body: `${member.name} 님(관리자)이 개강 피드백으로 들어왔어요.`, created_at: kstDateTime() }));
     } catch (e) {
       if (!isDuplicate(e)) throw e;
       [member] = await run(db().from('target_room_members').select('*').eq('target_id', tid).eq('nid', nid).limit(1));
     }
+  } else if (admin && member.role === '초대') {
+    await run(db().from('target_room_members').update({ role: '관리자' }).eq('id', member.id));
+    member.role = '관리자';
   }
-  return { target, isOwner, member, nid };
+  const canManage = isOwner || member.role === '관리자' || admin;
+  return { target, isOwner, canManage, member, nid };
 }
 const DENIED = { error: '이 섭외자 대화방에 초대받지 않았어요.' };
 
@@ -76,18 +94,19 @@ async function getTargetRoom(body) {
   const members = await run(db().from('target_room_members').select('*').eq('target_id', a.target.target_id).order('id'));
   const keyOf = new Map(members.map((m) => [m.nid, Number(m.id)]));
   const reads = members.map((m) => [Number(m.id), m.nid === a.nid ? Math.max(lastId, Number(m.last_read_id) || 0) : Number(m.last_read_id) || 0]);
-  const out = { ok: true, messages: rows.map((m) => toMsg(m, a.nid, keyOf)), isOwner: a.isOwner, reads };
+  const out = { ok: true, messages: rows.map((m) => toMsg(m, a.nid, keyOf)), isOwner: a.isOwner, canManage: a.canManage, reads };
   if (after) return forViewer(a, out);
   // 처음 열 때만: 섭외자·멤버·고정 글(300개보다 오래된 고정 글도)
   const [pins, invites] = await Promise.all([
     run(db().from('target_room_messages').select('*').eq('target_id', a.target.target_id).eq('pinned', true).eq('deleted', false).order('id')),
-    a.isOwner ? activeInvites(a.target.target_id).catch(() => []) : [],
+    a.canManage ? activeInvites(a.target.target_id).catch(() => []) : [],
   ]);
+  const crew = a.canManage ? await crewOf(a.target, members).catch(() => []) : [];
   return forViewer(a, {
     ...out, target: targetView(a.target, a.isOwner),
     members: members.map((m) => ({ key: Number(m.id), name: m.name, role: m.role, by: m.invited_by, me: m.nid === a.nid, at: fmtTs(m.joined_at).slice(0, 10) })),
     pins: pins.map((m) => toMsg(m, a.nid, keyOf)),
-    invites,
+    invites, crew,
   });
 }
 
@@ -105,7 +124,7 @@ async function activeInvites(targetId) {
 
 async function createRoomInvite(body) {
   const a = await access(body.memberId, body.targetId, body.name);
-  if (!a || !a.isOwner) return { error: '초대 링크는 담당 교사만 만들 수 있어요.' };
+  if (!a || !a.canManage) return { error: '초대 링크는 담당 교사·관리자만 만들 수 있어요.' };
   const expires = kstDateTime(new Date(Date.now() + INVITE_HOURS * 3600e3));
   for (let i = 0; i < 5; i++) {
     const code = newCode();
@@ -119,7 +138,7 @@ async function createRoomInvite(body) {
 
 async function revokeRoomInvite(body) {
   const a = await access(body.memberId, body.targetId, body.name);
-  if (!a || !a.isOwner) return { error: '담당 교사만 끊을 수 있어요.' };
+  if (!a || !a.canManage) return { error: '담당 교사·관리자만 끊을 수 있어요.' };
   await run(db().from('target_room_invites').update({ revoked: true }).eq('code', cleanCode(body.code)).eq('target_id', a.target.target_id));
   return { ok: true };
 }
@@ -237,7 +256,7 @@ async function findPeople(q) {
 /** 초대할 사람 찾기(이름 두 글자 이상) — 담당만. */
 async function searchRoomInvitees(body) {
   const a = await access(body.memberId, body.targetId, body.name);
-  if (!a || !a.isOwner) return { error: '초대는 담당 교사만 할 수 있어요.' };
+  if (!a || !a.canManage) return { error: '초대는 담당 교사·관리자만 할 수 있어요.' };
   const q = str(body.query).slice(0, 20);
   if (q.length < 2) return { rows: [] };
   const [rows, inRoom] = await Promise.all([
@@ -251,7 +270,7 @@ async function searchRoomInvitees(body) {
 /** 초대 — 앱은 key 와 찾을 때 쓴 말(query)을 보낸다. 같은 검색을 다시 해서 서명이 맞는 사람만. */
 async function inviteToRoom(body) {
   const a = await access(body.memberId, body.targetId, body.name);
-  if (!a || !a.isOwner) return { error: '초대는 담당 교사만 할 수 있어요.' };
+  if (!a || !a.canManage) return { error: '초대는 담당 교사·관리자만 할 수 있어요.' };
   const q = str(body.query).slice(0, 20);
   const t = q.length >= 2 ? (await findPeople(q)).find((p) => inviteKey(p.nid) === str(body.key)) : null;
   if (!t) return { error: '명단에서 찾지 못했어요.' };
@@ -273,7 +292,7 @@ async function leaveRoom(body) {
   const [m] = await run(db().from('target_room_members').select('*').eq('id', key).eq('target_id', a.target.target_id).limit(1));
   if (!m) return { error: '이 방에 없는 분이에요.' };
   const self = m.nid === a.nid;
-  if (!self && !a.isOwner) return { error: '내보내기는 담당 교사만 할 수 있어요.' };
+  if (!self && !a.canManage) return { error: '내보내기는 담당 교사·관리자만 할 수 있어요.' };
   if (m.role === '담당' && owns(a.target, m.nid)) return { error: '담당 교사는 방에서 뺄 수 없어요.' };
   await run(db().from('target_room_members').delete().eq('id', m.id));
   await run(db().from('target_room_messages').insert({ target_id: a.target.target_id, from_id: '', from_name: '', body: self ? `${m.name} 님이 나갔어요.` : `${a.member.name} 님이 ${m.name} 님을 내보냈어요.`, created_at: kstDateTime() }));
@@ -296,6 +315,79 @@ async function deleteRoom(body) {
   await run(db().from('target_room_invites').delete().eq('target_id', tid));
   await run(db().from('target_room_members').delete().eq('target_id', tid));
   return { ok: true, files: urls.length };
+}
+
+/**
+ * 인교섬협(인도자·교사·섬김이·협력교사) 초대 후보 — 섭외자 담당(교사·인도자·섬김이) + 활동 기록 '함께하는 팀' 이름 + 협력교사로 기록한 분.
+ * 이름으로 명단에서 찾아 key(서명)·query 를 주면 앱이 inviteToRoom 으로 바로 초대한다(동명이인은 부서·지역을 보고 고름).
+ */
+async function crewOf(t, members) {
+  const inRoom = new Set(members.map((m) => m.nid));
+  const want = [];   // [역할, 이름]
+  const byId = [[t.creator_id, '교사'], [t.leader_id, '인도자'], [t.helper_id, '섬김이']].filter(([id]) => str(id));
+  const acts = await activitiesAbout(t).catch(() => []);
+  const last = acts.filter((x) => x.report && x.report.team).pop();
+  const team = (last && last.report.team) || {};
+  const nameOf = (v) => String(v || '').trim().replace(/^#/, '').split(/[\s(（]/)[0];
+  for (const [k, role] of [['leader', '인도자'], ['teacher', '교사'], ['helper', '섬김이']]) if (nameOf(team[k])) want.push([role, nameOf(team[k])]);
+  for (const x of acts) if ((x.roles || []).includes('협력교사') && x.name) want.push(['협력교사', x.name]);
+  const out = [], seen = new Set();
+  const ids = byId.map(([id]) => normId(id));
+  const idRows = ids.length ? await run(db().from('teachers').select('nid, member_id, name, dept, region, affiliation, position').in('nid', ids)) : [];
+  const push = (role, p) => {
+    if (!p || seen.has(p.nid)) return;
+    seen.add(p.nid);
+    out.push({ role, name: p.name, dept: p.dept || '', region: p.region || '', key: inviteKey(p.nid), query: p.name, joined: inRoom.has(p.nid) });
+  };
+  for (const [id, role] of byId) push(role, idRows.find((r) => r.nid === normId(id)));
+  for (const [role, nm] of want) {
+    if (nm.length < 2 || out.some((o) => o.name === nm)) continue;
+    const found = await findPeople(nm).catch(() => []);
+    const exact = found.filter((p) => p.name === nm);
+    if (!exact.length) out.push({ role, name: nm, dept: '', region: '', key: '', query: nm, joined: false, missing: true });
+    exact.slice(0, 3).forEach((p) => push(role, p));
+  }
+  return out;
+}
+
+// .in() 값이 많으면 주소가 너무 길어져 실패 — 150개씩 나눠 읽는다
+async function inChunks(make, vals, size = 150) {
+  const out = [];
+  for (let i = 0; i < vals.length; i += size) out.push(...(await run(make(vals.slice(i, i + size)))));
+  return out;
+}
+/** 관리자 › 개강피드백: 상담 이상 섭외자(담당 교사 부서·지역) + 피드백방 상태. */
+async function listOpeningRooms(body) {
+  const mid = str(body.memberId);
+  if (!mid || !(await isAdminCached(mid))) return { error: '개강피드백은 관리자(교관 이상)만 볼 수 있어요.' };
+  const nid = normId(mid);
+  const targets = await run(db().from('targets').select('target_id, target_name, stage, gender, age_group, teacher_name, creator_nid, goal_cohort, updated_at').in('stage', COUNSEL_STAGES).order('updated_at', { ascending: false }).limit(1000));
+  if (!targets.length) return { rows: [] };
+  const ids = targets.map((t) => t.target_id);
+  const nids = [...new Set(targets.map((t) => t.creator_nid).filter(Boolean))];
+  const [teachers, members] = await Promise.all([
+    inChunks((v) => db().from('teachers').select('nid, dept, region').in('nid', v), nids),
+    inChunks((v) => db().from('target_room_members').select('target_id, nid, name, role, last_read_id').in('target_id', v), ids),
+  ]);
+  const tBy = new Map(teachers.map((x) => [x.nid, x]));
+  const roomIds = [...new Set(members.map((m) => m.target_id))];
+  const msgs = (await inChunks((v) => db().from('target_room_messages').select('id, target_id, from_nid, created_at, deleted').in('target_id', v).order('id', { ascending: false }).limit(3000), roomIds).catch(() => []))
+    .sort((a, b) => Number(b.id) - Number(a.id));
+  const rows = targets.map((t) => {
+    const tm = tBy.get(t.creator_nid) || {};
+    const mem = members.filter((m) => m.target_id === t.target_id);
+    const me = mem.find((m) => m.nid === nid);
+    const ms = msgs.filter((x) => x.target_id === t.target_id);
+    return {
+      id: t.target_id, name: maskName(t.target_name), stage: t.stage, gender: t.gender || '', ageGroup: t.age_group || '',
+      teacher: t.teacher_name || '', dept: tm.dept || '', region: tm.region || '',
+      goalMonth: t.goal_cohort ? Number(String(t.goal_cohort).slice(5)) : 0,
+      room: mem.length > 0, members: mem.length, admins: mem.filter((m) => m.role === '관리자').map((m) => m.name),
+      inRoom: !!me, unread: me ? ms.filter((x) => Number(x.id) > Number(me.last_read_id || 0) && x.from_nid !== nid && !x.deleted).length : 0,
+      lastAt: ms.length ? fmtTs(ms[0].created_at).slice(5, 16) : '',
+    };
+  });
+  return { rows };
 }
 
 /**
@@ -347,8 +439,9 @@ async function listMyRooms(body) {
     run(db().from('targets').select('*').in('target_id', ids)),
     run(db().from('target_room_messages').select('id, target_id, from_nid, from_name, body, photo, file_name, created_at, deleted').in('target_id', ids)
       .gt('id', Math.min(...mine.map((m) => Number(m.last_read_id) || 0))).order('id')),
-    run(db().from('target_room_members').select('target_id').in('target_id', ids)),
+    run(db().from('target_room_members').select('target_id, nid, role').in('target_id', ids)),
   ]);
+  const adminNids = new Set(counts.filter((c) => c.role === '관리자').map((c) => c.target_id + '|' + c.nid));   // 11/10: 관리자 피드백(교사가 꼭 보게)
   const byId = new Map(targets.map((t) => [t.target_id, t]));
   const rows = (await Promise.all(mine.map(async (m) => {
     const t = byId.get(m.target_id);
@@ -356,9 +449,10 @@ async function listMyRooms(body) {
     const own = owns(t, nid);
     const list = msgs.filter((x) => x.target_id === m.target_id);
     const unread = list.filter((x) => Number(x.id) > Number(m.last_read_id) && x.from_nid !== nid && !x.deleted).length;
+    const fbNew = list.filter((x) => Number(x.id) > Number(m.last_read_id) && x.from_nid !== nid && !x.deleted && adminNids.has(m.target_id + '|' + x.from_nid));
     const last = list[list.length - 1];
     return {
-      ...targetView(t, own), isOwner: own, unread, members: counts.filter((c) => c.target_id === m.target_id).length,
+      ...targetView(t, own), isOwner: own, unread, fbUnread: fbNew.length, fbLast: fbNew.length ? Number(fbNew[fbNew.length - 1].id) : 0, members: counts.filter((c) => c.target_id === m.target_id).length,
       last: last ? { text: last.deleted ? '(지운 글)' : (scrubNames(last.body, await targetNamesOf(ownersOf(t), [t.target_name]))) || (last.file_name ? '📎 ' + last.file_name : last.photo ? '📷 사진' : ''), from: last.from_name, at: fmtTs(last.created_at).slice(5, 16) } : null,
     };
   }))).filter(Boolean);
@@ -375,4 +469,4 @@ export async function roomUnread(nid) {
   return msgs.filter((x) => Number(x.id) > last.get(x.target_id) && x.from_nid !== nid).length;
 }
 
-export default { deleteRoom, createRoomInvite, revokeRoomInvite, joinRoomByCode, getTargetRoom, sendRoomMessage, roomFileUpload, pinRoomMessage, deleteRoomMessage, searchRoomInvitees, inviteToRoom, leaveRoom, getRoomRecords, listMyRooms };
+export default { listOpeningRooms, deleteRoom, createRoomInvite, revokeRoomInvite, joinRoomByCode, getTargetRoom, sendRoomMessage, roomFileUpload, pinRoomMessage, deleteRoomMessage, searchRoomInvitees, inviteToRoom, leaveRoom, getRoomRecords, listMyRooms };
