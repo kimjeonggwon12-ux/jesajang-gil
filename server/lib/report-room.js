@@ -454,7 +454,9 @@ export async function buildSummaryReports(date, onlyKey = '') {
   const all = (await run(db().from('report_rooms').select('*').eq('active', true)));
   // '부녀회#총합' = 부서 대표 방, '부녀회#총합:활동현황' 처럼 뒤에 붙이면 같은 총합을 다른 방에도(10/27 교사광장 교사활동현황 방)
   // 10/29(사용자): 교사광장 활동 방처럼 여러 부서 총합이 한 방에 모이면 교자장부청 순서로
-  const sums = all.filter((r) => r.dept.includes('#총합') && (!onlyKey || r.dept === onlyKey))
+  // 11/10(사용자): 장부청 복음방교사 전체 방엔 교자장부청 '계' 카드(bot.js)만 — 지역별 민트 표는 안 보냄(손으로 그 방만 고르면 보냄)
+  const CARD_ONLY = ['장년회#총합', '청년회#총합', '부녀회#총합:전체'];
+  const sums = all.filter((r) => r.dept.includes('#총합') && (onlyKey ? r.dept === onlyKey : !CARD_ONLY.includes(r.dept)))
     .sort((a, b) => deptRank(a.dept) - deptRank(b.dept) || a.dept.localeCompare(b.dept));
   if (!sums.length) return [];
   const acts = await fixActivityNids(await run(db().from('activities').select('id, member_id, nid, name, activities, target_name, report, submitted_at')

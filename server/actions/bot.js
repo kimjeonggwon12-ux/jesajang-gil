@@ -193,8 +193,8 @@ async function composeTotalCard(day, board) {
   const [, m, d] = day.split('-').map(Number);
   const date = `${m}월 ${d}일(${weekdayOf(day)})`;
   const png = totalCardPng({ date, title: '교자장부청 오늘 활동 기록', sum: r.sum, rows: r.per.map((p) => ({ label: p.label, n: p.sum })) });
-  const caption = [`📊 <b>교자장부청 오늘 활동 기록</b> · ${date}`, '',
-    ...r.per.map((p) => `${esc(p.label)} <b>${comma(p.sum)}건</b>`), '', `전체 <b>${comma(r.sum)}건</b>`].join('\n');
+  // 11/10(사용자): 카드에 나온 숫자를 아래 글로 또 적지 않는다 — 제목 한 줄만(데이터 뉴스가 바로 아래 이어짐)
+  const caption = `📊 <b>교자장부청 오늘 활동 기록</b> · ${date}`;
   return { png, caption, text: caption, total: r.total };
 }
 
@@ -281,7 +281,9 @@ export async function summaryTick() {
   const out = {};
   if (hm >= '12:00' && hm < '15:00') out.noon = await sendNoonSummary().catch((e) => ({ error: String(e) }));
   if (hm >= '22:00') out.evening = await sendEveningSummary({ tick: true }).catch((e) => ({ error: String(e) }));
-  if (hm >= '22:00') out.eveningRooms = await sendEveningRooms(kstDate()).catch((e) => ({ error: String(e) }));
+  // 11/10(사용자): 교자장부청 '계' 큰 카드는 그날 서머리 맨 마지막(22:05, 표들 다음) → 바로 아래 데이터 뉴스
+  if (hm >= '22:05') out.card = await sendMainCard(kstDate()).catch((e) => ({ error: String(e) }));
+  if (hm >= '22:05') out.eveningRooms = await sendEveningRooms(kstDate()).catch((e) => ({ error: String(e) }));
   if (hm >= '23:00') out.daily = await sendDailySummary({ date: kstDate() }).catch((e) => ({ error: String(e) }));
   // 11/5(사용자): "한 줄 데이터 뉴스 — 매일 밤 10시 맨 마지막, 글만, 내일(11/6)부터" → 22시 표들(③·④)이 먼저 나가게 22:05부터, 하루 한 번
   if (hm >= '22:05' && hm < '23:00' && kstDate() >= NEWS_START) out.news = await sendNewsOneline({ date: kstDate() }).catch((e) => ({ error: String(e) }));
@@ -409,13 +411,23 @@ async function sendToRooms(rooms, kind, day, send) {
   }
   return sent;
 }
-/** 밤 10시: 부서 전체 방·회장단 방에 ④ 교자장부청 하루 보라 표(소통 방과 같은 것). */
+/** 밤 10시: 교자장부청 방(부서 전체 방·교역자 방·회장단 방)에 교자장부청 '계' 큰 정사각형 카드.
+ *  11/10(사용자): "대문짝만하게 해서 교자장부청 방에" — 보라 표는 소통 방에만. */
 async function sendEveningRooms(day) {
   const rooms = await pendingChurchRooms('교자장부청', day);
   if (!rooms.length) return { sent: [] };
   const r = await composeBoard(day, 'evening');
   if (!r.total) return { sent: [], skipped: '기록 없음' };
-  return { sent: await sendToRooms(rooms, '교자장부청', day, (room) => sendRoomBoard(room, r.png, r.caption, r.text)) };
+  const c = await composeTotalCard(day, r);
+  return { sent: await sendToRooms(rooms, '교자장부청', day, (room) => sendRoomBoard(room, c.png, c.caption, c.text)) };
+}
+/** 소통 방에 '계' 카드(보라 표 다음, 뉴스 앞). 하루 한 번. */
+async function sendMainCard(day) {
+  const key = 'evening_' + day + '|card';
+  if (await alreadySent(key)) return { skipped: true };
+  const c = await composeTotalCard(day);
+  if (!c.total) return { skipped: '기록 없음' };
+  return { ok: c.png ? await sendChart(c.png, c.caption, key, '교자장부청카드') : false };
 }
 
 const NEWS_START = '2026-11-06';
@@ -518,6 +530,15 @@ const mdToTg = (t) => esc(String(t).replace(/^#+\s*/gm, '').replace(/\r/g, '')).
 
 // 11/5(사용자): "교자장부청 한 줄 뉴스 — 소속을 굵게, ● 기호를 앞에, '한 줄 데이터 뉴스'라고" → opts.oneline
 //   opts.today: 그날 저녁에 그날 것('어제' 대신 '오늘')
+/** 💬 교관 독려 줄 — AI 줄이 없으면 기록이 적은 부서 순으로 숫자 기반 문구. */
+function cheerLines(rawLines, depts) {
+  const ai = rawLines.filter((l) => l.startsWith('💬')).map((l) => l.replace(/^💬\s*/u, '').trim()).filter(Boolean).slice(0, 3);
+  if (ai.length) return ai;
+  const top = Math.max(0, ...depts.map((d) => d.records));
+  return [...depts].sort((a, b) => a.records - b.records).slice(0, 3).map((d) => (d.records
+    ? `${d.label} 교관 · 오늘 ${d.records}건(최다 ${top}건 대비) — 기록 없는 지역장에게 1:1 연락, 내일 1건씩`
+    : `${d.label} 교관 · 오늘 0건 — 오늘 밤 지역장 단톡에 앱 기록 방법 공유, 내일 첫 기록 확인`));
+}
 export async function composeNews(day, opts = {}) {
   const F = await newsFacts(day);
   const md = `${Number(day.slice(5, 7))}월 ${Number(day.slice(8, 10))}일(${weekdayOf(day)})`;
@@ -544,6 +565,10 @@ export async function composeNews(day, opts = {}) {
     '🌳 장년회 · (부족한 점 + 차이 한 줄)',
     '🌸 부녀회 · (부족한 점 + 차이 한 줄)',
     '🔥 청년회 · (부족한 점 + 차이 한 줄)',
+    // 11/10(사용자): "교관들이 어떻게 독려해야 하는지 코멘트가 들어가게" — 이 💬 줄만은 당부·행동 제안 허용
+    '💬 (교관·지역장이 내일 할 독려 행동 한 줄 — 가장 부족한 부서·지역·단계를 짚어 구체적으로, 예: "장년회 교관 · 보고 없는 지역장에게 오늘 밤 1:1 연락, 내일 기록 1건씩")',
+    '💬 (두 번째 독려 행동 한 줄 — 다른 부서 또는 다른 빈 곳)',
+    '💬 (세 번째 독려 행동 한 줄 — 잘하는 부서는 빈 단계 채우기)',
   ].join('\n');
   let body = '', ai = false, raw = '';
   try {
@@ -563,6 +588,7 @@ export async function composeNews(day, opts = {}) {
   if (opts.oneline) {
     text = ['📰 <b>한 줄 데이터 뉴스</b>', `🗞 ${md} · 교자장부청`, '', ...NEWS_INTRO, '',
       ...depts.map((d) => `● <b>${esc(d.label)}</b> · ${esc(d.line)}`), '',
+      '💬 <b>교관 독려 포인트</b>', ...cheerLines(rawLines, depts).map((l) => `▸ ${esc(l)}`), '',
       `📎 데이터: 서머리 ①~⑤ · 기록 ${comma(F.total.records)}건 · 교사 ${comma(F.total.teachers)}명`].join('\n');
   }
   let png = null;
