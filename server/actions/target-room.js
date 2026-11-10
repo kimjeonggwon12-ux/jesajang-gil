@@ -281,6 +281,24 @@ async function leaveRoom(body) {
 }
 
 /**
+ * 11/10(사용자): "피드백 방을 제거할 수 있도록" — 담당 교사만. 대화·첨부 파일·사진·초대 링크·방 사람 모두 지운다.
+ * 섭외자와 활동 기록은 그대로(방만 없어짐). 다시 열면 빈 방이 새로 생긴다.
+ */
+async function deleteRoom(body) {
+  const a = await access(body.memberId, body.targetId, body.name);
+  if (!a) return DENIED;
+  if (!a.isOwner) return { error: '피드백방은 담당 교사만 없앨 수 있어요.' };
+  const tid = a.target.target_id;
+  const msgs = await run(db().from('target_room_messages').select('photo, file_url').eq('target_id', tid));
+  const urls = msgs.flatMap((m) => [m.file_url, m.photo]).filter((u) => u && isStoredUrl(u));
+  await Promise.all(urls.map((u) => deleteStored(u).catch(() => {})));
+  await run(db().from('target_room_messages').delete().eq('target_id', tid));
+  await run(db().from('target_room_invites').delete().eq('target_id', tid));
+  await run(db().from('target_room_members').delete().eq('target_id', tid));
+  return { ok: true, files: urls.length };
+}
+
+/**
  * 정보 기록 + 활동 이력 + 단계 이력 + 받아 둔 피드백(읽기만) — 방에 있는 누구나.
  * 11/6(사용자): "피드백 받아 놓은 것들도 정보 기록 옆에서 — 단계향상 피드백, ○월 센터 인도 피드백, 하츠 피드백 등 칸"
  *   단계향상 = activities.ai_feedback / ○월 개강(센터 인도) 계획 = target_ai_notes '개강 인도 계획'(없으면 targets.goal_plan)
@@ -357,4 +375,4 @@ export async function roomUnread(nid) {
   return msgs.filter((x) => Number(x.id) > last.get(x.target_id) && x.from_nid !== nid).length;
 }
 
-export default { createRoomInvite, revokeRoomInvite, joinRoomByCode, getTargetRoom, sendRoomMessage, roomFileUpload, pinRoomMessage, deleteRoomMessage, searchRoomInvitees, inviteToRoom, leaveRoom, getRoomRecords, listMyRooms };
+export default { deleteRoom, createRoomInvite, revokeRoomInvite, joinRoomByCode, getTargetRoom, sendRoomMessage, roomFileUpload, pinRoomMessage, deleteRoomMessage, searchRoomInvitees, inviteToRoom, leaveRoom, getRoomRecords, listMyRooms };

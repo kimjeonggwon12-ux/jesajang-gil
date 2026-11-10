@@ -11067,7 +11067,10 @@
           : Array.isArray(trSt.found) ? (trSt.found.length ? trSt.found.map(p => `<div class="tr-mem"><span class="av">${esc(p.name.charAt(0))}</span><div class="m"><b>${esc(p.name)}</b><small>${esc([p.dept, p.region, p.affiliation, p.position].filter(Boolean).join(' · '))}</small></div>
               ${p.joined ? '<button type="button" disabled>들어와 있음</button>' : `<button type="button" class="go" data-tr-inv="${esc(p.key)}">초대</button>`}</div>`).join('') : '<div class="tr-note">찾은 사람이 없어요.</div>') : ''}
         <div class="tr-note" style="margin-top:8px">초대받은 분은 <b>대화</b>와 이 섭외자의 <b>정보 기록·활동 이력</b>을 볼 수 있어요(고치기는 담당 교사만). 새 글은 앱 아래 <b>연결</b> 탭의 N으로 알려 드려요.</div>`;
-      return `<div class="tr-sec">👥 이 방에 있는 분 ${trSt.members.length}명</div>${mem}${links}${inv}`;
+      const del = !trSt.isOwner ? '' : `<div class="tr-sec" style="margin-top:22px">🗑 피드백방 없애기</div>
+        <div class="tr-note" style="margin-bottom:8px">방의 <b>대화·사진·파일·초대 링크</b>가 모두 지워지고 들어온 분들도 방에서 빠져요. 섭외자와 활동 기록은 그대로예요. 지운 대화는 되살릴 수 없어요.</div>
+        <button type="button" class="red" data-tr-delroom style="width:100%;height:44px;border-radius:12px;font-weight:800">이 피드백방 없애기</button>`;
+      return `<div class="tr-sec">👥 이 방에 있는 분 ${trSt.members.length}명</div>${mem}${links}${inv}${del}`;
     }
     function trRender(scrollEnd) {
       const layer = document.getElementById('trLayer'); if (!layer) return;
@@ -11155,6 +11158,19 @@
           const res = await trApi({ action: 'inviteToRoom', key: el.dataset.trInv, query: trSt.q });
           if (!res || res.error) { el.disabled = false; return toast((res && res.error) || '초대하지 못했어요.', true); }
           toast(`${res.name} 님을 초대했어요.`); return trReload('members');
+        }
+        if ((el = g('[data-tr-delroom]'))) {
+          const nm = trSt.room ? trSt.room.name : '';
+          if (!confirm(`${nm ? nm + ' 님의 ' : ''}피드백방을 없앨까요?
+대화·사진·파일이 모두 지워지고 되살릴 수 없어요.`)) return;
+          el.disabled = true;
+          const res = await trApi({ action: 'deleteRoom' });
+          if (!res || res.error) { el.disabled = false; return toast((res && res.error) || '없애지 못했어요.', true); }
+          const id = trSt.id; trClose();
+          if (trSt.list) { trSt.list = trSt.list.filter(r => r.id !== id); delete trSt.byTarget[id]; }
+          toast('피드백방을 없앴어요.');
+          if (window.trListLoad) trListLoad();
+          return;
         }
         if ((el = g('[data-tr-leave]'))) {
           const key = Number(el.dataset.trLeave), m = trSt.members.find(x => x.key === key);
