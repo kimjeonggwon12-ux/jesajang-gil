@@ -2866,6 +2866,13 @@
     .pin-sub { margin-top:6px; font-size:13.5px; line-height:1.6; color:#6B7280; word-break:keep-all; }
     .pin-in { display:block; width:100%; height:52px; margin:16px 0 0; border:1.5px solid #CDEFE2; border-radius:12px; text-align:center; font-size:24px; letter-spacing:.4em; outline:none; background:#fff; }
     .pin-in:focus { border-color:#00AE82; }
+    .pin-mine { display:flex; align-items:center; gap:10px; width:100%; padding:12px 14px; margin:0 0 4px; border:1.5px solid #CDEFE2; border-radius:12px; background:#F2FBF7; cursor:pointer; text-align:left; }
+    .pin-mine-l { font-size:13px; font-weight:800; color:#047857; white-space:nowrap; }
+    .pin-mine-v { flex:1; font-size:22px; font-weight:800; letter-spacing:.3em; color:#111827; }
+    .pin-mine-h { font-size:12px; color:#6B7280; white-space:nowrap; }
+    .pin-mine.on { border-color:#00AE82; background:#E6F7F1; }
+    .pin-mine-no { font-size:13px; color:#6B7280; background:#F9FAFB; border-radius:10px; padding:10px 12px; margin-bottom:4px; line-height:1.5; }
+    .pin-show { display:flex; align-items:center; gap:6px; margin-top:8px; font-size:13px; color:#6B7280; cursor:pointer; }
     .pin-in::placeholder { letter-spacing:normal; font-size:15px; color:#9CA3AF; }
     .pin-err { min-height:20px; margin-top:8px; font-size:13px; line-height:1.5; color:#DC2626; word-break:keep-all; }
     .pin-go { width:100%; height:48px; margin-top:4px; border:none; border-radius:12px; background:#00AE82; color:#fff; font-size:16px; font-weight:800; cursor:pointer; }
@@ -3737,7 +3744,7 @@
         if (r && r.ok) {
           try { sessionStorage.removeItem('pd_gate_once'); } catch (e) {}
           pdSetToken(r.token);
-          if (r.pinVer && typeof pinRemember === 'function') pinRemember(fixed, r.pinVer);   // 핀은 방금 확인 — 입장 뒤 다시 묻지 않게
+          if (r.pinVer && typeof pinRemember === 'function') pinRemember(fixed, r.pinVer, pin);   // 핀은 방금 확인 — 입장 뒤 다시 묻지 않게
           pdSave(fixed, nm, dept);               // ← 다음부터 안 쳐도 되게 기억(명단 확인된 사람만)
           if (fixed.replace(/[^0-9]/g, '') === OWNER_ID) pdSetOwnerDevice(true);
           pdEnterWithSpinner(fixed, nm, '입장 중...');
@@ -4142,7 +4149,15 @@
     const PD_PIN_KEY = 'podo_pin';
     const pinNid = v => String(v || '').replace(/[^0-9]/g, '');
     function pinLocal() { try { return JSON.parse(localStorage.getItem(PD_PIN_KEY) || 'null'); } catch (e) { return null; } }
-    function pinRemember(id, ver) { try { localStorage.setItem(PD_PIN_KEY, JSON.stringify({ id: pinNid(id), ver: ver || '' })); } catch (e) {} }
+    // 11/10: 이 기기에서 확인·설정한 핀 숫자도 기억(내 계정 → 핀번호에서 눌러 보고 고치기). 버전이 바뀌면 지움.
+    function pinRemember(id, ver, pin) {
+      try {
+        const old = pinLocal(), o = { id: pinNid(id), ver: ver || '' };
+        if (pin && ver) o.pin = String(pin);
+        else if (ver && old && old.id === o.id && old.ver === o.ver && old.pin) o.pin = old.pin;
+        localStorage.setItem(PD_PIN_KEY, JSON.stringify(o));
+      } catch (e) {}
+    }
     function pinCover(html) {
       let ov = document.getElementById('pinCover');
       if (!ov) { ov = document.createElement('div'); ov.id = 'pinCover'; ov.className = 'pin-ov'; document.body.appendChild(ov); }
@@ -4181,7 +4196,7 @@
         go.disabled = true; go.textContent = '확인 중...';
         let r = null;
         try { r = await callApi({ action: 'verifyPin', memberId: id, pin }); } catch (e) { r = { error: '연결이 원활하지 않아요. 잠시 후 다시 해 주세요.' }; }
-        if (r && r.ok) { pinRemember(id, r.ver); pinUncover(); toast('확인됐어요. 이 기기는 다음부터 묻지 않아요.'); return; }
+        if (r && r.ok) { pinRemember(id, r.ver, pin); pinUncover(); toast('확인됐어요. 이 기기는 다음부터 묻지 않아요.'); return; }
         go.disabled = false; go.textContent = '확인'; inp.value = ''; inp.focus();
         err.textContent = (r && r.error) || '핀번호가 맞지 않아요.';
       };
@@ -4197,28 +4212,45 @@
       let st = null;
       try { st = await callApi({ action: 'pinStatus', memberId: App.memberId }); } catch (e) {}
       const has = !!(st && st.hasPin);
+      const loc = pinLocal();
+      const mine = has && loc && loc.id === pinNid(App.memberId) && loc.ver === st.ver && /^\d{4,6}$/.test(loc.pin || '') ? loc.pin : '';
       const field = (id, ph) => `<input id="${id}" class="pin-in" style="margin:6px 0 0" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="${ph}">`;
       openSheet(`
         <div style="font-size:20px;font-weight:800;margin-bottom:6px">🔒 핀번호 ${has ? '바꾸기' : '정하기'}</div>
         <div style="font-size:13.5px;color:#6B7280;line-height:1.6;margin-bottom:12px">
           ${has ? '지금 핀번호가 정해져 있어요. 바꾸거나 끌 수 있어요.' : '핀번호를 정하면 <b>새 휴대폰·남의 기기</b>에서 내 번호로 들어올 때 핀번호를 한 번 더 물어요.<br>지금 이 기기는 다시 묻지 않아요. (원하는 사람만 — 안 정해도 돼요)'}
         </div>
+        ${has ? (mine
+          ? `<button type="button" id="pinMine" class="pin-mine"><span class="pin-mine-l">내 핀번호</span><span id="pinMineV" class="pin-mine-v">${'●'.repeat(mine.length)}</span><span class="pin-mine-h" id="pinMineH">눌러서 보기</span></button>`
+          : '<div class="pin-mine-no">이 기기에는 핀번호가 기억돼 있지 않아요. 지금 핀번호를 넣으면 고칠 수 있어요.</div>') : ''}
         ${has ? field('pinOld', '지금 핀번호') : ''}
-        ${field('pinNew', '새 핀번호 (숫자 4~6자리)')}
+        ${field('pinNew', has ? '고칠 새 핀번호 (숫자 4~6자리)' : '새 핀번호 (숫자 4~6자리)')}
         ${field('pinNew2', '새 핀번호 한 번 더')}
+        <label class="pin-show"><input type="checkbox" id="pinShow"> 숫자 보이기</label>
         <div class="pin-err" id="pinSetErr" style="text-align:left"></div>
         <button type="button" class="kko-btn-main" id="pinSave" style="margin-top:6px">${has ? '바꾸기' : '정하기'}</button>
         ${has ? '<button type="button" class="kko-btn-outline" id="pinOff" style="margin-top:8px">핀번호 끄기 (지금 핀번호 필요)</button>' : ''}
         <button type="button" class="kko-btn-outline" style="margin-top:8px" onclick="closeSheet()">닫기</button>`);
       const err = document.getElementById('pinSetErr');
       const val = id => (document.getElementById(id) || {}).value || '';
+      const oldEl = document.getElementById('pinOld');
+      if (oldEl && mine) oldEl.value = mine;   // 기억된 핀은 '지금 핀번호' 칸에 미리 채움 → 새 번호만 넣으면 고쳐짐
+      const mineB = document.getElementById('pinMine');
+      if (mineB) mineB.onclick = () => {
+        const v = document.getElementById('pinMineV'), h = document.getElementById('pinMineH'), open = mineB.classList.toggle('on');
+        v.textContent = open ? mine : '●'.repeat(mine.length);
+        h.textContent = open ? '고치려면 아래에 새 번호' : '눌러서 보기';
+        if (open) { const n = document.getElementById('pinNew'); if (n) n.focus(); }
+      };
+      const showB = document.getElementById('pinShow');
+      if (showB) showB.onchange = () => ['pinOld', 'pinNew', 'pinNew2'].forEach(id => { const e = document.getElementById(id); if (e) e.type = showB.checked ? 'text' : 'password'; });
       document.getElementById('pinSave').onclick = async () => {
         const p1 = val('pinNew').trim(), p2 = val('pinNew2').trim();
         if (!/^\d{4,6}$/.test(p1)) { err.textContent = '새 핀번호는 숫자 4~6자리로 넣어 주세요.'; return; }
         if (p1 !== p2) { err.textContent = '새 핀번호 두 번이 서로 달라요.'; return; }
         const r = await callApi({ action: 'setPin', memberId: App.memberId, pin: p1, oldPin: val('pinOld').trim() }).catch(() => ({ error: '연결이 원활하지 않아요.' }));
         if (!r || r.error) { err.textContent = (r && r.error) || '저장하지 못했어요.'; return; }
-        pinRemember(App.memberId, r.ver);
+        pinRemember(App.memberId, r.ver, p1);
         closeSheet(); toast(has ? '핀번호를 바꿨어요.' : '핀번호를 정했어요. 새 기기에서 들어올 때 물어봐요.');
       };
       const off = document.getElementById('pinOff');
