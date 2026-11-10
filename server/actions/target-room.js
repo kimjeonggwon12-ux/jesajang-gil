@@ -4,7 +4,7 @@
 // 들어올 수 있는 사람 = 그 섭외자의 담당(처음 기록한 교사·인도자·섬김이) + 담당이 초대한 사람. 초대·내보내기는 담당만.
 // 초대 화면의 명단 찾기는 고유번호를 돌려주지 않는다(로그인 = 번호·이름·부서라서) — 서버 서명(inviteKey)을 열쇠로 쓴다.
 import { createHmac, randomBytes } from 'node:crypto';
-import { db, run, isDuplicate } from '../lib/db.js';
+import { db, run, isDuplicate, selectAll } from '../lib/db.js';
 import { normId, str, kstDateTime, fmtTs } from '../lib/util.js';
 import { maskName } from '../lib/report-room.js';
 import { storeImage, r2Configured, isStoredUrl, cleanFileName, putDoc, presignDoc, storedSize, deleteStored } from '../lib/images.js';
@@ -363,7 +363,7 @@ async function listOpeningRooms(body) {
   const nid = normId(mid);
   const targets = [];   // 1,000개씩 끝까지(한도 없이)
   for (let i = 0; ; i += 1000) {
-    const part = await run(db().from('targets').select('target_id, target_name, stage, gender, age_group, teacher_name, creator_nid, goal_cohort, updated_at').in('stage', COUNSEL_STAGES).order('updated_at', { ascending: false }).order('id').range(i, i + 999));
+    const part = await run(db().from('targets').select('target_id, target_name, stage, gender, age_group, teacher_name, creator_nid, leader_nid, helper_nid, goal_cohort, updated_at').in('stage', COUNSEL_STAGES).order('updated_at', { ascending: false }).order('id').range(i, i + 999));
     targets.push(...part);
     if (part.length < 1000) break;
   }
@@ -375,6 +375,18 @@ async function listOpeningRooms(body) {
     inChunks((v) => db().from('target_room_members').select('target_id, nid, name, role, last_read_id').in('target_id', v), ids),
   ]);
   const tBy = new Map(teachers.map((x) => [x.nid, x]));
+  // 11/10(사용자): 최신 보고 건이 위로 — 담당(교사·인도자·섬김이)이 이 섭외자 이름으로 올린 활동 기록 중 가장 최근
+  const ownerNids = [...new Set(targets.flatMap((t) => [t.creator_nid, t.leader_nid, t.helper_nid]).filter(Boolean))];
+  const lastRep = new Map(), nowTs = kstDateTime();
+  for (let i = 0; i < ownerNids.length; i += 150) {
+    const part = ownerNids.slice(i, i + 150);
+    const acts = await selectAll(() => db().from('activities').select('id, nid, target_name, submitted_at').in('nid', part).neq('target_name', '').order('id')).catch(() => []);
+    for (const a of acts) {
+      const k = a.nid + '|' + String(a.target_name).trim(), raw = fmtTs(a.submitted_at), at = raw > nowTs ? nowTs : raw;   // 앞날짜로 적은 기록이 맨 위에 박히지 않게
+      if (at > (lastRep.get(k) || '')) lastRep.set(k, at);
+    }
+  }
+  const lastOf = (t) => [t.creator_nid, t.leader_nid, t.helper_nid].filter(Boolean).map((n) => lastRep.get(n + '|' + String(t.target_name).trim()) || '').sort().pop() || '';
   const roomIds = [...new Set(members.map((m) => m.target_id))];
   const msgs = (await inChunks((v) => db().from('target_room_messages').select('id, target_id, from_nid, created_at, deleted').in('target_id', v).order('id', { ascending: false }).limit(3000), roomIds).catch(() => []))
     .sort((a, b) => Number(b.id) - Number(a.id));
@@ -390,8 +402,10 @@ async function listOpeningRooms(body) {
       room: mem.length > 0, members: mem.length, admins: mem.filter((m) => m.role === '관리자').map((m) => m.name),
       inRoom: !!me, unread: me ? ms.filter((x) => Number(x.id) > Number(me.last_read_id || 0) && x.from_nid !== nid && !x.deleted).length : 0,
       lastAt: ms.length ? fmtTs(ms[0].created_at).slice(5, 16) : '',
+      lastReport: lastOf(t),
     };
   });
+  rows.sort((a, b) => String(b.lastReport).localeCompare(String(a.lastReport)));
   return { rows };
 }
 
