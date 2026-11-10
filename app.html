@@ -13685,8 +13685,9 @@ function tbSearchRender() {
         const id = String(MEMBER_ID || memberId || '').replace(/[^0-9]/g, '').slice(-5);
         const day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '.');
         const esx = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="170"><g transform="rotate(-24 130 85)" fill="#111" fill-opacity="0.11" font-family="Malgun Gothic, sans-serif" font-weight="700" text-anchor="middle">`
-          + `<text x="130" y="80" font-size="17">${esx(who)} ${esx(id)}</text><text x="130" y="102" font-size="12">교사광장 · ${day}</text></g></svg>`;
+        // 11/10(사용자): "워터마크가 너무 많다, 반절로" — 타일 넓이 2배(260×170 → 368×240), 글자 크기는 그대로
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="368" height="240"><g transform="rotate(-24 184 120)" fill="#111" fill-opacity="0.11" font-family="Malgun Gothic, sans-serif" font-weight="700" text-anchor="middle">`
+          + `<text x="184" y="115" font-size="17">${esx(who)} ${esx(id)}</text><text x="184" y="137" font-size="12">교사광장 · ${day}</text></g></svg>`;
         r.style.setProperty('--tb-wm', `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`);
       }
       function css() {
