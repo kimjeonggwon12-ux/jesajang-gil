@@ -1244,6 +1244,15 @@
     #sec-connect .cn-sec-sub { font-size:14.5px; color:var(--dg-text-sub); margin-top:5px; margin-bottom:18px; line-height:1.5; }
     #sec-connect .cn-req { color:var(--color-error); font-weight:700; }
     #sec-connect .cn-lbl { display:block; font-size:15px; font-weight:700; margin:18px 0 7px; letter-spacing:-0.02em; }
+    /* 11/10(사용자): 내 명함 작성 칸의 소제목이 눈에 잘 띄게 — 초록 막대 + 굵게 */
+    #sec-connect .kko-card > .cn-lbl, #sec-connect .kko-card > div > .cn-lbl { font-size:15.5px; font-weight:900; color:#111827; padding-left:9px; border-left:4px solid #00AE82; line-height:1.25; }
+    #sec-connect .cn-idfields .cn-lbl { padding-left:7px; border-left:3px solid #00AE82; font-weight:900; color:#111827; }
+    /* 명함 보기 칸(모든 칸 제목 + 비어 있음) */
+    .cn-pf { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+    .cn-pf-sec { padding:10px 12px; border-radius:12px; background:#F7FAF9; border:1px solid #E5EFEA; }
+    .cn-pf-h { font-size:13.5px; font-weight:900; color:#00875F; padding-left:8px; border-left:3px solid #00AE82; margin-bottom:6px; line-height:1.2; }
+    .cn-pf-v { font-size:15px; line-height:1.6; white-space:pre-wrap; word-break:break-word; color:#111827; }
+    .cn-pf-empty { font-size:13.5px; color:#9CA3AF; font-style:italic; }
     #sec-connect .cn-lbl small { font-weight:400; color:var(--color-text-sub); }
     #sec-connect .cn-pill { display:inline-flex; align-items:center; gap:4px; font-size:13.5px; font-weight:600; padding:7px 13px; border-radius:999px; }
     #sec-connect .cn-pill-tag { background:var(--color-primary-light); color:var(--color-primary); }
@@ -10412,6 +10421,29 @@
         if (c && !e.target.closest('img.zoomable')) openProfile(S.find.rows[Number(c.dataset.card)]); };
     }
     function cnDetailRow(label, val) { return val ? `<div style="margin-top:12px"><div class="cn-hint" style="margin:0">${label}</div><div style="font-size:15px;white-space:pre-wrap">${esc(val)}</div></div>` : ''; }
+    // 11/10(사용자): 명함 보기에 '내 명함' 작성 칸 제목을 전부 — 안 적은 칸은 '비어 있음'으로 보여 알아볼 수 있게
+    function cnProfileSections(r) {
+      const roles = r.roles || [];
+      const coop = CN_COOP_ITEMS.filter(i => !CN_ROLE_ITEMS.includes(i));
+      const txt = v => String(v || '').trim() ? `<div class="cn-pf-v">${esc(String(v).trim())}</div>` : '';
+      const tags = list => (list || []).length ? `<div class="cn-pf-v" style="display:flex;flex-wrap:wrap;gap:5px">${chips(list)}</div>` : '';
+      const sec = (label, body) => `<div class="cn-pf-sec"><div class="cn-pf-h">${label}</div>${body || '<div class="cn-pf-empty">비어 있음</div>'}</div>`;
+      return '<div class="cn-pf">' + [
+        sec('소개', txt([r.oneLiner, r.intro].filter(x => String(x || '').trim()).join('
+'))),
+        sec('전공', r.hasMajor ? txt(r.majorName || '있음') : ''),
+        sec('자격증', txt(r.cert)),
+        sec('가능 역할', tags(roles.filter(x => CN_ROLE_PARTS.includes(x)))),
+        sec('가능 항목', tags(roles.filter(x => CN_ROLE_ITEMS.includes(x)))),
+        sec('협력 항목', tags(roles.filter(x => coop.includes(x)))),
+        sec('가능 외국어', tags(r.langs)),
+        sec('가능 대상', tags(r.targets)),
+        sec('전문 분야 · 전도 기능', tags(r.fields)),
+        sec('추가 기록', txt(r.tools)),
+        sec('활동 가능 일정', r.schedType ? txt(scheduleText(r)) : ''),
+        sec('전화번호', r.phone ? `<div class="cn-pf-v" style="font-size:16px;font-weight:800">${esc(r.phone)}</div>` : ''),
+      ].join('') + '</div>';
+    }
     // 2026-09-22: 상세 프로필에도 교사 등급·부서 뱃지 추가(사용자 지시서 항목3①).
     function openProfile(r, onChat) {
       if (!r) return;
@@ -10426,12 +10458,7 @@
             ${r.oneLiner ? `<div style="margin-top:6px;font-size:15px;font-weight:600;color:var(--color-primary)">“${esc(r.oneLiner)}”</div>` : ''}
           </div>
         </div>
-        ${cnDetailRow('소개', r.intro)}
-        ${cnDetailRow('전공', r.hasMajor ? (r.majorName || '있음') : '')}${cnDetailRow('자격증', r.cert)}
-        ${allTags(r).length ? `<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:5px">${chips(allTags(r))}</div>` : ''}
-        ${cnDetailRow('전도 도구', r.tools)}
-        <div style="margin-top:12px"><div class="cn-hint" style="margin:0">활동 가능 일정</div><div style="font-size:15px">${esc(scheduleText(r))}</div></div>
-        <div style="margin-top:12px"><div class="cn-hint" style="margin:0">전화번호</div><div style="font-size:16px;font-weight:700">${esc(r.phone)}</div></div>
+        ${cnProfileSections(r)}
         ${r.isMine ? '<div class="cn-hint" style="margin-top:18px;text-align:center">내 명함입니다.</div>' : `
         <div class="tel-big" id="pfTel">${telActsHtml(r.phone)}</div>
         <div style="text-align:center;margin-top:8px"><button type="button" class="cn-hint" id="pfChat" style="background:none;border:none;cursor:pointer;text-decoration:underline">앱 안에서 채팅하기</button></div>`}
