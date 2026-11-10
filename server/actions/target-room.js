@@ -384,7 +384,7 @@ async function listOpeningRooms(body) {
     const me = mem.find((m) => m.nid === nid);
     const ms = msgs.filter((x) => x.target_id === t.target_id);
     return {
-      id: t.target_id, name: maskName(t.target_name), stage: t.stage, gender: t.gender || '', ageGroup: t.age_group || '',
+      id: t.target_id, name: String(t.target_name || '').trim(), stage: t.stage, gender: t.gender || '', ageGroup: t.age_group || '',   // 11/10(사용자): 관리자 목록은 섭외자 이름 전부
       teacher: t.teacher_name || '', dept: tm.dept || '', region: tm.region || '',
       goalMonth: t.goal_cohort ? Number(String(t.goal_cohort).slice(5)) : 0,
       room: mem.length > 0, members: mem.length, admins: mem.filter((m) => m.role === '관리자').map((m) => m.name),
