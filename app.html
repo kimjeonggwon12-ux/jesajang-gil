@@ -4727,21 +4727,35 @@
       function has(tab) {
         if (!cur || !seen) return false;
         if (tab === 'textbook') { const sv = new Set(seen.video || []); return cur.course > (seen.course || 0) || (cur.video || []).some(k => !sv.has(k)); }
-        if (tab === 'connect') return cur.card > (seen.card || 0) || cur.help > (seen.help || 0);
+        if (tab === 'connect') return subHas('find') || subHas('board');   // 11/10: 활동신청자·도와주세요 칸 N 중 하나라도 남으면
         if (tab === 'activity') return cur.room > 0;   // 11/6: 섭외자 대화방 안 읽은 글 → 나의교실 N(서버 읽음 표시라 방을 읽어야 사라짐)
         return false;
       }
       function opened(tab) {
         if (!cur || !seen) return;
         if (tab === 'textbook') { seen.course = cur.course; seen.video = (cur.video || []).slice(-1000); save(); }
-        else if (tab === 'connect') { seen.card = cur.card; seen.help = cur.help; save(); }
+        else if (tab === 'connect') { seen.card = cur.card; seen.help = cur.help; save(); if (window.cnTab) { const k = cnTab(); if (subOpened(k) && window.cnRefresh) cnRefresh(k); } }
         paint();   // 다른 탭으로 가도 다시 그림(나의교실 N 등)
+      }
+      // 11/10(사용자): 연결 › 활동신청자(남의 새 명함)·도와주세요(남의 새 글) 칸에도 N — 그 칸을 열어야 사라짐
+      const SUB = { find: 'card', board: 'help' };
+      function subSeen() { if (seen && !seen.sub) { seen.sub = { card: seen.card || 0, help: seen.help || 0 }; save(); } return seen ? seen.sub : null; }
+      function subHas(k) { const f = SUB[k], ss = subSeen(); return !!(f && cur && ss && cur[f] > (ss[f] || 0)); }
+      function subOpened(k) { const f = SUB[k], ss = subSeen(); if (!f || !cur || !ss || cur[f] <= (ss[f] || 0)) return false; ss[f] = cur[f]; save(); paint(); return true; }
+      function paintSub() {
+        document.querySelectorAll('#topTabs > button').forEach(b => {
+          const on = App.currentTab === 'connect' && window.cnTab && cnTab() === b.dataset.tab ? false : subHas(b.dataset.tab);
+          let n = b.querySelector('.new-badge');
+          if (on && !n) { n = document.createElement('span'); n.className = 'new-badge'; n.textContent = 'N'; b.appendChild(n); }
+          else if (!on && n) n.remove();
+        });
       }
       function paint() {
         const d = document.getElementById('textbookDot');
         if (d) d.style.display = App.currentTab !== 'textbook' && has('textbook') ? 'flex' : 'none';
         const ad = document.getElementById('activityDot');
         if (ad) ad.style.display = App.currentTab !== 'activity' && has('activity') ? 'flex' : 'none';
+        paintSub();
         paintConnectDot();
       }
       async function check(force) {
@@ -4753,13 +4767,13 @@
           const prevRoom = cur ? cur.room : -1;
           cur = { course: Number(r.course) || 0, card: Number(r.card) || 0, help: Number(r.help) || 0, video: r.video || [], room: Number(r.room) || 0 };
           if (cur.room !== prevRoom && (cur.room > 0 || prevRoom > 0) && window.trListLoad) trListLoad();   // 대화방 목록·섭외자 칸의 새 글 수
-          if (!seen) { seen = { course: cur.course, card: cur.card, help: cur.help, video: cur.video.slice(-1000) }; save(); }
+          if (!seen) { seen = { course: cur.course, card: cur.card, help: cur.help, video: cur.video.slice(-1000), sub: { card: cur.card, help: cur.help } }; save(); }
           if (['textbook', 'connect'].includes(App.currentTab)) opened(App.currentTab); else paint();
         } catch (e) { /* 뱃지는 부가 기능 — 실패해도 조용히 */ } finally { busy = false; }
       }
       document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
       setInterval(() => { if (!document.hidden) check(); }, 15 * 60e3);
-      return { has, opened, check, paint };
+      return { has, opened, check, paint, subOpened };
     })();
     window.newMarks = newMarks;
     window.addEventListener('hashchange', () => {
@@ -10018,10 +10032,12 @@
       S.tab = tab;
       document.body.classList.toggle('chat-mode', tab === 'chat' && !!S.chat.active);
       document.querySelectorAll('#topTabs > button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+      // 11/10: N 이 있던 칸이면 새 글을 다시 불러옴
+      const fresh = window.newMarks && App.currentTab === 'connect' ? newMarks.subOpened(tab) : false;
       cnRender();
       if (tab === 'card' && !S.card.loaded) loadCard();
-      if (tab === 'find' && !S.find.loaded) loadFind();
-      if (tab === 'board' && !S.board.loaded) loadBoard();
+      if (tab === 'find' && (!S.find.loaded || fresh)) loadFind();
+      if (tab === 'board' && (!S.board.loaded || fresh)) loadBoard();
       if (tab === 'rooms') trListLoad();
       if (tab === 'chat' && S.chat.active) enterChatRoom();
       const secEl = document.getElementById('sec-connect'); if (secEl) secEl.scrollTop = 0;
@@ -10029,6 +10045,8 @@
     document.getElementById('topTabs').addEventListener('click', e => {
       const b = e.target.closest('#topTabs > button'); if (b) cnSwitchTab(b.dataset.tab);
     });
+    window.cnTab = () => S.tab;
+    window.cnRefresh = k => { if (k === 'find') loadFind(); else if (k === 'board') loadBoard(); };
     window.cnRenderRooms = () => { if (S.tab === 'rooms' && App.currentTab === 'connect' && !document.getElementById('trLayer')) cnRender(); };
     function cnRender() {
       const v = document.getElementById('cnView');
