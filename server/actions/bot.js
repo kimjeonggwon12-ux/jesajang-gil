@@ -740,16 +740,18 @@ async function sendNewsOneline(body) {
   const day = body.date || kstDate();
   // 11/5(사용자): "이미지는 하지 말고 한 줄 데이터 뉴스 텍스트만" → photo:false. text 를 주면 확인한 글 그대로(AI 다시 안 씀)
   const compose = async () => (body.text ? { text: String(body.text), png: null, ai: false } : composeNews(day, { oneline: true, today: body.today !== false }));
-  if (body.to === 'test') { const r = await compose(); if (body.photo === false) r.png = null; return { ...(await testPhoto(r.png, r.text, r.text)), ai: r.ai, text: r.text }; }
+  const withCard = async (r) => {   // 11/10(사용자): 사진 = 교자장부청 '계' 큰 카드, 그 아래 설명 글 = 한 줄 데이터 뉴스(photo:false 면 글만)
+    r.png = null;
+    if (body.photo !== false) { try { const c = await composeTotalCard(day); if (c.total) r.png = c.png; } catch (e) { console.log('[교사광장 봇] 계 카드 오류 ' + e); } }
+    return r;
+  };
+  if (body.to === 'test') { const r = await withCard(await compose()); return { ...(await testPhoto(r.png, r.text, r.text)), ai: r.ai, text: r.text }; }
   const key = body.force ? '' : 'news1_' + day;
   // 11/9(사용자): 뉴스는 소통 방 + 각 부서 전체 방·회장단 방에도 매일(손으로 다시 보내는 force 는 소통 방만)
   const rooms = body.force ? [] : await pendingChurchRooms('데이터뉴스', day);
   const mainDone = !!key && await alreadySent(key);
   if (mainDone && !rooms.length) return { ok: false, skipped: true, date: day };   // 다 보냈으면 AI 도 다시 부르지 않음
-  const r = await compose();
-  // 11/10(사용자): 사진 = 교자장부청 '계' 큰 카드, 그 아래 설명 글 = 한 줄 데이터 뉴스(photo:false 면 글만)
-  r.png = null;
-  if (body.photo !== false) { try { const c = await composeTotalCard(day); if (c.total) r.png = c.png; } catch (e) { console.log('[교사광장 봇] 계 카드 오류 ' + e); } }
+  const r = await withCard(await compose());
   let ok = mainDone;
   if (!mainDone) {
     ok = r.png ? await sendChart(r.png, r.text, key, '데이터뉴스') : false;
