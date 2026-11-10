@@ -8646,7 +8646,6 @@
         <div class="pb-6 act-pages" data-act-page="${actPage}">
           <div data-ap="rooms" id="actRoomsBody" style="padding:12px 14px">${window.trListHtml ? trListHtml() : ''}</div>
           <div data-ap="targets">
-            <div id="trNeedBanner">${window.trNeedBannerHtml ? trNeedBannerHtml() : ''}</div>
             ${tierProgressBannerHtml()}
             ${centerBadgeBannerHtml()}
             ${encouragementBannerHtml()}
@@ -8878,6 +8877,7 @@
             <div class="er-hero-t">내 활동 보고</div>
             <div class="er-hero-s">기록을 남길 때마다 섭외자 칸이 저절로 생기고 쌓여요. 이름을 누르면 그 사람의 교육 이력이 한눈에 보여요.</div>
             <div class="er-hero-n"><span><b>${people.length}</b>명</span><span><b>${total}</b>번 기록</span><span><b>${people.filter(p => erSent(p.stage)).length}</b>명 센터</span></div>
+            <div id="trNeedBanner">${window.trNeedBannerHtml ? trNeedBannerHtml() : ''}</div>
           </div>
           ${!people.length ? `<div class="gl-empty">아직 기록한 섭외자가 없어요.<br>오른쪽 아래 <b>＋</b> 버튼으로 첫 기록을 남기면 여기에 칸이 생겨요.</div>` : `
           <div class="er-grid">${people.map(p => { const st = stageTemp(p.stage); return `
@@ -10877,8 +10877,9 @@
       const st = document.createElement('style'); st.id = 'trCss';
       st.textContent = `
       .tr-layer { position:fixed; inset:0; z-index:10010; display:flex; flex-direction:column; background:#F4F5F7; }
-      .fbn { display:flex; align-items:center; gap:12px; width:calc(100% - 28px); margin:12px 14px 4px; padding:16px 14px; border:none; border-radius:18px; text-align:left; cursor:pointer; color:#fff;
+      .fbn { display:flex; align-items:center; gap:12px; width:100%; margin:12px 0 0; padding:14px 12px; border:none; border-radius:16px; text-align:left; cursor:pointer; color:#fff;
         background:linear-gradient(135deg,#FF5A36 0%,#FF8A00 100%); box-shadow:0 8px 22px rgba(255,90,54,.35); animation:fbnPulse 2.2s ease-in-out infinite; }
+      .fbn-ok { margin-top:12px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.16); font-size:13px; font-weight:700; line-height:1.5; color:#fff; }
       .fbn-ic { font-size:30px; flex-shrink:0; animation:fbnWiggle 2.2s ease-in-out infinite; }
       .fbn-m { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
       .fbn-m b { font-size:16.5px; font-weight:900; letter-spacing:-.03em; line-height:1.3; }
@@ -11368,9 +11369,10 @@
     //   '방이 없다' = 내 섭외자인데 아직 한 번도 피드백방을 열지 않음(열면 방이 생기고 목록에 들어옴)
     const trNeedList = () => (typeof home !== 'undefined' && trSt.list ? (home.targets || []).filter(t => t && t.targetId && !trSt.byTarget[t.targetId]) : []);
     window.trNeedBannerHtml = function () {
+      if (typeof trSt === 'undefined' || !trSt.list) return '';
       const need = trNeedList();
-      if (!need.length) return '';
       trCss();
+      if (!need.length) return (home.targets || []).length ? '<div class="fbn-ok">✅ 모든 섭외자의 피드백방이 만들어져 있어요. 방에서 교관·지역장님과 계속 나눠 주세요!</div>' : '<div class="fbn-ok">💬 섭외자를 등록하면 꼭 <b>피드백방</b>을 만들어 교관·지역장님과 함께 키워 가세요.</div>';
       const names = need.slice(0, 3).map(t => esc(t.targetName || '섭외자')).join(', ') + (need.length > 3 ? ` 외 ${need.length - 3}명` : '');
       return `<button type="button" class="fbn" onclick="trNeedOpen()">
           <span class="fbn-ic">💬</span>
