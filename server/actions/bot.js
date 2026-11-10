@@ -528,14 +528,14 @@ const mdToTg = (t) => esc(String(t).replace(/^#+\s*/gm, '').replace(/\r/g, '')).
 
 // 11/5(사용자): "교자장부청 한 줄 뉴스 — 소속을 굵게, ● 기호를 앞에, '한 줄 데이터 뉴스'라고" → opts.oneline
 //   opts.today: 그날 저녁에 그날 것('어제' 대신 '오늘')
-/** 💬 교관 독려 줄 — AI 줄이 없으면 기록이 적은 부서 순으로 숫자 기반 문구. */
-function cheerLines(rawLines, depts) {
+/** ✅ 교사 할 일 줄(11/10 사용자: 전 교사가 보니 '교관 독려' 아님 — 건수 채우기가 아니라 실제 활동 1건 + 기록, AI 피드백 돌려보기).
+ *  AI 줄이 없으면 정해 둔 세 줄. */
+function cheerLines(rawLines) {
   const ai = rawLines.filter((l) => l.startsWith('💬')).map((l) => l.replace(/^💬\s*/u, '').trim()).filter(Boolean).slice(0, 3);
   if (ai.length) return ai;
-  const top = Math.max(0, ...depts.map((d) => d.records));
-  return [...depts].sort((a, b) => a.records - b.records).slice(0, 3).map((d) => (d.records
-    ? `${d.label} 교관 · 오늘 ${d.records}건(최다 ${top}건 대비) — 기록 없는 지역장에게 1:1 연락, 내일 1건씩`
-    : `${d.label} 교관 · 오늘 0건 — 오늘 밤 지역장 단톡에 앱 기록 방법 공유, 내일 첫 기록 확인`));
+  return ['섭외자 피드백이나 섭외 활동, 실제로 1건이라도 하고 기록하기',
+    '전도 활동 무엇이든 하고 그날 바로 앱에 기록하기',
+    '내 섭외자 기록에서 AI 피드백 돌려보고 다음 만남 준비하기'];
 }
 export async function composeNews(day, opts = {}) {
   const F = await newsFacts(day);
@@ -563,10 +563,11 @@ export async function composeNews(day, opts = {}) {
     '🌳 장년회 · (부족한 점 + 차이 한 줄)',
     '🌸 부녀회 · (부족한 점 + 차이 한 줄)',
     '🔥 청년회 · (부족한 점 + 차이 한 줄)',
-    // 11/10(사용자): "교관들이 어떻게 독려해야 하는지 코멘트가 들어가게" — 이 💬 줄만은 당부·행동 제안 허용
-    '💬 (교관·지역장이 내일 할 독려 행동 한 줄 — 가장 부족한 부서·지역·단계를 짚어 구체적으로, 예: "장년회 교관 · 보고 없는 지역장에게 오늘 밤 1:1 연락, 내일 기록 1건씩")',
-    '💬 (두 번째 독려 행동 한 줄 — 다른 부서 또는 다른 빈 곳)',
-    '💬 (세 번째 독려 행동 한 줄 — 잘하는 부서는 빈 단계 채우기)',
+    // 11/10(사용자): 💬 = "교사 할 일" — 전 교사가 본다. 건수 채우기가 아니라 실제 활동(피드백·섭외·전도) 1건이라도 하고 기록, AI 피드백 돌려보기.
+    //   이 💬 줄만은 권유형 허용. 부서 이름·숫자 목표("N건 이상")는 넣지 않음.
+    '💬 (모든 교사가 내일 할 일 한 줄 — 위 데이터의 빈 곳과 이어서, 예: "만나는 섭외자 1명에게 실제로 피드백하고 그날 기록하기")',
+    '💬 (교사 할 일 한 줄 — 섭외·전도 활동 무엇이든 실제로 하고 기록하기 쪽으로)',
+    '💬 (교사 할 일 한 줄 — 앱에서 내 섭외자 기록에 AI 피드백 돌려보고 다음 만남 준비하기 쪽으로)',
   ].join('\n');
   let body = '', ai = false, raw = '';
   try {
@@ -587,7 +588,7 @@ export async function composeNews(day, opts = {}) {
     // 11/10(사용자): 빨간 점·"오늘 하루에 ~ 있습니다" 안내 문구는 지움
     text = ['📰 <b>한 줄 데이터 뉴스</b>', `🗞 ${md} · 교자장부청`, '',
       ...depts.map((d) => `● <b>${esc(d.label)}</b> · ${esc(d.line)}`), '',
-      '💬 <b>교관 독려 포인트</b>', ...cheerLines(rawLines, depts).map((l) => `▸ ${esc(l)}`), '',
+      '✅ <b>교사 할 일</b>', ...cheerLines(rawLines).map((l) => `▸ ${esc(l)}`), '',
       // 11/10(사용자): 위 카드의 숫자(항목별 건수 합)와 다르게 보이지 않게 — 건수는 빼고 활동 교사 수만
       `📎 데이터: 서머리 ①~⑤ · 오늘 활동 교사 ${comma(F.total.teachers)}명`].join('\n');
   }
