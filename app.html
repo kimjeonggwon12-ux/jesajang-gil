@@ -10997,6 +10997,7 @@
       trSt.busy = false;
       if (!res || res.error) { trSt.err = (res && res.error) || '방을 열지 못했어요.'; trRender(); return; }
       Object.assign(trSt, { room: res.target, msgs: res.messages || [], pins: res.pins || [], members: res.members || [], isOwner: !!res.isOwner, invites: res.invites || [], reads: res.reads || [] });
+      if (trSt.isOwner && trSt.members.length <= 1) trSt.tab = 'members';   // 11/10: 아직 나 혼자인 방(새로 만든 방) → 초대 탭부터
       if (trSt.byTarget[targetId]) trSt.byTarget[targetId].unread = 0;
       else if (res.isOwner && window.trListLoad) setTimeout(trListLoad, 300);   // 11/10: 방이 새로 생김 → 안내 띠에서 빠지게
       trRender(true);
@@ -11043,7 +11044,7 @@
         ${m.deleted ? '<div class="tr-bub del">지운 글이에요</div>'
           : `<div class="tr-bub${m.pinned ? ' pinned' : ''}" data-tr-sel="${m.id}">${m.pinned ? '📌 ' : ''}${m.photo ? `<img class="zoomable" src="${esc(m.photo)}" alt="사진" loading="lazy">` : ''}${trFileHtml(m.file)}${esc(m.text)}</div>`}
         <div class="tr-meta">${(n => n ? `<b class="tr-unread">${n}</b> ` : '')(trUnreadN(m))}${esc(String(m.at).slice(5, 16).replace('-', '/'))}</div>
-        ${trSt.sel === m.id && !m.deleted ? `<div class="tr-acts"><button type="button" data-tr-pin="${m.id}">${m.pinned ? '📌 고정 풀기' : '📌 고정'}</button>${m.text ? `<button type="button" data-tr-copy="${m.id}">복사</button>` : ''}${canDel ? `<button type="button" class="red" data-tr-del="${m.id}">지우기</button>` : ''}</div>` : ''}
+        ${trSt.sel === m.id && !m.deleted ? `<div class="tr-acts">${m.text ? `<button type="button" data-tr-copy="${m.id}">복사</button>` : ''}${canDel ? `<button type="button" class="red" data-tr-del="${m.id}">지우기</button>` : ''}</div>` : ''}
       </div>`;
     }
     const TR_REC_TABS = ['info', 'acts', 'stagefb', 'plan', 'hearts', 'master'];
@@ -11097,14 +11098,14 @@
       const r = trSt.room;
       // 11/6(사용자): 정보 기록 옆에 받아 둔 피드백 — 단계향상 · ○월 센터 인도 계획 · HEARTS 상세피드백 · 종합
       const gm = (r && r.goalMonth) || (trSt.rec && trSt.rec.goalMonth) || 0;
-      const tabs = [['chat', '💬 대화'], ['pins', `📌 고정${trSt.pins.length ? ' ' + trSt.pins.length : ''}`], ['info', '🗂 정보 기록'], ['acts', '📝 활동 이력'],
-        ['stagefb', '📈 단계향상 피드백'], ['plan', `🧭 ${gm ? gm + '월 ' : ''}센터 인도 계획`], ['hearts', '❤️ HEARTS 상세피드백'], ['master', '🧠 종합 피드백'],
-        ['members', `👥 ${trSt.members.length || ''}`]];
+      // 11/10(사용자): 초대하는 탭을 맨 앞으로
+      const tabs = [['members', `👥 초대${trSt.members.length ? ' ' + trSt.members.length : ''}`], ['chat', '💬 대화'], ['info', '🗂 정보 기록'], ['acts', '📝 활동 이력'],
+        ['stagefb', '📈 단계향상 피드백'], ['plan', `🧭 ${gm ? gm + '월 ' : ''}센터 인도 계획`], ['hearts', '❤️ HEARTS 상세피드백'], ['master', '🧠 종합 피드백']];
       let body;
       if (trSt.busy) body = '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 방을 여는 중…</div>';
       else if (trSt.err) body = `<div class="tr-note">⚠️ ${esc(trSt.err)}</div>`;
-      else if (trSt.tab === 'chat') body = (trSt.pins.length ? `<div class="tr-pinbar" data-tr-tab="pins">📌 고정한 중요 정보 ${trSt.pins.length}개 — 눌러서 모아 보기 ›</div>` : '')
-        + (trSt.msgs.length ? trSt.msgs.map(trMsgHtml).join('') : `<div class="tr-note">아직 글이 없어요.<br>이 섭외자에 관한 <b>중요 정보</b>는 여기서 나누세요. 중요한 글은 눌러서 <b>📌 고정</b>하면 '고정' 칸에 모여요.${trSt.isOwner ? '<br>👥 칸에서 함께할 분을 초대할 수 있어요.' : ''}</div>`);
+      else if (trSt.tab === 'chat') body = ''
+        + (trSt.msgs.length ? trSt.msgs.map(trMsgHtml).join('') : `<div class="tr-note">아직 글이 없어요.<br>이 섭외자에 관한 <b>중요 정보</b>는 여기서 나누세요.${trSt.isOwner ? '<br>맨 앞 <b>👥 초대</b> 칸에서 함께할 분을 초대할 수 있어요.' : ''}</div>`);
       else if (trSt.tab === 'pins') body = trSt.pins.length ? trSt.pins.map(m => `<div class="tr-card"><div class="h"><b>${esc(m.from || '')}</b><span>${esc(String(m.at).slice(0, 16))}</span></div>${m.photo ? `<img class="zoomable" src="${esc(m.photo)}" alt="사진" style="max-width:100%;border-radius:10px">` : ''}${trFileHtml(m.file)}${esc(m.text).replace(/\n/g, '<br>')}<div class="tr-acts"><button type="button" data-tr-pin="${m.id}">📌 고정 풀기</button></div></div>`).join('')
         : '<div class="tr-note">고정한 글이 없어요. 대화에서 중요한 글을 누르고 <b>📌 고정</b>을 누르세요.</div>';
       else if (trSt.tab === 'members') body = trMembersHtml();
@@ -11115,7 +11116,7 @@
         <div class="tr-body" id="trBody">${body}</div>
         ${input && trSt.att.length ? `<div class="tr-prev">${trSt.att.map((x, i) => `<div class="it">${x.photo ? `<img src="${esc(x.photo)}" alt="">` : trIcon(x.name)}<span class="nm">${x.photo ? '사진' : esc(x.name)}${x.size ? `<br><small>${trSize(x.size)}</small>` : ''}</span><button type="button" data-tr-unatt="${i}" aria-label="빼기">✕</button></div>`).join('')}</div>` : ''}
         ${input && trSt.sending ? `<div class="tr-sending"><span class="loading loading-spinner loading-xs"></span> ${esc(trSt.sending)}</div>` : ''}
-        ${input ? `<div class="tr-in"><button type="button" class="ib" data-tr-photo title="사진·파일 첨부 (PPT·한글·PDF·사진)">📎</button><button type="button" class="ib${trSt.pin ? ' on' : ''}" data-tr-pinmode title="고정해서 보내기">📌</button>
+        ${input ? `<div class="tr-in"><button type="button" class="ib" data-tr-photo title="사진·파일 첨부 (PPT·한글·PDF·사진)">📎</button>
           <textarea id="trText" rows="1" maxlength="3000" placeholder="${trSt.pin ? '📌 고정할 중요 정보' : '메시지 · 파일은 끌어다 놓아도 돼요'}"></textarea><button type="button" class="send" data-tr-send ${trSt.sending ? 'disabled' : ''}>보내기</button>
           <input type="file" id="trFile" accept="${TR_ACCEPT}" multiple hidden></div>` : ''}
         ${input ? '<div class="tr-drop">📎 여기에 놓으면 첨부돼요 (PPT·한글·PDF·사진)</div>' : ''}`;
@@ -11440,7 +11441,7 @@
             ? `<button type="button" class="fbh-go" onclick="trNeedOpen()">💬 지금 피드백방 만들기 <i>${need.length}명 기다리는 중</i></button>`
             : trSt.list && trSt.list.length ? '<div class="fbh-done">✅ 내 섭외자 모두 피드백방이 있어요. 오늘도 한 줄 나눠 주세요!</div>'
             : `<button type="button" class="fbh-go" onclick="actSetPage('targets')">＋ 섭외자 등록하고 피드백방 열기</button>`}
-          <div class="fbh-how">방 안에서 사진·PPT·한글 파일을 올리고, 중요한 글은 📌 고정해 두세요.</div>
+          <div class="fbh-how">방 안에서 사진·PPT·한글 파일도 올려 함께 나눠요.</div>
         </div>`
         + '<form class="tr-search" data-tr-join onsubmit="trJoinSubmit(event)"><input id="trJoinCode" placeholder="초대 코드 (예: K7P2-9QXM)" autocomplete="off" autocapitalize="characters" maxlength="9"><button type="submit">들어가기</button></form>';
       if (!trSt.list) return head + '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>';
