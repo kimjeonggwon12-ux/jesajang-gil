@@ -890,6 +890,26 @@
     .rp-team label > span { font-size:13.5px; font-weight:700; color:var(--dg-text); }
     .rp-team .act-input { min-height:42px; padding:9px 12px; }
     .rp-lessons { margin:0; padding-left:22px; font-size:14.5px; line-height:1.8; }
+    /* 11/10 교재 본문 정리(renderContentHtml) */
+    .tbx { font-size:15px; line-height:1.85; color:#1F2937; word-break:keep-all; overflow-wrap:anywhere; }
+    .tbx-title { font-size:18px; font-weight:900; color:#111827; margin:0 0 12px; padding-bottom:8px; border-bottom:2px solid #00AE82; }
+    .tbx-sec { display:inline-block; margin:22px 0 8px; padding:3px 12px; border-radius:99px; background:#00AE82; color:#fff; font-size:13.5px; font-weight:900; letter-spacing:.02em; }
+    .tbx > .tbx-sec:first-child { margin-top:0; }
+    .tbx-h { display:flex; gap:8px; align-items:baseline; margin:20px 0 6px; font-size:16.5px; font-weight:900; color:#0F172A; line-height:1.5; }
+    .tbx-h b { flex-shrink:0; min-width:24px; height:24px; padding:0 6px; border-radius:7px; background:#E6F7F1; color:#00875F; font-size:14px; display:inline-flex; align-items:center; justify-content:center; }
+    .tbx-h2 { margin:14px 0 4px; font-size:15.5px; font-weight:800; color:#00875F; }
+    .tbx-p { margin:0 0 12px; }
+    .tbx-box { margin:4px 0 16px; padding:12px 14px; border-radius:12px; background:#F7FAF9; border:1px solid #DCEFE7; }
+    .tbx-box-h { font-size:13.5px; font-weight:900; color:#00875F; margin-bottom:6px; }
+    .tbx-box ol { margin:0; padding-left:20px; list-style:decimal; font-size:14.5px; line-height:1.7; }
+    .tbx-verses { margin:6px 0 16px; display:flex; flex-direction:column; gap:8px; }
+    .tbx-verse { display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border-radius:10px; background:#FAFAF7; border:1px solid #EFEDE4; font-size:14.5px; line-height:1.7; }
+    .tbx-ref { flex-shrink:0; display:inline-block; padding:1px 8px; margin-right:6px; border-radius:7px; background:#FFF4E0; color:#9A5B00; font-size:12.5px; font-weight:900; white-space:nowrap; line-height:1.8; }
+    .tbx-verse .tbx-ref { min-width:84px; text-align:center; }
+    .tbx-dot { flex-shrink:0; color:#00AE82; font-weight:900; }
+    .tbx-quote { margin:8px 0 14px; padding:10px 12px; border-left:4px solid #F5A300; border-radius:0 10px 10px 0; background:#FFFBF2; font-size:15px; line-height:1.75; }
+    .tbx-ref-s { font-size:12.5px; color:#9A5B00; font-weight:800; }
+    .tbx-cue { display:inline-block; padding:0 7px; margin:0 2px; border-radius:6px; background:#F3F4F6; color:#6B7280; font-size:12.5px; font-weight:700; }
     /* 10/30 임시 저장 */
     .rp-rename { margin-top:6px; padding:8px 12px; border-radius:10px; background:#FFF7E6; color:#92400E; font-size:13px; line-height:1.5; }
     .rp-draft-save { width:100%; height:46px; margin:8px 0 2px; border-radius:12px; border:1.5px dashed #94A3B8; background:#F8FAFC; color:#334155; font-size:14.5px; font-weight:800; font-family:inherit; }
@@ -12557,15 +12577,70 @@ async function tbLoadAll() {
   tbRender();
 }
 
+// 11/10(사용자): "교재 내용 텍스트가 너무 막 들어 있다, 구성을 잘" — 저장된 글은 그대로 두고 보여 줄 때만 정리한다.
+//   ① PDF에서 옮기며 줄 끝에서 끊긴 문장을 다시 잇기  ② ●도입·본론 / | 강의 핵심 | 상자 / 1. 큰 제목 / 1) 작은 제목
+//   ③ ⚫창 1:1 … 성구 줄 = 성구 칩 + 설명  ④ "호 6:6 …" 성경 인용 = 인용 상자  ⑤ (대답 듣기) 같은 진행 안내 = 회색 꼬리표
+const TBX_BOOKS = '창|출|레|민|신|수|삿|룻|삼상|삼하|왕상|왕하|대상|대하|스|느|에|욥|시|잠|전|아|사|렘|애|겔|단|호|욜|암|옵|욘|미|나|합|습|학|슥|말|마|막|눅|요|행|롬|고전|고후|갈|엡|빌|골|살전|살후|딤전|딤후|딛|몬|히|약|벧전|벧후|요일|요이|요삼|유|계';
+const TBX_REF = new RegExp('^(?:' + TBX_BOOKS + ')\\s*\\d+:\\d+(?:\\s*[~-]\\s*\\d+(?::\\d+)?)?(?:\\s*,\\s*\\d+(?:[~-]\\d+)?)*');
+const tbxIsStruct = l => /^(●|○\s|\||[⚫•▪■◆◇▶※]|\d+\.\s|\d+\)\s?|[가-하]\.\s|제목\s*:)/.test(l) || TBX_REF.test(l);
+const tbxEnds = l => /[.?!…~。」』"'”’)\]:;]$/.test(l) || /(다|요|죠|까|니다|세요|어요|아요|네요|지요|잖아|거든)[.?!~]*$/.test(l) && l.length < 38;
+function tbxJoin(text) {
+  // 줄 단위로 보고, 앞줄이 길고 끝맺음이 없으며 다음 줄이 새 덩어리가 아니면 잇는다(빈 줄 하나를 사이에 둔 경우도)
+  const raw = String(text || '').replace(/[​-‍﻿]/g, '').replace(/\r/g, '').split('\n').map(l => l.replace(/\s+$/, ''));
+  const out = [];
+  // 낱말 가운데서 끊긴 줄(사/람에게)은 붙이고, 낱말 사이에서 끊긴 줄은 띄운다 — 이어 붙인 글자가 본문의 한 줄 안에 있으면 한 낱말로 본다
+  const glue = (a, b) => {
+    const ta = (a.match(/[가-힣]+$/) || [''])[0], hb = (b.match(/^[가-힣]+/) || [''])[0];
+    if (!ta || !hb) return a + ' ' + b;
+    const key = ta.slice(-2) + hb.slice(0, 2);
+    return raw.some(l => l.includes(key)) ? a + b : a + ' ' + b;
+  };
+  for (let i = 0; i < raw.length; i++) {
+    const cur = raw[i].trim();
+    const prev = out.length ? out[out.length - 1] : null;
+    if (!cur) { if (prev !== '') out.push(''); continue; }
+    let joinTo = -1;
+    const headLike = p => /^(\||●|제목\s*:)/.test(p) || (/^\d+[.)]\s/.test(p) && p.length < 48);   // 짧은 번호 줄은 제목 — 다음 줄을 붙이지 않음
+    if (prev && !tbxEnds(prev) && prev.length >= 30 && !tbxIsStruct(cur) && !headLike(prev)) joinTo = out.length - 1;
+    else if (prev === '' && out.length >= 2) { const p2 = out[out.length - 2]; if (p2 && !tbxEnds(p2) && p2.length >= 30 && !tbxIsStruct(cur) && !/^[●|]/.test(p2) && /[가-힣]$/.test(p2)) { out.pop(); joinTo = out.length - 1; } }
+    if (joinTo >= 0) out[joinTo] = glue(out[joinTo], cur); else out.push(cur);
+  }
+  return out;
+}
+function tbxInline(s) {
+  // 진행 안내 (대답 듣기) 등 → 회색 꼬리표, 문장 속 (마 7:15~20) 성구 → 작은 칩
+  return esc(s)
+    .replace(/\((대답\s*듣기|대답|질문|읽기|함께\s*읽기|잠시\s*멈춤|판서|칠판|사진|그림|영상)[^)]{0,20}\)/g, '<span class="tbx-cue">$&</span>')
+    .replace(new RegExp('\\(((?:' + TBX_BOOKS + ')\\s*\\d+:\\d+[^)]{0,30})\\)', 'g'), '<span class="tbx-ref-s">($1)</span>');
+}
 function renderContentHtml(text) {
-  const paragraphs = String(text || '').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  return paragraphs.map(p => {
-    const html = esc(p).split('\n').join('<br>');
-    const isHeading = /^[●|]/.test(p);
-    return isHeading
-      ? `<div class="font-black text-indigo-700 text-[13px] mt-2 first:mt-0">${html}</div>`
-      : `<div class="text-[13px] text-gray-700 leading-relaxed mt-1">${html}</div>`;
-  }).join('');
+  const lines = tbxJoin(text);
+  const html = [];
+  let box = null, list = null;
+  const closeBox = () => { if (box) { html.push(`<div class="tbx-box"><div class="tbx-box-h">${esc(box.title)}</div>${box.items.length ? `<ol>${box.items.map(x => `<li>${tbxInline(x)}</li>`).join('')}</ol>` : ''}</div>`); box = null; } };
+  const closeList = () => { if (list) { html.push(`<div class="tbx-verses">${list.join('')}</div>`); list = null; } };
+  for (const l of lines) {
+    if (!l) { closeBox(); closeList(); continue; }
+    let m;
+    if ((m = l.match(/^\|\s*(.+?)\s*\|?$/))) { closeBox(); closeList(); box = { title: m[1].replace(/\|/g, '').trim(), items: [] }; continue; }
+    if (box && (m = l.match(/^\d+[.)]\s*(.+)/))) { box.items.push(m[1]); continue; }
+    if (box) closeBox();
+    if ((m = l.match(/^[⚫•▪]\s*(.+)/))) {
+      const body = m[1].trim(), r = body.match(TBX_REF);
+      list ||= [];
+      list.push(r ? `<div class="tbx-verse"><span class="tbx-ref">${esc(r[0].replace(/\s+/g, ' '))}</span><span>${tbxInline(body.slice(r[0].length).trim())}</span></div>` : `<div class="tbx-verse"><span class="tbx-dot">•</span><span>${tbxInline(body)}</span></div>`);
+      continue;
+    }
+    closeList();
+    if ((m = l.match(/^제목\s*:\s*(.+)/))) { html.push(`<div class="tbx-title">${esc(m[1])}</div>`); continue; }
+    if ((m = l.match(/^●\s*(.+)/))) { html.push(`<div class="tbx-sec">${esc(m[1])}</div>`); continue; }
+    if ((m = l.match(/^(\d+)\.\s*(.+)/)) && m[2].length <= 70) { html.push(`<div class="tbx-h"><b>${m[1]}</b><span>${tbxInline(m[2])}</span></div>`); continue; }
+    if ((m = l.match(/^(\d+)\)\s*(.+)/)) && m[2].length <= 70) { html.push(`<div class="tbx-h2"><b>${m[1]})</b> ${tbxInline(m[2])}</div>`); continue; }
+    if ((m = l.match(TBX_REF)) && l.length > m[0].length + 4) { html.push(`<div class="tbx-quote"><span class="tbx-ref">${esc(m[0].replace(/\s+/g, ' '))}</span>${tbxInline(l.slice(m[0].length).trim())}</div>`); continue; }
+    html.push(`<p class="tbx-p">${tbxInline(l)}</p>`);
+  }
+  closeBox(); closeList();
+  return `<div class="tbx">${html.join('')}</div>`;
 }
 
 // 2026-09-18: 5개 테마 탭("교사 소양"/"상담"/"무신앙"/"복음방 교재") 공용 렌더러 — 기존
@@ -12643,7 +12718,7 @@ function renderUnitDetail(u) {
   return `
     <div class="kko-fade-in px-4 py-4 border-t" style="background:var(--color-primary-light); border-color:var(--color-border);">
       <div class="text-[10.5px] mb-2" style="color:var(--color-text-sub);">예상 소요시간 약 ${u.minutes || '-'}분</div>
-      <div class="bg-white rounded-[14px] p-3.5 border shadow-sm" style="border-color:var(--color-border);">
+      <div class="bg-white rounded-[14px] border shadow-sm" style="border-color:var(--color-border);padding:18px 16px;">
         ${renderContentHtml(u.content)}
       </div>
 
