@@ -361,7 +361,12 @@ async function listOpeningRooms(body) {
   const mid = str(body.memberId);
   if (!mid || !(await isAdminCached(mid))) return { error: '개강피드백은 관리자(교관 이상)만 볼 수 있어요.' };
   const nid = normId(mid);
-  const targets = await run(db().from('targets').select('target_id, target_name, stage, gender, age_group, teacher_name, creator_nid, goal_cohort, updated_at').in('stage', COUNSEL_STAGES).order('updated_at', { ascending: false }).limit(1000));
+  const targets = [];   // 1,000개씩 끝까지(한도 없이)
+  for (let i = 0; ; i += 1000) {
+    const part = await run(db().from('targets').select('target_id, target_name, stage, gender, age_group, teacher_name, creator_nid, goal_cohort, updated_at').in('stage', COUNSEL_STAGES).order('updated_at', { ascending: false }).order('id').range(i, i + 999));
+    targets.push(...part);
+    if (part.length < 1000) break;
+  }
   if (!targets.length) return { rows: [] };
   const ids = targets.map((t) => t.target_id);
   const nids = [...new Set(targets.map((t) => t.creator_nid).filter(Boolean))];
