@@ -11428,19 +11428,19 @@
       // 11/10(사용자): "완전 꼭 해야겠다는 생각이 드는 배너" — 피드백방 목록 맨 위
       const need = trSt.list ? trNeedList() : [];
       const head = `<div class="fbh">
-          <div class="fbh-tag">🔥 열매 맺는 교사의 비밀</div>
-          <div class="fbh-t">섭외자 한 명에<br><em>피드백방 하나!</em></div>
-          <div class="fbh-s">혼자 고민하지 마세요. 교관·지역장·인도자와 <b>한 방</b>에서 함께 키우면 센터까지 가는 길이 훨씬 짧아져요.</div>
+          <div class="fbh-tag">📘 피드백방 만드는 방법</div>
+          <div class="fbh-t">세 번만 누르면<br><em>피드백방 완성!</em></div>
+          <div class="fbh-s">섭외자 한 명에 방 하나. 교관·지역장·인도자와 <b>한 방</b>에서 보고·자료·조언을 주고받아요.</div>
           <div class="fbh-pts">
-            <div><span>🧭</span><b>바로 받는 조언</b><small>교관·지역장님이 대화를 보고 다음 단계를 함께 짚어 줘요</small></div>
-            <div><span>📌</span><b>정보가 한곳에</b><small>텔레그램에 묻히지 않게 사진·PPT·한글 파일·고정 글로 모아요</small></div>
-            <div><span>🤝</span><b>함께 섬겨요</b><small>인도자·섬김이도 초대 링크로 바로 들어와 같은 마음으로</small></div>
+            <div><span>1️⃣</span><b>섭외자 고르기</b><small>나의교실 › <b>내 활동 보고</b>에서 섭외자 이름 칸을 눌러요</small></div>
+            <div><span>2️⃣</span><b>[💬 피드백방] 누르기</b><small>섭외자 화면의 <b>💬 피드백방</b> 칸을 누르면 방이 바로 생겨요</small></div>
+            <div><span>3️⃣</span><b>함께할 분 초대</b><small>방 위 <b>👥</b> 탭에서 이름으로 초대하거나, 초대 링크를 카톡·텔레그램으로 보내요</small></div>
           </div>
           ${need.length
             ? `<button type="button" class="fbh-go" onclick="trNeedOpen()">💬 지금 피드백방 만들기 <i>${need.length}명 기다리는 중</i></button>`
             : trSt.list && trSt.list.length ? '<div class="fbh-done">✅ 내 섭외자 모두 피드백방이 있어요. 오늘도 한 줄 나눠 주세요!</div>'
             : `<button type="button" class="fbh-go" onclick="actSetPage('targets')">＋ 섭외자 등록하고 피드백방 열기</button>`}
-          <div class="fbh-how">방 여는 곳: <b>내 활동 보고 › 섭외자 이름 › [💬 피드백방]</b></div>
+          <div class="fbh-how">방 안에서 사진·PPT·한글 파일을 올리고, 중요한 글은 📌 고정해 두세요.</div>
         </div>`
         + '<form class="tr-search" data-tr-join onsubmit="trJoinSubmit(event)"><input id="trJoinCode" placeholder="초대 코드 (예: K7P2-9QXM)" autocomplete="off" autocapitalize="characters" maxlength="9"><button type="submit">들어가기</button></form>';
       if (!trSt.list) return head + '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>';
