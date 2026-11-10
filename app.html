@@ -1248,6 +1248,7 @@
     #sec-connect .kko-card > .cn-lbl, #sec-connect .kko-card > div > .cn-lbl { font-size:15.5px; font-weight:900; color:#111827; padding-left:9px; border-left:4px solid #00AE82; line-height:1.25; }
     #sec-connect .cn-idfields .cn-lbl { padding-left:7px; border-left:3px solid #00AE82; font-weight:900; color:#111827; }
     /* 명함 보기 칸(모든 칸 제목 + 비어 있음) */
+    .cn-photo-need { margin-top:8px; padding:7px 10px; border-radius:10px; background:#FFF4E5; border:1px solid #FCD9A0; color:#B45309; font-size:13.5px; font-weight:800; }
     .cn-pf { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
     .cn-pf-sec { padding:10px 12px; border-radius:12px; background:#F7FAF9; border:1px solid #E5EFEA; }
     .cn-pf-h { font-size:13.5px; font-weight:900; color:#00875F; padding-left:8px; border-left:3px solid #00AE82; margin-bottom:6px; line-height:1.2; }
@@ -10158,7 +10159,7 @@
             <label class="cn-lbl">전화번호 <span class="cn-req">*</span></label>
             <input class="kko-input" data-f="phone" type="tel" inputmode="tel" placeholder="010-0000-0000" value="${esc(f.phone)}" maxlength="20">
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><label class="cn-photo-btn" style="margin-top:0">${c.photoBusy ? '사진 저장 중…' : '사진 ' + (f.photoUrl ? '바꾸기' : '올리기')}<input type="file" id="photoFile" accept="image/*" style="display:none" ${c.photoBusy ? 'disabled' : ''}></label>${f.photoUrl && !c.photoBusy ? '<button type="button" id="photoDel" class="cn-photo-btn" style="margin-top:0;color:#DC2626;border-color:#FCA5A5;background:#fff">사진 삭제</button>' : ''}</div>
-            ${c.exists ? '<div class="cn-hint" style="margin-top:4px">사진은 고르면 바로 저장돼요</div>' : ''}
+            ${!f.photoUrl ? '<div class="cn-photo-need">📷 사진을 등록해주세요.</div>' : ''}${c.exists ? '<div class="cn-hint" style="margin-top:4px">사진은 고르면 바로 저장돼요</div>' : ''}
           </div>
         </div>
         <div class="cn-hint">부서·지역은 교사 명단과 자동 연동: ${esc(c.dept || '-')} · ${esc(c.region || '-')} · 증명사진 크기로 저장돼요.</div>
@@ -10429,8 +10430,7 @@
       const tags = list => (list || []).length ? `<div class="cn-pf-v" style="display:flex;flex-wrap:wrap;gap:5px">${chips(list)}</div>` : '';
       const sec = (label, body) => `<div class="cn-pf-sec"><div class="cn-pf-h">${label}</div>${body || '<div class="cn-pf-empty">비어 있음</div>'}</div>`;
       return '<div class="cn-pf">' + [
-        sec('소개', txt([r.oneLiner, r.intro].filter(x => String(x || '').trim()).join('
-'))),
+        sec('소개', txt([r.oneLiner, r.intro].filter(x => String(x || '').trim()).join(String.fromCharCode(10)))),
         sec('전공', r.hasMajor ? txt(r.majorName || '있음') : ''),
         sec('자격증', txt(r.cert)),
         sec('가능 역할', tags(roles.filter(x => CN_ROLE_PARTS.includes(x)))),
@@ -10459,7 +10459,7 @@
           </div>
         </div>
         ${cnProfileSections(r)}
-        ${r.isMine ? '<div class="cn-hint" style="margin-top:18px;text-align:center">내 명함입니다.</div>' : `
+        ${r.isMine ? (r.photoUrl ? '' : '<div class="cn-photo-need" style="margin-top:14px;text-align:center">📷 사진을 등록해주세요. (연결 › 내 명함)</div>') + '<div class="cn-hint" style="margin-top:18px;text-align:center">내 명함입니다.</div>' : `
         <div class="tel-big" id="pfTel">${telActsHtml(r.phone)}</div>
         <div style="text-align:center;margin-top:8px"><button type="button" class="cn-hint" id="pfChat" style="background:none;border:none;cursor:pointer;text-decoration:underline">앱 안에서 채팅하기</button></div>`}
         <div style="text-align:center;margin-top:10px"><button class="cn-hint" style="background:none;border:none;cursor:pointer" onclick="closeSheet()">닫기</button></div>`);
