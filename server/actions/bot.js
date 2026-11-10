@@ -589,7 +589,8 @@ export async function composeNews(day, opts = {}) {
     text = ['📰 <b>한 줄 데이터 뉴스</b>', `🗞 ${md} · 교자장부청`, '', ...NEWS_INTRO, '',
       ...depts.map((d) => `● <b>${esc(d.label)}</b> · ${esc(d.line)}`), '',
       '💬 <b>교관 독려 포인트</b>', ...cheerLines(rawLines, depts).map((l) => `▸ ${esc(l)}`), '',
-      `📎 데이터: 서머리 ①~⑤ · 기록 ${comma(F.total.records)}건 · 교사 ${comma(F.total.teachers)}명`].join('\n');
+      // 11/10(사용자): 위 카드의 숫자(항목별 건수 합)와 다르게 보이지 않게 — 건수는 빼고 활동 교사 수만
+      `📎 데이터: 서머리 ①~⑤ · 오늘 활동 교사 ${comma(F.total.teachers)}명`].join('\n');
   }
   let png = null;
   try { png = newsCardPng({ date: md, headline: opts.today ? headline.replace(/^어제/, '오늘') : headline, total: F.total, depts, title: opts.oneline ? '한 줄 데이터 뉴스' : '' }); } catch (e) { console.log('[교사광장 봇] 뉴스 카드 그림 오류 ' + e); }
