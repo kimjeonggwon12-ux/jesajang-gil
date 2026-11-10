@@ -54,22 +54,14 @@ const isRegionRoom = (room) => String(room.dept || '').includes('/');
 /** 이 보고를 올릴 방들: 내 방(roomForTeacher) + 내 방이 지역 방이고 상담 이상 건이면 부서 전체 방. 교사 역할이 아니면 지역 방만. */
 // 11/10(사용자): "장부청 완전 전체 교사 방엔 개별 보고 문자는 올리지 않게, 회장단 방엔 상담 이상이 올라가야" —
 //   ① 장년회·부녀회·청년회 전체 방(dept 가 부서 이름 그대로)엔 개별 보고를 안 올린다(지역 방이 없어 전체 방으로 가던 것도). 22시 표·뉴스는 그대로.
-//   ② 상담 이상(상담1·상담2·복음방) 교사 보고는 전체 방 대신 그 부서 회장단 방으로. 회장단 방엔 상담 이상만(회장단 분 자기 보고도).
+//   ② (11/10 2차, 사용자) 회장단 방엔 그 방 사람들(지역이 회장단 방으로 이어진 분) 보고만 — 다른 지역 교사의 상담 이상은 안 올린다.
+//      회장단 방은 그 사람들에게 지역 방과 같아서 예전처럼 그분들 보고가 다 올라가고, 22시 취합 표·뉴스도 그대로.
 const WHOLE_DEPTS = ['장년회', '부녀회', '청년회'];
-const COUNSEL_ROOM = { '부녀회': '부녀회/기타' };   // 회장단 방이 있는 부서
 export async function roomsForReport(t, row) {
   let rooms = (await roomsByStage(t, row)).filter((r) => !topicPending(r));   // 주제 번호를 아직 모르는 방엔 안 올림(일반 주제로 새지 않게)
   // 11/3: 교역자는 지역 방이 없어 교역자 방이 곧 자기 방 — 교사 역할이 아니어도(협력 등) 올린다
   if (!isTeacherRole(row)) rooms = rooms.filter((r) => isRegionRoom(r) || r.dept === '교역자');
   rooms = rooms.filter((r) => !WHOLE_DEPTS.includes(r.dept) && r.dept !== '*');
-  const lead = COUNSEL_ROOM[String((t && t.dept) || '').trim()];
-  if (lead) {
-    rooms = rooms.filter((r) => r.dept !== lead || isCounselUp(row));
-    if (isCounselUp(row) && isTeacherRole(row) && !rooms.some((r) => r.dept === lead)) {
-      const [lr] = await run(db().from('report_rooms').select('*').eq('dept', lead).eq('active', true).limit(1)).catch(() => []);
-      if (lr && !topicPending(lr) && !rooms.some((r) => String(r.chat_id) === String(lr.chat_id))) rooms.push(lr);
-    }
-  }
   return rooms;
 }
 async function roomsByStage(t, row) {
