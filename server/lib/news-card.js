@@ -108,11 +108,23 @@ export function newsCardPng(n) {
 /** c = { date:'11월 10일(월)', title, rows:[{ label, n }], sum, foot? } → 1080×1080 PNG */
 export function totalCardPng(c) {
   const W = 1080, H = 1080, PAD = 60, out = [];
+  // 11/10(사용자): "10시를 무진장 강조 — 10시 시계도 그림으로" → 머리 왼쪽 10:00 시계 + 노란 큰 '10시'(9시 뉴스처럼 10시 = 이 카드)
+  const cx = 150, cy = 125, R = 92;
+  const ticks = Array.from({ length: 12 }, (_, k) => {
+    const a = k * Math.PI / 6, r1 = k % 3 ? R - 16 : R - 24, r2 = R - 6;
+    return `<line x1="${cx + r1 * Math.sin(a)}" y1="${cy - r1 * Math.cos(a)}" x2="${cx + r2 * Math.sin(a)}" y2="${cy - r2 * Math.cos(a)}" stroke="#0F1E3D" stroke-width="${k % 3 ? 3 : 6}" stroke-linecap="round"/>`;
+  }).join('');
+  const ha = 300 * Math.PI / 180;   // 시침 10시
   out.push(`<rect width="${W}" height="${H}" fill="#FFFFFF"/>`,
     `<rect x="0" y="0" width="${W}" height="250" fill="#0F1E3D"/>`,
-    `<rect x="${PAD}" y="58" width="10" height="44" rx="4" fill="#00AE82"/>`,
-    `<text x="${PAD + 28}" y="96" font-size="44" font-weight="700" fill="#FFFFFF">${esc(c.title || '교자장부청 활동 기록')}</text>`,
-    `<text x="${PAD}" y="170" font-size="34" fill="#C7D2E8">${esc(c.date)}</text>`,
+    `<circle cx="${cx}" cy="${cy}" r="${R + 8}" fill="#FFD43B"/>`,
+    `<circle cx="${cx}" cy="${cy}" r="${R}" fill="#FFFFFF"/>`, ticks,
+    `<line x1="${cx}" y1="${cy}" x2="${cx + 50 * Math.sin(ha)}" y2="${cy - 50 * Math.cos(ha)}" stroke="#0F1E3D" stroke-width="11" stroke-linecap="round"/>`,
+    `<line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 74}" stroke="#0F1E3D" stroke-width="7" stroke-linecap="round"/>`,
+    `<circle cx="${cx}" cy="${cy}" r="9" fill="#E03131"/>`,
+    `<text x="272" y="132" font-size="112" font-weight="700" fill="#FFD43B">10시<tspan font-size="46" fill="#FFFFFF"> 뉴스</tspan></text>`,
+    `<text x="276" y="186" font-size="31" font-weight="700" fill="#FFFFFF">${esc(c.title || '교자장부청 활동 기록')}</text>`,
+    `<text x="276" y="226" font-size="26" fill="#93A4C6">${esc(c.date)}</text>`,
     `<text x="${W - PAD}" y="140" font-size="30" fill="#93A4C6" text-anchor="end">전체</text>`,
     `<text x="${W - PAD}" y="214" font-size="76" font-weight="700" fill="#7DE3C4" text-anchor="end">${comma(c.sum)}<tspan font-size="40" fill="#C7D2E8"> 건</tspan></text>`);
   const max = Math.max(1, ...c.rows.map((r) => r.n));
