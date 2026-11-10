@@ -101,3 +101,34 @@ export function newsCardPng(n) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="NanumGothic"><rect width="${W}" height="${H}" fill="#FFFFFF"/>${out.join('')}</svg>`;
   return Buffer.from(new Resvg(svg, { font: { fontFiles: FONTS, loadSystemFonts: false, defaultFontFamily: 'NanumGothic' }, fitTo: { mode: 'width', value: W } }).render().asPng());
 }
+
+// ── 교자장부청 기록 '계' 큰 글씨 정사각형 카드(2026-11-10) ──
+// 사용자: "장부청 전체 교사 방엔 교자장부청 일일 보고 총합에서 세부 내용 다 뺀 '계'만 엄청 크게 — 정사각형 카드 뉴스.
+//   교자장청이 부녀회에 비해 비협조적인 것이 보여야." 막대 = 가장 많은 조직 대비 길이.
+/** c = { date:'11월 10일(월)', title, rows:[{ label, n }], sum, foot? } → 1080×1080 PNG */
+export function totalCardPng(c) {
+  const W = 1080, H = 1080, PAD = 60, out = [];
+  out.push(`<rect width="${W}" height="${H}" fill="#FFFFFF"/>`,
+    `<rect x="0" y="0" width="${W}" height="250" fill="#0F1E3D"/>`,
+    `<rect x="${PAD}" y="58" width="10" height="44" rx="4" fill="#00AE82"/>`,
+    `<text x="${PAD + 28}" y="96" font-size="44" font-weight="700" fill="#FFFFFF">${esc(c.title || '교자장부청 활동 기록')}</text>`,
+    `<text x="${PAD}" y="170" font-size="34" fill="#C7D2E8">${esc(c.date)}</text>`,
+    `<text x="${W - PAD}" y="140" font-size="30" fill="#93A4C6" text-anchor="end">전체</text>`,
+    `<text x="${W - PAD}" y="214" font-size="76" font-weight="700" fill="#7DE3C4" text-anchor="end">${comma(c.sum)}<tspan font-size="40" fill="#C7D2E8"> 건</tspan></text>`);
+  const max = Math.max(1, ...c.rows.map((r) => r.n));
+  const numW = Math.max(...c.rows.map((r) => widthOf(comma(r.n), 120)));   // 막대 폭은 모든 줄이 같게(비율이 바로 보이게)
+  const top = 290, rowH = (H - top - 90) / c.rows.length;
+  c.rows.forEach((r, i) => {
+    const y = top + i * rowH, color = DEPT_COLORS[r.label] || '#64748B';
+    const numTxt = comma(r.n);
+    out.push(`<rect x="${PAD}" y="${y + 6}" width="${W - PAD * 2}" height="${rowH - 18}" rx="24" fill="${i % 2 ? '#FFFFFF' : '#F6F8FB'}"/>`,
+      `<text x="${PAD + 32}" y="${y + 74}" font-size="48" font-weight="700" fill="${color}">${esc(r.label)}</text>`,
+      `<text x="${W - PAD - 32}" y="${y + 100}" font-size="120" font-weight="700" fill="${r.n ? '#111827' : '#C0C6D0'}" text-anchor="end">${numTxt}<tspan font-size="44" fill="#6B7280" font-weight="400"> 건</tspan></text>`);
+    const bx = PAD + 32, bw = W - PAD * 2 - 64 - numW - 130, by = y + 104;
+    out.push(`<rect x="${bx}" y="${by}" width="${bw}" height="22" rx="11" fill="#EEF1F5"/>`);
+    if (r.n) out.push(`<rect x="${bx}" y="${by}" width="${Math.max(22, bw * r.n / max)}" height="22" rx="11" fill="${color}"/>`);
+  });
+  out.push(`<text x="${W / 2}" y="${H - 38}" font-size="26" fill="#8A93A6" text-anchor="middle">${esc(c.foot || '교사광장 활동 기록 · 섭외자-인도자 한 쌍 = 1건')}</text>`);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="NanumGothic">${out.join('')}</svg>`;
+  return Buffer.from(new Resvg(svg, { font: { fontFiles: FONTS, loadSystemFonts: false, defaultFontFamily: 'NanumGothic' }, fitTo: { mode: 'width', value: W } }).render().asPng());
+}

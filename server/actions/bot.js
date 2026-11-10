@@ -11,7 +11,7 @@ import { teachersByNid, rosterCounts, loadRoster, fixActivityNids, adminsAsTeach
 import { progressPng } from '../lib/progress-image.js';
 import { boardTable, boardTotalLines, BOARD_COLS, boardLabel, countPairs, sendRoomBoard, sendRoomText, topicPending } from '../lib/report-room.js';
 import { askAiModels } from '../lib/gemini.js';
-import { newsCardPng } from '../lib/news-card.js';
+import { newsCardPng, totalCardPng } from '../lib/news-card.js';
 
 // 11/5(사용자): "서머리 다섯 개에 번호를 매기고 머릿말에 어떤 서머리인지 설명" — 하루 순서대로 ①~⑤
 const SUMMARY_HEAD = {
@@ -174,7 +174,7 @@ async function composeBoard(day, kind = 'evening') {
   const counted = [...byDept.values()].flat();
   const people = new Set(counted.map((a) => a.nid)).size;
   const [y, m, d] = day.split('-').map(Number);
-  const { total, sum, png } = boardTable({
+  const { per, total, sum, png } = boardTable({
     title: K.title, theme: 'purple', firstHead: '부서', sumLabel: '5개 조직 총합',
     sub: `${y - 1983}.${m}.${d}.${weekdayOf(day)}요일${K.when} · 섭외자-인도자 한 쌍 = 1건 (섭외자 없는 기록은 한 건씩)`,
     groups: DEPTS.map(([dept, label]) => [label, byDept.get(dept)]),
@@ -184,7 +184,18 @@ async function composeBoard(day, kind = 'evening') {
     `👥 참여 ${comma(people)}명 · 기록 ${comma(counted.length)}건 · 합계 <b>${comma(sum)}건</b>`, '',
     '🧭 <b>항목별 총합</b> (교자장부청 5개 조직)',
     ...(lines.length ? lines : ['아직 기록 없음'])].join('\n');
-  return { caption, text: caption, png, total: counted.length };
+  return { caption, text: caption, png, total: counted.length, per, sum };
+}
+
+/** 11/10(사용자): 장부청 전체 교사 방용 — 교자장부청 일일 보고 '계'만 아주 크게, 정사각형 카드 한 장. */
+async function composeTotalCard(day, board) {
+  const r = board || await composeBoard(day, 'evening');
+  const [, m, d] = day.split('-').map(Number);
+  const date = `${m}월 ${d}일(${weekdayOf(day)})`;
+  const png = totalCardPng({ date, title: '교자장부청 오늘 활동 기록', sum: r.sum, rows: r.per.map((p) => ({ label: p.label, n: p.sum })) });
+  const caption = [`📊 <b>교자장부청 오늘 활동 기록</b> · ${date}`, '',
+    ...r.per.map((p) => `${esc(p.label)} <b>${comma(p.sum)}건</b>`), '', `전체 <b>${comma(r.sum)}건</b>`].join('\n');
+  return { png, caption, text: caption, total: r.total };
 }
 
 /** 표 사진 + 설명을 소통 방(TEACHERSQUARE_CHAT_ID)에. 사진을 못 보내면 글로. */
@@ -657,6 +668,10 @@ async function tsTestRoom(body) {
   if (only.includes('evening')) {
     const r = await composeBoard(day, 'evening');
     out.push(['evening', await testPhoto(r.png, tag('④', '밤 10시 서머리 — 교자장부청 일일 보고 총합(보라)') + r.caption)]);
+  }
+  if (only.includes('total')) {   // 11/10: 장부청 전체 교사 방용 '계' 큰 카드
+    const r = await composeTotalCard(day);
+    out.push(['total', await testPhoto(r.png, tag() + r.caption, tag() + r.text)]);
   }
   if (only.includes('morning')) {   // 11/5부터 밤 11시: 그날 활동
     const { parts } = await composeDaily(day);
