@@ -10427,19 +10427,21 @@
       const roles = r.roles || [];
       const coop = CN_COOP_ITEMS.filter(i => !CN_ROLE_ITEMS.includes(i));
       const txt = v => String(v || '').trim() ? `<div class="cn-pf-v">${esc(String(v).trim())}</div>` : '';
-      const tags = list => (list || []).length ? `<div class="cn-pf-v" style="display:flex;flex-wrap:wrap;gap:5px">${chips(list)}</div>` : '';
+      // 11/10(사용자): 태그는 쉼표+띄어쓰기로 이어서(읽기 쉽게)
+      const tags = list => (list || []).length ? `<div class="cn-pf-v">${esc(list.join(', '))}</div>` : '';
+      const commas = v => String(v || '').replace(/\s*[,，、]\s*/g, ', ').trim();
       const sec = (label, body) => `<div class="cn-pf-sec"><div class="cn-pf-h">${label}</div>${body || '<div class="cn-pf-empty">비어 있음</div>'}</div>`;
       return '<div class="cn-pf">' + [
         sec('소개', txt([r.oneLiner, r.intro].filter(x => String(x || '').trim()).join(String.fromCharCode(10)))),
         sec('전공', r.hasMajor ? txt(r.majorName || '있음') : ''),
-        sec('자격증', txt(r.cert)),
+        sec('자격증', txt(commas(r.cert))),
         sec('가능 역할', tags(roles.filter(x => CN_ROLE_PARTS.includes(x)))),
         sec('가능 항목', tags(roles.filter(x => CN_ROLE_ITEMS.includes(x)))),
         sec('협력 항목', tags(roles.filter(x => coop.includes(x)))),
         sec('가능 외국어', tags(r.langs)),
         sec('가능 대상', tags(r.targets)),
         sec('전문 분야 · 전도 기능', tags(r.fields)),
-        sec('추가 기록', txt(r.tools)),
+        sec('추가 기록', txt(commas(r.tools))),
         sec('활동 가능 일정', r.schedType ? txt(scheduleText(r)) : ''),
         sec('전화번호', r.phone ? `<div class="cn-pf-v" style="font-size:16px;font-weight:800">${esc(r.phone)}</div>` : ''),
       ].join('') + '</div>';
