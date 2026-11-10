@@ -48,11 +48,21 @@ async function deptManagerOf(memberId) {
   if (isOwner(memberId)) return 'all';
   const { admin, teacher } = await memberInfo(memberId);
   // 11/3(사용자): 지역장·교관이면(관리자 명단에 아직 없어도 교사명단 직책으로) 자기 부서 일정을 올린다
-  const d = String(admin?.dept || (/지역장|교관/.test(String(teacher?.position || '')) ? teacher?.dept : '') || '').trim();
+  // 11/10(사용자): "그 외 관리자 급은 부서·내 일정 가능" — 교사명단 직책으로 관리자인 분(회장·총무 등)도 자기 부서
+  const byPos = /지역장|교관/.test(String(teacher?.position || '')) || (!admin && teacher && await isAdmin(memberId));
+  const d = String(admin?.dept || (byPos ? teacher?.dept : '') || '').trim();
   if (!d) return '';
   if (d === '전도부') return 'all';
   if (d === '중진' || d.startsWith('교')) return '교';
   return DEPTS.includes(d.charAt(0)) ? d.charAt(0) : '';
+}
+/** 11/10(사용자): 전도부 공식 일정은 전도부만 — 앱 관리자, 관리자 명단 부서가 전도부, 또는 직책에 '전도'(전도부장·과장·팀장). */
+async function isJeondo(memberId) {
+  if (!memberId) return false;
+  if (isOwner(memberId)) return true;
+  const { admin, teacher } = await memberInfo(memberId);
+  if (String(admin?.dept || '').trim() === '전도부' || /전도/.test(String(admin?.position || ''))) return true;
+  return /전도/.test(String(teacher?.position || '')) && (await isAdmin(memberId));
 }
 const canManageDept = (mgr, dept) => mgr === 'all' || (!!mgr && mgr === String(dept || '').trim().charAt(0));
 
@@ -62,8 +72,8 @@ const canManageDept = (mgr, dept) => mgr === 'all' || (!!mgr && mgr === String(d
  */
 async function getCalendarEvents(body) {
   const me = clip(body.memberId, 40);
-  const [events, staff, attendees, cheers, weeks, deptManager] = await Promise.all([
-    allEvents(), countByEvent('event_staff'), countByEvent('event_attendees'), cheerCounts(), allWeeks(), deptManagerOf(me),
+  const [events, staff, attendees, cheers, weeks, deptManager, official] = await Promise.all([
+    allEvents(), countByEvent('event_staff'), countByEvent('event_attendees'), cheerCounts(), allWeeks(), deptManagerOf(me), isJeondo(me),
   ]);
   const rows = events.filter((e) => {
     if (e.category === '내일정') return !!me && sameId(e.createdBy, me);
@@ -71,7 +81,7 @@ async function getCalendarEvents(body) {
   }).map((e) => ({
     ...e, staffCount: staff.get(e.eventId) || 0, attendeeCount: attendees.get(e.eventId) || 0, cheerCount: cheers.get(e.eventId) || 0,
   }));
-  return { rows, weeks, deptManager };
+  return { rows, weeks, deptManager, official };
 }
 
 // ── 주간 서머리 (2026-10-19) ── 달력 한 줄(일~토)마다 '주간:' 이름과 메모. 보기는 누구나, 쓰기는 관리자(전도부).
@@ -152,7 +162,7 @@ async function saveCalendarEvent(body) {
   if ('purpose' in ev) fields.purpose = clip(ev.purpose, 300);
   const mid = clip(body.memberId, 40);
   // 앱 화면(memberId 를 보냄)에서 공식 일정은 관리자만 — 일반 교사에게는 관리자 페이지 안내.
-  if (mid && category === '공식' && !(await isAdmin(mid))) return { error: '공식 일정은 관리자 페이지에서 등록·수정해요.' };
+  if (mid && category === '공식' && !(await isJeondo(mid))) return { error: '전도부 공식 일정은 전도부만 올릴 수 있어요.' };
   const mgr = mid && category === '부서' ? await deptManagerOf(mid) : '';
   if (mid && category === '부서' && !canManageDept(mgr, dept)) return { error: '부서 일정은 그 부서 관리자만 올릴 수 있어요.' };
   const eventId = clip(ev.eventId, 40);
@@ -160,7 +170,7 @@ async function saveCalendarEvent(body) {
     const [row] = await run(db().from('calendar_events').select('id, repeat_days, category, created_by').eq('event_id', eventId).limit(1));
     if (row) {
       // 삭제와 같은 규칙: 공식 일정이 아니면 등록한 본인만 고친다(memberId 를 보내는 화면에서만 확인).
-      if (mid && toEvent(row).category === '공식' && !(await isAdmin(mid))) return { error: '공식 일정은 관리자 페이지에서 수정해요.' };
+      if (mid && toEvent(row).category === '공식' && !(await isJeondo(mid))) return { error: '전도부 공식 일정은 전도부만 고칠 수 있어요.' };
       if (mid && toEvent(row).category === '내일정' && !sameId(row.created_by, mid)) {
         return { error: '본인이 등록한 일정만 수정할 수 있습니다.' };
       }

@@ -3947,7 +3947,7 @@
       panel.style.display = 'block';
       try { const em = sessionStorage.getItem('pd_err'); if (em) { sessionStorage.removeItem('pd_err'); setTimeout(() => pdLoginMsg(em), 50); } } catch (e) {}
       try { const pf = JSON.parse(sessionStorage.getItem('pd_prefill') || 'null'); if (pf) { sessionStorage.removeItem('pd_prefill'); document.getElementById('memberId').value = pf.id || ''; document.getElementById('name').value = pf.nm || ''; if (pf.dept) document.getElementById('pdDept').value = pf.dept; if (pf.pin) setTimeout(pdShowPin, 80); } } catch (e) {}
-      if (/^#room=/.test(location.hash || '')) setTimeout(() => pdLoginMsg('💬 섭외자 대화방 초대 링크로 오셨어요. 부서·이름·고유번호를 넣고 [입장하기]를 누르세요. (교사명단에 없는 분은 손님으로 대화방만 들어가요)'), 60);
+      if (/^#room=/.test(location.hash || '')) setTimeout(() => pdLoginMsg('💬 피드백방 초대 링크로 오셨어요. 부서·이름·고유번호를 넣고 [입장하기]를 누르세요. (교사명단에 없는 분은 손님으로 대화방만 들어가요)'), 60);
 
       // 관리자 테스트링크(?memberId=&name=)는 표지를 건너뛰고 바로 입장
       if (window.TEST_MEMBER_ID && window.TEST_NAME) {
@@ -4731,7 +4731,7 @@
       if (EMBED_PLAZA) { switchTab('calendar', true); return; }
       const am = h.match(/^attend=([A-Za-z0-9_-]+)/);   // 2026-10-05: 출석 QR(app.html#attend=모임ID)
       if (am) { if (!App.qrOnly) switchTab('activity'); attOpen(decodeURIComponent(am[1]), 'qr'); return; }
-      const rm = h.match(/^room=([A-Za-z0-9-]+)/);   // 11/6: 섭외자 대화방 초대 링크
+      const rm = h.match(/^room=([A-Za-z0-9-]+)/);   // 11/6: 피드백방 초대 링크
       if (rm) { history.replaceState(null, '', location.pathname + location.search + '#activity'); switchTab('activity', true); trJoinCode(rm[1]); return; }
       // 2026-10-13: 새로 고침으로 다시 들어온 경우는 보던 탭 그대로
       if (App.resume) { App.resume = false; if (TAB_IDS.includes(h)) { switchTab(h, true); return; } }
@@ -4790,7 +4790,7 @@
         if (!cur || !seen) return false;
         if (tab === 'textbook') { const sv = new Set(seen.video || []); return cur.course > (seen.course || 0) || (cur.video || []).some(k => !sv.has(k)); }
         if (tab === 'connect') return subHas('find') || subHas('board');   // 11/10: 활동신청자·도와주세요 칸 N 중 하나라도 남으면
-        if (tab === 'activity') return cur.room > 0;   // 11/6: 섭외자 대화방 안 읽은 글 → 나의교실 N(서버 읽음 표시라 방을 읽어야 사라짐)
+        if (tab === 'activity') return cur.room > 0;   // 11/6: 피드백방 안 읽은 글 → 나의교실 N(서버 읽음 표시라 방을 읽어야 사라짐)
         return false;
       }
       function opened(tab) {
@@ -4943,7 +4943,7 @@
       return `<button type="button" class="pz-more" data-pz-more="${key}">${PZX[key] ? '접기 ︿' : (label || `더보기 (${total - 3}개 더) ›`)}</button>`;
     }
     const calDOW = ['일', '월', '화', '수', '목', '금', '토'];
-    const calSt = { y: 0, m: 0, events: [], weeks: {}, ads: null, adErr: '', view: '', deptManager: '' };   // view: '' = 전도부, 아니면 부서 한 글자   // weeks: 주 시작(일요일) → { theme, memo }
+    const calSt = { y: 0, m: 0, events: [], weeks: {}, ads: null, adErr: '', view: '', deptManager: '', official: false };   // view: '' = 전도부, 아니면 부서 한 글자   // weeks: 주 시작(일요일) → { theme, memo }
     const calP2 = n => String(n).padStart(2, '0');
     const calYmd = (y, m, d) => `${y}-${calP2(m + 1)}-${calP2(d)}`;
     const calTodayDate = new Date();
@@ -5477,7 +5477,7 @@
       // 2026-10-05 속도 개선: 일정·공지는 지난번 받은 것을 먼저 그리고(apiSWR), 서버 결과가 오면 다시 그린다.
       await Promise.all([
         apiSWR({ action: 'getCalendarEvents', memberId: MEMBER_ID }, r => {
-          if (r && !r.error) { calSt.events = r.rows || []; calSt.weeks = Object.fromEntries((r.weeks || []).map(w => [w.weekStart, w])); calSt.deptManager = r.deptManager || ''; }
+          if (r && !r.error) { calSt.events = r.rows || []; calSt.weeks = Object.fromEntries((r.weeks || []).map(w => [w.weekStart, w])); calSt.deptManager = r.deptManager || ''; calSt.official = !!r.official; }
           calRenderViews(); calDrawCalendar(); calRenderUpcoming(); pzRenderEvents(); if (window.pzNew) pzNew.board();
           // 2026-10-05: 일정 로드 후 이번 주 일정 알림 자동 예약
           if (Notification.permission === 'granted') pushNoti.scheduleWeekEvents();
@@ -5689,7 +5689,8 @@
     // 서버가 아닌 클라이언트에서 가린다. 부서/내일정은 누구나 등록 가능.
     function calOpenAddCategoryPicker() {
       // 2026-10-27: 부서 일정은 부서 탭에서 올린다 — 여기는 공식(관리자)·내 일정만. 하나뿐이면 바로 입력 칸.
-      const opts = CAL_CATEGORIES.filter(c => c !== '부서' && (c !== '공식' || isAdmin()));
+      // 11/10(사용자): 전도부 공식은 전도부만(서버 official), 부서는 부서 탭에서 관리자만, 일반 교사는 내 일정만
+      const opts = CAL_CATEGORIES.filter(c => c !== '부서' && (c !== '공식' || calSt.official));
       if (opts.length === 1) return calOpenAddForm(opts[0]);
       openSheet(`
         <div style="font-size:19px;font-weight:800;margin-bottom:4px">일정 추가</div>
@@ -8645,6 +8646,7 @@
         <div class="pb-6 act-pages" data-act-page="${actPage}">
           <div data-ap="rooms" id="actRoomsBody" style="padding:12px 14px">${window.trListHtml ? trListHtml() : ''}</div>
           <div data-ap="targets">
+            <div id="trNeedBanner">${window.trNeedBannerHtml ? trNeedBannerHtml() : ''}</div>
             ${tierProgressBannerHtml()}
             ${centerBadgeBannerHtml()}
             ${encouragementBannerHtml()}
@@ -8995,8 +8997,8 @@
             esc((t.reportProfile || {}).course ? `${t.reportProfile.course}${t.reportProfile.course === '수료' ? '' : ' 과정'}` : (t.reportProfile || {}).center ? '수강 중' : '센터·기수 적기')]
           : ['plan', gst.busy ? 'busy' : t.goalPlan ? 'done' : 'ready', gst.busy ? spin : pfSvg('route'), gm ? `${gm}월 개강 계획` : '개강 계획',
             gst.busy ? '설계 중…' : t.goalPlan ? `설계 ${pfMD(t.goalPlanAt)}` : gm ? '설계받기' : '목표 정하기']),
-        // 11/6(사용자): 섭외자 대화방 — 초대한 분과 중요 정보를 한곳에
-        t && (r => ['room', r ? 'done' : 'ready', '💬', '대화방', r ? (r.unread ? `새 글 ${r.unread}개` : `${r.members}명`) : '초대·중요 정보'])((typeof trSt !== 'undefined' && trSt.byTarget[t.targetId]) || null),
+        // 11/6(사용자): 피드백방 — 초대한 분과 중요 정보를 한곳에
+        t && (r => ['room', r ? 'done' : 'ready', '💬', '피드백방', r ? (r.unread ? `새 글 ${r.unread}개` : `${r.members}명`) : '초대·중요 정보'])((typeof trSt !== 'undefined' && trSt.byTarget[t.targetId]) || null),
       ].filter(Boolean);
       return `<div class="er-cells">${cells.map(([k, cls, ic, label, sub]) => `<button type="button" class="er-act ${cls}${erCell === k ? ' open' : ''}" onclick="erCellOpen('${k}')"><span class="er-act-i">${ic}</span><b>${label}</b><span>${sub}</span></button>`).join('')}</div>
         ${erCell ? `<div class="er-open">${erCellBodyHtml(p, erCell)}</div>` : ''}`;
@@ -9304,9 +9306,9 @@
     // 2026-10-25(2차, 사용자): '내 활동'과 '내 교육 보고'가 겹침 → '내 활동 보고' 하나로(섭외자 그리드 + 사람별 교육 이력·피드백·보고·사례)
     // 10/25(3차): '내 센터 인도 계획' 탭 없앰 — 사람 화면의 '○월 개강 계획' 칸에서 목표·설계·지난 계획까지
     // 10/27(사용자): '내가 이수한 교육' 탭 없앰, '내 활동 보고'가 맨 앞(메인 중 메인)·'내 교육 출석'은 그 오른쪽
-    // 11/6(사용자): 섭외자 대화방 = 나의교실, 내 활동 보고 오른쪽·내 교육 출석 왼쪽
+    // 11/6(사용자): 피드백방 = 나의교실, 내 활동 보고 오른쪽·내 교육 출석 왼쪽
     // 11/10(사용자): '내 교육 출석' 탭 삭제 — 필요하면 나중에 다시(attCardHtml·attLoadMy 함수는 남겨 둠, QR 카메라 출석 #attend= 는 그대로)
-    const ACT_PAGES = [['targets', '내 활동 보고'], ['rooms', '섭외자 대화방']];
+    const ACT_PAGES = [['targets', '내 활동 보고'], ['rooms', '피드백방']];
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
@@ -9345,6 +9347,7 @@
         return;
       }
       root.innerHTML = dashboardViewHtml();
+      if (typeof trSt !== 'undefined' && !trSt.list && !trSt.listBusy && window.trListLoad) trListLoad();   // 피드백방 안내 띠용 목록
       if (actPage === 'edu') { actEduRender(); if (!actEduSt.done) actEduLoad(); lcEduCardFill(); }
       updateTierBadge();
       renderTargetsChart();
@@ -10862,7 +10865,7 @@
       }
     }
     // ════════════════════════════════════════════════════════════════
-    // 2026-11-06(사용자) 섭외자 대화방 — 섭외자 화면의 [💬 대화방] 칸 / 연결 › 섭외자 대화방 목록에서 들어간다.
+    // 2026-11-06(사용자) 피드백방 — 섭외자 화면의 [💬 피드백방] 칸 / 연결 › 피드백방 목록에서 들어간다.
     //   담당 교사가 명단의 누구나 초대 → 초대받은 사람도 대화 + 그 섭외자의 정보 기록·활동 이력(읽기만)을 본다.
     //   중요한 글은 📌고정으로 한곳에. 알림은 앱 N 뱃지만(연결 탭) — 방을 열어 둔 동안만 15초마다 새 글 확인.
     //   서버: server/actions/target-room.js, 표 target_room_members·target_room_messages(0036).
@@ -10874,6 +10877,17 @@
       const st = document.createElement('style'); st.id = 'trCss';
       st.textContent = `
       .tr-layer { position:fixed; inset:0; z-index:10010; display:flex; flex-direction:column; background:#F4F5F7; }
+      .fbn { display:flex; align-items:center; gap:12px; width:calc(100% - 28px); margin:12px 14px 4px; padding:16px 14px; border:none; border-radius:18px; text-align:left; cursor:pointer; color:#fff;
+        background:linear-gradient(135deg,#FF5A36 0%,#FF8A00 100%); box-shadow:0 8px 22px rgba(255,90,54,.35); animation:fbnPulse 2.2s ease-in-out infinite; }
+      .fbn-ic { font-size:30px; flex-shrink:0; animation:fbnWiggle 2.2s ease-in-out infinite; }
+      .fbn-m { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+      .fbn-m b { font-size:16.5px; font-weight:900; letter-spacing:-.03em; line-height:1.3; }
+      .fbn-m i { font-style:normal; font-size:13px; font-weight:700; background:rgba(255,255,255,.22); border-radius:8px; padding:3px 8px; align-self:flex-start; }
+      .fbn-m small { font-size:12.5px; opacity:.95; line-height:1.45; }
+      .fbn-go { flex-shrink:0; background:#fff; color:#E8430F; font-weight:900; font-size:13.5px; border-radius:999px; padding:9px 12px; white-space:nowrap; }
+      @keyframes fbnPulse { 0%,100% { transform:scale(1); box-shadow:0 8px 22px rgba(255,90,54,.35); } 50% { transform:scale(1.015); box-shadow:0 10px 30px rgba(255,90,54,.55); } }
+      @keyframes fbnWiggle { 0%,80%,100% { transform:rotate(0); } 85% { transform:rotate(-12deg); } 90% { transform:rotate(12deg); } 95% { transform:rotate(-6deg); } }
+      @media (max-width:380px) { .fbn { flex-wrap:wrap; } .fbn-go { margin-left:42px; } }
       .tr-bar { display:flex; align-items:center; gap:8px; padding:10px 12px; padding-top:calc(10px + env(safe-area-inset-top, 0px)); background:#fff; border-bottom:1px solid #EDEDED; }
       .tr-bar > button { flex-shrink:0; width:38px; height:38px; border:none; border-radius:10px; background:#F3F4F6; font-size:20px; font-weight:800; cursor:pointer; }
       .tr-t { flex:1; min-width:0; display:flex; flex-direction:column; }
@@ -10963,6 +10977,7 @@
       if (!res || res.error) { trSt.err = (res && res.error) || '방을 열지 못했어요.'; trRender(); return; }
       Object.assign(trSt, { room: res.target, msgs: res.messages || [], pins: res.pins || [], members: res.members || [], isOwner: !!res.isOwner, invites: res.invites || [], reads: res.reads || [] });
       if (trSt.byTarget[targetId]) trSt.byTarget[targetId].unread = 0;
+      else if (res.isOwner && window.trListLoad) setTimeout(trListLoad, 300);   // 11/10: 방이 새로 생김 → 안내 띠에서 빠지게
       trRender(true);
       clearInterval(trSt.timer);
       trSt.timer = setInterval(() => { if (!document.hidden && trSt.tab === 'chat') trPoll(); }, 15e3);
@@ -11071,7 +11086,7 @@
       else if (trSt.tab === 'members') body = trMembersHtml();
       else body = trRecHtml();
       const input = trSt.tab === 'chat' && !trSt.busy && !trSt.err;
-      layer.innerHTML = `<div class="tr-bar"><button type="button" data-tr-close aria-label="닫기">‹</button><div class="tr-t"><b>💬 ${esc(r ? r.name : '섭외자 대화방')}</b><small>${r ? esc([r.stage, r.gender, r.ageGroup].filter(Boolean).join(' · ')) + ` · ${trSt.members.length}명` : ''}</small></div></div>
+      layer.innerHTML = `<div class="tr-bar"><button type="button" data-tr-close aria-label="닫기">‹</button><div class="tr-t"><b>💬 ${esc(r ? r.name : '피드백방')}</b><small>${r ? esc([r.stage, r.gender, r.ageGroup].filter(Boolean).join(' · ')) + ` · ${trSt.members.length}명` : ''}</small></div></div>
         <div class="tr-tabs">${tabs.map(([k, l]) => `<button type="button" class="${trSt.tab === k ? 'on' : ''}" data-tr-tab="${k}">${l}</button>`).join('')}</div>
         <div class="tr-body" id="trBody">${body}</div>
         ${input && trSt.att.length ? `<div class="tr-prev">${trSt.att.map((x, i) => `<div class="it">${x.photo ? `<img src="${esc(x.photo)}" alt="">` : trIcon(x.name)}<span class="nm">${x.photo ? '사진' : esc(x.name)}${x.size ? `<br><small>${trSize(x.size)}</small>` : ''}</span><button type="button" data-tr-unatt="${i}" aria-label="빼기">✕</button></div>`).join('')}</div>` : ''}
@@ -11297,8 +11312,8 @@
     const trLinkUrl = raw => location.origin + location.pathname + '#room=' + raw;
     window.trShareLink = async function (raw) {
       const code = raw.slice(0, 4) + '-' + raw.slice(4), url = trLinkUrl(raw);
-      const text = `[교사광장] 섭외자 대화방 초대\n아래 링크를 누르고 내 고유번호·이름으로 들어오면 바로 대화방이 열려요. (24시간)\n초대 코드: ${code}`;
-      try { if (navigator.share) { await navigator.share({ title: '섭외자 대화방 초대', text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+      const text = `[교사광장] 피드백방 초대\n아래 링크를 누르고 내 고유번호·이름으로 들어오면 바로 대화방이 열려요. (24시간)\n초대 코드: ${code}`;
+      try { if (navigator.share) { await navigator.share({ title: '피드백방 초대', text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
       try { await navigator.clipboard.writeText(text + '\n' + url); toast('초대 링크를 복사했어요. 카톡·텔레그램에 붙여 넣어 보내세요.'); }
       catch (e) { prompt('이 글을 복사해 보내세요', text + '\n' + url); }
     };
@@ -11307,7 +11322,7 @@
       trCss();
       let g = document.getElementById('trGuest');
       if (!g) { g = document.createElement('div'); g.id = 'trGuest'; g.className = 'tr-layer'; g.style.zIndex = '10005'; document.body.appendChild(g); }
-      const draw = () => { g.innerHTML = `<div class="tr-bar"><div class="tr-t"><b>💬 섭외자 대화방</b><small>${esc(MY_NAME)} 님 · 손님</small></div><button type="button" onclick="trGuestOut()" style="width:auto;padding:0 12px;font-size:13px">나가기</button></div>
+      const draw = () => { g.innerHTML = `<div class="tr-bar"><div class="tr-t"><b>💬 피드백방</b><small>${esc(MY_NAME)} 님 · 손님</small></div><button type="button" onclick="trGuestOut()" style="width:auto;padding:0 12px;font-size:13px">나가기</button></div>
         <div class="tr-body"><div class="tr-note" style="margin-bottom:10px">교사명단에 없는 분은 <b>손님</b>으로, 초대받은 대화방만 볼 수 있어요.</div>${trSt.list ? (trSt.list.length ? trListHtml().replace(/^[\s\S]*?<\/form>/, '') : '<div class="tr-note">들어가 있는 대화방이 없어요. 담당 교사에게 초대 링크를 받아 주세요.</div>') : '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>'}</div>`; };
       draw();
       const code = ((location.hash || '').match(/^#room=([A-Za-z0-9-]+)/) || [])[1];
@@ -11326,7 +11341,7 @@
       if (App.guest) { trOpen(res.targetId); return; }
       if (App.currentTab !== 'activity') switchTab('activity');
       if (typeof actSetPage === 'function') actSetPage('rooms');
-      if (!res.already) toast('섭외자 대화방에 들어왔어요.');
+      if (!res.already) toast('피드백방에 들어왔어요.');
       trOpen(res.targetId);
     };
     window.trJoinSubmit = function (e) {
@@ -11335,7 +11350,7 @@
       if (v.length !== 8) return toast('초대 코드 8자리를 넣어 주세요.', true);
       trJoinCode(v);
     };
-    // 나의교실 › 섭외자 대화방 목록
+    // 나의교실 › 피드백방 목록
     window.trListLoad = async function () {
       if (trSt.listBusy) return;
       trSt.listBusy = true;
@@ -11344,17 +11359,43 @@
       trSt.list = res && !res.error ? res.rows || [] : [];
       trSt.byTarget = Object.fromEntries(trSt.list.map(r => [r.id, r]));
       const box = document.getElementById('actRoomsBody'); if (box) box.innerHTML = trListHtml();
+      const nb = document.getElementById('trNeedBanner'); if (nb) nb.innerHTML = trNeedBannerHtml();
       if (typeof renderActTabs === 'function') renderActTabs();
       if (window.newMarks) newMarks.paint();
       if (App.currentTab === 'activity' && typeof renderHome === 'function' && typeof erSel !== 'undefined' && erSel) renderHome();
     };
+    // 11/10(사용자): 섭외자를 등록했으면 피드백방을 꼭 만들도록 — 나의교실 맨 위 강한 안내 띠
+    //   '방이 없다' = 내 섭외자인데 아직 한 번도 피드백방을 열지 않음(열면 방이 생기고 목록에 들어옴)
+    const trNeedList = () => (typeof home !== 'undefined' && trSt.list ? (home.targets || []).filter(t => t && t.targetId && !trSt.byTarget[t.targetId]) : []);
+    window.trNeedBannerHtml = function () {
+      const need = trNeedList();
+      if (!need.length) return '';
+      trCss();
+      const names = need.slice(0, 3).map(t => esc(t.targetName || '섭외자')).join(', ') + (need.length > 3 ? ` 외 ${need.length - 3}명` : '');
+      return `<button type="button" class="fbn" onclick="trNeedOpen()">
+          <span class="fbn-ic">💬</span>
+          <span class="fbn-m"><b>섭외자를 등록했다면, 피드백방을 꼭 만드세요!</b>
+            <i>${names} 님의 피드백방이 아직 없어요 (${need.length}명)</i>
+            <small>교관·지역장님과 한 방에서 보고·자료·조언을 주고받으면 열매가 훨씬 빨라져요.</small></span>
+          <span class="fbn-go">지금 만들기 ›</span></button>`;
+    };
+    window.trNeedOpen = function () {
+      const need = trNeedList();
+      if (!need.length) return;
+      if (need.length === 1) return trOpen(need[0].targetId);
+      openSheet(`<div style="font-size:19px;font-weight:800;margin-bottom:4px">💬 피드백방 만들기</div>
+        <div class="cal-hint" style="margin-bottom:12px">누구의 피드백방을 만들까요? 누르면 방이 바로 열리고, 함께할 분을 초대할 수 있어요.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">${need.map(t => `<button type="button" class="kko-btn-outline" data-fbn="${esc(t.targetId)}" style="justify-content:flex-start;padding:0 16px">💬 ${esc(t.targetName || '섭외자')}<span style="margin-left:auto;font-size:12px;color:#9CA3AF">${esc(t.stage || '')}</span></button>`).join('')}</div>
+        <button type="button" class="kko-btn-outline" style="margin-top:12px" onclick="closeSheet()">닫기</button>`);
+      document.querySelectorAll('#appSheetHost [data-fbn]').forEach(b => { b.onclick = () => { closeSheet(); trOpen(b.dataset.fbn); }; });
+    };
     window.trUnreadTotal = () => (trSt.list || []).reduce((n, r) => n + (r.unread || 0), 0);
     window.trListHtml = function () {
       trCss();
-      const head = '<div class="tr-note" style="margin-bottom:10px">💬 <b>섭외자 대화방</b> — 섭외자 한 사람에 관한 중요 정보를 텔레그램과 섞지 않고 여기 한곳에 모아요. 방은 <b>내 활동 보고 › 섭외자 화면의 [💬 대화방]</b> 칸에서 열고, 함께할 분을 초대해요.</div>'
+      const head = '<div class="tr-note" style="margin-bottom:10px">💬 <b>피드백방</b> — 섭외자 한 사람에 관한 중요 정보를 텔레그램과 섞지 않고 여기 한곳에 모아요. 방은 <b>내 활동 보고 › 섭외자 화면의 [💬 피드백방]</b> 칸에서 열고, 함께할 분을 초대해요.</div>'
         + '<form class="tr-search" data-tr-join onsubmit="trJoinSubmit(event)"><input id="trJoinCode" placeholder="초대 코드 (예: K7P2-9QXM)" autocomplete="off" autocapitalize="characters" maxlength="9"><button type="submit">들어가기</button></form>';
       if (!trSt.list) return head + '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>';
-      if (!trSt.list.length) return head + '<div class="tr-note">아직 들어가 있는 대화방이 없어요.</div>';
+      if (!trSt.list.length) return head + '<div class="tr-note">아직 들어가 있는 피드백방이 없어요.</div>';
       return head + trSt.list.map(r => `<button type="button" class="tr-list-item" onclick="trOpen('${esc(r.id)}')"><span class="tr-mem" style="all:unset"><span class="av" style="width:40px;height:40px;border-radius:50%;background:#E6F7F1;color:#00875F;display:flex;align-items:center;justify-content:center;font-weight:900">${esc(String(r.name).charAt(0))}</span></span>
           <span class="m"><b>${esc(r.name)}</b><i>${esc(r.stage)} · ${r.members}명${r.isOwner ? ' · 내 섭외자' : ` · 담당 ${esc(r.teacher)}`}</i><small>${r.last ? `${r.last.from ? esc(r.last.from) + ': ' : ''}${esc(r.last.text)}` : '아직 글이 없어요'}</small></span>
           ${r.unread ? `<span class="tr-n">${r.unread > 99 ? '99+' : r.unread}</span>` : ''}</button>`).join('');
