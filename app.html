@@ -8553,7 +8553,6 @@
       // 블록 사이는 카드 테두리 대신 굵은 회색 띠(.act-divider)로 끊어 답답함을 없앤다.
       return `
         <div class="pb-6 act-pages" data-act-page="${actPage}">
-          <div data-ap="attend">${attCardHtml()}</div>
           <div data-ap="rooms" id="actRoomsBody" style="padding:12px 14px">${window.trListHtml ? trListHtml() : ''}</div>
           <div data-ap="targets">
             ${tierProgressBannerHtml()}
@@ -9216,7 +9215,8 @@
     // 10/25(3차): '내 센터 인도 계획' 탭 없앰 — 사람 화면의 '○월 개강 계획' 칸에서 목표·설계·지난 계획까지
     // 10/27(사용자): '내가 이수한 교육' 탭 없앰, '내 활동 보고'가 맨 앞(메인 중 메인)·'내 교육 출석'은 그 오른쪽
     // 11/6(사용자): 섭외자 대화방 = 나의교실, 내 활동 보고 오른쪽·내 교육 출석 왼쪽
-    const ACT_PAGES = [['targets', '내 활동 보고'], ['rooms', '섭외자 대화방'], ['attend', '내 교육 출석']];
+    // 11/10(사용자): '내 교육 출석' 탭 삭제 — 필요하면 나중에 다시(attCardHtml·attLoadMy 함수는 남겨 둠, QR 카메라 출석 #attend= 는 그대로)
+    const ACT_PAGES = [['targets', '내 활동 보고'], ['rooms', '섭외자 대화방']];
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
@@ -9265,7 +9265,7 @@
       const fabEl = document.getElementById('act-fab');
       if (fabEl) fabEl.onclick = () => { if (home.form.editId) rpResetForm(home.form); renderActivityFormSheet(); };   // 고치다 닫은 기록이 새 기록 칸에 남지 않게
     }
-    window.Sections.activity = { mount() { loadHomeDashboard(); attLoadMy(); } };
+    window.Sections.activity = { mount() { loadHomeDashboard(); } };
 
     // ════════════════════════════════════════════════════════════════
     // ===== 2026-10-05 QR 출석 체크 (백엔드: AttendanceBackend.gs) =====
@@ -9877,7 +9877,7 @@
       ov.innerHTML = `<button type="button" class="att-qr-x" aria-label="닫기">✕</button>
         <div class="att-qr-t">${esc(m.title)}</div><div class="att-qr-s">${attMeetLabel(m) ? `<b style="color:#5B3A8E">[${esc(attMeetLabel(m))}]</b> ` : ''}${esc(attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''}</div>
         <div class="att-qr-box" id="attQrBox"><span class="loading loading-spinner"></span></div>
-        <div class="att-qr-g">휴대폰 카메라로 QR을 찍으면 출석 설문이 열려요<br><small>또는 교사광장 앱 → 나의교실 → 📷 QR로 출석하기</small></div>
+        <div class="att-qr-g">휴대폰 카메라로 QR을 찍으면 출석 설문이 열려요</div>
         <div class="att-qr-n">지금까지 <b id="attQrCnt">${m.count || 0}</b>명 출석</div>`;
       document.body.appendChild(ov);
       let wake = null;
