@@ -17075,8 +17075,13 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
           .ofb-hero { padding:16px; border-radius:18px; color:#fff; background:linear-gradient(135deg,#0B4D3A,#00AE82); margin-bottom:12px; }
           .ofb-hero b { display:block; font-size:19px; font-weight:900; letter-spacing:-.03em; }
           .ofb-hero span { display:block; margin-top:4px; font-size:13px; line-height:1.55; color:#D5F3E8; }
-          .ofb-chips { display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; margin-bottom:6px; }
-          .ofb-chips button { flex-shrink:0; height:34px; padding:0 13px; border-radius:999px; border:1.5px solid #E5E7EB; background:#fff; font-size:13.5px; font-weight:800; color:#374151; }
+          .ofb-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }   /* 11/10: 가로 스크롤 없이 줄바꿈 */
+          .ofb-chips button { height:32px; padding:0 11px; border-radius:999px; border:1.5px solid #E5E7EB; background:#fff; font-size:13px; font-weight:800; color:#374151; }
+          .ofb-regs { display:flex; flex-wrap:wrap; gap:4px; margin:-2px 0 8px; padding:8px; border-radius:12px; background:#F4F7F6; }
+          .ofb-regs button { min-width:34px; height:28px; padding:0 7px; border-radius:8px; border:1px solid #DDE3E0; background:#fff; font-size:12px; font-weight:800; color:#374151; }
+          .ofb-rl { align-self:center; padding:0 4px 0 2px; font-size:12px; font-weight:900; color:#00875F; }
+          .ofb-regs button.on { background:#00AE82; border-color:#00AE82; color:#fff; }
+          .ofb-regs button i { font-style:normal; font-weight:600; font-size:10.5px; opacity:.7; margin-left:2px; }
           .ofb-chips button.on { background:#00AE82; border-color:#00AE82; color:#fff; }
           .ofb-chips button i { font-style:normal; font-weight:700; opacity:.75; margin-left:3px; font-size:12px; }
           .ofb-bar { display:flex; gap:8px; align-items:center; margin:4px 0 10px; }
@@ -17123,7 +17128,7 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         const list = filtered();
         root.innerHTML = head
           + `<div class="ofb-chips">${DEPTS.map(d => `<button type="button" class="${st.dept === d ? 'on' : ''}" data-ofb-dept="${d}">${d}<i>${cnt(d)}</i></button>`).join('')}</div>`
-          + (st.dept !== '전체' ? (regs => regs.length > 1 ? `<div class="ofb-chips">${[''].concat(regs).map(g => `<button type="button" class="${st.region === g ? 'on' : ''}" data-ofb-region="${esc(g)}">${g ? esc(g) : '모든 지역'}<i>${(st.rows || []).filter(r => deptOf(r) === st.dept && (!g || (r.region || '지역 없음') === g)).length}</i></button>`).join('')}</div>` : '')(
+          + (st.dept !== '전체' ? (regs => regs.length > 1 ? `<div class="ofb-regs"><span class="ofb-rl">지역</span>${[''].concat(regs).map(g => `<button type="button" class="${st.region === g ? 'on' : ''}" data-ofb-region="${esc(g)}" title="${esc(g || '모든 지역')}">${g ? esc(String(g).replace(/^0*(\d+)지역$/, '$1')) : '전체'}</button>`).join('')}</div>` : '')(
               [...new Set((st.rows || []).filter(r => deptOf(r) === st.dept).map(r => r.region || '지역 없음'))].sort((a, b) => regionNo(a) - regionNo(b) || a.localeCompare(b))) : '')
           + `<div class="ofb-chips">${STAGES.map(g => `<button type="button" class="${st.stage === g ? 'on' : ''}" data-ofb-stage="${g}">${g || '모든 단계'}</button>`).join('')}</div>`
           + `<div class="ofb-bar"><input type="search" id="ofbQ" placeholder="이름·교사·지역 찾기 (예: 3지역)" value="${esc(st.q)}" autocomplete="off"><label><input type="checkbox" id="ofbOnly" ${st.only ? 'checked' : ''}>방 있는 것만</label></div>`
