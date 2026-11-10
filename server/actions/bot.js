@@ -281,9 +281,7 @@ export async function summaryTick() {
   const out = {};
   if (hm >= '12:00' && hm < '15:00') out.noon = await sendNoonSummary().catch((e) => ({ error: String(e) }));
   if (hm >= '22:00') out.evening = await sendEveningSummary({ tick: true }).catch((e) => ({ error: String(e) }));
-  // 11/10(사용자): 교자장부청 '계' 큰 카드는 그날 서머리 맨 마지막(22:05, 표들 다음) → 바로 아래 데이터 뉴스
-  if (hm >= '22:05') out.card = await sendMainCard(kstDate()).catch((e) => ({ error: String(e) }));
-  if (hm >= '22:05') out.eveningRooms = await sendEveningRooms(kstDate()).catch((e) => ({ error: String(e) }));
+  // 11/10(사용자): 교자장부청 '계' 큰 카드 + 그 설명 글 = 한 줄 데이터 뉴스 → 한 통으로(22:05 뉴스가 맨 마지막, 소통 방·교자장부청 방)
   if (hm >= '23:00') out.daily = await sendDailySummary({ date: kstDate() }).catch((e) => ({ error: String(e) }));
   // 11/5(사용자): "한 줄 데이터 뉴스 — 매일 밤 10시 맨 마지막, 글만, 내일(11/6)부터" → 22시 표들(③·④)이 먼저 나가게 22:05부터, 하루 한 번
   if (hm >= '22:05' && hm < '23:00' && kstDate() >= NEWS_START) out.news = await sendNewsOneline({ date: kstDate() }).catch((e) => ({ error: String(e) }));
@@ -586,7 +584,8 @@ export async function composeNews(day, opts = {}) {
     return { label: d.label, records: d.records, prevRecords: d.prevRecords, teachers: d.teachers, rate: d.status.total ? pct(d.teachers, d.status.total) : '', line };
   });
   if (opts.oneline) {
-    text = ['📰 <b>한 줄 데이터 뉴스</b>', `🗞 ${md} · 교자장부청`, '', ...NEWS_INTRO, '',
+    // 11/10(사용자): 빨간 점·"오늘 하루에 ~ 있습니다" 안내 문구는 지움
+    text = ['📰 <b>한 줄 데이터 뉴스</b>', `🗞 ${md} · 교자장부청`, '',
       ...depts.map((d) => `● <b>${esc(d.label)}</b> · ${esc(d.line)}`), '',
       '💬 <b>교관 독려 포인트</b>', ...cheerLines(rawLines, depts).map((l) => `▸ ${esc(l)}`), '',
       // 11/10(사용자): 위 카드의 숫자(항목별 건수 합)와 다르게 보이지 않게 — 건수는 빼고 활동 교사 수만
@@ -748,13 +747,15 @@ async function sendNewsOneline(body) {
   const mainDone = !!key && await alreadySent(key);
   if (mainDone && !rooms.length) return { ok: false, skipped: true, date: day };   // 다 보냈으면 AI 도 다시 부르지 않음
   const r = await compose();
-  if (body.photo !== true) r.png = null;   // 11/5: 글만이 기본(사진은 photo:true)
+  // 11/10(사용자): 사진 = 교자장부청 '계' 큰 카드, 그 아래 설명 글 = 한 줄 데이터 뉴스(photo:false 면 글만)
+  r.png = null;
+  if (body.photo !== false) { try { const c = await composeTotalCard(day); if (c.total) r.png = c.png; } catch (e) { console.log('[교사광장 봇] 계 카드 오류 ' + e); } }
   let ok = mainDone;
   if (!mainDone) {
     ok = r.png ? await sendChart(r.png, r.text, key, '데이터뉴스') : false;
     if (!ok) ok = await sendAlert(r.text, '데이터뉴스', key);
   }
-  const roomsSent = await sendToRooms(rooms, '데이터뉴스', day, (room) => sendRoomText(room.chat_id, r.text));
+  const roomsSent = await sendToRooms(rooms, '데이터뉴스', day, (room) => (r.png ? sendRoomBoard(room, r.png, r.text, r.text) : sendRoomText(room.chat_id, r.text)));
   return { ok, date: day, ai: r.ai, photo: !!r.png, text: r.text, rooms: roomsSent };
 }
 // 11/5: 전체 텔레그램 방 연결 점검(보내지 않음)
