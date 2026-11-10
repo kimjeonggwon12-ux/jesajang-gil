@@ -17062,7 +17062,7 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
     //   방의 👥 초대 칸에서 인교섬협(인도자·교사·섬김이·협력교사)을 초대한다. 관리자가 쓴 글은 교사 앱에 '개강 피드백 도착' 창으로 뜬다.
     // ════════════════════════════════════════════════════════════════
     const ofbAdm = (() => {
-      const st = { rows: null, err: '', dept: '전체', region: '', stage: '', q: '', only: false, busy: false };
+      const st = { rows: null, err: '', dept: '전체', region: '', stages: [], ddOpen: false, q: '', only: false, busy: false };   // 11/10: 단계는 여러 개 고르기
       // 11/10(사용자): 부서는 교역자·자문회·장년회·부녀회·청년회 전부 + 지역 고르기
       const DEPTS = ['전체', '교역자', '자문회', '장년회', '부녀회', '청년회', '그 밖'];
       const STAGES = ['', '상담1', '상담2', '복음방', '센터소개', '센터수강'];
@@ -17083,6 +17083,21 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
           .ofb-depts button span { font-size:11.5px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; letter-spacing:-.04em; }
           .ofb-depts button.on { background:#00AE82; border-color:#00AE82; color:#fff; }
           .ofb-sels { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px; }
+          .ofb-dd { position:relative; min-width:0; }
+          .ofb-dd-b { display:flex; align-items:center; gap:4px; width:100%; height:40px; padding:0 10px; border:1.5px solid #E5E7EB; border-radius:12px; background:#fff; font-size:14px; font-weight:700; color:#111827; text-align:left; }
+          .ofb-dd-b span { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .ofb-dd-b i { font-style:normal; font-size:11px; color:#6B7280; }
+          .ofb-dd.open .ofb-dd-b { border-color:#00AE82; }
+          .ofb-dd-p { display:none; position:absolute; right:0; top:44px; z-index:30; width:max(100%, 190px); padding:6px; border:1.5px solid #CDEFE2; border-radius:12px; background:#fff; box-shadow:0 10px 24px rgba(0,0,0,.14); }
+          .ofb-dd.open .ofb-dd-p { display:block; }
+          .ofb-dd-p label { display:flex; align-items:center; gap:8px; padding:9px 8px; border-radius:8px; font-size:14.5px; font-weight:700; cursor:pointer; }
+          .ofb-dd-p label:active { background:#F2FBF7; }
+          .ofb-dd-p input { width:18px; height:18px; accent-color:#00AE82; }
+          .ofb-dd-p label span { flex:1; }
+          .ofb-dd-p label i { font-style:normal; font-size:12.5px; color:#6B7280; }
+          .ofb-dd-f { display:flex; gap:6px; padding:6px 2px 2px; border-top:1px solid #EEF2F0; margin-top:4px; }
+          .ofb-dd-f button { flex:1; height:34px; border-radius:9px; border:1.5px solid #E5E7EB; background:#fff; font-size:13px; font-weight:800; color:#374151; }
+          .ofb-dd-f button.ok { background:#00AE82; border-color:#00AE82; color:#fff; }
           .ofb-sels select { width:100%; min-width:0; height:40px; padding:0 8px; border:1.5px solid #E5E7EB; border-radius:12px; background:#fff; font-size:14px; font-weight:700; color:#111827; }
           .ofb-regs { display:flex; flex-wrap:wrap; gap:4px; margin:-2px 0 8px; padding:8px; border-radius:12px; background:#F4F7F6; }
           .ofb-regs button { min-width:34px; height:28px; padding:0 7px; border-radius:8px; border:1px solid #DDE3E0; background:#fff; font-size:12px; font-weight:800; color:#374151; }
@@ -17114,7 +17129,7 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
       const regLabel = k => /^\d+$/.test(k) ? k + '지역' : k;
       function filtered() {
         const q = st.q.trim(), qm = q.match(/^0*(\d{1,2})\s*(지역)?$/), qn = qm ? Number(qm[1]) : 0;   // "3", "3지역", "03지역" → 그 지역
-        return (st.rows || []).filter(r => (st.dept === '전체' || deptOf(r) === st.dept) && (!st.region || regKey(r) === st.region) && (!st.stage || r.stage === st.stage) && (!st.only || r.room)
+        return (st.rows || []).filter(r => (st.dept === '전체' || deptOf(r) === st.dept) && (!st.region || regKey(r) === st.region) && (!st.stages.length || st.stages.includes(r.stage)) && (!st.only || r.room)
           && (!q || (qn ? regionNo(r.region) === qn : [r.teacher, r.region, r.dept, r.name].join(' ').includes(q))))
           .sort((a, b) => (b.unread - a.unread) || MAIN.concat(['그 밖']).indexOf(deptOf(a)) - MAIN.concat(['그 밖']).indexOf(deptOf(b)) || regionNo(a.region) - regionNo(b.region) || String(a.teacher).localeCompare(String(b.teacher)));
       }
@@ -17139,14 +17154,23 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
           // 11/10(사용자): 교자장부청이 한 줄에 한눈에(숫자 크게) + 지역·단계 드롭다운 나란히 — 가로 스크롤 없이
           + `<div class="ofb-depts">${DEPTS.map(d => `<button type="button" class="${st.dept === d ? 'on' : ''}" data-ofb-dept="${d}"><b>${cnt(d)}</b><span>${d === '그 밖' ? '그밖' : d}</span></button>`).join('')}</div>`
           + (regs => `<div class="ofb-sels"><select id="ofbReg" aria-label="지역"><option value="">📍 모든 지역</option>${regs.map(k => `<option value="${esc(k)}" ${st.region === k ? 'selected' : ''}>${esc(regLabel(k))} (${(st.rows || []).filter(r => (st.dept === '전체' || deptOf(r) === st.dept) && regKey(r) === k).length})</option>`).join('')}</select>
-              <select id="ofbStage" aria-label="단계">${STAGES.map(g => `<option value="${g}" ${st.stage === g ? 'selected' : ''}>${g ? g : '🎯 모든 단계'}${g ? ` (${(st.rows || []).filter(r => (st.dept === '전체' || deptOf(r) === st.dept) && (!st.region || regKey(r) === st.region) && r.stage === g).length})` : ''}</option>`).join('')}</select></div>`)(
+              ${(() => { const n = g => (st.rows || []).filter(r => (st.dept === '전체' || deptOf(r) === st.dept) && (!st.region || regKey(r) === st.region) && r.stage === g).length;
+                const label = st.stages.length ? st.stages.join('·') : '모든 단계';
+                return `<div class="ofb-dd${st.ddOpen ? ' open' : ''}"><button type="button" id="ofbStageBtn" class="ofb-dd-b"><span>🎯 ${esc(label)}</span><i>▾</i></button>
+                  <div class="ofb-dd-p">${STAGES.filter(Boolean).map(g => `<label><input type="checkbox" data-ofb-stg="${g}" ${st.stages.includes(g) ? 'checked' : ''}><span>${g}</span><i>${n(g)}</i></label>`).join('')}
+                  <div class="ofb-dd-f"><button type="button" data-ofb-stg-clear>모두 해제</button><button type="button" class="ok" data-ofb-stg-ok>확인</button></div></div></div>`; })()}</div>`)(
               [...new Set((st.rows || []).filter(r => st.dept === '전체' || deptOf(r) === st.dept).map(regKey))].sort((a, b) => regionNo(a) - regionNo(b) || a.localeCompare(b)))
           + `<div class="ofb-bar"><input type="search" id="ofbQ" placeholder="이름·교사·지역 찾기 (예: 3지역)" value="${esc(st.q)}" autocomplete="off"><label><input type="checkbox" id="ofbOnly" ${st.only ? 'checked' : ''}>방 있는 것만</label></div>`
           + (list.length ? `<div class="ofb-grp">${list.length}명</div>` + list.slice(0, 300).map(card).join('') + (list.length > 300 ? '<div class="tr-note">300명까지만 보여요. 부서·단계·찾기로 좁혀 주세요.</div>' : '')
             : '<div class="tr-note">해당하는 섭외자가 없어요.</div>');
         root.querySelectorAll('[data-ofb-dept]').forEach(b => b.onclick = () => { st.dept = b.dataset.ofbDept; st.region = ''; render(); });
         const rs = document.getElementById('ofbReg'); if (rs) rs.onchange = () => { st.region = rs.value; render(); };
-        const ss = document.getElementById('ofbStage'); if (ss) ss.onchange = () => { st.stage = ss.value; render(); };
+        const sb = document.getElementById('ofbStageBtn'); if (sb) sb.onclick = e => { e.stopPropagation(); st.ddOpen = !st.ddOpen; render(); };
+        root.querySelectorAll('[data-ofb-stg]').forEach(c => c.onchange = () => { const g = c.dataset.ofbStg; st.stages = c.checked ? STAGES.filter(x => x && (x === g || st.stages.includes(x))) : st.stages.filter(x => x !== g); render(); });
+        const sc = root.querySelector('[data-ofb-stg-clear]'); if (sc) sc.onclick = () => { st.stages = []; render(); };
+        const so = root.querySelector('[data-ofb-stg-ok]'); if (so) so.onclick = () => { st.ddOpen = false; render(); };
+        const dp = root.querySelector('.ofb-dd'); if (dp) dp.onclick = e => e.stopPropagation();
+        if (!st.docBound) { st.docBound = true; document.addEventListener('click', () => { if (st.ddOpen) { st.ddOpen = false; render(); } }); }
         const q = document.getElementById('ofbQ');
         if (q) q.oninput = () => { st.q = q.value; clearTimeout(st.qt); st.qt = setTimeout(() => { const pos = q.selectionStart; render(); const n = document.getElementById('ofbQ'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} } }, 250); };
         const o = document.getElementById('ofbOnly'); if (o) o.onchange = () => { st.only = o.checked; render(); };
