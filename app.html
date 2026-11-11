@@ -11918,11 +11918,13 @@ DISC: ${selDisc || '선택안함'}
     // ── 11/5 HEARTS 섭외자 불러오기 ── 사용자: "하츠에서 섭외자·수강생 이름을 불러오면 지금까지의 모든 데이터를 총합해 하츠를 자동으로
     //   돌려주게 — 단타성 한 번의 사실·사건으로만 하는 구조가 아쉽다. 보고 있는 섭외자 화면에서 하츠를 누르면 그 사람이 바로 지정되게".
     //   서버 heartsDossier = 활동 기록·파악 정보·단계 이력·SWOT·개강 계획·이전 HEARTS/교관 답·AI 피드백 묶음(AI 호출 없음).
-    let aiTargetsLoading = false;
+    // 11/11 Egress 사고: 섭외자 0명이면 목록이 계속 비어 '받기→다시 그림→또 받기'가 끝없이 돌았다(하루 수십만 요청).
+    //   → 이 화면에서는 한 번만 받는다(aiTargetsTried).
+    let aiTargetsLoading = false, aiTargetsTried = false;
     function aiMyTargets() {
       const list = (typeof home !== 'undefined' && home.targets) || [];
-      if (!list.length && !aiTargetsLoading) {
-        aiTargetsLoading = true;
+      if (!list.length && !aiTargetsLoading && !aiTargetsTried) {
+        aiTargetsLoading = true; aiTargetsTried = true;
         callApi({ action: 'getMyTargets', memberId: aiState.memberId }).then(r => {
           if (r && !r.error && typeof home !== 'undefined') { home.targets = r.rows || []; if (r.stages) home.stages = r.stages; }
         }).catch(() => {}).finally(() => { aiTargetsLoading = false; if (aiState.tab === 'studentCoach') aiRender(); });
