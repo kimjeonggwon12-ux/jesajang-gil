@@ -113,7 +113,7 @@ function toMeeting(r) {
     status: r.status || '열림', createdBy: r.created_by, createdAt: fmtTs(r.created_at),
     org: r.org, district: district === '' ? null : district,
     askDistrict: r.ask_district, askDept: r.ask_dept, start2: hhmm(r.start2),
-    slots: cleanSlots(r.slots), cohortId: r.cohort_id || '',
+    slots: cleanSlots(r.slots), cohortId: r.cohort_id || '', seriesId: r.series_id || '',
   };
 }
 
@@ -247,7 +247,7 @@ async function checkIdentity(memberId, name, checkName = true, cohortId = '') {
 
 async function getAttendMeeting(body) {
   // 2026-10-16: 교육 과정 고정 QR(#attend=CH…)이면 오늘 그 과정의 출석 모임으로
-  const pick = await resolveCohortMeeting(clip(body.meetingId, 40));
+  const pick = await resolveMeetingId(clip(body.meetingId, 40), { create: true });
   if (pick.error) return { error: pick.error };
   const m = await findMeeting(pick.meetingId);
   if (!m) return { error: '출석 모임을 찾을 수 없어요. QR을 다시 확인해 주세요.' };
@@ -344,7 +344,7 @@ async function submitAttendance(body) {
   const mid = clip(body.memberId, 40);
   if (!mid) return { error: '로그인 정보가 없습니다.' };
   // 2026-10-16: 교육 과정 고정 QR(#attend=CH…)이면 오늘 그 과정의 출석 모임으로
-  const pick = await resolveCohortMeeting(clip(body.meetingId, 40));
+  const pick = await resolveMeetingId(clip(body.meetingId, 40), { create: true });
   if (pick.error) return { error: pick.error };
   const m = await findMeeting(pick.meetingId);
   if (!m) return { error: '출석 모임을 찾을 수 없어요.' };
@@ -532,14 +532,17 @@ async function getAttendAdmin(body) {
   const records = ids.length ? await loadRecords((q) => q.in('meeting_id', ids)) : [];
   const counts = new Map();
   for (const r of records) counts.set(r.meetingId, (counts.get(r.meetingId) || 0) + 1);
+  const series = (await run(db().from('attend_series').select('*').neq('status', '삭제').order('id'))).map(toSeries)
+    .filter((x) => (!org || x.org === org) && (district == null || String(x.district == null ? '' : x.district) === district));
   return {
-    meetings: meetings.map((m) => ({ ...toPublic(m), count: counts.get(m.meetingId) || 0, createdAt: m.createdAt })),
+    meetings: meetings.map((m) => ({ ...toPublic(m), count: counts.get(m.meetingId) || 0, createdAt: m.createdAt, seriesId: m.seriesId })),
     records,
+    series: series.map((x) => ({ ...x, ...seriesToday(x) })),
   };
 }
 
 async function getAttendCount(body) {
-  const meetingId = (await resolveCohortMeeting(clip(body.meetingId, 40))).meetingId;   // 과정 고정 QR이면 오늘 모임
+  const meetingId = (await resolveMeetingId(clip(body.meetingId, 40))).meetingId;   // 과정·정기 교육 고정 QR이면 오늘 모임
   if (!meetingId) return { count: 0 };
   const { count, error } = await db().from('attend_records').select('*', { count: 'exact', head: true }).eq('meeting_id', meetingId).neq('record_id', '');
   if (error) throw new Error(error.message);
@@ -569,6 +572,144 @@ async function attSetEveningStart(body) {
     if (r.late !== late) { await run(db().from('attend_records').update({ late }).eq('id', r.id)); recalculated++; }
   }
   return { ok: true, start2: m.start2, recalculated };
+}
+
+// ── 정기 교육(2026-11-11) ── 매주 같은 요일·타임(오전·저녁)에 하는 교육은 QR 한 장(#attend=RS…)을 계속 쓴다.
+// 그 요일에 처음 찍으면 그날의 출석 모임을 만들어 연결 → 출석 시간·지각·마감 서머리는 보통 모임과 같다.
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const SERIES_STATUS = ['열림', '멈춤'];
+export const isSeriesId = (id) => /^RS\d/.test(String(id || ''));
+const weekdayOf = (date) => { const [y, mo, d] = date.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, d)).getUTCDay(); };
+const addDays = (date, n) => { const [y, mo, d] = date.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, d + n)).toISOString().slice(0, 10); };
+const cleanWeekdays = (v) => [...new Set((Array.isArray(v) ? v : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
+
+function toSeries(r) {
+  const district = cleanDistrict(r.org, r.district);
+  return {
+    seriesId: r.series_id, title: r.title, weekdays: cleanWeekdays(r.weekdays), slots: cleanSlots(r.slots), place: r.place,
+    openBefore: r.open_before >= 0 ? r.open_before : 30, questions: r.questions || [], org: r.org,
+    district: district === '' ? null : district, askDistrict: r.ask_district, askDept: r.ask_dept,
+    status: r.status || '열림', createdBy: r.created_by, createdAt: fmtTs(r.created_at),
+  };
+}
+
+/** "매주 수·토 09:00~10:30 · 19:30~22:00" */
+export const seriesWhen = (x) => `매주 ${x.weekdays.map((d) => WEEKDAYS[d]).join('·')} ${x.slots.map((t) => t.start + '~' + t.end).join(' · ')}`;
+
+/** 오늘이 교육 날인가, 다음 교육 날짜(오늘 포함). */
+function seriesToday(x, today = kstDate()) {
+  const todayOn = x.weekdays.includes(weekdayOf(today));
+  let next = '';
+  for (let i = 0; i < 8 && x.weekdays.length; i++) { const d = addDays(today, i); if (x.weekdays.includes(weekdayOf(d))) { next = d; break; } }
+  return { todayOn, next };
+}
+
+const seriesCache = new Map();   // seriesId → { at, row: Promise }
+async function findSeries(seriesId, { fresh = false } = {}) {
+  let hit = seriesCache.get(seriesId);
+  if (fresh || !hit || Date.now() - hit.at > MEETING_TTL_MS) {
+    const row = run(db().from('attend_series').select('*').eq('series_id', seriesId).neq('status', '삭제').limit(1)).then((rows) => rows[0] || null);
+    hit = { at: Date.now(), row };
+    seriesCache.set(seriesId, hit);
+    row.catch(() => seriesCache.delete(seriesId));
+  }
+  const row = await hit.row;
+  return row ? toSeries(row) : null;
+}
+
+/** 정기 교육 설정 → 그날 출석 모임의 칸(상태·날짜 빼고). 타임이 하나면 시작·끝만. */
+const seriesFields = (x) => ({
+  title: x.title, start_time: x.slots[0]?.start || '', end_time: x.slots.at(-1)?.end || '', slots: x.slots.length > 1 ? x.slots : [],
+  place: x.place, open_before: x.openBefore, questions: x.questions, org: x.org, district: String(x.district == null ? '' : x.district),
+  ask_district: !!x.askDistrict, ask_dept: !!x.askDept,
+});
+
+const dayMeetingCache = new Map();   // 'RS…|날짜' → meetingId
+async function seriesDayMeeting(x, date, create) {
+  const key = x.seriesId + '|' + date;
+  if (dayMeetingCache.has(key)) return dayMeetingCache.get(key);
+  const pickRow = async () => (await run(db().from('attend_meetings').select('meeting_id').eq('series_id', x.seriesId).eq('date', date).neq('status', '삭제').order('id').limit(1)))[0];
+  let row = await pickRow();
+  if (!row && create) {
+    // 처음 찍은 사람이 그날 모임을 만든다(동시에 여럿이 찍어도 유일 색인이 하나만 받는다)
+    const { error } = await db().from('attend_meetings').insert({
+      meeting_id: newId('MT'), series_id: x.seriesId, date, status: '열림', ...seriesFields(x), created_by: x.createdBy, created_at: kstDateTime(),
+    });
+    if (error && !/duplicate|unique/i.test(error.message)) throw new Error(error.message);
+    row = await pickRow();
+  }
+  if (!row) return '';
+  dayMeetingCache.set(key, row.meeting_id);
+  setTimeout(() => dayMeetingCache.delete(key), MEETING_TTL_MS);
+  return row.meeting_id;
+}
+
+/** QR 번호 → 오늘의 출석 모임 번호. 교육 과정(CH…)·정기 교육(RS…)이 아니면 그대로. */
+export async function resolveMeetingId(id, { create = false } = {}) {
+  if (!isSeriesId(id)) return resolveCohortMeeting(id);
+  const x = await findSeries(id);
+  if (!x) return { meetingId: '', error: '출석 QR을 찾을 수 없어요. 관리자에게 새 QR을 받아 주세요.' };
+  if (x.status === '멈춤') return { meetingId: '', error: `'${x.title}'은(는) 지금 쉬는 중이에요(관리자가 반복을 멈췄어요).` };
+  const today = kstDate();
+  const { todayOn, next } = seriesToday(x, today);
+  if (!todayOn) {
+    const nd = next ? `${next.slice(5).replace('-', '/')}(${WEEKDAYS[weekdayOf(next)]})` : '';
+    return { meetingId: '', error: `오늘은 '${x.title}' 날이 아니에요.\n${seriesWhen(x)}${nd ? ` — 다음 교육은 ${nd}이에요.` : ''}` };
+  }
+  return { meetingId: await seriesDayMeeting(x, today, create) };
+}
+
+async function saveAttendSeries(body) {
+  const denied = await requireAdmin(body, '정기 교육은 관리자만 만들 수 있어요.');
+  if (denied) return denied;
+  const x = body.series || {};
+  const title = clip(x.title, 80);
+  if (!title) return { error: '교육 이름을 입력해 주세요.' };
+  const weekdays = cleanWeekdays(x.weekdays);
+  if (!weekdays.length) return { error: '반복할 요일을 하나 이상 골라 주세요.' };
+  const raw = (Array.isArray(x.slots) ? x.slots : []).filter((t) => hhmm(t?.start) || hhmm(t?.end));
+  if (!raw.length) return { error: '교육 시간(타임)을 넣어 주세요. 정해 둔 시간에만 출석을 받아요.' };
+  if (raw.some((t) => !hhmm(t?.start) || !hhmm(t?.end) || hhmm(t.end) <= hhmm(t.start))) return { error: '타임마다 시작과 끝을 넣고, 끝이 시작보다 뒤여야 해요.' };
+  const slots = cleanSlots(raw);
+  if (slots.some((t, i) => i && t.start < slots[i - 1].end)) return { error: '타임끼리 시간이 겹쳐요. 앞 타임이 끝난 뒤에 다음 타임을 넣어 주세요.' };
+  const org = x.org && ORG_OPTIONS.includes(String(x.org)) ? String(x.org) : '';
+  const now = kstDateTime();
+  const fields = {
+    title, weekdays, slots, place: clip(x.place, 80),
+    open_before: Math.max(0, Math.min(600, Number(x.openBefore) || 0)), questions: cleanQuestions(x.questions),
+    org, district: String(cleanDistrict(org, x.district)), ask_district: !!x.askDistrict, ask_dept: !!x.askDept,
+    status: SERIES_STATUS.includes(String(x.status)) ? String(x.status) : '열림',
+  };
+  const seriesId = clip(x.seriesId, 40);
+  if (seriesId) {
+    if (!isSeriesId(seriesId) || !(await findSeries(seriesId, { fresh: true }))) return { error: '정기 교육을 찾을 수 없어요.' };
+    await run(db().from('attend_series').update({ ...fields, updated_at: now }).eq('series_id', seriesId));
+    seriesCache.delete(seriesId);
+    // 오늘·앞으로의 모임(아직 마감 전)에도 바뀐 시간·설정을 반영한다
+    const saved = toSeries({ ...fields, series_id: seriesId });
+    const upcoming = await run(db().from('attend_meetings').select('meeting_id').eq('series_id', seriesId).gte('date', kstDate()).not('status', 'in', '("삭제","집계완료")'));
+    if (upcoming.length) {
+      await run(db().from('attend_meetings').update({ ...seriesFields(saved), updated_at: now }).in('meeting_id', upcoming.map((r) => r.meeting_id)));
+      upcoming.forEach((r) => forgetMeeting(r.meeting_id));
+    }
+    return { ok: true, seriesId };
+  }
+  const fresh = newId('RS');
+  await run(db().from('attend_series').insert({ series_id: fresh, ...fields, created_by: clip(body.memberId, 40), created_at: now }));
+  return { ok: true, seriesId: fresh };
+}
+
+/** 정기 교육 멈춤·다시 시작·삭제(이미 지난 날 출석 기록은 그대로 남는다). */
+async function setAttendSeriesStatus(body) {
+  const denied = await requireAdmin(body, '관리자만 할 수 있어요.');
+  if (denied) return denied;
+  const seriesId = clip(body.seriesId, 40);
+  const status = String(body.status);
+  if (!['열림', '멈춤', '삭제'].includes(status)) return { error: '상태가 올바르지 않아요.' };
+  if (!isSeriesId(seriesId) || !(await findSeries(seriesId, { fresh: true }))) return { error: '정기 교육을 찾을 수 없어요.' };
+  await run(db().from('attend_series').update({ status, updated_at: kstDateTime() }).eq('series_id', seriesId));
+  seriesCache.delete(seriesId);
+  return { ok: true };
 }
 
 /** 부하 시험용 [TEST] 모임과 그 기록을 정리한다. */
@@ -684,4 +825,5 @@ async function attAutoSummary(body) {
 export default {
   getAttendMeeting, submitAttendance, getMyAttendance, saveAttendMeeting, deleteAttendMeeting,
   getAttendAdmin, getAttendCount, deleteAttendRecord, attSetEveningStart, attTestCleanup, attAutoSummary,
+  saveAttendSeries, setAttendSeriesStatus,
 };

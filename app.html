@@ -9382,6 +9382,9 @@
       ? ' ' + m.slots.map(t => t.start + '~' + t.end).join(' · ')
       : `${m.start ? ' ' + m.start : ''}${m.end ? '~' + m.end : ''}`);
     const attAnsText = (q, v) => Array.isArray(v) ? v.join(', ') : String(v == null ? '' : v);
+    // 2026-11-11: 정기 교육(매주 반복) — QR 한 장(#attend=RS…)을 계속 씀. 서버 seriesWhen 과 같은 표시.
+    const ATT_WD = ['일', '월', '화', '수', '목', '금', '토'];
+    const attSeriesWhen = x => '매주 ' + (x.weekdays || []).map(d => ATT_WD[d]).join('·') + ' ' + (x.slots || []).map(t => t.start + '~' + t.end).join(' · ');
     const attNowKst = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
     // v2(10/05): 모임 부서·지역 — 서버 ATT_ORG_OPTIONS 값 그대로 보냄(교자장 연합은 사용자 요청으로 뺌). 교역자·전체·기타는 지역 없이 한 부서,
     // 자문·장년·부녀·청년은 1~12지역(부녀회만 '유아모' 추가). 표시는 서버 _attMeetLabel_과 같은 '부녀회 3지역' 형식.
@@ -9737,7 +9740,7 @@
     function attAdmRender() {
       const root = document.getElementById('attAdmRoot'); if (!root || !attAdm.data) return;
       const tabs = `<div class="att-adm-top"><div class="att-seg">${[['meetings', '모임별'], ['people', '사람별']].map(([k, l]) => `<button type="button" class="${attAdm.view === k ? 'on' : ''}" data-att-view="${k}">${l}</button>`).join('')}</div>
-        <button type="button" class="att-new" onclick="attAdmEdit()">+ 새 모임 만들기</button></div>`;
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="att-new" onclick="attAdmEdit(null, true)">🔁 정기 교육(매주)</button><button type="button" class="att-new" onclick="attAdmEdit()">+ 새 모임 만들기</button></div></div>`;
       root.innerHTML = tabs + (attAdm.open && attAdm.view !== 'people' ? '' : attAdmFilterHtml()) + (attAdm.view === 'people' ? attAdmPeopleHtml() : attAdm.open ? attAdmDetailHtml() : attAdmListHtml());
       const fo = document.getElementById('attFOrg'); if (fo) fo.onchange = () => { attAdm.fOrg = fo.value; attAdm.fDist = ''; attAdm.dept = ''; attAdmRender(); };
       const fd = document.getElementById('attFDist'); if (fd) fd.onchange = () => { attAdm.fDist = fd.value; attAdmRender(); };
@@ -9747,12 +9750,33 @@
       if (dq) dq.oninput = () => { attAdm.q = dq.value; const p = dq.selectionStart; attAdmRender(); const n = document.getElementById('attPeopleQ'); n.focus(); n.setSelectionRange(p, p); };
       const dd = document.getElementById('attPeopleDept'); if (dd) dd.onchange = () => { attAdm.dept = dd.value; attAdmRender(); };
     }
+    function attSeriesListHtml() {
+      const list = attAdm.data.series || [];
+      if (!list.length) return '';
+      return `<div class="att-qs-h" style="margin-top:4px"><b>🔁 정기 교육 (매주 같은 QR)</b><span class="att-muted">정한 요일·시간에만 출석이 열려요</span></div>` + list.map(x => {
+        const paused = x.status === '멈춤';
+        const st = paused ? ['멈춤', 'off'] : x.todayOn ? ['오늘 교육', 'on'] : ['반복 중', 'wait'];
+        const nx = !paused && x.next && !x.todayOn ? ` · 다음 ${x.next.slice(5).replace('-', '/')}(${ATT_WD[new Date(x.next + 'T00:00:00').getDay()]})` : '';
+        return `<div class="att-meet" style="border-left:4px solid #00AE82">
+          <div class="att-meet-h"><span class="att-badge ${st[1]}">${st[0]}</span><b>${esc(x.title)}</b>${attOrgTag(x)}</div>
+          <div class="att-muted">${esc(attSeriesWhen(x))}${x.place ? ' · ' + esc(x.place) : ''}${nx}${x.openBefore ? ` · ${x.openBefore}분 전부터 출석` : ''}${(x.questions || []).length ? ' · 설문 ' + x.questions.length + '문항' : ''}</div>
+          <div class="att-meet-btns">
+            <button type="button" class="att-pri" data-att-act="sqr" data-id="${esc(x.seriesId)}">QR 띄우기</button>
+            <button type="button" data-att-act="sedit" data-id="${esc(x.seriesId)}">수정</button>
+            <button type="button" data-att-act="spause" data-id="${esc(x.seriesId)}">${paused ? '다시 시작' : '멈춤'}</button>
+            <button type="button" class="att-danger" data-att-act="sdel" data-id="${esc(x.seriesId)}">${attAdm.del === x.seriesId ? '한 번 더 누르면 삭제' : '삭제'}</button>
+          </div></div>`;
+      }).join('') + '<div class="att-qs-h"><b>날짜별 모임</b><span class="att-muted">정기 교육은 그날 첫 출석 때 여기 생겨요</span></div>';
+    }
     function attAdmListHtml() {
+      return attSeriesListHtml() + attAdmListHtml0();
+    }
+    function attAdmListHtml0() {
       const ms = attAdmMeetings();
       if (!ms.length && (attAdm.fOrg || attAdm.fDist)) return '<div class="att-empty">고른 부서·지역의 모임이 없어요.</div>';
       if (!ms.length) return '<div class="att-empty">아직 만든 모임이 없어요.<br>[+ 새 모임 만들기]로 모임과 설문을 만들고 QR을 띄워 보세요.</div>';
       return ms.map(m => { const [st, cls] = attMeetState(m); return `<div class="att-meet">
-          <div class="att-meet-h"><span class="att-badge ${cls}">${st}</span><b>${esc(m.title)}</b>${attOrgTag(m)}<span class="att-cnt">${m.count}명</span></div>
+          <div class="att-meet-h"><span class="att-badge ${cls}">${st}</span><b>${m.seriesId ? '🔁 ' : ''}${esc(m.title)}</b>${attOrgTag(m)}<span class="att-cnt">${m.count}명</span></div>
           <div class="att-muted">${esc(attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''} · 설문 ${(m.questions || []).length}문항${m.askDistrict ? ' · 지역 선택' : ''}${m.askDept ? ' · 24부서 선택' : ''}${m.start && m.openBefore ? ` · ${m.openBefore}분 전부터 출석` : ''}</div>
           <div class="att-meet-btns">
             <button type="button" class="att-pri" data-att-act="qr" data-id="${esc(m.meetingId)}">QR 띄우기</button>
@@ -9822,6 +9846,19 @@
     async function attAdmAct(act, id) {
       const d = attAdm.data, m = d && d.meetings.find(x => x.meetingId === id);
       if (act === 'back') { attAdm.open = ''; attAdmRender(); return; }
+      if (/^s(qr|edit|pause|del)$/.test(act)) {
+        const x = (d.series || []).find(y => y.seriesId === id); if (!x) return;
+        if (act === 'sqr') { attShowQr({ ...x, meetingId: x.seriesId, count: 0 }); return; }
+        if (act === 'sedit') { attAdmEdit(x, true); return; }
+        if (act === 'sdel' && attAdm.del !== id) { attAdm.del = id; attAdmRender(); return; }
+        const status = act === 'sdel' ? '삭제' : x.status === '멈춤' ? '열림' : '멈춤';
+        try {
+          const res = await callApi({ action: 'setAttendSeriesStatus', memberId: App.memberId, seriesId: id, status });
+          if (res && res.error) throw new Error(res.error);
+          attAdm.del = ''; toast(status === '삭제' ? '정기 교육을 삭제했어요. (지난 출석 기록은 그대로 남아요)' : status === '멈춤' ? '반복을 멈췄어요. 이 QR로는 출석이 안 돼요.' : '다시 반복해요.'); attAdmLoad(true);
+        } catch (e) { toast(e.message, true); }
+        return;
+      }
       if (act === 'detail') { attAdm.open = id; attAdm.delRec = ''; attAdmRender(); return; }
       if (act === 'qr') { attShowQr(m); return; }
       if (act === 'edit') { attAdmEdit(m); return; }
@@ -9873,16 +9910,22 @@
     }
 
     // 모임 만들기/수정 — 설문 문항 편집 포함
-    function attAdmEdit(m) {
+    function attAdmEdit(m, repeat) {
       const f = m ? { ...m, org: m.org || '', district: m.district == null ? '' : String(m.district), questions: (m.questions || []).map(q => ({ ...q, options: [...q.options] })), askDistrict: !!m.askDistrict, askDept: !!m.askDept }
         // v2.3: 새 모임은 '내 지역' 선택을 기본으로 켬(소속 5개 부서 고르기가 그 안에 있어 '소속 부서' 문항은 기본으로 안 넣음)
         : { title: '', date: attNowKst().slice(0, 10), start: '', end: '', place: '', openBefore: 30, status: '열림', org: '', district: '',
             askDistrict: true, askDept: false, questions: [] };
       // 2026-10-15: 타임 여러 개(오전·오후·저녁) — 어느 타임에 와도 출석 1번
       f.slots = (m && (m.slots || []).length > 1) ? m.slots.map(t => ({ ...t })) : [{ start: f.start || '', end: f.end || '' }];
+      // 2026-11-11: 정기 교육(매주 반복) — 날짜 대신 요일, 타임(오전·저녁)은 꼭 넣음(그 시간에만 출석)
+      f.repeat = !!repeat; f.weekdays = m && m.weekdays ? [...m.weekdays] : [];
+      if (f.repeat && m && m.slots && m.slots.length === 1) f.slots = [{ ...m.slots[0] }];
+      if (f.repeat && !m) f.slots = [{ start: '', end: '' }, { start: '', end: '' }];
+      const editWhat = f.repeat ? (m ? '정기 교육 수정' : '정기 교육 만들기 (매주 반복)') : (m ? '모임 수정' : '새 모임 만들기');
       const slotName = t => !t ? '' : t < '12:00' ? '오전' : t < '17:00' ? '오후' : '저녁';
       const draw = () => {
-        openSheet(`<div class="att-sheet"><div class="att-title">${m ? '모임 수정' : '새 모임 만들기'}</div>
+        openSheet(`<div class="att-sheet"><div class="att-title">${editWhat}</div>
+          ${f.repeat ? '<div class="att-muted" style="margin:2px 0 6px">QR 한 장을 계속 써요. 고른 요일의 정한 타임(오전·저녁 등)에만 출석이 열리고, 끝나면 그날 출석이 자동 마감·서머리돼요.</div>' : ''}
           <label class="cal-lbl">모임 이름 <span class="cal-req">*</span></label><input class="cal-inp" id="attFTitle" maxlength="80" value="${esc(f.title)}" placeholder="예) 10월 교사 교육">
           <label class="cal-lbl">모임 부서</label>
           <select class="cal-inp" id="attFOrgSel">${ATT_ORGS.map(([v, l]) => `<option value="${v}" ${f.org === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
@@ -9895,16 +9938,17 @@
             : attFixedPickOrg(f) ? `${esc(attMeetLabel({ org: f.org }))} 1~${ATT_DIST_MAX[f.org] || 12}지역·${(ATT_DIST_EXTRA[f.org] || []).join('·')} 중 고름`
             : '소속(교역자·자문·장년·부녀·청년) → 지역 고름(새신자 포함) · 부녀회는 유아모 · 교역자는 지역 없음'}</small></span></label>
           <label class="att-toggle"><input type="checkbox" id="attFAskDept" ${f.askDept ? 'checked' : ''}><span><b>24개 부서 선택</b><small>행서·내무·기획·교육 등 부서 중 하나를 고름 · 기타는 직접 쓰기</small></span></label>
-          <div style="display:flex;gap:8px"><div style="flex:1"><label class="cal-lbl">날짜 <span class="cal-req">*</span></label><input type="date" class="cal-inp" id="attFDate" value="${esc(f.date)}"></div>
+          ${f.repeat ? `<label class="cal-lbl">반복 요일 <span class="cal-req">*</span></label><div class="att-org-chips">${ATT_WD.map((w, i) => `<button type="button" class="att-opt ${f.weekdays.includes(i) ? 'on' : ''}" data-att-wd="${i}">${w}</button>`).join('')}</div>` : ''}
+          <div style="display:flex;gap:8px">${f.repeat ? '' : `<div style="flex:1"><label class="cal-lbl">날짜 <span class="cal-req">*</span></label><input type="date" class="cal-inp" id="attFDate" value="${esc(f.date)}"></div>`}
             <div style="flex:1"><label class="cal-lbl">장소</label><input class="cal-inp" id="attFPlace" maxlength="80" value="${esc(f.place)}"></div></div>
-          <label class="cal-lbl">교육 타임 <span class="att-muted" style="font-weight:400">(같은 교육을 오전·오후·저녁 여러 번 하면 + 로 추가 — 어느 타임에 와도 출석 1번)</span></label>
+          <label class="cal-lbl">교육 타임${f.repeat ? ' <span class="cal-req">*</span>' : ''} <span class="att-muted" style="font-weight:400">(${f.repeat ? '예) 오전 09:00~10:30, 저녁 19:30~21:00 — 필요 없는 타임은 × 로 빼기' : '같은 교육을 오전·오후·저녁 여러 번 하면 + 로 추가'} — 어느 타임에 와도 그날 출석 1번)</span></label>
           <div id="attFSlots">${f.slots.map((t, i) => `<div class="att-slot"><span class="att-slot-n">${f.slots.length > 1 ? esc(slotName(t.start) || (i + 1) + '타임') : '시간'}</span>
             <input type="time" class="cal-inp" data-slot="start" data-i="${i}" value="${esc(t.start)}"><span>~</span><input type="time" class="cal-inp" data-slot="end" data-i="${i}" value="${esc(t.end)}">
             ${f.slots.length > 1 ? `<button type="button" class="att-x" data-slotdel="${i}" title="타임 삭제">×</button>` : ''}</div>`).join('')}</div>
           ${f.slots.length < 5 ? '<button type="button" class="att-link" id="attFAddSlot" style="margin-top:6px">+ 타임 추가</button>' : ''}
           <label class="cal-lbl">출석 받기 시작</label>
           <select class="cal-inp" id="attFBefore">${[0, 10, 20, 30, 60, 120].map(n => `<option value="${n}" ${Number(f.openBefore) === n ? 'selected' : ''}>${n ? '시작 ' + n + '분 전부터' : '시작 시간부터'}</option>`).join('')}</select>
-          <div class="att-muted" style="margin-top:4px">시작·끝을 비우면 그날 하루 종일 출석을 받아요. 끝 시간이 지나면 자동으로 마감돼요.</div>
+          <div class="att-muted" style="margin-top:4px">${f.repeat ? '타임 사이(오전 끝 ~ 저녁 출석 시작 전)에는 출석을 받지 않아요. 마지막 타임이 끝나면 그날 출석이 자동으로 마감돼요.' : '시작·끝을 비우면 그날 하루 종일 출석을 받아요. 끝 시간이 지나면 자동으로 마감돼요.'}</div>
           <div class="att-qs-h"><b>출석 설문 문항</b><span class="att-muted">이름·부서·직책은 로그인 정보로 자동 기록돼요</span></div>
           <div id="attFQs">${f.questions.map((q, i) => `<div class="att-qe">
               <div style="display:flex;gap:6px"><input class="cal-inp" data-qf="label" data-i="${i}" maxlength="120" value="${esc(q.label)}" placeholder="질문 ${i + 1} (예: 소속 지역)" style="flex:1">
@@ -9914,10 +9958,11 @@
               ${q.type !== 'text' ? `<input class="cal-inp" data-qf="options" data-i="${i}" style="margin-top:6px" value="${esc(q.options.join(', '))}" placeholder="보기를 쉼표로 구분 (예: 교역자, 자문회, 장년회, 부녀회, 청년회)">` : ''}
             </div>`).join('')}</div>
           <div style="display:flex;gap:16px;margin-top:8px"><button type="button" class="att-link" id="attFAddQ">+ 문항 추가</button><button type="button" class="att-link" id="attFAddDept">+ 소속 부서 문항(교역자 포함 5개 부서)</button></div>
-          <div style="display:flex;gap:10px;margin-top:18px"><button type="button" class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button><button type="button" class="kko-btn-main" style="flex:2" id="attFSave">${m ? '수정 저장' : '모임 만들기'}</button></div>
+          <div style="display:flex;gap:10px;margin-top:18px"><button type="button" class="kko-btn-outline" style="flex:1" onclick="closeSheet()">취소</button><button type="button" class="kko-btn-main" style="flex:2" id="attFSave">${m ? '수정 저장' : f.repeat ? '정기 교육 만들기' : '모임 만들기'}</button></div>
         </div>`);
         const read = () => {
-          f.title = document.getElementById('attFTitle').value; f.date = document.getElementById('attFDate').value; f.place = document.getElementById('attFPlace').value;
+          const dEl = document.getElementById('attFDate');
+          f.title = document.getElementById('attFTitle').value; if (dEl) f.date = dEl.value; f.place = document.getElementById('attFPlace').value;
           document.querySelectorAll('#attFSlots [data-slot]').forEach(el => { f.slots[Number(el.dataset.i)][el.dataset.slot] = el.value; });
           const filled = f.slots.filter(t => t.start || t.end);
           f.start = filled.length ? filled[0].start : ''; f.end = filled.length ? filled[filled.length - 1].end : '';
@@ -9942,6 +9987,7 @@
           draw();
         };
         document.getElementById('attFAskDept').onchange = () => { read(); };
+        document.querySelectorAll('[data-att-wd]').forEach(b => { b.onclick = () => { read(); const i = Number(b.dataset.attWd); f.weekdays = f.weekdays.includes(i) ? f.weekdays.filter(x => x !== i) : [...f.weekdays, i].sort(); draw(); }; });
         document.querySelectorAll('[data-att-dist]').forEach(b => { b.onclick = () => { read(); f.district = f.district === b.dataset.attDist ? '' : b.dataset.attDist; draw(); }; });
         document.querySelectorAll('[data-qdel]').forEach(b => { b.onclick = () => { read(); f.questions.splice(Number(b.dataset.qdel), 1); draw(); }; });
         document.getElementById('attFAddQ').onclick = () => { read(); f.questions.push({ label: '', type: 'choice', options: [], required: false }); draw(); };
@@ -9953,6 +9999,8 @@
         document.getElementById('attFSave').onclick = async () => {
           read();
           if (!f.title.trim()) return toast('모임 이름을 입력해 주세요.', true);
+          if (f.repeat && !f.weekdays.length) return toast('반복할 요일을 골라 주세요.', true);
+          if (f.repeat && !f.slots.some(t => t.start && t.end)) return toast('교육 타임(시작~끝)을 넣어 주세요. 그 시간에만 출석이 열려요.', true);
           const slotBad = f.slots.find(t => (t.start || t.end) && (!t.start || !t.end || t.end <= t.start));
           if (slotBad) return toast('타임마다 시작과 끝을 넣고, 끝이 시작보다 뒤여야 해요.', true);
           const bad = f.questions.find(q => q.label.trim() && q.type !== 'text' && !q.options.length);
@@ -9960,9 +10008,12 @@
           const btn = document.getElementById('attFSave'); btn.disabled = true;
           try {
             const district = /^\d+$/.test(f.district) ? Number(f.district) : f.district;   // 서버: 1~12는 숫자, 유아모는 글자
-            const res = await callApi({ action: 'saveAttendMeeting', memberId: App.memberId, meeting: { ...f, district, questions: f.questions.filter(q => q.label.trim()) } });
+            const body = { ...f, district, questions: f.questions.filter(q => q.label.trim()) };
+            const res = await callApi(f.repeat
+              ? { action: 'saveAttendSeries', memberId: App.memberId, series: { ...body, slots: f.slots.filter(t => t.start || t.end) } }
+              : { action: 'saveAttendMeeting', memberId: App.memberId, meeting: body });
             if (res && res.error) throw new Error(res.error);
-            toast(m ? '모임을 수정했어요.' : '모임을 만들었어요. [QR 띄우기]로 출석을 받으세요.'); closeSheet(); attAdmLoad(true);
+            toast(f.repeat ? (m ? '정기 교육을 수정했어요. 오늘·앞으로의 출석에 반영돼요.' : '정기 교육을 만들었어요. [QR 띄우기]의 QR을 매주 그대로 쓰세요.') : m ? '모임을 수정했어요.' : '모임을 만들었어요. [QR 띄우기]로 출석을 받으세요.'); closeSheet(); attAdmLoad(true);
           } catch (e) { toast(e.message, true); btn.disabled = false; }
         };
       };
@@ -9974,10 +10025,11 @@
       if (!m) return;
       const ov = document.createElement('div'); ov.className = 'att-qr-ov';
       ov.innerHTML = `<button type="button" class="att-qr-x" aria-label="닫기">✕</button>
-        <div class="att-qr-t">${esc(m.title)}</div><div class="att-qr-s">${attMeetLabel(m) ? `<b style="color:#5B3A8E">[${esc(attMeetLabel(m))}]</b> ` : ''}${esc(attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''}</div>
+        <div class="att-qr-t">${esc(m.title)}</div><div class="att-qr-s">${attMeetLabel(m) ? `<b style="color:#5B3A8E">[${esc(attMeetLabel(m))}]</b> ` : ''}${esc(m.weekdays ? attSeriesWhen(m) : attWhen(m))}${m.place ? ' · ' + esc(m.place) : ''}</div>
         <div class="att-qr-box" id="attQrBox"><span class="loading loading-spinner"></span></div>
         <div class="att-qr-g">휴대폰 카메라로 QR을 찍으면 출석 설문이 열려요</div>
-        <div class="att-qr-n">지금까지 <b id="attQrCnt">${m.count || 0}</b>명 출석</div>`;
+        <div class="att-qr-n">${m.weekdays ? '오늘' : '지금까지'} <b id="attQrCnt">${m.count || 0}</b>명 출석</div>
+        ${m.weekdays ? '<div class="att-qr-g" style="margin-top:6px">🔁 매주 같은 QR이에요. 저장·인쇄해 두고 계속 쓰세요. <button type="button" class="att-link" id="attQrSave">QR 그림 저장</button></div>' : ''}`;
       document.body.appendChild(ov);
       let wake = null;
       const timer = setInterval(async () => {
@@ -9993,6 +10045,9 @@
         const box = document.getElementById('attQrBox'); box.innerHTML = '';
         const size = Math.max(200, Math.min(window.innerWidth - 64, window.innerHeight - 300, 520));
         new window.QRCode(box, { text: attUrl(m.meetingId), width: size, height: size, correctLevel: window.QRCode.CorrectLevel.M });
+        const sv = document.getElementById('attQrSave');
+        if (sv) sv.onclick = () => { const c = box.querySelector('canvas'); if (!c) return; const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = '출석QR_' + m.title.replace(/[\\/:*?"<>|]/g, '_') + '.png'; document.body.appendChild(a); a.click(); a.remove(); };
+        if (m.weekdays) callApi({ action: 'getAttendCount', meetingId: m.meetingId }).then(r => { const el = document.getElementById('attQrCnt'); if (el && r && r.count != null) el.textContent = r.count; }).catch(() => {});
       } catch (e) { const b = document.getElementById('attQrBox'); if (b) b.innerHTML = '<div class="att-muted">QR을 만들지 못했어요. 인터넷 연결을 확인해 주세요.</div>'; }
     }
 
