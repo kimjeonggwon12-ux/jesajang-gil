@@ -104,7 +104,7 @@ function sectionLines(label, list, outside, phase, sessions) {
   for (const s of sessions) {
     const came = list.filter((p) => p.att[s]);
     L.push(`${ICON[s] || '🙋'} <b>${s} 참석자 ${came.length}명</b>`);
-    if (came.length) L.push(...nameRows(came.map((p) => esc(p.name) + (isLate(p.att[s]) ? '⏰' : ''))));
+    if (came.length) L.push(...nameRows(came.map((p) => esc(p.name))));
     else L.push('   없음');
   }
   const late = list.filter((p) => sessions.some((s) => isLate(p.att[s])));
@@ -119,7 +119,6 @@ function sectionLines(label, list, outside, phase, sessions) {
     L.push(`🙋 사명자 재적 밖 참석 ${outside.length}명 (참석률에 안 셈)`);
     L.push(...nameRows(outside.map((o) => esc(o.name))));
   }
-  if (late.length || list.some((p) => sessions.some((s) => isLate(p.att[s])))) L.push('⏰ = 지각');
   return L;
 }
 const top = (m, phase, sessions) => [`📋 <b>${esc(m.title)}</b> (사명자 재적 기준)`, `🗓 ${dayOf(m)} · ${headLine(phase, sessions)}`];
