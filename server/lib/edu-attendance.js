@@ -322,6 +322,35 @@ async function sendRoomDoc(chat, bytes, fileName, caption) {
   throw new Error('엑셀 전송 실패: ' + last);
 }
 
+function kyoTexts(m, phase, P) {
+  const outside = P.outside.filter((o) => o.key === '교역자');
+  return [['교회교역', '교회 교역자'], ['신학교역', '신학부 교역자 (센터 강사·센터 전도사·원장 등)']]
+    .map(([g, label]) => [label, P.people.filter((p) => p.dept === g), g === '교회교역' ? outside : []])
+    .filter(([, list]) => list.length)
+    .map(([label, list, out]) => [...top(m, phase, P.sessions), ...sectionLines(label, list, out, phase, P.sessions)].join(String.fromCharCode(10)));
+}
+
+// 11/12: 교육 방에 손으로 다시 올리기 { action:'tsEduAttSend', key, meetingId, phase, part?:'교역자' } — 기록(한 번만) 안 남김
+async function tsEduAttSend(body) {
+  if (!process.env.TEACHERSQUARE_CRON_KEY || body.key !== process.env.TEACHERSQUARE_CRON_KEY) return { error: 'unauthorized' };
+  const { findMeeting } = await import('../actions/attendance.js');
+  const m = await findMeeting(String(body.meetingId || ''));
+  const edu = m && await eduFor(m);
+  if (!edu) return { error: '재적이 걸린 정기 교육 모임이 아니에요' };
+  const list = (await buildEduAttendance(m, String(body.phase || '오전'), edu, { eduOnly: true }))
+    .filter((p) => p.room.dept.startsWith('#교육:') && (!body.part || p.part === body.part));
+  const sent = [];
+  for (const p of list) {
+    try {
+      if (p.doc) await sendRoomDoc(p.room.chat_id, p.doc, p.fileName, p.docCaption);
+      else if (p.caption) await sendRoomBoard(p.room, p.png, p.caption, p.text);
+      else await sendRoomText(p.room.chat_id, p.text);
+      sent.push('성공');
+    } catch (e) { sent.push('실패 ' + e.message); }
+  }
+  return { ok: sent.every((x) => x === '성공'), sent };
+}
+
 /** 보낼 것 목록 [{ room, text } | { room, png, caption, text }] */
 export async function buildEduAttendance(m, phase, edu, { test = false, allRegions = false, eduOnly = false } = {}) {
   const P = { ...(await prepare(m, phase, edu)), phase };
@@ -340,6 +369,8 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
       const C = cardData(m, P, await prevRates(m, edu).catch(() => null));
       out.push({ room, ...eduExcel(m, P, C) });
       out.push({ room, ...eduCard(m, P, C) });
+      // 11/12(사용자): 교역자는 교육 방에도 교회 교역자 / 신학부 교역자 따로(참석자·지각자·불참자 명단)
+      for (const t of kyoTexts(m, phase, P)) out.push({ room, text: t, part: '교역자' });
       continue;
     }
     if (eduOnly) continue;
@@ -425,4 +456,4 @@ async function tsEduAttTest(body) {
   }
   return { ok: sent.every(([, r]) => r === '성공'), phase, sent };
 }
-export default { tsEduAttTest };
+export default { tsEduAttTest, tsEduAttSend };
