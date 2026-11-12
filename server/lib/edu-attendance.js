@@ -17,8 +17,8 @@ const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</
 export const MY_TEST_CHAT = '-1004460094453';
 const DEPTS = ['자문회', '장년회', '부녀회', '청년회'];
 // 엑셀 오른쪽 집계 표 순서
-const GROUPS = ['교회교역', '신학교역', '장로회', '자문회', '장년회', '부녀회', '청년회', '24부서'];
-const GROUP_LABEL = { 교회교역: '교회 교역자', 신학교역: '신학부 교역자', '24부서': '24부서' };
+const GROUPS = ['교회교역', '신학교역', '협력교회', '장로회', '자문회', '장년회', '부녀회', '청년회', '24부서'];
+const GROUP_LABEL = { 교회교역: '교회 교역자', 신학교역: '신학부 교역자', 협력교회: '협력 교회', '24부서': '24부서' };
 const ALIAS = { '청년회/새신자': '청년회/기타' };
 const regionKey = (r) => { const s = String(r || '').trim(); const m = s.match(/^0*(\d+)지역$/); return m ? m[1].padStart(2, '0') + '지역' : (s || '기타'); };
 const roomKeyOf = (dept, region) => { const k = `${dept}/${regionKey(region)}`; return ALIAS[k] || k; };
@@ -48,7 +48,9 @@ export async function eduFor(m) {
 }
 
 /** 사명자 한 명 → 방 열쇠(교역자 / 부서/지역 / '' = 방 없음) */
-const personRoom = (p) => (p.dept === '교회교역' || p.dept === '신학교역' ? '교역자' : DEPTS.includes(p.dept) ? roomKeyOf(p.dept, p.region) : '');
+// 11/12(사용자): 강지원·김강민 = 무진장·순창 사명자 → 오늘은 '협력 교회'로만 따로(나중에 정확히 정함, 추후 QR 따로)
+const DEPT_OVERRIDE = Object.fromEntries([['00120521-00001', '협력교회'], ['00210620-00049', '협력교회']].map(([id, d]) => [normId(id), d]));
+const personRoom = (p) => (p.dept === '교회교역' || p.dept === '신학교역' || p.dept === '협력교회' ? '교역자' : DEPTS.includes(p.dept) ? roomKeyOf(p.dept, p.region) : '');
 
 async function prepare(m, phase, edu) {
   const { closingData } = await import('../actions/attendance-closing.js');
@@ -71,7 +73,7 @@ async function prepare(m, phase, edu) {
   }
   // 11/12(사용자): 원장님들은 계수·참석·불참 명단에서 계속 뺀다(재적 밖 참석에도 안 나오게)
   const EXCLUDED = (p) => String(p.position || '').trim() === '원장';
-  const people = edu.roster.filter((p) => !EXCLUDED(p)).map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
+  const people = edu.roster.filter((p) => !EXCLUDED(p)).map((p) => ({ ...p, dept: DEPT_OVERRIDE[p.nid] || p.dept })).map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
   const inRoster = new Set(edu.roster.map((p) => p.nid));
   // 재적 밖 참석(교사·일반) — 교사면 등록 지역 방, 아니면 적은 부서
   const outside = [];
@@ -211,7 +213,7 @@ function nameListTexts(m, P, kind) {
 const XS = { plain: 0, head: 1, cell: 2, title: 3, session: 4, warn: 6, total: 7, text: 8 };
 const xc = (v, st = XS.cell) => ({ v, s: st });
 // 카드·총합 시트 줄(사용자 9/10 표 순서 + 교역자 둘을 맨 위에)
-const CARD_ROWS = [['교회 교역자', ['교회교역']], ['신학부 교역자', ['신학교역']], ['24부서', ['24부서']], ['장로, 자문회', ['장로회', '자문회']], ['장년회', ['장년회']], ['부녀회', ['부녀회']], ['청년회', ['청년회']]];
+const CARD_ROWS = [['교회 교역자', ['교회교역']], ['신학부 교역자', ['신학교역']], ['협력 교회', ['협력교회']], ['24부서', ['24부서']], ['장로, 자문회', ['장로회', '자문회']], ['장년회', ['장년회']], ['부녀회', ['부녀회']], ['청년회', ['청년회']]];
 /** 같은 정기 교육의 바로 앞 모임(지난주) 부서별 참석률 { label: 숫자% } — 없으면 null */
 const ORG_DEFS = CARD_ROWS.map(([l, d]) => [l, (p) => d.includes(p.dept)]);
 async function prevRates(m, edu, defs = ORG_DEFS) {
@@ -328,7 +330,7 @@ async function sendRoomDoc(chat, bytes, fileName, caption) {
 
 function kyoTexts(m, phase, P) {
   const outside = P.outside.filter((o) => o.key === '교역자');
-  return [['교회교역', '교회 교역자'], ['신학교역', '신학부 교역자 (센터 강사·센터 전도사 등)']]
+  return [['교회교역', '교회 교역자'], ['신학교역', '신학부 교역자 (센터 강사·센터 전도사 등)'], ['협력교회', '협력 교회 (무진장·순창)']]
     .map(([g, label]) => [label, P.people.filter((p) => p.dept === g), g === '교회교역' ? outside : []])
     .filter(([, list]) => list.length)
     .map(([label, list, out]) => [...top(m, phase, P.sessions), ...sectionLines(label, list, out, phase, P.sessions)].join(String.fromCharCode(10)));
