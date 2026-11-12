@@ -29,6 +29,8 @@ const dayOf = (m) => { const [y, mo, d] = m.date.split('-').map(Number); return 
 const pct = (a, b) => (b ? (Math.round((a / b) * 1000) / 10).toFixed(1) + '%' : '-');
 const isLate = (r) => !!r && /지각/.test(r.late || '');
 const lateMin = (r) => (String(r.late || '').match(/(\d+)분/) || [])[1] || '';
+// 11/12(사용자): "교역자에서 이용우·김양주는 무조건 참석으로, 앞으로도 계속" — 지파장·지파총무. 모든 타임 정상 참석으로 센다.
+const ALWAYS_PRESENT = ['00060830-00001', '00200202-00001'].map(normId);
 const comma = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const groupOfKey = (key) => (key === '교역자' ? '교역자' : key.split('/')[0]);
 
@@ -58,6 +60,11 @@ async function prepare(m, phase, edu) {
     const nid = normId(r.id);
     if (!byNid.has(nid)) byNid.set(nid, {});
     byNid.get(nid)[r.session] ||= r;
+  }
+  for (const nid of ALWAYS_PRESENT) {
+    const att = byNid.get(nid) || {};
+    for (const s of sessions) att[s] = { ...(att[s] || {}), late: '정상 출석' };
+    byNid.set(nid, att);
   }
   const people = edu.roster.map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
   const inRoster = new Set(edu.roster.map((p) => p.nid));
