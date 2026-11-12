@@ -9,6 +9,8 @@ import { db, run, selectAll } from './db.js';
 import { kstDateTime, normId } from './util.js';
 import { sendRoomText, sendRoomBoard, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
 import { tablePng } from './table-image.js';
+import { workbookFiles } from './xlsx-multi.js';
+import { zip } from './zip.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 export const MY_TEST_CHAT = '-1004460094453';
@@ -39,7 +41,7 @@ export async function eduFor(m) {
   if (!m || !m.seriesId) return null;
   const [x] = await run(db().from('attend_series').select('series_id, title, roster_key, summary_to').eq('series_id', m.seriesId).limit(1)).catch(() => []);
   if (!x || !x.roster_key) return null;
-  const roster = await selectAll(() => db().from('edu_roster').select('nid, member_id, name, dept, region, position, sort_order').eq('roster_key', x.roster_key).order('sort_order'));
+  const roster = await selectAll(() => db().from('edu_roster').select('nid, member_id, name, dept, region, district, position, sort_order').eq('roster_key', x.roster_key).order('sort_order'));
   if (!roster.length) return null;
   return { series: x, roster };
 }
@@ -202,8 +204,64 @@ function nameListTexts(m, P, kind) {
   return parts;
 }
 
+// ── 집계 엑셀(11/12 사용자: "오전 집계 엑셀, 저녁 끝나면 오전·저녁 총합 집계 파일 — 매주 자동") ──
+const XS = { plain: 0, head: 1, cell: 2, title: 3, session: 4, warn: 6, total: 7, text: 8 };
+const xc = (v, st = XS.cell) => ({ v, s: st });
+function eduExcel(m, P) {
+  const both = P.sessions.length > 1;
+  const kind = both ? '오전·저녁 총합' : P.sessions[0] + ' 집계';
+  const title = `${m.date} ${m.title} ${kind} (사명자 재적 기준)`;
+  const head = ['부서', '인원', ...P.sessions, ...(both ? ['합계'] : []), '출석률', '지각', P.phase === '최종' ? '불참' : '미참석'];
+  const statRow = (label, list, st = XS.cell) => { const t = statOf(list, P.sessions);
+    return [xc(label, st), xc(t.n, st), ...P.sessions.map((x) => xc(t.by[x], st)), ...(both ? [xc(t.came, st)] : []), xc(pct(t.came, t.n), st), xc(t.late, st), xc(t.absent, st)]; };
+  const sum = [xc(title, XS.title)], note = [xc(`만든 시각 ${kstDateTime().slice(0, 16)} · 인원 = 사명자 재적(교사 재적 아님) · 두 번 온 분은 합계에 한 번`, XS.plain)];
+  const rows1 = [sum, note, [], head.map((h) => xc(h, XS.head))];
+  for (const g of GROUPS) { const l = P.people.filter((p) => p.dept === g); if (l.length) rows1.push(statRow(GROUP_LABEL[g] || g, l)); }
+  rows1.push(statRow('교회 전체', P.people, XS.total));
+  // 명단(전원) — 결과: 참석/지각/불참
+  const rows2 = [[xc(title + ' — 명단', XS.title)], [],
+    ['번호', '부서', '지역', '이름', '고유번호', '직책', ...P.sessions.flatMap((x) => [x + ' 시각', x + ' 상태']), '결과'].map((h) => xc(h, XS.head))];
+  P.people.forEach((p, i) => {
+    const came = P.sessions.some((x) => p.att[x]), late = P.sessions.some((x) => isLate(p.att[x]));
+    rows2.push([xc(i + 1), xc(GROUP_LABEL[p.dept] || p.dept), xc(regionShow(regionKey(p.region))), xc(p.name), xc(p.member_id), xc(p.position),
+      ...P.sessions.flatMap((x) => [xc(p.att[x]?.at ? String(p.att[x].at).slice(11, 16) : ''), xc(p.att[x] ? p.att[x].late || '참석' : '', isLate(p.att[x]) ? XS.warn : XS.cell)]),
+      xc(!came ? '불참' : late ? '지각' : '참석', !came || late ? XS.warn : XS.cell)]);
+  });
+  const rows3 = [[xc('사명자 재적 밖 참석(참석률에 안 셈)', XS.title)], [], ['번호', '이름', ...P.sessions.map((x) => x + ' 상태')].map((h) => xc(h, XS.head)),
+    ...P.outside.map((o, i) => [xc(i + 1), xc(o.name), ...P.sessions.map((x) => xc(o.att[x] ? o.att[x].late || '참석' : ''))])];
+  const n = head.length;
+  const col = (k) => String.fromCharCode(64 + k);
+  const sheets = [
+    { name: '총괄', rows: rows1, opts: { widths: [16, 9, ...P.sessions.map(() => 9), ...(both ? [9] : []), 10, 9, 9], merges: [`A1:${col(n)}1`, `A2:${col(n)}2`], heights: { 0: 26 } } },
+    { name: '명단', rows: rows2, opts: { widths: [6, 14, 9, 10, 17, 22, ...P.sessions.flatMap(() => [9, 11]), 8], freezeRow: 3, heights: { 0: 26 } } },
+    { name: '재적 밖 참석', rows: rows3, opts: { widths: [6, 12, ...P.sessions.map(() => 12)] } },
+  ];
+  const fileName = `${m.title.replace(/[\/:*?"<>|]/g, ' ')}_${m.date}_${both ? '오전저녁총합' : P.sessions[0]}.xlsx`;
+  const t = statOf(P.people, P.sessions);
+  const docCaption = `📎 <b>${esc(m.title)} ${kind}</b> 엑셀
+🗓 ${dayOf(m)} · 사명자 재적 ${comma(t.n)}명 · 참석 ${comma(t.came)}명 (${pct(t.came, t.n)}) · 지각 ${t.late} · ${P.phase === '최종' ? '불참' : '미참석'} ${t.absent}
+시트: 총괄 · 명단(전원, 참석/지각/불참) · 재적 밖 참석`;
+  return { doc: zip(workbookFiles(sheets), fileName), fileName, docCaption };
+}
+async function sendRoomDoc(chat, bytes, fileName, caption) {
+  const [id, th] = String(chat).split('/');
+  let last = '';
+  for (const token of [process.env.ATT_BOT_TOKEN, process.env.TEACHERSQUARE_BOT_TOKEN].filter(Boolean)) {
+    const form = new FormData();
+    form.set('chat_id', id);
+    if (th) form.set('message_thread_id', th);
+    form.set('caption', String(caption).slice(0, 1000));
+    form.set('parse_mode', 'HTML');
+    form.set('document', new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
+    const j = await (await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: 'POST', body: form })).json().catch((e) => ({ description: String(e) }));
+    if (j.ok) return;
+    last = j.description || '';
+  }
+  throw new Error('엑셀 전송 실패: ' + last);
+}
+
 /** 보낼 것 목록 [{ room, text } | { room, png, caption, text }] */
-export async function buildEduAttendance(m, phase, edu, { test = false, allRegions = false } = {}) {
+export async function buildEduAttendance(m, phase, edu, { test = false, allRegions = false, eduOnly = false } = {}) {
   const P = { ...(await prepare(m, phase, edu)), phase };
   const rooms = await run(db().from('report_rooms').select('*').eq('active', true));
   const out = [], seen = new Set();
@@ -215,14 +273,13 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
   for (const room of rooms) {
     if (SKIP(room.dept) || topicPending(room)) continue;
     const chat = String(room.chat_id).split('/')[0];
-    if (room.dept === eduKey) {   // 교육 방: 조직 파랑 표 + 부서 노랑 표 4장 + 지각자·불참자 명단
+    if (room.dept === eduKey) {   // 11/12(사용자): 교육 방 = 집계 엑셀 + 목사교 사명자 출석 현황 표(부서 총합·교회 총합). 지역별은 안 올림
       if (!once('edu|' + chat)) continue;
+      out.push({ room, ...eduExcel(m, P) });
       out.push({ room, ...orgBoard(m, P) });
-      for (const d of DEPTS) if (P.people.some((p) => p.dept === d)) out.push({ room, ...deptBoard(m, d, P) });
-      for (const t of nameListTexts(m, P, '지각')) out.push({ room, text: t });
-      if (phase === '최종') for (const t of nameListTexts(m, P, '불참')) out.push({ room, text: t });
       continue;
     }
+    if (eduOnly) continue;
     if (room.dept.startsWith('#')) continue;
     const dept = room.dept.split('#')[0];
     if (dept === '교역자') {   // 교역자 방: 교회 교역자 / 신학부 교역자 따로 두 통
@@ -250,7 +307,8 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
 /** 실제로 올림(방·모임·단계마다 한 번). summary_to='test' 면 시험 방으로만(어느 방 글인지 머리에). */
 export async function postEduAttendance(m, phase, edu, prefix = '') {
   const test = edu.series.summary_to === 'test';
-  const list = await buildEduAttendance(m, phase, edu, { test });
+  // summary_to: 'room' = 교육 방에만(11/12 사용자: 지역별은 필요 없어), 'live' = 교역자·부서·지역 방까지, 'test' = 시험 방
+  const list = await buildEduAttendance(m, phase, edu, { test, eduOnly: edu.series.summary_to === 'room' });
   const sent = [];
   const done = new Set();
   for (const p of list) {
@@ -264,7 +322,8 @@ export async function postEduAttendance(m, phase, edu, prefix = '') {
     const to = test ? { ...room, chat_id: MY_TEST_CHAT } : room;
     const pre = prefix + (test ? `🧪 <b>[시험]</b> 실제로는 → ${esc(room.title || room.dept)} (${esc(room.dept)})\n` : '');
     try {
-      if (p.caption) await sendRoomBoard(to, p.png, pre + p.caption, pre + p.text);
+      if (p.doc) await sendRoomDoc(to.chat_id, p.doc, p.fileName, pre + p.docCaption);
+      else if (p.caption) await sendRoomBoard(to, p.png, pre + p.caption, pre + p.text);
       else await sendRoomText(to.chat_id, pre + p.text);
       sent.push(room.dept);
     } catch (e) { console.log(`사명자 출석 서머리 실패 ${room.dept}: ${e.message}`); }
@@ -295,7 +354,8 @@ async function tsEduAttTest(body) {
     const pre = `🧪 <b>[시험]</b> 실제로는 → ${esc(p.room.title || p.room.dept)} (${esc(p.room.dept)})\n`;
     const to = { ...p.room, chat_id: MY_TEST_CHAT };
     try {
-      if (p.caption) await sendRoomBoard(to, p.png, pre + p.caption, pre + p.text);
+      if (p.doc) await sendRoomDoc(to.chat_id, p.doc, p.fileName, pre + p.docCaption);
+      else if (p.caption) await sendRoomBoard(to, p.png, pre + p.caption, pre + p.text);
       else await sendRoomText(MY_TEST_CHAT, pre + p.text);
       sent.push([p.room.dept, '성공']);
     } catch (e) { sent.push([p.room.dept, '실패 ' + e.message]); }
