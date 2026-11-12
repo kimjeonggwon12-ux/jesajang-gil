@@ -215,6 +215,10 @@ export async function attendancePreview(m, phase, regionSamples = 2) {
 /** 실제로 올림(방·모임·단계마다 한 번). prefix 가 있으면 샘플(기록 안 남김). */
 export async function postRoomAttendance(m, phase, prefix = '') {
   if (!isRoomAttMeeting(m)) return [];
+  // 11/12: 교육별 재적(목요 사명자 교육 = 사명자 재적)이 걸린 정기 교육은 교사 재적 서머리 대신 edu-attendance.js
+  const ea = await import('./edu-attendance.js');
+  const edu = await ea.eduFor(m);
+  if (edu) return ea.postEduAttendance(m, phase, edu, prefix);
   const sent = [];
   for (const p of await buildRoomAttendance(m, phase)) {
     const { room } = p;

@@ -754,21 +754,27 @@ export async function reportRoomsAdmin(body) {
     let chatId = String(body.chatId || '').replace(/\s/g, '');
     if (!dept) return { error: '부서를 골라 주세요.' };
     if (!/^-\d+$/.test(chatId)) return { error: '방 번호는 -100… 처럼 빼기(-)로 시작하는 숫자예요.' };
-    const key = region ? `${dept}/${region}` : dept;
+    // 11/12(사용자): 교육 방('#교육:RS…' = 정기 교육 하나)도 부서처럼 골라 연결
+    const edu = dept.startsWith('#교육:') ? (await run(db().from('attend_series').select('series_id, title').eq('series_id', dept.slice(4)).neq('status', '삭제').limit(1)))[0] : null;
+    if (dept.startsWith('#교육:') && !edu) return { error: '그 정기 교육을 찾지 못했어요.' };
+    const key = edu ? dept : region ? `${dept}/${region}` : dept;
     // 일반 그룹이 슈퍼그룹으로 바뀌면 번호가 새로 생긴다 — 방 찾기·확인 글 어느 쪽에서 알려 주든 텔레그램이 준 새 번호로 한 번 더
     const moved = async (fn) => { try { return await fn(); } catch (e) { if (!e.migrateTo) throw e; chatId = String(e.migrateTo); return fn(); } };
     let chat;
     try { chat = await moved(() => tg('getChat', { chat_id: chatId })); }
     catch (e) { return { error: `봇이 그 방을 찾지 못했어요(${e.message}). 방에 '교사광장 도우미' 봇을 초대했는지, 번호가 맞는지 확인해 주세요.` }; }
     const title = chat.title || key;
-    const label = region ? `${deptLabelOf(dept)} ${regionOf({ region }) || region}` : deptLabelOf(dept);
-    try { await moved(() => sendText(chatId, `✅ 이 방이 <b>${esc(label)}</b> 보고방으로 연결됐어요.\n교사가 활동 보고를 올리면 이 방으로 오고, 매일 22시에 일일 보고가 모여 올라와요.`)); }
+    const label = edu ? edu.title : region ? `${deptLabelOf(dept)} ${regionOf({ region }) || region}` : deptLabelOf(dept);
+    const hello = edu ? `✅ 이 방이 <b>${esc(label)}</b> 교육 방으로 연결됐어요.\n교육 타임이 끝날 때마다 출석 현황 표(재적 기준)와 지각자·불참자 명단이 이 방에 올라와요.`
+      : `✅ 이 방이 <b>${esc(label)}</b> 보고방으로 연결됐어요.\n교사가 활동 보고를 올리면 이 방으로 오고, 매일 22시에 일일 보고가 모여 올라와요.`;
+    try { await moved(() => sendText(chatId, hello)); }
     catch (e) { return { error: `방은 찾았지만 글을 올리지 못했어요(${e.message}). 봇이 글을 쓸 수 있게 권한을 확인해 주세요.` }; }
     await run(db().from('report_rooms').upsert({ dept: key, chat_id: chatId, title, active: true, created_at: kstDateTime() }));
   } else if (op === 'off') {
     await run(db().from('report_rooms').update({ active: false }).eq('dept', String(body.key || '')));
   }
-  const [rooms, roster] = await Promise.all([run(db().from('report_rooms').select('*').order('dept')), loadRoster()]);
+  const [rooms, roster, series] = await Promise.all([run(db().from('report_rooms').select('*').order('dept')), loadRoster(),
+    run(db().from('attend_series').select('series_id, title').neq('status', '삭제').order('id')).catch(() => [])]);
   // 명단에 있는 부서·지역(사람 수) — 화면의 고르기 칸. 교역자처럼 지역 없이 쓰는 부서도 부서 칸은 나온다.
   const slots = {};
   for (const t of roster) {
@@ -780,6 +786,7 @@ export async function reportRoomsAdmin(body) {
   }
   return {
     rooms: rooms.map((r) => ({ key: r.dept, chatId: r.chat_id, title: r.title, active: r.active, at: r.created_at || '' })),
+    edus: series.filter((x) => !String(x.title).startsWith('[TEST]')).map((x) => ({ key: '#교육:' + x.series_id, title: x.title })),
     depts: Object.values(slots).map((s) => ({ dept: s.dept, n: s.n, regions: Object.entries(s.regions).map(([region, n]) => ({ region, n })).sort((a, b) => a.region.localeCompare(b.region, 'ko', { numeric: true })) })),
   };
 }

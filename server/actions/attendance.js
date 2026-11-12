@@ -646,6 +646,11 @@ async function seriesDayMeeting(x, date, create) {
 
 /** QR 번호 → 오늘의 출석 모임 번호. 교육 과정(CH…)·정기 교육(RS…)이 아니면 그대로. */
 export async function resolveMeetingId(id, { create = false } = {}) {
+  // 11/12(사용자): 보통 모임으로 만든 QR(MT…)을 정기 교육에 붙였으면(목요 사명자 교육) 그 QR도 매주 그날 모임으로 — 이미 나눠 준 QR을 그대로 쓴다
+  if (/^MT/.test(String(id || ''))) {
+    const m = await findMeeting(id);
+    if (m && m.seriesId && m.date !== kstDate()) return resolveMeetingId(m.seriesId, { create });
+  }
   if (!isSeriesId(id)) return resolveCohortMeeting(id);
   const x = await findSeries(id);
   if (!x) return { meetingId: '', error: '출석 QR을 찾을 수 없어요. 관리자에게 새 QR을 받아 주세요.' };
