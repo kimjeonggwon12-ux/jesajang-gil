@@ -285,8 +285,6 @@ export async function summaryTick() {
   if (hm >= '23:00') out.daily = await sendDailySummary({ date: kstDate() }).catch((e) => ({ error: String(e) }));
   // 11/10(사용자): '10시 한 줄 데이터 뉴스' — 9시 뉴스처럼 22:00 틱에 바로(같은 틱에서 지역 표·보라 표 다음이라 맨 마지막). 옛: 11/5(사용자): "한 줄 데이터 뉴스 — 매일 밤 10시 맨 마지막, 글만, 내일(11/6)부터" → 22시 표들(③·④)이 먼저 나가게 22:05부터, 하루 한 번
   if (hm >= '22:00' && hm < '23:00' && kstDate() >= NEWS_START) out.news = await sendNewsOneline({ date: kstDate() }).catch((e) => ({ error: String(e) }));
-  // 11/12(사용자): 사명자 서머리 ①②③ — 김정권·서강희·김논 방(leader-bot.js), 밤 10시 10분 하루 한 번
-  if (hm >= '22:10' && hm < '23:30') out.leader = await (await import('./leader-bot.js')).sendLeaderSummary().catch((e) => ({ error: String(e) }));
   return out;
 }
 
