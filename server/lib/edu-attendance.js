@@ -387,7 +387,8 @@ async function tsEduAttSend(body) {
 
 // 11/12(사용자): 부서 대표 방(지역 없이 연결한 부서 전체 방) = 지역별 출석현황 카드 + 지역마다 참석자·지각자·불참자 글. 먼저 청년회.
 // 11/12(사용자): "목사교 방에 테스트로만 올렸어야" — 부서 대표 방으로는 확인 전까지 안 보냄(빈 목록). 미리 보기는 tsEduAttSend previewDept 로 목사교 방에.
-const DEPT_ROOMS_ON = [];
+// 11/12 밤(사용자): "오늘 교육 마감 시 정상적으로 전체 방 다 보내" — 부서 전체 방(장년·부녀·청년) + 교역자 방
+const DEPT_ROOMS_ON = ['장년회', '부녀회', '청년회'];
 function deptDefs(P, dept) {
   const keys = [...new Set(P.people.filter((p) => p.dept === dept).map((p) => p.key))].sort((a, b) => regionOrder(a) - regionOrder(b) || (a < b ? -1 : 1));
   const defs = keys.map((k) => [orgLabel(dept, regionShow(k.split('/')[1])), (p) => p.key === k, k]);
@@ -428,6 +429,7 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
     }
     if (eduOnly) {
       if (DEPT_ROOMS_ON.includes(room.dept) && once('dept|' + room.dept)) for (const x of await deptParts(m, phase, P, edu, room.dept)) out.push({ room, ...x, part: '부서' });
+      if (room.dept === '교역자' && once('dept|교역자')) for (const t of kyoTexts(m, phase, P)) out.push({ room, text: t, part: '교역자방' });
       continue;
     }
     if (room.dept.startsWith('#')) continue;
