@@ -420,11 +420,12 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
     const chat = String(room.chat_id).split('/')[0];
     if (room.dept === eduKey) {   // 11/12(사용자): 교육 방 = 집계 엑셀 + 목사교 사명자 출석 현황 표(부서 총합·교회 총합). 지역별은 안 올림
       if (!once('edu|' + chat)) continue;
+      // 11/12 밤(사용자): 목사교 방 = 각 부서 총합(지역 카드)과 명단 → 교역자 명단 → 엑셀 → 교회 총합 최종 카드(맨 끝)
       const C = cardData(m, P, await prevRates(m, edu).catch(() => null));
+      for (const d of DEPT_ROOMS_ON) if (P.people.some((p) => p.dept === d)) for (const x of await deptParts(m, phase, P, edu, d)) out.push({ room, ...x, part: '부서' });
+      for (const t of kyoTexts(m, phase, P)) out.push({ room, text: t, part: '교역자' });
       out.push({ room, ...eduExcel(m, P, C) });
       out.push({ room, ...eduCard(m, P, C) });
-      // 11/12(사용자): 교역자는 교육 방에도 교회 교역자 / 신학부 교역자 따로(참석자·지각자·불참자 명단)
-      for (const t of kyoTexts(m, phase, P)) out.push({ room, text: t, part: '교역자' });
       continue;
     }
     if (eduOnly) {
@@ -463,7 +464,15 @@ export async function postEduAttendance(m, phase, edu, prefix = '') {
   const list = await buildEduAttendance(m, phase, edu, { test, eduOnly: edu.series.summary_to === 'room' });
   const sent = [];
   const done = new Set();
-  for (const p of list) {
+  // 한 방에 1분 20통 제한 — 방마다 3.2초 간격, 'retry after N' 이면 기다렸다 한 번 더. 방들을 번갈아 보내 기다림을 줄인다(방 안 순서는 그대로).
+  const byChat = new Map();
+  for (const p of list) { const k = String(p.room.chat_id); if (!byChat.has(k)) byChat.set(k, []); byChat.get(k).push(p); }
+  const queues = [...byChat.values()], ordered = [];
+  for (let i = 0; queues.some((q) => i < q.length); i++) for (const q of queues) if (i < q.length) ordered.push(q[i]);
+  const lastAt = new Map();
+  const pace = async (chat) => { const w = (lastAt.get(chat) || 0) + 3200 - Date.now(); if (w > 0) await new Promise((r) => setTimeout(r, w)); lastAt.set(chat, Date.now()); };
+  const withRetry = async (fn) => { try { return await fn(); } catch (e) { const s2 = Number((String(e.message).match(/retry after (\d+)/i) || [])[1]); if (!s2 || s2 > 45) throw e; await new Promise((r) => setTimeout(r, (s2 + 1) * 1000)); return fn(); } };
+  for (const p of ordered) {
     const { room } = p;
     const logRef = (test ? 'test:' : '') + `${room.dept}|${m.meetingId}`;
     if (!prefix && !done.has(logRef)) {
@@ -474,9 +483,12 @@ export async function postEduAttendance(m, phase, edu, prefix = '') {
     const to = test ? { ...room, chat_id: MY_TEST_CHAT } : room;
     const pre = prefix + (test ? `🧪 <b>[시험]</b> 실제로는 → ${esc(room.title || room.dept)} (${esc(room.dept)})\n` : '');
     try {
-      if (p.doc) await sendRoomDoc(to.chat_id, p.doc, p.fileName, pre + p.docCaption);
-      else if (p.caption) await sendRoomBoard(to, p.png, pre + p.caption, pre + p.text);
-      else await sendRoomText(to.chat_id, pre + p.text);
+      await pace(String(to.chat_id));
+      await withRetry(async () => {
+        if (p.doc) await sendRoomDoc(to.chat_id, p.doc, p.fileName, pre + p.docCaption);
+        else if (p.caption) await sendRoomBoard(to, p.png, pre + p.caption, pre + p.text);
+        else await sendRoomText(to.chat_id, pre + p.text);
+      });
       sent.push(room.dept);
     } catch (e) { console.log(`사명자 출석 서머리 실패 ${room.dept}: ${e.message}`); }
   }
