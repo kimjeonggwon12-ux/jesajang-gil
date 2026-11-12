@@ -283,7 +283,9 @@ async function tsEduAttTest(body) {
   const phase = String(body.phase || '오전');
   const list = await buildEduAttendance(m, phase, edu, { test: true, allRegions: body.all !== false });
   const sent = [];
+  const skip = new Set(Array.isArray(body.skip) ? body.skip.map(String) : []);
   for (const p of list) {
+    if (skip.has(p.room.dept)) continue;
     const pre = `🧪 <b>[시험]</b> 실제로는 → ${esc(p.room.title || p.room.dept)} (${esc(p.room.dept)})\n`;
     const to = { ...p.room, chat_id: MY_TEST_CHAT };
     try {
