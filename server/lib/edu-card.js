@@ -34,7 +34,7 @@ export function eduCardPng(c) {
   text(width / 2, PAD + 40, c.title, { size: 32, bold: true });
 
   // 머리 두 줄: 0~6 칸은 두 줄 합침, 7~10 은 위 '불참자 사유 (N명)' + 아래 사유
-  const heads = [['부서'], ['대상'], ['참석'], ['참석률'], ['이전', '참석률'], ['불참'], ['불참률']];
+  const heads = [[c.firstHead || '부서'], ['대상'], ['참석'], ['참석률'], ['이전', '참석률'], ['불참'], ['불참률']];
   const headFill = [YEL, YEL, YEL, YEL, GRAY, PINK, PINK];
   const headColor = ['#111', '#111', BLUE, BLUE, '#111', RED, RED];
   heads.forEach((h, i) => {

@@ -69,7 +69,9 @@ async function prepare(m, phase, edu) {
     for (const s of sessions) att[s] = { ...(att[s] || {}), late: '정상 출석' };
     byNid.set(nid, att);
   }
-  const people = edu.roster.map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
+  // 11/12(사용자): 원장님들은 계수·참석·불참 명단에서 계속 뺀다(재적 밖 참석에도 안 나오게)
+  const EXCLUDED = (p) => String(p.position || '').trim() === '원장';
+  const people = edu.roster.filter((p) => !EXCLUDED(p)).map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
   const inRoster = new Set(edu.roster.map((p) => p.nid));
   // 재적 밖 참석(교사·일반) — 교사면 등록 지역 방, 아니면 적은 부서
   const outside = [];
@@ -211,7 +213,8 @@ const xc = (v, st = XS.cell) => ({ v, s: st });
 // 카드·총합 시트 줄(사용자 9/10 표 순서 + 교역자 둘을 맨 위에)
 const CARD_ROWS = [['교회 교역자', ['교회교역']], ['신학부 교역자', ['신학교역']], ['24부서', ['24부서']], ['장로, 자문회', ['장로회', '자문회']], ['장년회', ['장년회']], ['부녀회', ['부녀회']], ['청년회', ['청년회']]];
 /** 같은 정기 교육의 바로 앞 모임(지난주) 부서별 참석률 { label: 숫자% } — 없으면 null */
-async function prevRates(m, edu) {
+const ORG_DEFS = CARD_ROWS.map(([l, d]) => [l, (p) => d.includes(p.dept)]);
+async function prevRates(m, edu, defs = ORG_DEFS) {
   if (!m.seriesId) return null;
   const [row] = await run(db().from('attend_meetings').select('meeting_id').eq('series_id', m.seriesId).lt('date', m.date).neq('status', '삭제').order('date', { ascending: false }).limit(1)).catch(() => []);
   if (!row) return null;
@@ -220,25 +223,26 @@ async function prevRates(m, edu) {
   if (!pm) return null;
   const Q = await prepare(pm, '최종', edu);
   const out = {};
-  for (const [label, depts] of [...CARD_ROWS, ['종합', null]]) {
-    const l = depts ? Q.people.filter((p) => depts.includes(p.dept)) : Q.people;
+  for (const [label, fn] of [...defs, ['종합', null]]) {
+    const l = fn ? Q.people.filter(fn) : Q.people.filter((p) => !defs.scope || defs.scope(p));
     const t = statOf(l, Q.sessions);
     out[label] = t.n ? (t.came / t.n) * 100 : null;
   }
   return out;
 }
 const pctNum = (a, b) => (b ? (a / b) * 100 : 0);
-function cardData(m, P, prev) {
+function cardData(m, P, prev, defs = ORG_DEFS, scope = null, head = '') {
   const one = (label, list) => {
     const t = statOf(list, P.sessions);
     const pv = prev && prev[label] != null ? prev[label].toFixed(1) + '%' : '-';
     return { label, n: t.n, came: t.came, rate: pct(t.came, t.n), prev: pv, absent: t.absent, absentRate: pct(t.absent, t.n), late: t.late, by: t.by, rateNum: pctNum(t.came, t.n), prevNum: prev ? prev[label] : null };
   };
-  const rows = CARD_ROWS.map(([l, d]) => one(l, P.people.filter((p) => d.includes(p.dept)))).filter((r) => r.n);
-  const total = one('종합', P.people);
+  const all = scope ? P.people.filter(scope) : P.people;
+  const rows = defs.map(([l, fn]) => one(l, all.filter(fn))).filter((r) => r.n);
+  const total = one('종합', all);
   const [mo, d] = m.date.slice(5).split('-').map(Number);
-  const title = `${mo}/${d} ${m.title} ${P.phase === '최종' ? '' : P.phase + ' '}출석현황`;
-  return { title, rows, total, reasonTotal: total.absent };
+  const title = `${mo}/${d} ${head}${m.title} ${P.phase === '최종' ? '' : P.phase + ' '}출석현황`;
+  return { title, rows, total, reasonTotal: total.absent, firstHead: scope ? '지역' : '부서' };
 }
 /** 결론 줄(글자) */
 function conclusion(C, P) {
@@ -324,7 +328,7 @@ async function sendRoomDoc(chat, bytes, fileName, caption) {
 
 function kyoTexts(m, phase, P) {
   const outside = P.outside.filter((o) => o.key === '교역자');
-  return [['교회교역', '교회 교역자'], ['신학교역', '신학부 교역자 (센터 강사·센터 전도사·원장 등)']]
+  return [['교회교역', '교회 교역자'], ['신학교역', '신학부 교역자 (센터 강사·센터 전도사 등)']]
     .map(([g, label]) => [label, P.people.filter((p) => p.dept === g), g === '교회교역' ? outside : []])
     .filter(([, list]) => list.length)
     .map(([label, list, out]) => [...top(m, phase, P.sessions), ...sectionLines(label, list, out, phase, P.sessions)].join(String.fromCharCode(10)));
@@ -338,7 +342,7 @@ async function tsEduAttSend(body) {
   const edu = m && await eduFor(m);
   if (!edu) return { error: '재적이 걸린 정기 교육 모임이 아니에요' };
   const list = (await buildEduAttendance(m, String(body.phase || '오전'), edu, { eduOnly: true }))
-    .filter((p) => p.room.dept.startsWith('#교육:') && (!body.part || p.part === body.part));
+    .filter((p) => !body.part || p.part === body.part);
   const sent = [];
   for (const p of list) {
     try {
@@ -349,6 +353,24 @@ async function tsEduAttSend(body) {
     } catch (e) { sent.push('실패 ' + e.message); }
   }
   return { ok: sent.every((x) => x === '성공'), sent };
+}
+
+// 11/12(사용자): 부서 대표 방(지역 없이 연결한 부서 전체 방) = 지역별 출석현황 카드 + 지역마다 참석자·지각자·불참자 글. 먼저 청년회.
+const DEPT_ROOMS_ON = ['청년회'];
+function deptDefs(P, dept) {
+  const keys = [...new Set(P.people.filter((p) => p.dept === dept).map((p) => p.key))].sort((a, b) => regionOrder(a) - regionOrder(b) || (a < b ? -1 : 1));
+  const defs = keys.map((k) => [orgLabel(dept, regionShow(k.split('/')[1])), (p) => p.key === k, k]);
+  defs.scope = (p) => p.dept === dept;
+  return defs;
+}
+async function deptParts(m, phase, P, edu, dept) {
+  const defs = deptDefs(P, dept);
+  const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, dept + ' ');
+  const parts = [{ ...eduCard(m, P, C) }];
+  for (const [label, fn, k] of defs) {
+    parts.push({ text: [...top(m, phase, P.sessions), ...sectionLines(`${dept} ${label}`, P.people.filter(fn), P.outside.filter((o) => o.key === k), phase, P.sessions)].join(String.fromCharCode(10)) });
+  }
+  return parts;
 }
 
 /** 보낼 것 목록 [{ room, text } | { room, png, caption, text }] */
@@ -373,13 +395,16 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
       for (const t of kyoTexts(m, phase, P)) out.push({ room, text: t, part: '교역자' });
       continue;
     }
-    if (eduOnly) continue;
+    if (eduOnly) {
+      if (DEPT_ROOMS_ON.includes(room.dept) && once('dept|' + room.dept)) for (const x of await deptParts(m, phase, P, edu, room.dept)) out.push({ room, ...x, part: '부서' });
+      continue;
+    }
     if (room.dept.startsWith('#')) continue;
     const dept = room.dept.split('#')[0];
     if (dept === '교역자') {   // 교역자 방: 교회 교역자 / 신학부 교역자 따로 두 통
       if (!once('교역자|' + chat)) continue;
       const outside = P.outside.filter((o) => o.key === '교역자');
-      for (const [g, label] of [['교회교역', '교회 교역자'], ['신학교역', '신학부 교역자 (센터 강사·센터 전도사·원장 등)']]) {
+      for (const [g, label] of [['교회교역', '교회 교역자'], ['신학교역', '신학부 교역자 (센터 강사·센터 전도사 등)']]) {
         const list = P.people.filter((p) => p.dept === g);
         if (list.length) out.push({ room, text: [...top(m, phase, P.sessions), ...sectionLines(label, list, g === '교회교역' ? outside : [], phase, P.sessions)].join('\n') });
       }
