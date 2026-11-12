@@ -339,6 +339,34 @@ function kyoTexts(m, phase, P) {
 // 11/12: 교육 방에 손으로 다시 올리기 { action:'tsEduAttSend', key, meetingId, phase, part?:'교역자' } — 기록(한 번만) 안 남김
 async function tsEduAttSend(body) {
   if (!process.env.TEACHERSQUARE_CRON_KEY || body.key !== process.env.TEACHERSQUARE_CRON_KEY) return { error: 'unauthorized' };
+  if (body.botStatus) {   // 그 방에서 봇들의 권한(지우기 전에 확인)
+    const out = {};
+    for (const [k, t] of [['att', process.env.ATT_BOT_TOKEN], ['ts', process.env.TEACHERSQUARE_BOT_TOKEN]].filter(([, t]) => t)) {
+      const me = await (await fetch(`https://api.telegram.org/bot${t}/getMe`)).json();
+      const j = await (await fetch(`https://api.telegram.org/bot${t}/getChatMember?chat_id=${encodeURIComponent(body.botStatus)}&user_id=${me.result.id}`)).json();
+      out[k] = { bot: me.result.username, status: j.result?.status, canDelete: j.result?.can_delete_messages, error: j.description };
+    }
+    return out;
+  }
+  if (body.previewDept) {   // 부서 대표 방용 묶음을 목사교 방에 시험 표시로
+    const { findMeeting } = await import('../actions/attendance.js');
+    const m = await findMeeting(String(body.meetingId || ''));
+    const edu = m && await eduFor(m);
+    if (!edu) return { error: '재적이 걸린 정기 교육 모임이 아니에요' };
+    const phase = String(body.phase || '오전');
+    const P = { ...(await prepare(m, phase, edu)), phase };
+    const [room] = await run(db().from('report_rooms').select('*').eq('dept', '#교육:' + edu.series.series_id).eq('active', true));
+    if (!room) return { error: '교육 방 연결 없음' };
+    const dept = String(body.previewDept);
+    const pre = `🧪 <b>[시험]</b> ${esc(dept)} 대표 방용 미리 보기 — 실제 ${esc(dept)} 방엔 안 올림
+`;
+    const sent = [];
+    for (const p of await deptParts(m, phase, P, edu, dept)) {
+      try { if (p.caption) await sendRoomBoard(room, p.png, pre + p.caption, pre + p.text); else await sendRoomText(room.chat_id, pre + p.text); sent.push('성공'); }
+      catch (e) { sent.push('실패 ' + e.message); }
+    }
+    return { ok: sent.every((x) => x === '성공'), sent };
+  }
   const { findMeeting } = await import('../actions/attendance.js');
   const m = await findMeeting(String(body.meetingId || ''));
   const edu = m && await eduFor(m);
@@ -358,7 +386,8 @@ async function tsEduAttSend(body) {
 }
 
 // 11/12(사용자): 부서 대표 방(지역 없이 연결한 부서 전체 방) = 지역별 출석현황 카드 + 지역마다 참석자·지각자·불참자 글. 먼저 청년회.
-const DEPT_ROOMS_ON = ['청년회'];
+// 11/12(사용자): "목사교 방에 테스트로만 올렸어야" — 부서 대표 방으로는 확인 전까지 안 보냄(빈 목록). 미리 보기는 tsEduAttSend previewDept 로 목사교 방에.
+const DEPT_ROOMS_ON = [];
 function deptDefs(P, dept) {
   const keys = [...new Set(P.people.filter((p) => p.dept === dept).map((p) => p.key))].sort((a, b) => regionOrder(a) - regionOrder(b) || (a < b ? -1 : 1));
   const defs = keys.map((k) => [orgLabel(dept, regionShow(k.split('/')[1])), (p) => p.key === k, k]);
