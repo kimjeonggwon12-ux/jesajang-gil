@@ -23,6 +23,7 @@ import attendanceClosing from './actions/attendance-closing.js';
 import bot from './actions/bot.js';
 import cohorts from './actions/cohorts.js';
 import cohortBot from './actions/cohort-bot.js';
+import eduAtt from './lib/edu-attendance.js';
 import cohortSchedule from './actions/cohort-schedule.js';
 import pins from './actions/pins.js';
 import centerSend from './actions/center-send.js';
@@ -55,6 +56,7 @@ export const actions = {
   ...bot,
   ...cohorts,
   ...cohortBot,
+  ...eduAtt,
   ...cohortSchedule,
   ...pins,
   ...centerSend,

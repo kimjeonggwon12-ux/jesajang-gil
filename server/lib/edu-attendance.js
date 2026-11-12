@@ -265,3 +265,33 @@ export async function postEduAttendance(m, phase, edu, prefix = '') {
   }
   return sent;
 }
+
+// 11/12: 시험 발송 — DB에 재적을 넣기 전에도 엑셀 명단을 실어 보내 나만의 교사광장 방에서 미리 본다.
+//   { action:'tsEduAttTest', key, meetingId, phase:'오전'|'최종', title?, roster:[{member_id,name,dept,region,position}] }
+async function tsEduAttTest(body) {
+  if (!process.env.TEACHERSQUARE_CRON_KEY || body.key !== process.env.TEACHERSQUARE_CRON_KEY) return { error: 'unauthorized' };
+  const { findMeeting } = await import('../actions/attendance.js');
+  const m = await findMeeting(String(body.meetingId || ''));
+  if (!m) return { error: '모임 없음' };
+  let edu = await eduFor(m);
+  if (!edu) {
+    const roster = (Array.isArray(body.roster) ? body.roster : []).map((p, i) => ({ ...p, nid: normId(p.member_id), sort_order: i }));
+    if (!roster.length) return { error: '재적 없음' };
+    edu = { series: { series_id: m.seriesId || 'PREVIEW', title: body.title || m.title }, roster };
+  }
+  edu = { ...edu, series: { ...edu.series, summary_to: 'test' } };
+  const phase = String(body.phase || '오전');
+  const list = await buildEduAttendance(m, phase, edu, { test: true });
+  const sent = [];
+  for (const p of list) {
+    const pre = `🧪 <b>[시험]</b> 실제로는 → ${esc(p.room.title || p.room.dept)} (${esc(p.room.dept)})\n`;
+    const to = { ...p.room, chat_id: MY_TEST_CHAT };
+    try {
+      if (p.caption) await sendRoomBoard(to, p.png, pre + p.caption, pre + p.text);
+      else await sendRoomText(MY_TEST_CHAT, pre + p.text);
+      sent.push([p.room.dept, '성공']);
+    } catch (e) { sent.push([p.room.dept, '실패 ' + e.message]); }
+  }
+  return { ok: sent.every(([, r]) => r === '성공'), phase, sent };
+}
+export default { tsEduAttTest };
