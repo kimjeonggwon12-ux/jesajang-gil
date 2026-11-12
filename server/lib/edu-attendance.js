@@ -197,7 +197,7 @@ function nameListTexts(m, P, kind) {
 }
 
 /** 보낼 것 목록 [{ room, text } | { room, png, caption, text }] */
-export async function buildEduAttendance(m, phase, edu, { test = false } = {}) {
+export async function buildEduAttendance(m, phase, edu, { test = false, allRegions = false } = {}) {
   const P = { ...(await prepare(m, phase, edu)), phase };
   const rooms = await run(db().from('report_rooms').select('*').eq('active', true));
   const out = [], seen = new Set();
@@ -234,7 +234,7 @@ export async function buildEduAttendance(m, phase, edu, { test = false } = {}) {
       continue;
     }
     const list = P.people.filter((p) => p.key === room.dept);   // 지역 방
-    if (!list.length || (test && ++samples > 3)) continue;
+    if (!list.length || (test && !allRegions && ++samples > 3)) continue;
     const [d, r] = room.dept.split('/');
     out.push({ room, text: [...top(m, phase, P.sessions), ...sectionLines(`${d} ${orgLabel(d, regionShow(r))}`, list, P.outside.filter((o) => o.key === room.dept), phase, P.sessions)].join('\n') });
   }
@@ -281,7 +281,7 @@ async function tsEduAttTest(body) {
   }
   edu = { ...edu, series: { ...edu.series, summary_to: 'test' } };
   const phase = String(body.phase || '오전');
-  const list = await buildEduAttendance(m, phase, edu, { test: true });
+  const list = await buildEduAttendance(m, phase, edu, { test: true, allRegions: body.all !== false });
   const sent = [];
   for (const p of list) {
     const pre = `🧪 <b>[시험]</b> 실제로는 → ${esc(p.room.title || p.room.dept)} (${esc(p.room.dept)})\n`;
