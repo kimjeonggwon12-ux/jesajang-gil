@@ -233,7 +233,7 @@ async function prevRates(m, edu, defs = ORG_DEFS) {
   return out;
 }
 const pctNum = (a, b) => (b ? (a / b) * 100 : 0);
-function cardData(m, P, prev, defs = ORG_DEFS, scope = null, head = '') {
+function cardData(m, P, prev, defs = ORG_DEFS, scope = null, head = '', firstHead = scope ? '지역' : '부서') {
   const one = (label, list) => {
     const t = statOf(list, P.sessions);
     const pv = prev && prev[label] != null ? prev[label].toFixed(1) + '%' : '-';
@@ -244,7 +244,7 @@ function cardData(m, P, prev, defs = ORG_DEFS, scope = null, head = '') {
   const total = one('종합', all);
   const [mo, d] = m.date.slice(5).split('-').map(Number);
   const title = `${mo}/${d} ${head}${m.title} ${P.phase === '최종' ? '' : P.phase + ' '}출석현황`;
-  return { title, rows, total, reasonTotal: total.absent, firstHead: scope ? '지역' : '부서' };
+  return { title, rows, total, reasonTotal: total.absent, firstHead };
 }
 /** 결론 줄(글자) */
 function conclusion(C, P) {
@@ -330,8 +330,9 @@ async function sendRoomDoc(chat, bytes, fileName, caption) {
 
 function kyoTexts(m, phase, P) {
   const outside = P.outside.filter((o) => o.key === '교역자');
-  return [['교회교역', '교회 교역자'], ['신학교역', '신학부 교역자 (센터 강사·센터 전도사 등)'], ['협력교회', '협력 교회 (무진장·순창)']]
-    .map(([g, label]) => [label, P.people.filter((p) => p.dept === g), g === '교회교역' ? outside : []])
+  // 11/12 밤(사용자): 교역자 방엔 협력 교회 두 분을 교회 교역자 명단에 넣고 이름 옆에 '협력 교회'만
+  const church = P.people.filter((p) => p.dept === '교회교역' || p.dept === '협력교회').map((p) => (p.dept === '협력교회' ? { ...p, name: p.name + '(협력 교회)' } : p));
+  return [['교회 교역자', church, outside], ['신학부 교역자 (센터 강사·센터 전도사 등)', P.people.filter((p) => p.dept === '신학교역'), []]]
     .filter(([, list]) => list.length)
     .map(([label, list, out]) => [...top(m, phase, P.sessions), ...sectionLines(label, list, out, phase, P.sessions)].join(String.fromCharCode(10)));
 }
@@ -405,6 +406,42 @@ async function deptParts(m, phase, P, edu, dept) {
   return parts;
 }
 
+const WHOLE_DEPTS = ['장년회', '부녀회', '청년회'];
+/** 부서 전체 명단 한 통(넘치면 여러 통): 숫자 + 타임별 참석자·지각자·불참자를 지역별 줄로 모음 */
+function deptListTexts(m, phase, P, label, list, groupOf) {
+  const st = statOf(list, P.sessions);
+  const L = [...top(m, phase, P.sessions), `📍 <b>${esc(label)} 전체</b> · 사명자 재적 ${st.n}명`, LINE];
+  if (P.sessions.length > 1) { L.push(P.sessions.map((s) => `${ICON[s] || '🙋'} ${s} ${st.by[s]}명`).join(' · ')); L.push(`👥 합계 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`); }
+  else L.push(`${ICON[P.sessions[0]] || '👥'} ${P.sessions[0]} 참석 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`);
+  L.push(`⏰ 지각 ${st.late}명 · ❌ ${phase === '최종' ? '불참' : '미참석'} ${st.absent}명`, LINE);
+  const groups = [...new Set(list.map(groupOf))];
+  const byGroup = (arr, fmt) => groups.map((g) => [g, arr.filter((p) => groupOf(p) === g)]).filter(([, a]) => a.length).map(([g, a]) => ` ▸ ${esc(g)}(${a.length}): ${a.map(fmt).join(', ')}`);
+  for (const s of P.sessions) { const c = list.filter((p) => p.att[s]); L.push(`${ICON[s] || '🙋'} <b>${s} 참석자 ${c.length}명</b>`, ...(c.length ? byGroup(c, (p) => esc(p.name)) : ['   없음'])); }
+  const late = list.filter((p) => P.sessions.some((s) => isLate(p.att[s])));
+  if (late.length) L.push(`⏰ <b>지각자 ${late.length}명</b>`, ...byGroup(late, (p) => esc(p.name) + '(' + P.sessions.filter((s) => isLate(p.att[s])).map((s) => (P.sessions.length > 1 ? s : '') + lateMin(p.att[s]) + '분').join('·') + ')'));
+  const absent = list.filter((p) => !P.sessions.some((s) => p.att[s]));
+  L.push(`❌ <b>${phase === '최종' ? '불참자' : '미참석자'} ${absent.length}명</b>`, ...(absent.length ? byGroup(absent, (p) => esc(p.name)) : ['   없음 🎉']));
+  const parts = [];
+  let cur = '';
+  for (const l of L) { if (cur && cur.length + l.length + 1 > 3900) { parts.push(cur); cur = ''; } cur += (cur ? String.fromCharCode(10) : '') + l; }
+  if (cur) parts.push(cur);
+  return parts;
+}
+/** 부서 카드 1장(지역 줄) + 부서 전체 명단 */
+async function deptWhole(m, phase, P, edu, dept) {
+  const defs = deptDefs(P, dept);
+  const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, dept + ' ');
+  const labelOf = new Map(defs.map(([l, , k]) => [k, l]));
+  return [{ ...eduCard(m, P, C) }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(p.key) || p.region).map((text) => ({ text }))];
+}
+/** 교역자 카드 1장(교회 교역자·신학부·협력 교회) + 명단(교역자 방과 같은 것) */
+async function kyoWhole(m, phase, P, edu) {
+  const defs = [['교회 교역자', (p) => p.dept === '교회교역'], ['신학부 교역자', (p) => p.dept === '신학교역'], ['협력 교회', (p) => p.dept === '협력교회']];
+  defs.scope = (p) => ['교회교역', '신학교역', '협력교회'].includes(p.dept);
+  const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, '교역자 ', '부서');
+  return [{ ...eduCard(m, P, C) }, ...kyoTexts(m, phase, P).map((text) => ({ text }))];
+}
+
 /** 보낼 것 목록 [{ room, text } | { room, png, caption, text }] */
 export async function buildEduAttendance(m, phase, edu, { test = false, allRegions = false, eduOnly = false } = {}) {
   const P = { ...(await prepare(m, phase, edu)), phase };
@@ -415,44 +452,34 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
   // 시험: 교육 방이 아직 연결 전이어도 보여 주고, 같은 표 사본(부서 총합 방·전체 방)은 한 번, 지역 방은 견본 3곳만
   if (test && !rooms.some((r) => r.dept === eduKey)) rooms.unshift({ dept: eduKey, chat_id: MY_TEST_CHAT, title: `${edu.series.title} 방(도우미연결에서 연결 전)` });
   let samples = 0;
+  // 11/12 밤 최종(사용자): 목사교 방 = 부서 총합 카드+부서 명단(장·부·청) → 교역자 총합 카드+명단 → 오전·저녁 총합 엑셀 → 교회 총합 최종 카드(맨 끝)
+  //   교역자 방 = 교회 교역자(협력 교회 이름 옆 표시만)·신학부 명단 / 장부청 전체 방 = 그 부서 카드 1장 + 부서 전체 참석·지각·불참 모음
+  //   지역 방 = 그 지역 글만. 총합 방(#총합)·회장단 등엔 안 보냄 — 같은 것이 두 번 들어가지 않게.
   for (const room of rooms) {
     if (SKIP(room.dept) || topicPending(room)) continue;
     const chat = String(room.chat_id).split('/')[0];
-    if (room.dept === eduKey) {   // 11/12(사용자): 교육 방 = 집계 엑셀 + 목사교 사명자 출석 현황 표(부서 총합·교회 총합). 지역별은 안 올림
+    if (room.dept === eduKey) {
       if (!once('edu|' + chat)) continue;
-      // 11/12 밤(사용자): 목사교 방 = 각 부서 총합(지역 카드)과 명단 → 교역자 명단 → 엑셀 → 교회 총합 최종 카드(맨 끝)
       const C = cardData(m, P, await prevRates(m, edu).catch(() => null));
-      for (const d of DEPT_ROOMS_ON) if (P.people.some((p) => p.dept === d)) for (const x of await deptParts(m, phase, P, edu, d)) out.push({ room, ...x, part: '부서' });
-      for (const t of kyoTexts(m, phase, P)) out.push({ room, text: t, part: '교역자' });
+      for (const d of WHOLE_DEPTS) if (P.people.some((p) => p.dept === d)) for (const x of await deptWhole(m, phase, P, edu, d)) out.push({ room, ...x });
+      for (const x of await kyoWhole(m, phase, P, edu)) out.push({ room, ...x });
       out.push({ room, ...eduExcel(m, P, C) });
       out.push({ room, ...eduCard(m, P, C) });
       continue;
     }
-    if (eduOnly) {
-      if (DEPT_ROOMS_ON.includes(room.dept) && once('dept|' + room.dept)) for (const x of await deptParts(m, phase, P, edu, room.dept)) out.push({ room, ...x, part: '부서' });
-      if (room.dept === '교역자' && once('dept|교역자')) for (const t of kyoTexts(m, phase, P)) out.push({ room, text: t, part: '교역자방' });
+    if (eduOnly || room.dept.startsWith('#') || room.dept.includes('#')) continue;
+    if (room.dept === '교역자') {
+      if (once('교역자|' + chat)) for (const t of kyoTexts(m, phase, P)) out.push({ room, text: t });
       continue;
     }
-    if (room.dept.startsWith('#')) continue;
-    const dept = room.dept.split('#')[0];
-    if (dept === '교역자') {   // 교역자 방: 교회 교역자 / 신학부 교역자 따로 두 통
-      if (!once('교역자|' + chat)) continue;
-      const outside = P.outside.filter((o) => o.key === '교역자');
-      for (const [g, label] of [['교회교역', '교회 교역자'], ['신학교역', '신학부 교역자 (센터 강사·센터 전도사 등)']]) {
-        const list = P.people.filter((p) => p.dept === g);
-        if (list.length) out.push({ room, text: [...top(m, phase, P.sessions), ...sectionLines(label, list, g === '교회교역' ? outside : [], phase, P.sessions)].join('\n') });
-      }
-      continue;
-    }
-    if (room.dept.includes('#총합') || DEPTS.includes(room.dept)) {   // 부서 총합·전체 방: 지역별 노랑 표
-      if (!DEPTS.includes(dept) || !once(dept + '|' + (test ? '' : chat))) continue;
-      if (P.people.some((p) => p.dept === dept)) out.push({ room, ...deptBoard(m, dept, P) });
+    if (DEPTS.includes(room.dept)) {   // 부서 전체 방
+      if (once('whole|' + room.dept) && P.people.some((p) => p.dept === room.dept)) for (const x of await deptWhole(m, phase, P, edu, room.dept)) out.push({ room, ...x });
       continue;
     }
     const list = P.people.filter((p) => p.key === room.dept);   // 지역 방
-    if (!list.length || (test && !allRegions && ++samples > 3)) continue;
+    if (!list.length || !once('region|' + room.dept) || (test && !allRegions && ++samples > 3)) continue;
     const [d, r] = room.dept.split('/');
-    out.push({ room, text: [...top(m, phase, P.sessions), ...sectionLines(`${d} ${orgLabel(d, regionShow(r))}`, list, P.outside.filter((o) => o.key === room.dept), phase, P.sessions)].join('\n') });
+    out.push({ room, text: [...top(m, phase, P.sessions), ...sectionLines(`${d} ${orgLabel(d, regionShow(r))}`, list, P.outside.filter((o) => o.key === room.dept), phase, P.sessions)].join(String.fromCharCode(10)) });
   }
   return out;
 }
