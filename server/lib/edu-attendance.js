@@ -268,7 +268,7 @@ function eduCard(m, P, C) {
   return { png, caption, text };
 }
 
-function eduExcel(m, P, C) {
+function eduExcel(m, P, C, deptSheets = []) {
   const both = P.sessions.length > 1;
   const kind = both ? '오전·저녁 총합' : P.sessions[0] + ' 집계';
   const title = `${m.date} ${m.title} ${kind} (사명자 재적 기준)`;
@@ -301,6 +301,7 @@ function eduExcel(m, P, C) {
   const col = (k) => String.fromCharCode(64 + k);
   const sheets = [
     { name: '총합', rows: rows1, opts: { widths: [16, 9, 9, 10, 11, 9, 10, 9, 9, 9, 9], merges: ['A1:K1', 'A2:K2', 'H3:K3', ...'ABCDEFG'.split('').map((k) => `${k}3:${k}4`)], heights: { 0: 30 } } },
+    ...deptSheets,
     { name: '명단', rows: rows2, opts: { widths: [6, 14, 9, 10, 17, 22, ...P.sessions.flatMap(() => [9, 11]), 8], freezeRow: 3, heights: { 0: 26 } } },
     { name: '재적 밖 참석', rows: rows3, opts: { widths: [6, 12, ...P.sessions.map(() => 12)] } },
   ];
@@ -308,7 +309,7 @@ function eduExcel(m, P, C) {
   const t = statOf(P.people, P.sessions);
   const docCaption = `📎 <b>${esc(m.title)} ${kind}</b> 엑셀
 🗓 ${dayOf(m)} · 사명자 재적 ${comma(t.n)}명 · 참석 ${comma(t.came)}명 (${pct(t.came, t.n)}) · 지각 ${t.late} · ${P.phase === '최종' ? '불참' : '미참석'} ${t.absent}
-시트: 총합(출석현황·결론) · 명단(전원, 참석/지각/불참) · 재적 밖 참석`;
+시트: 총합(출석현황·결론)${deptSheets.length ? ' · ' + deptSheets.map((x) => x.name).join(' · ') + '(지역·부서별 숫자+참석/지각/불참 이름)' : ''} · 명단(전원, 참석/지각/불참) · 재적 밖 참석`;
   return { doc: zip(workbookFiles(sheets), fileName), fileName, docCaption };
 }
 async function sendRoomDoc(chat, bytes, fileName, caption) {
@@ -348,6 +349,21 @@ async function tsEduAttSend(body) {
       out[k] = { bot: me.result.username, status: j.result?.status, canDelete: j.result?.can_delete_messages, error: j.description };
     }
     return out;
+  }
+  if (body.excel) {   // 11/13: 부서 시트를 넣은 엑셀만 목사교 방에 다시(dry 면 파일 내용 base64)
+    const { findMeeting } = await import('../actions/attendance.js');
+    const m = await findMeeting(String(body.meetingId || ''));
+    const edu = m && await eduFor(m);
+    if (!edu) return { error: '재적이 걸린 정기 교육 모임이 아니에요' };
+    const phase = String(body.phase || '최종');
+    const P = { ...(await prepare(m, phase, edu)), phase };
+    const C = cardData(m, P, await prevRates(m, edu).catch(() => null));
+    const x = eduExcel(m, P, C, await deptSheetsOf(m, P, edu));
+    if (body.dry) return { ok: true, fileName: x.fileName, b64: Buffer.from(x.doc).toString('base64') };
+    const [room] = await run(db().from('report_rooms').select('*').eq('dept', '#교육:' + edu.series.series_id).eq('active', true));
+    if (!room) return { error: '교육 방 연결 없음' };
+    await sendRoomDoc(room.chat_id, x.doc, x.fileName, x.docCaption);
+    return { ok: true, fileName: x.fileName };
   }
   if (body.wholeDept) {   // 11/13: 부서 묶음(카드+전체 명단)만 목사교 방에 정식으로 다시 올림 — 예: 24부서
     const { findMeeting } = await import('../actions/attendance.js');
@@ -426,7 +442,7 @@ function deptDefs(P, dept) {
 }
 async function deptParts(m, phase, P, edu, dept) {
   const defs = deptDefs(P, dept);
-  const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, dept + ' ');
+  const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, dept + ' ', dept === '24부서' ? '부서' : undefined);
   const parts = [{ ...eduCard(m, P, C) }];
   for (const [label, fn, k] of defs) {
     parts.push({ text: [...top(m, phase, P.sessions), ...sectionLines(`${dept} ${label}`, P.people.filter(fn), P.outside.filter((o) => o.key === k), phase, P.sessions)].join(String.fromCharCode(10)) });
@@ -459,14 +475,48 @@ function deptListTexts(m, phase, P, label, list, groupOf, intro = []) {
 /** 부서 카드 1장(지역 줄) + 부서 전체 명단 */
 async function deptWhole(m, phase, P, edu, dept) {
   const defs = deptDefs(P, dept);
-  const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, dept + ' ');
+  const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, dept + ' ', dept === '24부서' ? '부서' : undefined);
   const labelOf = new Map(defs.map(([l, , k]) => [k, l]));
   const keyOf = defs.keyOf || ((p) => p.key);
   // 11/13(사용자): 카드 아래 요약 글과 부서 전체 명단을 한 통으로 합침 — 카드 사진엔 제목만, 다음 글 = 요약(결론) + 참석·지각·불참 명단
   const card = eduCard(m, P, C);
+  // 11/13(사용자): "이것 때문에 다른 부서 서식 변경하지 마" — 합친 글은 24부서만, 장·부·청은 예전 그대로
+  if (dept !== '24부서') return [{ ...card }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(keyOf(p)) || p.region).map((text) => ({ text }))];
   const intro = [card.caption, ''];
   return [{ ...card, caption: `📊 <b>${esc(C.title)}</b> (사명자 재적 기준)` }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(keyOf(p)) || p.region, intro).map((text) => ({ text }))];
 }
+// 11/13(사용자): 엑셀에 부서별(장·부·청·24부서) 시트 — 출석현황 숫자 줄마다 실제 참석자·지각자·불참자 이름 + 결론
+async function deptSheet(m, P, edu, dept) {
+  const defs = deptDefs(P, dept);
+  const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, dept + ' ', dept === '24부서' ? '부서' : undefined);
+  const lateName = (p) => p.name + '(' + P.sessions.filter((x) => isLate(p.att[x])).map((x) => (P.sessions.length > 1 ? x : '') + lateMin(p.att[x]) + '분').join('·') + ')';
+  const H = (v) => xc(v, XS.head);
+  const both = P.sessions.length > 1;
+  const head = [H(C.firstHead), H('대상'), H('참석'), ...(both ? P.sessions.map((x) => H(x)) : []), H('참석률'), H('이전 참석률'), H('지각'), H('불참'), H('불참률'), H('참석자'), H('지각자'), H('불참자')];
+  const rows = [[xc(C.title, XS.title)], [xc(`대상 = 사명자 재적(교사 재적 아님) · 오전·저녁 두 번 온 분은 참석에 한 번`, XS.plain)], head];
+  const heights = { 0: 30, 2: 22 };
+  const nameCols = [38, 26, 46];
+  const hOf = (arr) => Math.max(20, ...arr.map((t, i) => Math.ceil((String(t).length * 1.9) / nameCols[i] || 1) * 14 + 6));
+  defs.forEach(([label, fn]) => {
+    const list = P.people.filter(fn);
+    const r = C.rows.find((x) => x.label === label);
+    if (!r) return;
+    const came = list.filter((p) => P.sessions.some((x) => p.att[x]));
+    const late = list.filter((p) => P.sessions.some((x) => isLate(p.att[x])));
+    const absent = list.filter((p) => !P.sessions.some((x) => p.att[x]));
+    const names = [came.map((p) => p.name + (both ? '(' + P.sessions.filter((x) => p.att[x]).join('·') + ')' : '')).join(', '), late.map(lateName).join(', '), absent.map((p) => p.name).join(', ')];
+    heights[rows.length] = hOf(names);
+    rows.push([xc(label), xc(r.n), xc(r.came), ...(both ? P.sessions.map((x) => xc(r.by[x])) : []), xc(r.rate), xc(r.prev), xc(r.late), xc(r.absent, XS.warn), xc(r.absentRate), ...names.map((t) => xc(t, XS.text))]);
+  });
+  const T = C.total;
+  rows.push([xc('종합', XS.total), xc(T.n, XS.total), xc(T.came, XS.total), ...(both ? P.sessions.map((x) => xc(T.by[x], XS.total)) : []), xc(T.rate, XS.total), xc(T.prev, XS.total), xc(T.late, XS.total), xc(T.absent, XS.total), xc(T.absentRate, XS.total), xc(`${T.came}명`, XS.total), xc(`${T.late}명`, XS.total), xc(`${T.absent}명`, XS.total)]);
+  rows.push([], [xc('결론', XS.title)], ...conclusion(C, P).map((l) => [xc('▸ ' + l, XS.text)]));
+  const nNum = 9 + (both ? P.sessions.length : 0);
+  const last = String.fromCharCode(64 + nNum);
+  return { name: dept, rows, opts: { widths: [14, 7, 7, ...(both ? P.sessions.map(() => 7) : []), 9, 10, 7, 7, 9, ...nameCols], merges: [`A1:${last}1`, `A2:${last}2`], freezeRow: 3, heights } };
+}
+const deptSheetsOf = async (m, P, edu) => { const out = []; for (const d of ['24부서']) if (P.people.some((p) => p.dept === d)) out.push(await deptSheet(m, P, edu, d)); return out; };   // 다른 부서 시트는 안 넣음(사용자 11/13)
+
 /** 교역자 카드 1장(교회 교역자·신학부·협력 교회) + 명단(교역자 방과 같은 것) */
 async function kyoWhole(m, phase, P, edu) {
   const defs = [['교회 교역자', (p) => p.dept === '교회교역'], ['신학부 교역자', (p) => p.dept === '신학교역'], ['협력 교회', (p) => p.dept === '협력교회']];
@@ -496,7 +546,7 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
       const C = cardData(m, P, await prevRates(m, edu).catch(() => null));
       for (const d of WHOLE_DEPTS) if (P.people.some((p) => p.dept === d)) for (const x of await deptWhole(m, phase, P, edu, d)) out.push({ room, ...x });
       for (const x of await kyoWhole(m, phase, P, edu)) out.push({ room, ...x });
-      out.push({ room, ...eduExcel(m, P, C) });
+      out.push({ room, ...eduExcel(m, P, C, await deptSheetsOf(m, P, edu)) });
       out.push({ room, ...eduCard(m, P, C) });
       continue;
     }
