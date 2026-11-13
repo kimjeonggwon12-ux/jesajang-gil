@@ -480,10 +480,8 @@ async function deptWhole(m, phase, P, edu, dept) {
   const keyOf = defs.keyOf || ((p) => p.key);
   // 11/13(사용자): 카드 아래 요약 글과 부서 전체 명단을 한 통으로 합침 — 카드 사진엔 제목만, 다음 글 = 요약(결론) + 참석·지각·불참 명단
   const card = eduCard(m, P, C);
-  // 11/13(사용자): "이것 때문에 다른 부서 서식 변경하지 마" — 합친 글은 24부서만, 장·부·청은 예전 그대로
-  if (dept !== '24부서') return [{ ...card }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(keyOf(p)) || p.region).map((text) => ({ text }))];
-  const intro = [card.caption, ''];
-  return [{ ...card, caption: `📊 <b>${esc(C.title)}</b> (사명자 재적 기준)` }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(keyOf(p)) || p.region, intro).map((text) => ({ text }))];
+  // 11/13(사용자): 24부서도 장년회 전체 방 글과 똑같이 — 카드(설명에 요약) + 부서 전체 참석·지각·불참 명단
+  return [{ ...card }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(keyOf(p)) || p.region).map((text) => ({ text }))];
 }
 // 11/13(사용자): 엑셀에 부서별(장·부·청·24부서) 시트 — 출석현황 숫자 줄마다 실제 참석자·지각자·불참자 이름 + 결론
 async function deptSheet(m, P, edu, dept) {
