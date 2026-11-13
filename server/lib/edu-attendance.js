@@ -437,9 +437,9 @@ async function deptParts(m, phase, P, edu, dept) {
 // 목사교 방 부서 묶음 순서. 24부서는 부서 방이 없어 목사교 방에만(11/13 사용자: "목사교 방에만")
 const WHOLE_DEPTS = ['장년회', '부녀회', '청년회', '24부서'];
 /** 부서 전체 명단 한 통(넘치면 여러 통): 숫자 + 타임별 참석자·지각자·불참자를 지역별 줄로 모음 */
-function deptListTexts(m, phase, P, label, list, groupOf) {
+function deptListTexts(m, phase, P, label, list, groupOf, intro = []) {
   const st = statOf(list, P.sessions);
-  const L = [...top(m, phase, P.sessions), `📍 <b>${esc(label)} 전체</b> · 사명자 재적 ${st.n}명`, LINE];
+  const L = [...intro, ...top(m, phase, P.sessions), `📍 <b>${esc(label)} 전체</b> · 사명자 재적 ${st.n}명`, LINE];
   if (P.sessions.length > 1) { L.push(P.sessions.map((s) => `${ICON[s] || '🙋'} ${s} ${st.by[s]}명`).join(' · ')); L.push(`👥 합계 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`); }
   else L.push(`${ICON[P.sessions[0]] || '👥'} ${P.sessions[0]} 참석 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`);
   L.push(`⏰ 지각 ${st.late}명 · ❌ ${phase === '최종' ? '불참' : '미참석'} ${st.absent}명`, LINE);
@@ -462,7 +462,10 @@ async function deptWhole(m, phase, P, edu, dept) {
   const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, dept + ' ');
   const labelOf = new Map(defs.map(([l, , k]) => [k, l]));
   const keyOf = defs.keyOf || ((p) => p.key);
-  return [{ ...eduCard(m, P, C) }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(keyOf(p)) || p.region).map((text) => ({ text }))];
+  // 11/13(사용자): 카드 아래 요약 글과 부서 전체 명단을 한 통으로 합침 — 카드 사진엔 제목만, 다음 글 = 요약(결론) + 참석·지각·불참 명단
+  const card = eduCard(m, P, C);
+  const intro = [card.caption, ''];
+  return [{ ...card, caption: `📊 <b>${esc(C.title)}</b> (사명자 재적 기준)` }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(keyOf(p)) || p.region, intro).map((text) => ({ text }))];
 }
 /** 교역자 카드 1장(교회 교역자·신학부·협력 교회) + 명단(교역자 방과 같은 것) */
 async function kyoWhole(m, phase, P, edu) {
