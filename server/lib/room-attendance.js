@@ -217,9 +217,11 @@ export async function postRoomAttendance(m, phase, prefix = '') {
   if (!isRoomAttMeeting(m)) return [];
   // 11/12: 교육별 재적(목요 사명자 교육 = 사명자 재적)이 걸린 정기 교육은 교사 재적 서머리 대신 edu-attendance.js
   const ea = await import('./edu-attendance.js');
+  // 11/13(사용자): 중진 대화방 — 화전단·목사교 24부서 출석(오전 후 = 오전, 저녁 후 = 하루 총). 시험 접두(prefix)일 땐 안 보냄
+  const jj = prefix ? [] : await ea.postJungjin(m, phase).catch((e) => (console.log('중진 방 오류: ' + e.message), []));
   const edu = await ea.eduFor(m);
-  if (edu) return ea.postEduAttendance(m, phase, edu, prefix);
-  const sent = [];
+  if (edu) return [...jj, ...await ea.postEduAttendance(m, phase, edu, prefix)];
+  const sent = [...jj];
   for (const p of await buildRoomAttendance(m, phase)) {
     const { room } = p;
     if (!prefix) {

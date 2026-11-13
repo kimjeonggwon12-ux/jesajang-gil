@@ -749,15 +749,29 @@ export async function reportRooms(body) {
 export async function reportRoomsAdmin(body) {
   if (!(await isApprover(body.memberId))) return { error: '보고방은 교육·전도 담당 관리자만 연결할 수 있어요.' };
   const op = String(body.op || 'list');
+  // 11/13(사용자): 중진 대화방 공무(사전보고자) — 화전단·목사교 날짜별 24부서 체크. cohort_summary_log '#excused' 에 둔다(새 표 없이).
+  if (op === 'excusedGet' || op === 'excusedSet') {
+    const { roster24, excusedOf } = await import('./edu-attendance.js');
+    const kind = String(body.kind || ''), date = String(body.date || '');
+    if (!['화전단', '목사교'].includes(kind) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: '교육(화전단·목사교)과 날짜를 골라 주세요.' };
+    if (op === 'excusedSet') {
+      const want = new Set((Array.isArray(body.nids) ? body.nids : []).map(String));
+      await run(db().from('cohort_summary_log').delete().eq('cohort_id', '#excused').eq('kind', kind).eq('date', date));
+      if (want.size) await run(db().from('cohort_summary_log').insert([...want].map((nid) => ({ cohort_id: '#excused', kind, ref_id: nid, date, sent_at: kstDateTime() }))));
+    }
+    const ex = await excusedOf(kind, date);
+    return { people: (await roster24()).map((p) => ({ nid: p.nid, name: p.name, aff: p.affiliation, no: Number(p.district) || 99, pos: p.position, on: ex.has(p.nid) })) };
+  }
   if (op === 'set') {
     const dept = String(body.dept || '').trim(), region = String(body.region || '').trim();
     let chatId = String(body.chatId || '').replace(/\s/g, '');
     if (!dept) return { error: '부서를 골라 주세요.' };
     if (!/^-\d+$/.test(chatId)) return { error: '방 번호는 -100… 처럼 빼기(-)로 시작하는 숫자예요.' };
     // 11/12(사용자): 교육 방('#교육:RS…' = 정기 교육 하나)도 부서처럼 골라 연결
+    const jungjin = dept === '#중진';
     const edu = dept.startsWith('#교육:') ? (await run(db().from('attend_series').select('series_id, title').eq('series_id', dept.slice(4)).neq('status', '삭제').limit(1)))[0] : null;
     if (dept.startsWith('#교육:') && !edu) return { error: '그 정기 교육을 찾지 못했어요.' };
-    const key = edu ? dept : region ? `${dept}/${region}` : dept;
+    const key = edu || jungjin ? dept : region ? `${dept}/${region}` : dept;
     // 일반 그룹이 슈퍼그룹으로 바뀌면 번호가 새로 생긴다 — 방 찾기·확인 글 어느 쪽에서 알려 주든 텔레그램이 준 새 번호로 한 번 더
     const moved = async (fn) => { try { return await fn(); } catch (e) { if (!e.migrateTo) throw e; chatId = String(e.migrateTo); return fn(); } };
     let chat;
@@ -765,7 +779,8 @@ export async function reportRoomsAdmin(body) {
     catch (e) { return { error: `봇이 그 방을 찾지 못했어요(${e.message}). 방에 '교사광장 도우미' 봇을 초대했는지, 번호가 맞는지 확인해 주세요.` }; }
     const title = chat.title || key;
     const label = edu ? edu.title : region ? `${deptLabelOf(dept)} ${regionOf({ region }) || region}` : deptLabelOf(dept);
-    const hello = edu ? `✅ 이 방이 <b>${esc(label)}</b> 교육 방으로 연결됐어요.\n교육 타임이 끝날 때마다 출석 현황 표(재적 기준)와 지각자·불참자 명단이 이 방에 올라와요.`
+    const hello = jungjin ? `✅ 이 방이 <b>중진 대화방</b>으로 연결됐어요.\n① 화요전도단·목요 사명자 교육 24부서 출석 현황(참석·지각·불참·공무) — 오전 교육 후·저녁 교육 후\n② 매일 밤 10시 뉴스(카드+한 줄 데이터 뉴스)와 부서별 휴·활·정·우 현황이 이 방에 올라와요.`
+      : edu ? `✅ 이 방이 <b>${esc(label)}</b> 교육 방으로 연결됐어요.\n교육 타임이 끝날 때마다 출석 현황 표(재적 기준)와 지각자·불참자 명단이 이 방에 올라와요.`
       : `✅ 이 방이 <b>${esc(label)}</b> 보고방으로 연결됐어요.\n교사가 활동 보고를 올리면 이 방으로 오고, 매일 22시에 일일 보고가 모여 올라와요.`;
     try { await moved(() => sendText(chatId, hello)); }
     catch (e) { return { error: `방은 찾았지만 글을 올리지 못했어요(${e.message}). 봇이 글을 쓸 수 있게 권한을 확인해 주세요.` }; }
@@ -786,6 +801,7 @@ export async function reportRoomsAdmin(body) {
   }
   return {
     rooms: rooms.map((r) => ({ key: r.dept, chatId: r.chat_id, title: r.title, active: r.active, at: r.created_at || '' })),
+    specials: [{ key: '#중진', title: '중진 대화방' }],
     edus: series.filter((x) => !String(x.title).startsWith('[TEST]')).map((x) => ({ key: '#교육:' + x.series_id, title: x.title })),
     depts: Object.values(slots).map((s) => ({ dept: s.dept, n: s.n, regions: Object.entries(s.regions).map(([region, n]) => ({ region, n })).sort((a, b) => a.region.localeCompare(b.region, 'ko', { numeric: true })) })),
   };

@@ -34,7 +34,8 @@ export function eduCardPng(c) {
   text(width / 2, PAD + 40, c.title, { size: 32, bold: true });
 
   // 머리 두 줄: 0~6 칸은 두 줄 합침, 7~10 은 위 '불참자 사유 (N명)' + 아래 사유
-  const heads = [[c.firstHead || '부서'], ['대상'], ['참석'], ['참석률'], ['이전', '참석률'], ['불참'], ['불참률']];
+  // 11/13: c.excusedCol 이면 '이전 참석률' 자리에 '공무(사전보고)' 칸(중진 방 24부서용). 다른 카드는 그대로.
+  const heads = [[c.firstHead || '부서'], ['대상'], ['참석'], ['참석률'], c.excusedCol ? ['공무', '(사전보고)'] : ['이전', '참석률'], ['불참'], ['불참률']];
   const headFill = [YEL, YEL, YEL, YEL, GRAY, PINK, PINK];
   const headColor = ['#111', '#111', BLUE, BLUE, '#111', RED, RED];
   heads.forEach((h, i) => {
@@ -51,7 +52,7 @@ export function eduCardPng(c) {
     const y = bodyTop + RH * ri, ty = y + RH / 2 + 7;
     if (r.total) rect(xs[0], y, tableW, RH, YEL);
     rect(xs[4], y, W[4], RH, r.total ? '#d9d9d9' : GRAY);
-    const cells = [r.label, r.n, r.came, r.rate, r.prev, r.absent, r.absentRate, ...REASONS.map((k) => (r.reasons && r.reasons[k] != null ? r.reasons[k] : ''))];
+    const cells = [r.label, r.n, r.came, r.rate, c.excusedCol ? r.excused : r.prev, r.absent, r.absentRate, ...REASONS.map((k) => (r.reasons && r.reasons[k] != null ? r.reasons[k] : ''))];
     cells.forEach((v, i) => {
       const o = { bold: !!r.total };
       if (r.total && (i === 2 || i === 3)) o.color = BLUE;

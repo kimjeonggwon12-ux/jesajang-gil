@@ -19363,13 +19363,15 @@ async function calAdmInit() {
     //   연결하면 서버가 봇이 그 방에 있는지 보고 방에 확인 글을 올린다. 활동 보고·22시 일일 보고가 그 방으로 간다.
     // ════════════════════════════════════════════════════════════════
     const roomsAdm = (() => {
-      const st = { rooms: null, depts: [], edus: [], dept: '', region: '', busy: false, msg: '', error: '', log: [] };
+      const st = { rooms: null, depts: [], edus: [], specials: [], dept: '', region: '', busy: false, msg: '', error: '', log: [], ex: { kind: '화전단', date: '', people: null, busy: false, msg: '' } };
       const root = () => document.getElementById('roomsAdmRoot');
       const call = payload => callApi({ action: 'reportRoomsAdmin', ...payload, memberId: App.memberId, name: App.name });
       const regionsOf = dept => ((st.depts.find(d => d.dept === dept) || {}).regions || []);
       // 11/12(사용자): 교육 방(정기 교육 하나 = '#교육:RS…')도 부서처럼 골라서 클릭으로 연결
       const isEdu = key => String(key || '').startsWith('#교육:');
-      const keyLabel = key => key === '*' ? '기본 방(연결 안 된 부서 전부)' : isEdu(key) ? '📚 교육 방 · ' + ((st.edus.find(e => e.key === key) || {}).title || key.slice(4)) : key.replace('/', ' ');
+      // 11/13(사용자): 중진 대화방('#중진') — 지역 없이 한 방, 공무(사전보고자) 체크
+      const isJJ = key => key === '#중진';
+      const keyLabel = key => key === '*' ? '기본 방(연결 안 된 부서 전부)' : isJJ(key) ? '⭐ 중진 대화방' : isEdu(key) ? '📚 교육 방 · ' + ((st.edus.find(e => e.key === key) || {}).title || key.slice(4)) : key.replace('/', ' ');
 
       function css() {
         if (document.getElementById('rmCss')) return;
@@ -19398,6 +19400,7 @@ async function calAdmInit() {
         const r = root(); if (!r) return;
         const regions = regionsOf(st.dept);
         const deptOpts = `<optgroup label="부서 보고방">` + st.depts.map(d => `<option value="${esc(d.dept)}" ${d.dept === st.dept ? 'selected' : ''}>${esc(d.dept)} (${d.n}명)</option>`).join('') + `</optgroup>` +
+          `<optgroup label="⭐ 중진">` + st.specials.map(e => `<option value="${esc(e.key)}" ${e.key === st.dept ? 'selected' : ''}>⭐ ${esc(e.title)}</option>`).join('') + `</optgroup>` +
           (st.edus.length ? `<optgroup label="📚 교육 방 (정기 교육)">` + st.edus.map(e => `<option value="${esc(e.key)}" ${e.key === st.dept ? 'selected' : ''}>📚 ${esc(e.title)}</option>`).join('') + `</optgroup>` : '');
         const regionOpts = `<option value="">지역 없이 — 부서 전체 한 방</option>` +
           regions.map(x => `<option value="${esc(x.region)}" ${x.region === st.region ? 'selected' : ''}>${esc(x.region)} (${x.n}명)</option>`).join('');
@@ -19417,7 +19420,7 @@ async function calAdmInit() {
             지역 방이 없으면 부서 방으로, 부서 방도 없으면 기본 방으로 가요. 지역 방에 올라간 보고 중 <b>상담1 이상</b>(상담1·상담2·복음방) 건은 <b>부서 전체 방</b>(지역 없이 연결한 방)에도 가요.</p>
           <div class="rm-two">
             <label class="rm-f">부서<select onchange="roomsAdm.pick(this.value)">${deptOpts}</select></label>
-            ${isEdu(st.dept) ? `<p class="rm-note" style="margin-top:30px">📚 교육 방 — 지역 없이 이 교육 한 방</p>` : `<label class="rm-f">지역<select onchange="roomsAdm.pickRegion(this.value)">${regionOpts}</select></label>`}
+            ${isJJ(st.dept) ? `<p class="rm-note" style="margin-top:30px">⭐ 중진 대화방 — 지역 없이 한 방</p>` : isEdu(st.dept) ? `<p class="rm-note" style="margin-top:30px">📚 교육 방 — 지역 없이 이 교육 한 방</p>` : `<label class="rm-f">지역<select onchange="roomsAdm.pickRegion(this.value)">${regionOpts}</select></label>`}
           </div>
           <label class="rm-f">방 번호<input id="rmChat" inputmode="numeric" placeholder="-1001234567890" autocomplete="off"></label>
           <button type="button" class="rm-btn" ${st.busy ? 'disabled' : ''} onclick="roomsAdm.connect()">${st.busy ? '연결하는 중…' : '연결'}</button>
@@ -19431,15 +19434,48 @@ async function calAdmInit() {
           ${st.error ? `<p class="rm-note rm-bad">${esc(st.error)}</p>` : ''}
 
           <div class="rm-h">연결된 방</div>
-          ${list}`;
+          ${list}
+          ${exHtml()}`;
       }
 
+      /** 중진 방 공무(사전보고자) 체크 — 화전단·목사교 날짜별 24부서 */
+      function exHtml() {
+        const x = st.ex;
+        const groups = {};
+        for (const p of x.people || []) (groups[p.no + '|' + p.aff] = groups[p.no + '|' + p.aff] || []).push(p);
+        const keys = Object.keys(groups).sort((a, b) => parseInt(a) - parseInt(b));
+        const on = (x.people || []).filter(p => p.on).length;
+        return `<div class="rm-h">⭐ 중진 대화방 · 24부서 공무(사전보고자)</div>
+          <p class="rm-note">교육 날짜를 고르고 미리 보고한 분을 체크한 뒤 [저장]하세요. 중진 방 출석 현황에서 불참 대신 <b>공무</b>로 나와요. 오전 마감 전에 저장하면 오전 현황부터 반영돼요.</p>
+          <div class="rm-two">
+            <label class="rm-f">교육<select onchange="roomsAdm.exPick('kind', this.value)">${['화전단', '목사교'].map(k => `<option ${k === x.kind ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
+            <label class="rm-f">날짜<input type="date" value="${esc(x.date)}" onchange="roomsAdm.exPick('date', this.value)"></label>
+          </div>
+          ${x.people === null ? '' : `<div style="margin-top:10px">${keys.map(k => `<div style="margin-top:8px"><b style="font-size:14px">${esc(k.split('|')[1])}</b><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">${groups[k].map(p => `<label style="display:inline-flex;align-items:center;gap:4px;border:1px solid #d6dbd8;border-radius:16px;padding:4px 10px;font-size:14px;background:${p.on ? '#e6f7f1' : '#fff'}"><input type="checkbox" ${p.on ? 'checked' : ''} onchange="roomsAdm.exToggle('${esc(p.nid)}', this.checked)">${esc(p.name)}</label>`).join('')}</div></div>`).join('')}</div>
+          <button type="button" class="rm-btn" ${x.busy ? 'disabled' : ''} onclick="roomsAdm.exSave()">${x.busy ? '저장하는 중…' : `저장 (공무 ${on}명)`}</button>`}
+          ${x.msg ? `<p class="rm-note rm-ok">${esc(x.msg)}</p>` : ''}`;
+      }
+      async function exLoad() {
+        const x = st.ex; if (!x.date) { x.people = null; render(); return; }
+        try { const r = await call({ op: 'excusedGet', kind: x.kind, date: x.date }); if (r.error) { x.msg = r.error; x.people = null; } else x.people = r.people; } catch (e) { x.msg = e.message; }
+        render();
+      }
+      function exPick(k, v) { st.ex[k] = v; st.ex.msg = ''; exLoad(); }
+      function exToggle(nid, on) { const p = (st.ex.people || []).find(q => q.nid === nid); if (p) p.on = on; }
+      async function exSave() {
+        const x = st.ex; x.busy = true; x.msg = ''; render();
+        try { const r = await call({ op: 'excusedSet', kind: x.kind, date: x.date, nids: x.people.filter(p => p.on).map(p => p.nid) });
+          if (r.error) x.msg = r.error; else { x.people = r.people; x.msg = `${x.kind} ${x.date} 공무 ${r.people.filter(p => p.on).length}명 저장했어요.`; } }
+        catch (e) { x.msg = e.message; }
+        x.busy = false; render();
+      }
       function take(res) {
         if (!res || res.error) { st.error = (res && res.error) || '서버에 연결하지 못했어요.'; return false; }
         st.rooms = res.rooms || [];
         st.depts = res.depts || [];
         st.edus = res.edus || [];
-        if (!st.dept || !(st.depts.some(d => d.dept === st.dept) || st.edus.some(e => e.key === st.dept))) st.dept = (st.depts[0] || {}).dept || '';
+        st.specials = res.specials || [];
+        if (!st.dept || !(st.depts.some(d => d.dept === st.dept) || st.edus.some(e => e.key === st.dept) || st.specials.some(e => e.key === st.dept))) st.dept = (st.depts[0] || {}).dept || '';
         return true;
       }
       async function mount() {
@@ -19456,7 +19492,7 @@ async function calAdmInit() {
       }
       async function connect() {
         const chatId = ((document.getElementById('rmChat') || {}).value || '').trim();
-        const label = isEdu(st.dept) ? keyLabel(st.dept) : st.region ? `${st.dept} ${st.region}` : st.dept;
+        const label = isEdu(st.dept) || isJJ(st.dept) ? keyLabel(st.dept) : st.region ? `${st.dept} ${st.region}` : st.dept;
         st.busy = true; st.msg = st.error = ''; st.log = []; render();
         try { if (!(await setOne(st.dept, st.region, chatId))) st.msg = `${label} 보고방을 연결했어요. 텔레그램 방에 확인 글이 올라갔는지 보세요.`; }
         catch (e) { st.error = e.message; }
@@ -19499,7 +19535,7 @@ async function calAdmInit() {
         try { if (!(await setOne(dept, region, x.chatId))) st.msg = `${keyLabel(x.key)} 다시 연결했어요.`; } catch (e) { st.error = e.message; }
         st.busy = false; render();
       }
-      return { mount, pick, pickRegion, connect, bulk, off, again };
+      return { mount, pick, pickRegion, connect, bulk, off, again, exPick, exToggle, exSave };
     })();
     window.roomsAdm = roomsAdm;
 

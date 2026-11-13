@@ -285,6 +285,7 @@ export async function summaryTick() {
   if (hm >= '23:00') out.daily = await sendDailySummary({ date: kstDate() }).catch((e) => ({ error: String(e) }));
   // 11/10(사용자): '10시 한 줄 데이터 뉴스' — 9시 뉴스처럼 22:00 틱에 바로(같은 틱에서 지역 표·보라 표 다음이라 맨 마지막). 옛: 11/5(사용자): "한 줄 데이터 뉴스 — 매일 밤 10시 맨 마지막, 글만, 내일(11/6)부터" → 22시 표들(③·④)이 먼저 나가게 22:05부터, 하루 한 번
   if (hm >= '22:00' && hm < '23:00' && kstDate() >= NEWS_START) out.news = await sendNewsOneline({ date: kstDate() }).catch((e) => ({ error: String(e) }));
+  if (hm >= '22:00' && hm < '23:00') out.jungjin = await sendJungjinTiers(kstDate()).catch((e) => ({ error: String(e) }));
   return out;
 }
 
@@ -384,7 +385,8 @@ async function sendEveningSummary({ date, force, tick }) {
 // ── 부서 전체 방·회장단 방 (2026-11-09) ── 사용자: "부서 전체 방엔 그 부서 전지역 통합 + 교자장부청 교회 통합 — 장부청이 자기 부서와 전체를 비교하게.
 //   회장단 방도 자기 부서와 교회 전체. 한 줄 데이터 뉴스도 각 부서 전체·회장단·소통 방에 매일."
 //   자기 부서 지역별 총합(③ 민트)은 report-room.js 총합 방('부서#총합…')이 보내고, 여기선 ④ 교자장부청 보라 표와 뉴스만. 방마다 하루 한 번.
-const CHURCH_ROOM_KEYS = ['교역자', '장년회', '부녀회', '청년회', '부녀회/기타'];   // 부서 전체 방(교역자 방 포함) + 부녀회 회장단 방
+// 11/13(사용자): 중진 대화방('#중진')도 매일 22시 10시 뉴스(카드+한 줄 데이터 뉴스) + 부서별 휴활정우(sendJungjinTiers)
+const CHURCH_ROOM_KEYS = ['교역자', '장년회', '부녀회', '청년회', '부녀회/기타', '#중진'];   // 부서 전체 방(교역자 방 포함) + 부녀회 회장단 방
 async function churchRooms() {
   const rows = await run(db().from('report_rooms').select('*').in('dept', CHURCH_ROOM_KEYS).eq('active', true)).catch(() => []);
   const seen = new Set();
@@ -419,6 +421,26 @@ async function sendEveningRooms(day) {
   const c = await composeTotalCard(day, r);
   return { sent: await sendToRooms(rooms, '교자장부청', day, (room) => sendRoomBoard(room, c.png, c.caption, c.text)) };
 }
+/** 11/13: 중진 방 — 10시 뉴스 다음에 부서별 휴·활·정·우 등급 현황 글(하루 한 번). to 를 주면 그 방으로(시험). */
+async function sendJungjinTiers(day, to = null) {
+  const rooms = to ? [to] : (await pendingChurchRooms('등급', day)).filter((r) => r.dept === '#중진');
+  if (!rooms.length) return { sent: [] };
+  const done = to ? true : (await run(db().from('cohort_summary_log').select('ref_id').eq('cohort_id', '#church-room').eq('kind', '데이터뉴스').eq('date', day).eq('ref_id', '#중진')).catch(() => [])).length;
+  if (!done) return { sent: [], wait: '뉴스 먼저' };   // 뉴스가 먼저 올라간 뒤에
+  const { tiers } = await composeEvening(day);
+  const [, m, d] = day.split('-').map(Number);
+  const text = [`🏷 <b>교자장부청 교사 등급 현황</b> · ${m}월 ${d}일(${weekdayOf(day)}) 밤 10시`, '휴교사·활동교사·정교사·우수교사', '', tiers].join(String.fromCharCode(10));
+  if (to) { await sendRoomText(to.chat_id, text); return { sent: ['test'] }; }
+  return { sent: await sendToRooms(rooms, '등급', day, (room) => sendRoomText(room.chat_id, text)) };
+}
+// 시험: { action:'tsJungjinTest', key, date? } — 나만의 시험 방에 10시 뉴스 + 등급 글
+const tsJungjinTest = async (body) => {
+  if (!authorized(body)) return { error: 'unauthorized' };
+  const day = body.date || kstDate();
+  const news = await sendNewsOneline({ date: day, to: 'test' });
+  const tiers = await sendJungjinTiers(day, { dept: '#중진', chat_id: MY_TEST_CHAT });
+  return { news: !!news.ok, tiers };
+};
 /** 소통 방에 '계' 카드(보라 표 다음, 뉴스 앞). 하루 한 번. */
 async function sendMainCard(day) {
   const key = 'evening_' + day + '|card';
@@ -766,4 +788,4 @@ async function sendNewsOneline(body) {
 // 11/5: 전체 텔레그램 방 연결 점검(보내지 않음)
 const tsRoomHealth = async (body) => (authorized(body) ? (await import('../lib/room-health.js')).roomHealth() : { error: 'unauthorized' });
 
-export default { tsNewsSend, tsRoomHealth, tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };
+export default { tsJungjinTest, tsNewsSend, tsRoomHealth, tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };
