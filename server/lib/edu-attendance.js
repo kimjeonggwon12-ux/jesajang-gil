@@ -42,7 +42,7 @@ export async function eduFor(m) {
   if (!m || !m.seriesId) return null;
   const [x] = await run(db().from('attend_series').select('series_id, title, roster_key, summary_to').eq('series_id', m.seriesId).limit(1)).catch(() => []);
   if (!x || !x.roster_key) return null;
-  const roster = await selectAll(() => db().from('edu_roster').select('nid, member_id, name, dept, region, district, position, sort_order').eq('roster_key', x.roster_key).order('sort_order'));
+  const roster = await selectAll(() => db().from('edu_roster').select('nid, member_id, name, dept, region, district, affiliation, position, sort_order').eq('roster_key', x.roster_key).order('sort_order'));
   if (!roster.length) return null;
   return { series: x, roster };
 }
@@ -349,6 +349,24 @@ async function tsEduAttSend(body) {
     }
     return out;
   }
+  if (body.wholeDept) {   // 11/13: 부서 묶음(카드+전체 명단)만 목사교 방에 정식으로 다시 올림 — 예: 24부서
+    const { findMeeting } = await import('../actions/attendance.js');
+    const m = await findMeeting(String(body.meetingId || ''));
+    const edu = m && await eduFor(m);
+    if (!edu) return { error: '재적이 걸린 정기 교육 모임이 아니에요' };
+    const phase = String(body.phase || '최종');
+    const P = { ...(await prepare(m, phase, edu)), phase };
+    const [room] = await run(db().from('report_rooms').select('*').eq('dept', '#교육:' + edu.series.series_id).eq('active', true));
+    if (!room) return { error: '교육 방 연결 없음' };
+    const sent = [];
+    for (const p of await deptWhole(m, phase, P, edu, String(body.wholeDept))) {
+      if (body.dry) { sent.push(p.caption ? '[카드] ' + p.text : p.text); continue; }
+      try { if (p.caption) await sendRoomBoard(room, p.png, p.caption, p.text); else await sendRoomText(room.chat_id, p.text); sent.push('성공'); }
+      catch (e) { sent.push('실패 ' + e.message); }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    return { ok: sent.every((x) => x === '성공' || body.dry), sent };
+  }
   if (body.previewDept) {   // 부서 대표 방용 묶음을 목사교 방에 시험 표시로
     const { findMeeting } = await import('../actions/attendance.js');
     const m = await findMeeting(String(body.meetingId || ''));
@@ -391,6 +409,16 @@ async function tsEduAttSend(body) {
 // 11/12 밤(사용자): "오늘 교육 마감 시 정상적으로 전체 방 다 보내" — 부서 전체 방(장년·부녀·청년) + 교역자 방
 const DEPT_ROOMS_ON = ['장년회', '부녀회', '청년회'];
 function deptDefs(P, dept) {
+  // 11/13(사용자): 24부서도 목사교 방에 같은 서식 — 지역 대신 소속 부서(행서부·기획부 …), 부서 번호(구역 칸) 순
+  if (dept === '24부서') {
+    const list = P.people.filter((p) => p.dept === dept);
+    const num = (a) => Number(list.find((p) => (p.affiliation || '기타') === a)?.district) || 99;
+    const affs = [...new Set(list.map((p) => p.affiliation || '기타'))].sort((a, b) => num(a) - num(b) || (a < b ? -1 : 1));
+    const defs = affs.map((a) => [a, (p) => p.dept === dept && (p.affiliation || '기타') === a, '24부서/' + a]);
+    defs.scope = (p) => p.dept === dept;
+    defs.keyOf = (p) => '24부서/' + (p.affiliation || '기타');
+    return defs;
+  }
   const keys = [...new Set(P.people.filter((p) => p.dept === dept).map((p) => p.key))].sort((a, b) => regionOrder(a) - regionOrder(b) || (a < b ? -1 : 1));
   const defs = keys.map((k) => [orgLabel(dept, regionShow(k.split('/')[1])), (p) => p.key === k, k]);
   defs.scope = (p) => p.dept === dept;
@@ -406,7 +434,8 @@ async function deptParts(m, phase, P, edu, dept) {
   return parts;
 }
 
-const WHOLE_DEPTS = ['장년회', '부녀회', '청년회'];
+// 목사교 방 부서 묶음 순서. 24부서는 부서 방이 없어 목사교 방에만(11/13 사용자: "목사교 방에만")
+const WHOLE_DEPTS = ['장년회', '부녀회', '청년회', '24부서'];
 /** 부서 전체 명단 한 통(넘치면 여러 통): 숫자 + 타임별 참석자·지각자·불참자를 지역별 줄로 모음 */
 function deptListTexts(m, phase, P, label, list, groupOf) {
   const st = statOf(list, P.sessions);
@@ -432,7 +461,8 @@ async function deptWhole(m, phase, P, edu, dept) {
   const defs = deptDefs(P, dept);
   const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, dept + ' ');
   const labelOf = new Map(defs.map(([l, , k]) => [k, l]));
-  return [{ ...eduCard(m, P, C) }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(p.key) || p.region).map((text) => ({ text }))];
+  const keyOf = defs.keyOf || ((p) => p.key);
+  return [{ ...eduCard(m, P, C) }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(keyOf(p)) || p.region).map((text) => ({ text }))];
 }
 /** 교역자 카드 1장(교회 교역자·신학부·협력 교회) + 명단(교역자 방과 같은 것) */
 async function kyoWhole(m, phase, P, edu) {
