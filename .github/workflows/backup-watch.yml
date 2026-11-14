@@ -43,6 +43,7 @@ jobs:
           node-version: '24'
       - name: 백업 상태 읽기 및 실패 표시
         env:
-          # 기존 TS_CRON_KEY가 현재 Vercel 키와 맞는지 읽기 실행으로 먼저 검증한다.
-          BACKUP_WATCH_KEY: ${{ secrets.TS_CRON_KEY }}
+          # TS_CRON_KEY는 구형 Apps Script 보고용이므로 재사용/덮어쓰기하지 않는다.
+          # 감시 인증 별도 연결·검증 후 BACKUP_WATCH_ENABLED를 켠다.
+          BACKUP_WATCH_KEY: ${{ secrets.BACKUP_WATCH_KEY }}
         run: node tools/backup-watch.mjs
