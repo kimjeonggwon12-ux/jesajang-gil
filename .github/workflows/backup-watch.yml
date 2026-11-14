@@ -44,6 +44,6 @@ jobs:
       - name: 백업 상태 읽기 및 실패 표시
         env:
           # TS_CRON_KEY는 구형 Apps Script 보고용이므로 재사용/덮어쓰기하지 않는다.
-          # 감시 인증 별도 연결·검증 후 BACKUP_WATCH_ENABLED를 켠다.
+          # 전용 /api/backup-health 및 서버의 키 해시 설정 검증 후 활성화한다.
           BACKUP_WATCH_KEY: ${{ secrets.BACKUP_WATCH_KEY }}
         run: node tools/backup-watch.mjs

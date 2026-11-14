@@ -24,7 +24,7 @@ export function evaluateBackup(status, body, now = Date.now()) {
   if (status === 401 || status === 403) return result('unauthorized', now);
   if (status !== 200 && status !== 503) return result('api_error', now);
   const h = body?.health;
-  if (body?.checkOnly !== true || !h || !CODES.has(h.state) || !Number.isFinite(time(h.checkedAt)) || Math.abs(now - time(h.checkedAt)) > 5 * 60000)
+  if (body?.checkOnly !== true || body?.verification !== 'sha256' || !h || !CODES.has(h.state) || !Number.isFinite(time(h.checkedAt)) || Math.abs(now - time(h.checkedAt)) > 5 * 60000)
     return result(body?.code === 'BACKUP_FAILED' && status === 503 ? 'api_error' : 'invalid_response', now);
   const lastTime = time(h.lastSuccessAt);
   const lastAt = Number.isFinite(lastTime) && lastTime <= now + 60000 ? new Date(lastTime).toISOString() : null;
@@ -39,9 +39,7 @@ export function evaluateBackup(status, body, now = Date.now()) {
   }
   const last = h.lastSuccess;
   if (status !== 200 || body.ok !== true || !lastAt || last?.status !== 'succeeded' || last.completedAt !== h.lastSuccessAt ||
-      !Number.isFinite(time(last.startedAt)) || time(last.startedAt) > lastTime || !/^[a-f0-9]{64}$/.test(last.sha256 || '') ||
-      !Number.isSafeInteger(last.bytes) || last.bytes <= 0 || !Number.isSafeInteger(last.tables) || last.tables <= 0 ||
-      !Number.isSafeInteger(last.rows) || last.rows < 0)
+      !Number.isFinite(time(last.startedAt)) || time(last.startedAt) > lastTime)
     return result('invalid_response', now, lastAt);
   if (now - lastTime > 8 * DAY) return result('stale', now, lastAt);
   if (time(last.startedAt) < latestDueStart(now)) return result('overdue', now, lastAt);
@@ -64,11 +62,9 @@ export async function probeBackup({ key, fetchImpl = fetch, now = Date.now, time
   if (!key) throw Error('BACKUP_WATCH_KEY_MISSING');
   let response;
   try {
-    response = await fetchImpl('https://jesajang-gil.vercel.app/api', {
-      method: 'POST', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(timeoutMs),
-      headers: { 'content-type': 'application/json' },
-      // checkOnly를 옵션이나 사용자 입력으로 바꿀 수 없게 고정한다.
-      body: JSON.stringify({ action: 'backupNow', checkOnly: true, key }),
+    response = await fetchImpl('https://jesajang-gil.vercel.app/api/backup-health', {
+      method: 'GET', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(timeoutMs),
+      headers: { authorization: `Bearer ${key}` },
     });
     if (response.status === 401 || response.status === 403) return result('unauthorized', now());
     let body;
