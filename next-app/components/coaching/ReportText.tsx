@@ -1,0 +1,7 @@
+import type {ReactNode} from 'react';
+function inline(text:string){return text.split(/(\*\*.+?\*\*)/g).map((part,i)=>part.startsWith('**')&&part.endsWith('**')?<strong key={i}>{part.slice(2,-2)}</strong>:part);}
+export default function ReportText({text}:{text:string}){
+ const sections:{title:string;lines:string[];step:boolean}[]=[];let current={title:'',lines:[] as string[],step:false};for(const line of text.split('\n')){const match=line.match(/^(#{1,3})\s+(.*)/);if(match){if(current.title||current.lines.length)sections.push(current);const title=match[2].replace(/\*\*|\[|\]/g,'');current={title,lines:[],step:/단계|화법|멘트/.test(title)};}else current.lines.push(line);}if(current.title||current.lines.length)sections.push(current);
+ function content(lines:string[]):ReactNode{return lines.map((line,i)=>{const value=line.trim();if(!value)return <br key={i}/>;if(/^#{4,6}\s/.test(value))return <h4 key={i}>{inline(value.replace(/^#+\s*/,''))}</h4>;if(value.startsWith('> '))return <blockquote key={i}>{inline(value.slice(2))}</blockquote>;return <p key={i}>{/^[-*] /.test(value)?'• ':''}{inline(value.replace(/^[-*] /,''))}</p>;});}
+ return <div className="coaching-report">{sections.map((section,i)=>section.step?<details key={i}><summary>{section.title}</summary>{content(section.lines)}</details>:<section key={i}>{section.title?<h3>{section.title}</h3>:null}{content(section.lines)}</section>)}</div>;
+}

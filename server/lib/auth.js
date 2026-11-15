@@ -1,34 +1,58 @@
-// 2026-11-06(사용자): "등록된 고유번호 아니면 못 들어오게, 출석 체크만 인식되게" — 아무 번호·이름(홍길동 2424)으로 들어가지던 것을 막는다.
-// 입장 = 서버가 부서 + 고유번호 + 이름을 명단(교사명단·관리자 명단)과 대조 → 맞으면 입장 표(token)를 준다.
-// 손님(명단에 없는 분) = 살아 있는 대화방 초대 링크가 있을 때만 손님 표 — 초대받은 대화방과 출석만 쓸 수 있다.
-// 앱은 모든 요청에 _tk 로 표를 싣고, api/index.js 가 표 없는 요청을 거절한다(출석 QR·예약 작업 등 PUBLIC 만 예외).
-// 표 = HMAC(서버 비밀값, 종류 + nid) — 서버에 따로 저장하지 않는다. 모두 다시 입장시키려면 AUTH_VERSION 을 올린다.
-import { createHmac, timingSafeEqual } from 'node:crypto';
+// 만료가 있는 v3 로그인 표. DB 키와 분리한 AUTH_SIGNING_KEY가 필요하다.
+// 이전 무기한 표는 받지 않는다. PIN 상태 변경은 요청마다 확인한다.
+import { createHmac, timingSafeEqual, randomBytes, createHash } from 'node:crypto';
 import { normId } from './util.js';
 
-const AUTH_VERSION = 'v2';   // v2(11/6 저녁): 부서까지 맞추기 — v1 표(번호+이름만)는 다시 입장
-const secret = () => process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const sign = (kind, nid) => createHmac('sha256', secret()).update(`login:${AUTH_VERSION}:${kind}:${nid}`).digest('base64url').slice(0, 32);
-
-/** kind: 'm' = 명단에 있는 교사·관리자, 'g' = 손님 */
-export const tokenFor = (memberId, kind = 'm') => {
-  const nid = normId(memberId);
-  return `${kind}${nid}.${sign(kind, nid)}`;
+const MEMBER_TTL = 12 * 60 * 60, GUEST_TTL = 2 * 60 * 60;
+const secret = () => {
+  const key = process.env.AUTH_SIGNING_KEY || '';
+  if (Buffer.byteLength(key) < 32 || key === process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('로그인 서명 키를 별도로 설정해야 합니다.');
+  }
+  return key;
 };
+const sign = (text) => createHmac('sha256', secret()).update('login:v3:' + text).digest('base64url');
+export const pinVersion = (row) => row
+  ? createHash('sha256').update(JSON.stringify([row.ver, row.salt, row.pin_hash])).digest('base64url') : '';
 
-/** 표가 맞으면 { nid, guest }, 아니면 null. */
-export function tokenInfo(tk) {
-  const m = String(tk || '').match(/^([mg])(\d+)\.([A-Za-z0-9_-]{32})$/);
-  if (!m || !secret()) return null;
-  const want = Buffer.from(sign(m[1], m[2])), got = Buffer.from(m[3]);
-  return want.length === got.length && timingSafeEqual(want, got) ? { nid: m[2], guest: m[1] === 'g' } : null;
+export function tokenFor(memberId, kind = 'm', options = {}) {
+  const nid = normId(memberId), now = Math.floor(Date.now() / 1000);
+  if (!/^[1-9]\d{0,39}$/.test(nid) || !['m', 'g'].includes(kind)) throw new Error('로그인 정보를 확인해 주세요.');
+  if (kind === 'g' && !options.roomId) throw new Error('초대받은 방을 확인해 주세요.');
+  const claims = {
+    v: 3, iat: now, exp: now + (kind === 'g' ? GUEST_TTL : MEMBER_TTL),
+    pv: options.pinVersion || '', nonce: randomBytes(16).toString('base64url'),
+    ...(kind === 'g' ? { room: options.roomId, name: String(options.name || '').slice(0, 20) } : {}),
+  };
+  const value = `${kind}${nid}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`;
+  return `${value}.${sign(value)}`;
 }
 
-// 표 없이 부를 수 있는 것: 입장 확인 / 손님 입장 / QR 출석(명단에 없는 분도 출석은 됨) / 접속 기록 / 핀 상태
+export function tokenInfo(tk) {
+  if (typeof tk !== 'string' || tk.length > 2048) return null;
+  const m = tk.match(/^([mg])([1-9]\d{0,39})\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/);
+  if (!m) return null;
+  const want = Buffer.from(sign(`${m[1]}${m[2]}.${m[3]}`)), got = Buffer.from(m[4]);
+  if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
+  try {
+    const c = JSON.parse(Buffer.from(m[3], 'base64url').toString('utf8'));
+    const now = Math.floor(Date.now() / 1000), ttl = m[1] === 'g' ? GUEST_TTL : MEMBER_TTL;
+    if (c.v !== 3 || !Number.isInteger(c.iat) || !Number.isInteger(c.exp) || c.iat > now + 30
+      || c.exp <= now || c.exp <= c.iat || c.exp - c.iat > ttl || typeof c.pv !== 'string') return null;
+    if (m[1] === 'g' && (typeof c.room !== 'string' || !c.room)) return null;
+    return { nid: m[2], guest: m[1] === 'g', pinVersion: c.pv, roomId: c.room, name: c.name, expiresAt: c.exp };
+  } catch { return null; }
+}
+
 export const PUBLIC_ACTIONS = new Set([
-  'verifyLogin', 'guestLogin', 'getAttendMeeting', 'submitAttendance', 'getMyAttendance', 'getAttendCount', 'logVisit', 'pinStatus',
+  'verifyLogin', 'guestLogin', 'registerPin', 'recoverPin', 'getAttendMeeting', 'submitAttendance', 'getAttendCount', 'logVisit',
 ]);
-// 손님 표로 부를 수 있는 것: 초대받은 섭외자 대화방만
 export const GUEST_ACTIONS = new Set([
-  'getTargetRoom', 'sendRoomMessage', 'roomFileUpload', 'pinRoomMessage', 'deleteRoomMessage', 'leaveRoom', 'getRoomRecords', 'listMyRooms', 'joinRoomByCode',
+  'getTargetRoom', 'sendRoomMessage', 'roomFileUpload', 'pinRoomMessage', 'deleteRoomMessage',
+  'leaveRoom', 'getRoomRecords', 'listMyRooms', 'joinRoomByCode',
+]);
+export const CRON_ACTIONS = new Set([
+  'backupNow', 'attAutoSummary', 'vtAuto', 'tierAutoRest', 'tsNewsSend', 'tsRoomHealth',
+  'tsDailySummary', 'tsActivitySummary', 'tsEveningSummary', 'tsNoonSummary', 'tsStatusSummary',
+  'tsStatus', 'tsTest', 'tsTestRoom', 'tsEduAttTest', 'tsEduAttSend', 'tsJungjinTest',
 ]);

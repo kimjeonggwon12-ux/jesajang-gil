@@ -1,16 +1,34 @@
-// 개인 핀번호 (2026-10-27) — 사용자: "남이 내 고유번호·이름을 치고 들어올 수 있으니 핀번호 설정 기능". 원하는 사람만(관리자도 선택).
-// 핀을 정한 사람은 새 기기·남의 기기에서 들어올 때 핀을 한 번 더 넣는다(앱이 pinStatus 의 ver 를 기기에 기억).
-// 5번 틀리면 10분 잠금. 잊으면 교육·전도 담당 관리자가 지워 준다(resetPin).
-// ⚠️ 한계: 서버는 아직 요청마다 신분을 확인하지 않는다(본문 memberId 를 믿음) — 이 핀은 '입장 화면'을 막는 장치.
+// PIN은 필수. 최초 등록은 기존 정보 대조, 분실·선등록 신고는 담당자 복구 코드.
 import crypto from 'node:crypto';
 import { db, run } from '../lib/db.js';
 import { normId, str, kstDateTime } from '../lib/util.js';
-import { isApprover } from './roster.js';
+import { isApprover, memberRoles } from './roster.js';
+import { tokenFor, pinVersion } from '../lib/auth.js';
+import { requireActor } from '../lib/request-context.js';
 
 const MAX_FAILS = 5, LOCK_MIN = 10;
 const hashPin = (pin, salt) => crypto.scryptSync(String(pin), salt, 32).toString('hex');
-const validPin = (pin) => /^\d{4,6}$/.test(String(pin || ''));
 const kstPlusMin = (min) => kstDateTime(new Date(Date.now() + min * 60e3));
+const recoveryHash = code => crypto.createHash('sha256').update(code).digest('hex');
+const codeText = code => str(code).toUpperCase().replace(/[-\s]/g, '');
+export const normalizePhone = value => str(value).replace(/\D/g, '').replace(/^82/, '0');
+function newPinError(pin) {
+  if (!/^\d{6}$/.test(pin)) return '새 PIN은 숫자 6자리로 정해 주세요.';
+  if (/^(\d)\1+$/.test(pin) || '0123456789'.includes(pin) || '9876543210'.includes(pin)) return '연속되거나 모두 같은 숫자는 피해주세요.';
+  return '';
+}
+function newPin(nid, pin) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return { nid, pin_hash: hashPin(pin, salt), salt, ver: crypto.randomUUID() };
+}
+async function savePin(op, nid, pin, extra = {}) {
+  const error = newPinError(pin); if (error) return { error };
+  const next = newPin(nid, pin);
+  // 서명 설정이 없으면 DB 변경 전에 실패한다.
+  const token = tokenFor(nid, 'm', { pinVersion: pinVersion(next) });
+  const result = await run(db().rpc('pin_account_action', { p: { op, nid, pinHash: next.pin_hash, salt: next.salt, ver: next.ver, ...extra } }));
+  return result?.ok ? { ...result, token, ver: next.ver, pinVer: next.ver } : result;
+}
 
 export async function pinRow(memberId) {
   const nid = normId(memberId);
@@ -25,70 +43,100 @@ export async function checkPin(row, pin) {
   if (row.locked_until && row.locked_until > now) {
     return { error: `여러 번 틀려서 잠겼어요. ${row.locked_until.slice(11, 16)} 이후에 다시 해 주세요.`, locked: true };
   }
+  // 시도를 먼저 확보한다. 동시에 같은 이전 횟수를 읽은 요청은 PIN을 비교하지 않는다.
+  const fails = (row.locked_until && row.locked_until <= now ? 0 : (row.fails || 0)) + 1;
+  const until = fails >= MAX_FAILS ? kstPlusMin(LOCK_MIN) : '';
+  const retry = { error: '다른 확인 요청이 처리 중이에요. 잠시 후 다시 눌러 주세요.', retry: true };
+  const reserved = await run(db().from('member_pins').update({ fails, locked_until: until })
+    .eq('nid', row.nid).eq('ver', row.ver).eq('fails', row.fails || 0).eq('locked_until', row.locked_until || '').select('nid'));
+  if (!reserved.length) return retry;
   const a = Buffer.from(hashPin(pin, row.salt), 'hex'), b = Buffer.from(row.pin_hash, 'hex');
   if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
-    if (row.fails || row.locked_until) await run(db().from('member_pins').update({ fails: 0, locked_until: '' }).eq('nid', row.nid));
-    return { ok: true };
+    const cleared = await run(db().from('member_pins').update({ fails: 0, locked_until: '' })
+      .eq('nid', row.nid).eq('ver', row.ver).eq('fails', fails).eq('locked_until', until).select('nid'));
+    return cleared.length ? { ok: true } : retry;
   }
-  const fails = (row.fails || 0) + 1;
   if (fails >= MAX_FAILS) {
-    const until = kstPlusMin(LOCK_MIN);
-    await run(db().from('member_pins').update({ fails: 0, locked_until: until }).eq('nid', row.nid));
     return { error: `핀번호가 ${MAX_FAILS}번 틀려서 ${LOCK_MIN}분 동안 잠겼어요. ${until.slice(11, 16)} 이후에 다시 해 주세요.`, locked: true };
   }
-  await run(db().from('member_pins').update({ fails, locked_until: '' }).eq('nid', row.nid));
   return { error: `핀번호가 맞지 않아요. (${MAX_FAILS - fails}번 더 틀리면 ${LOCK_MIN}분 잠김)` };
 }
 
 /** 핀을 정했는지 + 버전(앱이 이 기기에서 확인한 버전과 비교). */
 async function pinStatus(body) {
-  // 표가 아직 없거나 DB 오류면 '핀 없음'으로 — 핀 때문에 아무도 못 들어오는 일이 없게
-  const row = await pinRow(body.memberId).catch(() => null);
-  return { hasPin: !!row, ver: row ? row.ver : '' };
+  const row = await pinRow(body.memberId);
+  return { hasPin: !!row?.pin_hash, ver: row?.pin_hash ? row.ver : '' };
 }
 
 /** 입장할 때 핀 확인. */
 async function verifyPin(body) {
   const row = await pinRow(body.memberId);
-  if (!row) return { ok: true, ver: '' };
+  if (!row?.pin_hash) return { error: 'PIN 등록 또는 담당자 복구가 필요해요.' };
   const r = await checkPin(row, str(body.pin));
   return r.ok ? { ok: true, ver: row.ver } : r;
 }
 
-/** 핀 정하기·바꾸기 — 이미 있으면 지금 핀(oldPin)이 맞아야 한다. */
+/** 로그인 상태의 PIN 변경은 현재 PIN 확인 후 버전 조건으로 저장한다. */
 async function setPin(body) {
-  const nid = normId(body.memberId);
-  if (!nid) return { error: '고유번호가 없어요.' };
-  const pin = str(body.pin);
-  if (!validPin(pin)) return { error: '핀번호는 숫자 4~6자리로 정해 주세요.' };
-  if (/^(\d)\1+$/.test(pin) || '0123456789'.includes(pin) || '9876543210'.includes(pin)) return { error: '1111·1234처럼 쉬운 번호는 남이 맞히기 쉬워요. 다른 번호로 정해 주세요.' };
-  const row = await pinRow(nid);
-  if (row) { const r = await checkPin(row, str(body.oldPin)); if (!r.ok) return r; }
-  const salt = crypto.randomBytes(16).toString('hex');
-  const ver = kstDateTime();
-  await run(db().from('member_pins').upsert({ nid, pin_hash: hashPin(pin, salt), salt, ver, fails: 0, locked_until: '', updated_at: ver }));
-  return { ok: true, ver };
+  const actor = requireActor(), row = await pinRow(actor.memberId);
+  if (!row?.pin_hash) return { error: '먼저 최초 등록 또는 담당자 복구를 진행해 주세요.' };
+  const error = newPinError(str(body.pin)); if (error) return { error };
+  const checked = await checkPin(row, str(body.oldPin)); if (!checked.ok) return checked;
+  return savePin('change', normId(actor.memberId), str(body.pin), { expectedVer: row.ver });
+}
+async function removePin() { return { error: '계정 보호를 위해 PIN을 해제할 수 없어요. PIN 변경이나 담당자 복구를 이용해 주세요.' }; }
+
+/** 최초 등록: 명단·기존 번호를 대조하고, 연락처는 출처를 구분해 비공개로 함께 저장한다. */
+async function registerPin(body) {
+  const nid = normId(body.memberId), phone = normalizePhone(body.phone);
+  if (!/^[0-9]{8,40}$/.test(nid) || !str(body.name) || !str(body.dept) || !/^01[016789][0-9]{7,8}$/.test(phone)) {
+    return { error: '부서·이름·고유번호·휴대전화 번호를 확인해 주세요.' };
+  }
+  return savePin('register', nid, str(body.pin), { name: str(body.name).slice(0,80), dept: str(body.dept).slice(0,40), phone });
 }
 
-/** 내 핀 끄기 — 지금 핀이 맞아야. */
-async function removePin(body) {
-  const row = await pinRow(body.memberId);
-  if (!row) return { ok: true };
-  const r = await checkPin(row, str(body.pin));
-  if (!r.ok) return r;
-  await run(db().from('member_pins').delete().eq('nid', row.nid));
-  return { ok: true };
-}
-
-/** 관리자: 핀을 잊은 교사의 핀 지우기(교육·전도 담당). */
-async function resetPin(body) {
-  if (!(await isApprover(body.memberId))) return { error: '핀번호 초기화는 교육·전도 담당 관리자만 할 수 있어요.' };
+/** 복구 담당자에게만 대상자의 등록 연락처를 보여준다. 소유 인증 여부와 관계없이 연락 확인에 쓸 수 있다. */
+async function getPinRecoveryContact(body) {
+  const actor = requireActor();
+  if (!(await isApprover(actor.memberId))) return { error: 'PIN 복구 담당자만 연락처를 확인할 수 있어요.' };
   const nid = normId(body.targetId);
-  if (!nid) return { error: '초기화할 교사의 고유번호를 넣어 주세요.' };
-  const row = await pinRow(nid);
-  if (!row) return { ok: true, had: false };
-  await run(db().from('member_pins').delete().eq('nid', nid));
-  return { ok: true, had: true };
+  if (!/^[0-9]{8,40}$/.test(nid)) return { error: '대상자의 고유번호를 확인해 주세요.' };
+  const roles = await memberRoles(nid), person = roles.teacher || roles.admins[0];
+  if (!person) return { error: '명단에서 대상자를 찾지 못했어요.' };
+  const [registered, profiles] = await Promise.all([
+    run(db().from('member_registration_contacts').select('phone,source,invalidated_at').eq('nid', nid).limit(1)),
+    run(db().from('teacher_profiles').select('phone').eq('nid', nid)),
+  ]);
+  const invalidPhones = new Set(registered.filter(r => r.invalidated_at).map(r => normalizePhone(r.phone)));
+  const contacts = new Map();
+  for (const item of [...registered, ...roles.admins.map(r => ({phone:r.phone,source:'admin_roster'})), ...profiles.map(r => ({phone:r.phone,source:'teacher_profile'}))]) {
+    const phone = normalizePhone(item.phone);
+    if (!/^01[016789][0-9]{7,8}$/.test(phone) || contacts.has(phone)) continue;
+    contacts.set(phone, {phone,source:item.source,disputed:invalidPhones.has(phone)});
+  }
+  return { ok:true, name:person.name, memberId:person.member_id,
+    depts:[...new Set([roles.teacher, ...roles.admins].filter(Boolean).map(r => r.dept))], contacts:[...contacts.values()] };
+}
+
+/** 담당자가 등록 번호로 연락하거나 직접 만나 본인을 확인한 뒤 한 번 쓰는 복구 코드를 발급한다. */
+async function resetPin(body) {
+  const actor = requireActor();
+  if (!(await isApprover(actor.memberId))) return { error: 'PIN 복구는 교육·전도 담당 관리자만 할 수 있어요.' };
+  if (body.identityConfirmed !== true || !['PIN 분실','선등록 신고','명단 연락처 확인'].includes(body.reason)) return { error: '본인 확인과 복구 사유를 입력해 주세요.' };
+  const nid = normId(body.targetId);
+  if (!/^[0-9]{8,40}$/.test(nid)) return { error: '대상자의 고유번호를 확인해 주세요.' };
+  const row = await pinRow(actor.memberId);
+  if (!row?.pin_hash) return { error: '담당자 PIN을 먼저 등록해 주세요.' };
+  const checked = await checkPin(row, str(body.adminPin)); if (!checked.ok) return checked;
+  const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const code = Array.from({length:16}, () => alphabet[crypto.randomInt(alphabet.length)]).join('');
+  const result = await run(db().rpc('pin_account_action', { p: { op:'issue', nid, codeHash:recoveryHash(code), ver:crypto.randomUUID(), actorId:actor.nid, actorVer:row.ver, actorName:actor.name, reason:body.reason } }));
+  return result?.ok ? { ...result, recoveryCode:code.match(/.{4}/g).join('-') } : result;
+}
+async function recoverPin(body) {
+  const nid = normId(body.memberId), code = codeText(body.code);
+  if (!/^[0-9]{8,40}$/.test(nid) || !/^[2-9A-HJ-NP-Z]{16}$/.test(code)) return { error: '고유번호와 담당자가 발급한 복구 코드를 확인해 주세요.' };
+  return savePin('recover', nid, str(body.pin), { name:str(body.name).slice(0,80), dept:str(body.dept).slice(0,40), codeHash:recoveryHash(code) });
 }
 
 // 표(member_pins)가 아직 없으면 오류 글 대신 안내
@@ -96,4 +144,4 @@ const safe = (fn) => async (body) => {
   try { return await fn(body); }
   catch (e) { if (/member_pins/.test(String(e.message))) return { error: '핀번호 기능을 준비하고 있어요. 조금 뒤에 다시 해 주세요.' }; throw e; }
 };
-export default { pinStatus, verifyPin: safe(verifyPin), setPin: safe(setPin), removePin: safe(removePin), resetPin: safe(resetPin) };
+export default { registerPin: safe(registerPin), recoverPin: safe(recoverPin), getPinRecoveryContact, pinStatus, verifyPin: safe(verifyPin), setPin: safe(setPin), removePin: safe(removePin), resetPin: safe(resetPin) };

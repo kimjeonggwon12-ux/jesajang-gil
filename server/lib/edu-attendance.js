@@ -1,0 +1,671 @@
+// ── 교육별 재적 출석 서머리 (2026-11-12) ── 사용자: "목요 사명자 교육은 교사 재적이 아니라 부구역장 이상 사명자 재적으로 참석률을.
+//   각 방마다 그 지역 사명자 대상 기준 새 데이터, 오전·저녁 따로 + 통합, 오전·저녁 참석자 명단, 교역자는 교회 교역자와 신학부
+//   (센터 강사·센터 전도사·신학부장·원장 등) 분리, 지각자·불참자 명단까지 텔레방에."
+//   정기 교육(attend_series)에 roster_key 가 걸려 있으면 room-attendance.js postRoomAttendance 가 이쪽으로 넘긴다.
+//   재적 = edu_roster(roster_key). 엑셀 부서: 교회교역·신학교역 → 교역자 방(둘로 나눠), 자문·장년·부녀·청년 → '부서/지역' 방,
+//   장로회·24부서 → 방 없음(교육 방 통합에만). 교육 방 = report_rooms '#교육:<정기 교육 번호>'(도우미연결에서 연결).
+//   summary_to='test' 면 실제 방 대신 나만의 교사광장 시험 방으로(어느 방에 갈 글인지 머리에 적어서).
+import { db, run, selectAll } from './db.js';
+import { kstDateTime, normId } from './util.js';
+import { sendRoomText, sendRoomBoard, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
+import { tablePng } from './table-image.js';
+import { workbookFiles } from './xlsx-multi.js';
+import { zip } from './zip.js';
+import { eduCardPng, REASONS } from './edu-card.js';
+import { AccessError } from './request-context.js';
+import { deliverEduParts, sendEduPart } from './edu-delivery.js';
+import { deliverReportBatch } from './report-delivery-batch.js';
+
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export const testChat = () => { const value = String(process.env.EDU_ATTENDANCE_TEST_CHAT || ''); if (!/^-\d+(?:\/\d+)?$/.test(value)) throw new AccessError('교육 보고 시험 방 설정을 먼저 확인해 주세요.', 503); return value; };
+const DEPTS = ['자문회', '장년회', '부녀회', '청년회'];
+// 엑셀 오른쪽 집계 표 순서
+const GROUPS = ['교회교역', '신학교역', '협력교회', '장로회', '자문회', '장년회', '부녀회', '청년회', '24부서'];
+const GROUP_LABEL = { 교회교역: '교회 교역자', 신학교역: '신학부 교역자', 협력교회: '협력 교회', '24부서': '24부서' };
+const ALIAS = { '청년회/새신자': '청년회/기타' };
+const regionKey = (r) => { const s = String(r || '').trim(); const m = s.match(/^0*(\d+)지역$/); return m ? m[1].padStart(2, '0') + '지역' : (s || '기타'); };
+const roomKeyOf = (dept, region) => { const k = `${dept}/${regionKey(region)}`; return ALIAS[k] || k; };
+const regionShow = (r) => { const m = String(r).match(/^0*(\d+)지역$/); return m ? Number(m[1]) + '지역' : r; };
+const SKIP = (dept) => dept === '*' || dept === '부녀회/기타' || dept.includes('#출결') || dept.includes(':활동현황') || dept.includes(':회장단');
+const ICON = { 오전: '🌅', 오후: '☀️', 저녁: '🌙' };
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const LINE = '━━━━━━━━━━━━';
+const slotName = (start) => (start < '12:00' ? '오전' : start < '17:00' ? '오후' : '저녁');
+const dayOf = (m) => { const [y, mo, d] = m.date.split('-').map(Number); return `${mo}/${d}(${WD[new Date(Date.UTC(y, mo - 1, d)).getUTCDay()]})`; };
+const pct = (a, b) => (b ? (Math.round((a / b) * 1000) / 10).toFixed(1) + '%' : '-');
+const isLate = (r) => !!r && /지각/.test(r.late || '');
+const lateMin = (r) => (String(r.late || '').match(/(\d+)분/) || [])[1] || '';
+const comma = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const groupOfKey = (key) => (key === '교역자' ? '교역자' : key.split('/')[0]);
+
+/** 이 모임이 교육별 재적을 쓰면 { series, roster } */
+export async function eduFor(m) {
+  if (!m?.seriesId) return null;
+  const [series] = await run(db().from('attend_series').select('series_id, title, roster_key, summary_to').eq('series_id', m.seriesId).limit(1));
+  if (!series?.roster_key) return null;
+  const [roster, policies] = await Promise.all([
+    selectAll(() => db().from('edu_roster').select('nid, member_id, name, dept, region, district, affiliation, position, sort_order').eq('roster_key', series.roster_key).order('sort_order').order('id')),
+    run(db().from('edu_roster_policy').select('excluded_positions, always_present_nids, dept_overrides').eq('roster_key', series.roster_key)),
+  ]);
+  if (!roster.length) throw new AccessError('연결된 교육 재적이 비어 있어요. 재적을 확인한 뒤 다시 집계해 주세요.', 409);
+  if (!policies.length) throw new AccessError('교육 집계 예외 설정이 준비되지 않았어요. 운영 기준을 먼저 확인해 주세요.', 409);
+  if (!['live', 'room', 'test'].includes(series.summary_to)) throw new AccessError('교육 보고 수신 설정을 확인해 주세요.', 409);
+  return { series, roster, policy: policies[0] };
+}
+
+/** 사명자 한 명 → 방 열쇠(교역자 / 부서/지역 / '' = 방 없음) */
+const personRoom = (p) => (p.dept === '교회교역' || p.dept === '신학교역' || p.dept === '협력교회' ? '교역자' : DEPTS.includes(p.dept) ? roomKeyOf(p.dept, p.region) : '');
+
+async function prepare(m, phase, edu) {
+  edu.prepared ||= new Map();
+  const key = m.meetingId + ':' + phase;
+  if (!edu.prepared.has(key)) edu.prepared.set(key, prepareRaw(m, phase, edu));
+  return edu.prepared.get(key);
+}
+async function prepareRaw(m, phase, edu) {
+  const { closingData } = await import('../actions/attendance-closing.js');
+  const data = await closingData(m, { onlyMeeting: true });
+  const rows = data.rows.filter((r) => r.meetingId === m.meetingId && !r.dup);
+  const order = [...new Set([...(m.slots || []).map((s) => slotName(s.start)), ...rows.map((r) => r.session)])];
+  if (!order.length) order.push('오전', '저녁');
+  const sessions = phase === '최종' ? order : [phase];
+  const byNid = new Map();
+  for (const r of rows) {
+    if (!sessions.includes(r.session)) continue;
+    const nid = normId(r.id);
+    if (!byNid.has(nid)) byNid.set(nid, {});
+    byNid.get(nid)[r.session] ||= r;
+  }
+  for (const nid of edu.policy.always_present_nids.map(normId)) {
+    const att = byNid.get(nid) || {};
+    for (const s of sessions) att[s] = { ...(att[s] || {}), late: '정상 출석' };
+    byNid.set(nid, att);
+  }
+  // 11/12(사용자): 원장님들은 계수·참석·불참 명단에서 계속 뺀다(재적 밖 참석에도 안 나오게)
+  const EXCLUDED = (p) => edu.policy.excluded_positions.includes(String(p.position || '').trim());
+  const people = edu.roster.filter((p) => !EXCLUDED(p)).map((p) => ({ ...p, dept: edu.policy.dept_overrides[p.nid] || p.dept })).map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
+  const inRoster = new Set(edu.roster.map((p) => p.nid));
+  // 재적 밖 참석(교사·일반) — 교사면 등록 지역 방, 아니면 적은 부서
+  const outside = [];
+  for (const [nid, att] of byNid) {
+    if (inRoster.has(nid) || !Object.values(att).some(r => r.name)) continue;
+    const r = Object.values(att)[0];
+    const td = r.teacherDept || (/교역자|중진/.test(r.dept || '') ? '교역자' : '');
+    outside.push({ name: r.name, key: td === '교역자' ? '교역자' : td ? roomKeyOf(td, r.region) : '', att });
+  }
+  return { people, outside, sessions, order };
+}
+
+/** 한 묶음 숫자 */
+export function statOf(list, sessions) {
+  const st = { n: list.length, by: {}, came: 0, late: 0, absent: 0 };
+  for (const s of sessions) st.by[s] = list.filter((p) => p.att[s]).length;
+  for (const p of list) {
+    const came = sessions.some((s) => p.att[s]);
+    if (came) st.came++; else st.absent++;
+    if (sessions.some((s) => isLate(p.att[s]))) st.late++;
+  }
+  return st;
+}
+const nameRows = (names, per = 5) => {
+  const out = [];
+  for (let i = 0; i < names.length; i += per) out.push('   ' + names.slice(i, i + per).join(' · '));
+  return out;
+};
+const headLine = (phase, sessions) => (phase === '최종' ? (sessions.length > 1 ? `${sessions.map((s) => ICON[s] + ' ' + s).join(' · ')} 교육 마감 · 하루 통합` : '교육 마감') : `${ICON[phase] || '🙋'} ${phase} 교육 마감`);
+
+/** 한 묶음(지역·교회 교역자·신학부)의 숫자 + 명단 줄 */
+function sectionLines(label, list, outside, phase, sessions) {
+  const st = statOf(list, sessions);
+  const L = [`📍 <b>${esc(label)}</b> · 사명자 재적 ${st.n}명`, LINE];
+  if (phase === '최종' && sessions.length > 1) {
+    L.push(sessions.map((s) => `${ICON[s] || '🙋'} ${s} ${st.by[s]}명`).join(' · '));
+    L.push(`👥 합계 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`);
+  } else {
+    L.push(`${ICON[sessions[0]] || '👥'} ${sessions[0]} 참석 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`);
+  }
+  L.push(`⏰ 지각 ${st.late}명 · ❌ ${phase === '최종' ? '불참' : '미참석'} ${st.absent}명`, LINE);
+  for (const s of sessions) {
+    const came = list.filter((p) => p.att[s]);
+    L.push(`${ICON[s] || '🙋'} <b>${s} 참석자 ${came.length}명</b>`);
+    if (came.length) L.push(...nameRows(came.map((p) => esc(p.name))));
+    else L.push('   없음');
+  }
+  const late = list.filter((p) => sessions.some((s) => isLate(p.att[s])));
+  if (late.length) {
+    L.push(`⏰ <b>지각자 ${late.length}명</b>`);
+    L.push(...nameRows(late.map((p) => esc(p.name) + '(' + sessions.filter((s) => isLate(p.att[s])).map((s) => (sessions.length > 1 ? s : '') + lateMin(p.att[s]) + '분').join('·') + ')'), 4));
+  }
+  const absent = list.filter((p) => !sessions.some((s) => p.att[s]));
+  L.push(`❌ <b>${phase === '최종' ? '불참자' : sessions[0] + ' 미참석자'} ${absent.length}명</b>`);
+  L.push(...(absent.length ? nameRows(absent.map((p) => esc(p.name))) : ['   없음 🎉']));
+  if (outside.length) {
+    L.push(`🙋 사명자 재적 밖 참석 ${outside.length}명 (참석률에 안 셈)`);
+    L.push(...nameRows(outside.map((o) => esc(o.name))));
+  }
+  return L;
+}
+const top = (m, phase, sessions) => [`📋 <b>${esc(m.title)}</b> (사명자 재적 기준)`, `🗓 ${dayOf(m)} · ${headLine(phase, sessions)}`];
+
+/** 표(지역·조직 × 숫자) 사진 + 요약 글 */
+function board({ m, title, firstHead, groups, phase, sessions, theme, sumLabel }) {
+  const T = BOARD_THEME[theme] || BOARD_THEME.yellow;
+  const split = sessions.length > 1;
+  const head = [firstHead, '인원', ...sessions, ...(split ? ['합계'] : []), '출석률', '지각', phase === '최종' ? '불참' : '미참석'];
+  const cell = (v) => (v ? comma(v) : '-');
+  const all = groups.flatMap(([, list]) => list);
+  const row = (label, st) => [label, comma(st.n), ...sessions.map((s) => cell(st.by[s])), ...(split ? [cell(st.came)] : []), pct(st.came, st.n), cell(st.late), cell(st.absent)];
+  const stats = groups.map(([label, list]) => [label, statOf(list, sessions)]);
+  const sum = statOf(all, sessions);
+  const rows = [...stats.map(([l, st]) => row(l, st)), row(sumLabel, sum)];
+  const last = rows.length - 1, totalCol = 1 + sessions.length + (split ? 1 : 0);
+  let png = null;
+  try {
+    png = tablePng({
+      title, sub: `${m.title} · ${dayOf(m)} · ${headLine(phase, sessions)}`,
+      foot: '※ 인원 = 사명자 재적(교사 재적 아님) · 출석률 = 참석 ÷ 인원 · 오전·저녁 두 번 온 분은 합계에 한 번',
+      head, rows, align: ['left'], headColor: T.head, stripe: T.stripe,
+      style: (r, c, v) => {
+        if (r === last) return { fill: c ? T.sumFill : T.sumFill0, bold: true, color: T.sumText };
+        if (v === '-') return { color: T.dash };
+        if (c === 0) return { bold: true };
+        if (c === totalCol) return { bold: true, color: T.sumCol };
+        return null;
+      },
+    });
+  } catch (e) { console.log('사명자 출석 표 이미지 오류: ' + e.message); }
+  const caption = [`📊 <b>${esc(title)}</b> (사명자 재적 기준)`, `📌 ${esc(m.title)} · ${dayOf(m)} · ${headLine(phase, sessions)}`, '',
+    `👥 인원 ${comma(sum.n)}명 · ${sessions.map((s) => `${ICON[s] || ''}${s} ${comma(sum.by[s])}`).join(' · ')}${split ? ` · 합계 <b>${comma(sum.came)}</b>` : ''} (${pct(sum.came, sum.n)})`,
+    `⏰ 지각 ${sum.late}명 · ❌ ${phase === '최종' ? '불참' : '미참석'} ${comma(sum.absent)}명`].join('\n');
+  const text = [caption, '', ...stats.map(([l, st]) => ` ▸ ${esc(l)} <b>${st.came}</b>/${st.n} (${pct(st.came, st.n)})${st.late ? ` · 지각 ${st.late}` : ''}`)].join('\n');
+  return { png, caption, text };
+}
+
+const regionOrder = (k) => (/\/\d+지역$/.test(k) ? Number(k.replace(/\D/g, '')) : k.endsWith('/기타') ? 200 : k.endsWith('/새신자') ? 100 : 150);
+function deptBoard(m, dept, P) {
+  const keys = [...new Set(P.people.filter((p) => p.dept === dept).map((p) => p.key))].sort((a, b) => regionOrder(a) - regionOrder(b) || (a < b ? -1 : 1));
+  return board({ m, title: `${dept} 지역별 사명자 출석`, firstHead: dept, theme: 'yellow', sumLabel: '합계', phase: P.phase, sessions: P.sessions,
+    groups: keys.map((k) => [orgLabel(dept, regionShow(k.split('/')[1])), P.people.filter((p) => p.key === k)]) });
+}
+function orgBoard(m, P) {
+  const groups = GROUPS.map((g) => [GROUP_LABEL[g] || g, P.people.filter((p) => p.dept === g)]).filter(([, l]) => l.length);
+  return board({ m, title: '목사교 사명자 출석 현황', firstHead: '부서', theme: 'blue', sumLabel: '사명자 전체', phase: P.phase, sessions: P.sessions, groups });
+}
+
+/** 지각자·불참자 전체 명단(교육 방) — 부서 → 지역 */
+function nameListTexts(m, P, kind) {
+  const pick = kind === '지각' ? (p) => P.sessions.some((s) => isLate(p.att[s])) : (p) => !P.sessions.some((s) => p.att[s]);
+  const label = kind === '지각' ? '⏰ 지각자 명단' : P.phase === '최종' ? '❌ 불참자 명단' : `❌ ${P.phase} 미참석자 명단`;
+  const shown = (p) => esc(p.name) + (kind === '지각' ? '(' + P.sessions.filter((s) => isLate(p.att[s])).map((s) => (P.sessions.length > 1 ? s : '') + lateMin(p.att[s]) + '분').join('·') + ')' : '');
+  const lines = [...top(m, P.phase, P.sessions), `${label} (사명자 재적 기준)`, ''];
+  let total = 0;
+  for (const g of GROUPS) {
+    const list = P.people.filter((p) => p.dept === g && pick(p));
+    if (!list.length) continue;
+    total += list.length;
+    lines.push(`🏢 <b>${GROUP_LABEL[g] || g}</b> ${list.length}명`);
+    const regs = [...new Set(list.map((p) => p.region))];
+    if (DEPTS.includes(g)) {
+      regs.sort((a, b) => regionOrder(roomKeyOf(g, a)) - regionOrder(roomKeyOf(g, b)));
+      for (const r of regs) lines.push(`  ▸ ${esc(regionShow(regionKey(r)))}: ${list.filter((p) => p.region === r).map(shown).join(', ')}`);
+    } else lines.push('  ' + list.map(shown).join(', '));
+    lines.push('');
+  }
+  lines.push(total ? `합계 ${total}명` : '없음 🎉');
+  const parts = [];
+  let cur = '';
+  for (const l of lines) { if (cur && cur.length + l.length + 1 > 3900) { parts.push(cur); cur = ''; } cur += (cur ? '\n' : '') + l; }
+  if (cur) parts.push(cur);
+  return parts;
+}
+
+// ── 집계 엑셀(11/12 사용자: "오전 집계 엑셀, 저녁 끝나면 오전·저녁 총합 집계 파일 — 매주 자동") ──
+const XS = { plain: 0, head: 1, cell: 2, title: 3, session: 4, warn: 6, total: 7, text: 8 };
+const xc = (v, st = XS.cell) => ({ v, s: st });
+// 카드·총합 시트 줄(사용자 9/10 표 순서 + 교역자 둘을 맨 위에)
+const CARD_ROWS = [['교회 교역자', ['교회교역']], ['신학부 교역자', ['신학교역']], ['협력 교회', ['협력교회']], ['24부서', ['24부서']], ['장로, 자문회', ['장로회', '자문회']], ['장년회', ['장년회']], ['부녀회', ['부녀회']], ['청년회', ['청년회']]];
+/** 같은 정기 교육의 바로 앞 모임(지난주) 부서별 참석률 { label: 숫자% } — 없으면 null */
+const ORG_DEFS = CARD_ROWS.map(([l, d]) => [l, (p) => d.includes(p.dept)]);
+async function previousPeople(m, edu) {
+  if (!m.seriesId) return null;
+  const [row] = await run(db().from('attend_meetings').select('meeting_id').eq('series_id', m.seriesId).lt('date', m.date).neq('status', '삭제').order('date', { ascending: false }).order('id', { ascending: false }).limit(1));
+  if (!row) return null;
+  const { findMeeting } = await import('../actions/attendance.js');
+  const pm = await findMeeting(row.meeting_id);
+  return pm ? prepare(pm, '최종', edu) : null;
+}
+async function prevRates(m, edu, defs = ORG_DEFS) {
+  edu.previous ||= previousPeople(m, edu);
+  const Q = await edu.previous;
+  if (!Q) return null;
+  const out = {};
+  for (const [label, fn] of [...defs, ['종합', null]]) {
+    const l = fn ? Q.people.filter(fn) : Q.people.filter((p) => !defs.scope || defs.scope(p));
+    const t = statOf(l, Q.sessions);
+    out[label] = t.n ? (t.came / t.n) * 100 : null;
+  }
+  return out;
+}
+const pctNum = (a, b) => (b ? (a / b) * 100 : 0);
+export function cardData(m, P, prev, defs = ORG_DEFS, scope = null, head = '', firstHead = scope ? '지역' : '부서') {
+  const one = (label, list) => {
+    const t = statOf(list, P.sessions);
+    const pv = prev && prev[label] != null ? prev[label].toFixed(1) + '%' : '-';
+    return { label, n: t.n, came: t.came, rate: pct(t.came, t.n), prev: pv, absent: t.absent, absentRate: pct(t.absent, t.n), late: t.late, by: t.by, rateNum: pctNum(t.came, t.n), prevNum: prev ? prev[label] : null };
+  };
+  const all = scope ? P.people.filter(scope) : P.people;
+  const rows = defs.map(([l, fn]) => one(l, all.filter(fn))).filter((r) => r.n);
+  const total = one('종합', all);
+  const [mo, d] = m.date.slice(5).split('-').map(Number);
+  const title = `${mo}/${d} ${head}${m.title} ${P.phase === '최종' ? '' : P.phase + ' '}출석현황`;
+  return { title, rows, total, reasonTotal: total.absent, firstHead };
+}
+/** 결론 줄(글자) */
+function conclusion(C, P) {
+  const T = C.total;
+  const L = [];
+  const diff = T.prevNum != null ? ` · 지난주 ${T.prevNum.toFixed(1)}% 대비 ${T.rateNum - T.prevNum >= 0 ? '▲' : '▼'}${Math.abs(T.rateNum - T.prevNum).toFixed(1)}%p` : '';
+  L.push(`전체 참석률 ${T.rate} (대상 ${comma(T.n)}명 중 ${comma(T.came)}명 참석)${diff}`);
+  if (P.sessions.length > 1) L.push(P.sessions.map((s) => `${s} ${comma(T.by[s])}명`).join(' · ') + ' (두 번 온 분은 한 번)');
+  const sorted = [...C.rows].sort((a, b) => b.rateNum - a.rateNum);
+  if (sorted.length > 1) L.push(`가장 높은 곳 ${sorted[0].label} ${sorted[0].rate} · 가장 낮은 곳 ${sorted.at(-1).label} ${sorted.at(-1).rate}`);
+  const low = sorted.filter((r) => r.rateNum < 50).map((r) => r.label);
+  if (low.length) L.push(`참석률 50% 아래: ${low.join(' · ')} — 집중 독려 필요`);
+  L.push(`불참 ${comma(T.absent)}명(${T.absentRate}) · 지각 ${comma(T.late)}명 · 불참 사유는 아직 받지 않아 칸이 비어 있음`);
+  return L;
+}
+function eduCard(m, P, C) {
+  let png = null;
+  try { png = eduCardPng(C); } catch (e) { console.log('출석현황 카드 오류: ' + e.message); }
+  const caption = [`📊 <b>${esc(C.title)}</b> (사명자 재적 기준)`, '', ...conclusion(C, P).map((l) => '▸ ' + esc(l))].join(String.fromCharCode(10));
+  const text = [caption, '', ...C.rows.map((r) => ` ▸ ${esc(r.label)} ${r.came}/${r.n} (${r.rate}) · 불참 ${r.absent}`)].join(String.fromCharCode(10));
+  return { png, caption, text };
+}
+
+export function eduExcel(m, P, C, deptSheets = []) {
+  const both = P.sessions.length > 1;
+  const kind = both ? '오전·저녁 총합' : P.sessions[0] + ' 집계';
+  const title = `${m.date} ${m.title} ${kind} (사명자 재적 기준)`;
+  // 11/12(사용자): 총합 시트 = 9/10 출석현황 표 서식 + 결론
+  const H = (v) => xc(v, XS.head), E = () => xc('', XS.head);
+  const rows1 = [[xc(C.title, XS.title)], [xc(`만든 시각 ${kstDateTime().slice(0, 16)} · 대상 = 사명자 재적(교사 재적 아님)`, XS.plain)],
+    [H('부서'), H('대상'), H('참석'), H('참석률'), H('이전 참석률'), H('불참'), H('불참률'), H(`불참자 사유 (${C.reasonTotal}명)`), E(), E(), E()],
+    [E(), E(), E(), E(), E(), E(), E(), ...REASONS.map(H)]];
+  const cardRow = (r, st) => [xc(r.label, st), xc(r.n, st), xc(r.came, st), xc(r.rate, st), xc(r.prev, st), xc(r.absent, st), xc(r.absentRate, st), ...REASONS.map(() => xc('', st))];
+  for (const r of C.rows) rows1.push(cardRow(r, XS.cell));
+  rows1.push(cardRow(C.total, XS.total));
+  if (both) {
+    rows1.push([], [H('타임'), ...C.rows.map((r) => H(r.label)), H('종합')]);
+    for (const x of P.sessions) rows1.push([xc(x, XS.session), ...C.rows.map((r) => xc(r.by[x])), xc(C.total.by[x], XS.total)]);
+  }
+  rows1.push([], [xc('결론', XS.title)], ...conclusion(C, P).map((l) => [xc('▸ ' + l, XS.text)]));
+  const head = { length: 11 };
+  // 명단(전원) — 결과: 참석/지각/불참
+  const rows2 = [[xc(title + ' — 명단', XS.title)], [],
+    ['번호', '부서', '지역', '이름', '고유번호', '직책', ...P.sessions.flatMap((x) => [x + ' 시각', x + ' 상태']), '결과'].map((h) => xc(h, XS.head))];
+  P.people.forEach((p, i) => {
+    const came = P.sessions.some((x) => p.att[x]), late = P.sessions.some((x) => isLate(p.att[x]));
+    rows2.push([xc(i + 1), xc(GROUP_LABEL[p.dept] || p.dept), xc(regionShow(regionKey(p.region))), xc(p.name), xc(p.member_id), xc(p.position),
+      ...P.sessions.flatMap((x) => [xc(p.att[x]?.at ? String(p.att[x].at).slice(11, 16) : ''), xc(p.att[x] ? p.att[x].late || '참석' : '', isLate(p.att[x]) ? XS.warn : XS.cell)]),
+      xc(!came ? '불참' : late ? '지각' : '참석', !came || late ? XS.warn : XS.cell)]);
+  });
+  const rows3 = [[xc('사명자 재적 밖 참석(참석률에 안 셈)', XS.title)], [], ['번호', '이름', ...P.sessions.map((x) => x + ' 상태')].map((h) => xc(h, XS.head)),
+    ...P.outside.map((o, i) => [xc(i + 1), xc(o.name), ...P.sessions.map((x) => xc(o.att[x] ? o.att[x].late || '참석' : ''))])];
+  const n = head.length;
+  const col = (k) => String.fromCharCode(64 + k);
+  const sheets = [
+    { name: '총합', rows: rows1, opts: { widths: [16, 9, 9, 10, 11, 9, 10, 9, 9, 9, 9], merges: ['A1:K1', 'A2:K2', 'H3:K3', ...'ABCDEFG'.split('').map((k) => `${k}3:${k}4`)], heights: { 0: 30 } } },
+    ...deptSheets,
+    { name: '명단', rows: rows2, opts: { widths: [6, 14, 9, 10, 17, 22, ...P.sessions.flatMap(() => [9, 11]), 8], freezeRow: 3, heights: { 0: 26 } } },
+    { name: '재적 밖 참석', rows: rows3, opts: { widths: [6, 12, ...P.sessions.map(() => 12)] } },
+  ];
+  const fileName = `${m.title.replace(/[\/:*?"<>|]/g, ' ')}_${m.date}_${both ? '오전저녁총합' : P.sessions[0]}.xlsx`;
+  const t = statOf(P.people, P.sessions);
+  const docCaption = `📎 <b>${esc(m.title)} ${kind}</b> 엑셀
+🗓 ${dayOf(m)} · 사명자 재적 ${comma(t.n)}명 · 참석 ${comma(t.came)}명 (${pct(t.came, t.n)}) · 지각 ${t.late} · ${P.phase === '최종' ? '불참' : '미참석'} ${t.absent}
+시트: 총합(출석현황·결론)${deptSheets.length ? ' · ' + deptSheets.map((x) => x.name).join(' · ') + '(지역·부서별 숫자+참석/지각/불참 이름)' : ''} · 명단(전원, 참석/지각/불참) · 재적 밖 참석`;
+  return { doc: zip(workbookFiles(sheets), fileName), fileName, docCaption, sheets };
+}
+function kyoTexts(m, phase, P) {
+  const outside = P.outside.filter((o) => o.key === '교역자');
+  // 11/12 밤(사용자): 교역자 방엔 협력 교회 두 분을 교회 교역자 명단에 넣고 이름 옆에 '협력 교회'만
+  const church = P.people.filter((p) => p.dept === '교회교역' || p.dept === '협력교회').map((p) => (p.dept === '협력교회' ? { ...p, name: p.name + '(협력 교회)' } : p));
+  return [['교회 교역자', church, outside], ['신학부 교역자 (센터 강사·센터 전도사 등)', P.people.filter((p) => p.dept === '신학교역'), []]]
+    .filter(([, list]) => list.length)
+    .map(([label, list, out]) => [...top(m, phase, P.sessions), ...sectionLines(label, list, out, phase, P.sessions)].join(String.fromCharCode(10)));
+}
+
+// 11/12(사용자): 부서 대표 방(지역 없이 연결한 부서 전체 방) = 지역별 출석현황 카드 + 지역마다 참석자·지각자·불참자 글. 먼저 청년회.
+// 11/12(사용자): "목사교 방에 테스트로만 올렸어야" — 부서 대표 방으로는 확인 전까지 안 보냄(빈 목록). 미리 보기는 tsEduAttSend previewDept 로 목사교 방에.
+// 11/12 밤(사용자): "오늘 교육 마감 시 정상적으로 전체 방 다 보내" — 부서 전체 방(장년·부녀·청년) + 교역자 방
+const DEPT_ROOMS_ON = ['장년회', '부녀회', '청년회'];
+function deptDefs(P, dept) {
+  // 11/13(사용자): 24부서도 목사교 방에 같은 서식 — 지역 대신 소속 부서(행서부·기획부 …), 부서 번호(구역 칸) 순
+  if (dept === '24부서') {
+    const list = P.people.filter((p) => p.dept === dept);
+    const num = (a) => Number(list.find((p) => (p.affiliation || '기타') === a)?.district) || 99;
+    const affs = [...new Set(list.map((p) => p.affiliation || '기타'))].sort((a, b) => num(a) - num(b) || (a < b ? -1 : 1));
+    const defs = affs.map((a) => [a, (p) => p.dept === dept && (p.affiliation || '기타') === a, '24부서/' + a]);
+    defs.scope = (p) => p.dept === dept;
+    defs.keyOf = (p) => '24부서/' + (p.affiliation || '기타');
+    return defs;
+  }
+  const keys = [...new Set(P.people.filter((p) => p.dept === dept).map((p) => p.key))].sort((a, b) => regionOrder(a) - regionOrder(b) || (a < b ? -1 : 1));
+  const defs = keys.map((k) => [orgLabel(dept, regionShow(k.split('/')[1])), (p) => p.key === k, k]);
+  defs.scope = (p) => p.dept === dept;
+  return defs;
+}
+async function deptParts(m, phase, P, edu, dept) {
+  const defs = deptDefs(P, dept);
+  const C = cardData(m, P, await prevRates(m, edu, defs), defs, defs.scope, dept + ' ', dept === '24부서' ? '부서' : undefined);
+  const parts = [{ ...eduCard(m, P, C) }];
+  for (const [label, fn, k] of defs) {
+    parts.push({ text: [...top(m, phase, P.sessions), ...sectionLines(`${dept} ${label}`, P.people.filter(fn), P.outside.filter((o) => o.key === k), phase, P.sessions)].join(String.fromCharCode(10)) });
+  }
+  return parts;
+}
+
+const WHOLE_DEPTS = ['장년회', '부녀회', '청년회', '24부서'];
+/** 부서 전체 명단 한 통(넘치면 여러 통): 숫자 + 타임별 참석자·지각자·불참자를 지역별 줄로 모음 */
+function deptListTexts(m, phase, P, label, list, groupOf) {
+  const st = statOf(list, P.sessions);
+  const L = [...top(m, phase, P.sessions), `📍 <b>${esc(label)} 전체</b> · 사명자 재적 ${st.n}명`, LINE];
+  if (P.sessions.length > 1) { L.push(P.sessions.map((s) => `${ICON[s] || '🙋'} ${s} ${st.by[s]}명`).join(' · ')); L.push(`👥 합계 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`); }
+  else L.push(`${ICON[P.sessions[0]] || '👥'} ${P.sessions[0]} 참석 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`);
+  L.push(`⏰ 지각 ${st.late}명 · ❌ ${phase === '최종' ? '불참' : '미참석'} ${st.absent}명`, LINE);
+  const groups = [...new Set(list.map(groupOf))];
+  const byGroup = (arr, fmt) => groups.map((g) => [g, arr.filter((p) => groupOf(p) === g)]).filter(([, a]) => a.length).map(([g, a]) => ` ▸ ${esc(g)}(${a.length}): ${a.map(fmt).join(', ')}`);
+  for (const s of P.sessions) { const c = list.filter((p) => p.att[s]); L.push(`${ICON[s] || '🙋'} <b>${s} 참석자 ${c.length}명</b>`, ...(c.length ? byGroup(c, (p) => esc(p.name)) : ['   없음'])); }
+  const late = list.filter((p) => P.sessions.some((s) => isLate(p.att[s])));
+  if (late.length) L.push(`⏰ <b>지각자 ${late.length}명</b>`, ...byGroup(late, (p) => esc(p.name) + '(' + P.sessions.filter((s) => isLate(p.att[s])).map((s) => (P.sessions.length > 1 ? s : '') + lateMin(p.att[s]) + '분').join('·') + ')'));
+  const absent = list.filter((p) => !P.sessions.some((s) => p.att[s]));
+  L.push(`❌ <b>${phase === '최종' ? '불참자' : '미참석자'} ${absent.length}명</b>`, ...(absent.length ? byGroup(absent, (p) => esc(p.name)) : ['   없음 🎉']));
+  const parts = [];
+  let cur = '';
+  for (const l of L) { if (cur && cur.length + l.length + 1 > 3900) { parts.push(cur); cur = ''; } cur += (cur ? String.fromCharCode(10) : '') + l; }
+  if (cur) parts.push(cur);
+  return parts;
+}
+/** 부서 카드 1장(지역 줄) + 부서 전체 명단 */
+async function deptWhole(m, phase, P, edu, dept) {
+  const defs = deptDefs(P, dept);
+  const C = cardData(m, P, await prevRates(m, edu, defs), defs, defs.scope, dept + ' ', dept === '24부서' ? '부서' : undefined);
+  const labelOf = new Map(defs.map(([l, , k]) => [k, l]));
+  const keyOf = defs.keyOf || ((p) => p.key);
+  // 11/13(사용자): 카드 아래 요약 글과 부서 전체 명단을 한 통으로 합침 — 카드 사진엔 제목만, 다음 글 = 요약(결론) + 참석·지각·불참 명단
+  const card = eduCard(m, P, C);
+  // 11/13(사용자): 24부서도 장년회 전체 방 글과 똑같이 — 카드(설명에 요약) + 부서 전체 참석·지각·불참 명단
+  return [{ ...card }, ...deptListTexts(m, phase, P, dept, P.people.filter(defs.scope), (p) => labelOf.get(keyOf(p)) || p.region).map((text) => ({ text }))];
+}
+// 11/13(사용자): 엑셀에 부서별(장·부·청·24부서) 시트 — 출석현황 숫자 줄마다 실제 참석자·지각자·불참자 이름 + 결론
+async function deptSheet(m, P, edu, dept) {
+  const defs = deptDefs(P, dept);
+  const C = cardData(m, P, await prevRates(m, edu, defs), defs, defs.scope, dept + ' ', dept === '24부서' ? '부서' : undefined);
+  const lateName = (p) => p.name + '(' + P.sessions.filter((x) => isLate(p.att[x])).map((x) => (P.sessions.length > 1 ? x : '') + lateMin(p.att[x]) + '분').join('·') + ')';
+  const H = (v) => xc(v, XS.head);
+  const both = P.sessions.length > 1;
+  const head = [H(C.firstHead), H('대상'), H('참석'), ...(both ? P.sessions.map((x) => H(x)) : []), H('참석률'), H('이전 참석률'), H('지각'), H('불참'), H('불참률'), H('참석자'), H('지각자'), H('불참자')];
+  const rows = [[xc(C.title, XS.title)], [xc(`대상 = 사명자 재적(교사 재적 아님) · 오전·저녁 두 번 온 분은 참석에 한 번`, XS.plain)], head];
+  const heights = { 0: 30, 2: 22 };
+  const nameCols = [38, 26, 46];
+  const hOf = (arr) => Math.max(20, ...arr.map((t, i) => Math.ceil((String(t).length * 1.9) / nameCols[i] || 1) * 14 + 6));
+  defs.forEach(([label, fn]) => {
+    const list = P.people.filter(fn);
+    const r = C.rows.find((x) => x.label === label);
+    if (!r) return;
+    const came = list.filter((p) => P.sessions.some((x) => p.att[x]));
+    const late = list.filter((p) => P.sessions.some((x) => isLate(p.att[x])));
+    const absent = list.filter((p) => !P.sessions.some((x) => p.att[x]));
+    const names = [came.map((p) => p.name + (both ? '(' + P.sessions.filter((x) => p.att[x]).join('·') + ')' : '')).join(', '), late.map(lateName).join(', '), absent.map((p) => p.name).join(', ')];
+    heights[rows.length] = hOf(names);
+    rows.push([xc(label), xc(r.n), xc(r.came), ...(both ? P.sessions.map((x) => xc(r.by[x])) : []), xc(r.rate), xc(r.prev), xc(r.late), xc(r.absent, XS.warn), xc(r.absentRate), ...names.map((t) => xc(t, XS.text))]);
+  });
+  const T = C.total;
+  rows.push([xc('종합', XS.total), xc(T.n, XS.total), xc(T.came, XS.total), ...(both ? P.sessions.map((x) => xc(T.by[x], XS.total)) : []), xc(T.rate, XS.total), xc(T.prev, XS.total), xc(T.late, XS.total), xc(T.absent, XS.total), xc(T.absentRate, XS.total), xc(`${T.came}명`, XS.total), xc(`${T.late}명`, XS.total), xc(`${T.absent}명`, XS.total)]);
+  rows.push([], [xc('결론', XS.title)], ...conclusion(C, P).map((l) => [xc('▸ ' + l, XS.text)]));
+  const nNum = 9 + (both ? P.sessions.length : 0);
+  const last = String.fromCharCode(64 + nNum);
+  return { name: dept, rows, opts: { widths: [14, 7, 7, ...(both ? P.sessions.map(() => 7) : []), 9, 10, 7, 7, 9, ...nameCols], merges: [`A1:${last}1`, `A2:${last}2`], freezeRow: 3, heights } };
+}
+const deptSheetsOf = async (m, P, edu) => { const out = []; for (const d of ['24부서']) if (P.people.some((p) => p.dept === d)) out.push(await deptSheet(m, P, edu, d)); return out; };   // 다른 부서 시트는 안 넣음(사용자 11/13)
+
+/** 교역자 카드 1장(교회 교역자·신학부·협력 교회) + 명단(교역자 방과 같은 것) */
+async function kyoWhole(m, phase, P, edu) {
+  const defs = [['교회 교역자', (p) => p.dept === '교회교역'], ['신학부 교역자', (p) => p.dept === '신학교역'], ['협력 교회', (p) => p.dept === '협력교회']];
+  defs.scope = (p) => ['교회교역', '신학교역', '협력교회'].includes(p.dept);
+  const C = cardData(m, P, await prevRates(m, edu, defs), defs, defs.scope, '교역자 ', '부서');
+  return [{ ...eduCard(m, P, C) }, ...kyoTexts(m, phase, P).map((text) => ({ text }))];
+}
+
+/** 보낼 것 목록 [{ room, text } | { room, png, caption, text }] */
+export async function buildEduAttendance(m, phase, edu, { test = false, allRegions = false, eduOnly = false } = {}) {
+  const P = { ...(await prepare(m, phase, edu)), phase };
+  const rooms = await selectAll(() => db().from('report_rooms').select('*').eq('active', true).order('dept'));
+  const out = [], seen = new Set();
+  const once = (k) => (seen.has(k) ? false : (seen.add(k), true));
+  const eduKey = '#교육:' + edu.series.series_id;
+  // 시험: 교육 방이 아직 연결 전이어도 보여 주고, 같은 표 사본(부서 총합 방·전체 방)은 한 번, 지역 방은 견본 3곳만
+  if (test && !rooms.some((r) => r.dept === eduKey)) rooms.unshift({ dept: eduKey, chat_id: testChat(), title: `${edu.series.title} 방(도우미연결에서 연결 전)` });
+  let samples = 0;
+  // 11/12 밤 최종(사용자): 목사교 방 = 부서 총합 카드+부서 명단(장·부·청) → 교역자 총합 카드+명단 → 오전·저녁 총합 엑셀 → 교회 총합 최종 카드(맨 끝)
+  //   교역자 방 = 교회 교역자(협력 교회 이름 옆 표시만)·신학부 명단 / 장부청 전체 방 = 그 부서 카드 1장 + 부서 전체 참석·지각·불참 모음
+  //   지역 방 = 그 지역 글만. 총합 방(#총합)·회장단 등엔 안 보냄 — 같은 것이 두 번 들어가지 않게.
+  for (const room of rooms) {
+    if (SKIP(room.dept) || topicPending(room)) continue;
+    const chat = String(room.chat_id).split('/')[0];
+    if (room.dept === eduKey) {
+      if (!once('edu|' + chat)) continue;
+      const C = cardData(m, P, await prevRates(m, edu));
+      for (const d of WHOLE_DEPTS) if (P.people.some((p) => p.dept === d)) for (const x of await deptWhole(m, phase, P, edu, d)) out.push({ room, part: d, ...x });
+      for (const x of await kyoWhole(m, phase, P, edu)) out.push({ room, part: '교역자', ...x });
+      out.push({ room, part: '엑셀', ...eduExcel(m, P, C, await deptSheetsOf(m, P, edu)) });
+      out.push({ room, part: '종합', ...eduCard(m, P, C) });
+      continue;
+    }
+    if (eduOnly || room.dept.startsWith('#') || room.dept.includes('#')) continue;
+    if (room.dept === '교역자') {
+      if (once('교역자|' + chat)) for (const t of kyoTexts(m, phase, P)) out.push({ room, text: t });
+      continue;
+    }
+    if (DEPTS.includes(room.dept)) {   // 부서 전체 방
+      if (once('whole|' + room.dept) && P.people.some((p) => p.dept === room.dept)) for (const x of await deptWhole(m, phase, P, edu, room.dept)) out.push({ room, ...x });
+      continue;
+    }
+    const list = P.people.filter((p) => p.key === room.dept);   // 지역 방
+    if (!list.length || !once('region|' + room.dept) || (test && !allRegions && ++samples > 3)) continue;
+    const [d, r] = room.dept.split('/');
+    out.push({ room, text: [...top(m, phase, P.sessions), ...sectionLines(`${d} ${orgLabel(d, regionShow(r))}`, list, P.outside.filter((o) => o.key === room.dept), phase, P.sessions)].join(String.fromCharCode(10)) });
+  }
+  return out;
+}
+
+/** 기존 자동 보고 호출은 성공한 목적지 배열 계약을 유지한다. */
+export async function postEduAttendance(m, phase, edu, prefix = '', failures = []) {
+  const test = edu.series.summary_to === 'test';
+  const list = await buildEduAttendance(m, phase, edu, { test, eduOnly: edu.series.summary_to === 'room' });
+  const result = await deliverEduParts(m, phase, list, { testChat: test ? testChat() : '', manual: !!prefix, prefix });
+  if (!result.ok) failures.push({scope:'#edu-att',ref:m.meetingId,phase,state:'unknown',count:result.failed.length});
+  return result.sent.map(x => x.room);
+}
+export function validEduPhase(phase) {
+  const value = String(phase || '최종');
+  if (!['오전','오후','저녁','최종'].includes(value)) throw new AccessError('교육 집계 시간을 골라 주세요.', 400);
+  return value;
+}
+export async function eduReport(m, phase, edu) {
+  phase = validEduPhase(phase);
+  const P = { ...(await prepare(m, phase, edu)), phase };
+  const C = cardData(m, P, await prevRates(m, edu));
+  return { P, C };
+}
+export async function eduPreview(m, phase, edu) {
+  const { P, C } = await eduReport(m, phase, edu);
+  const parts = await buildEduAttendance(m, phase, edu, { test: edu.series.summary_to === 'test', allRegions: true, eduOnly: edu.series.summary_to === 'room' });
+  return { P, C, parts };
+}
+// 기존 비밀 키 운영 도구의 동작을 별도 진입점으로 보존한다. 이 함수도 실제 전송이다.
+async function tsEduAttSend(body) {
+  if (!process.env.TEACHERSQUARE_CRON_KEY || body.key !== process.env.TEACHERSQUARE_CRON_KEY) return { error: 'unauthorized' };
+  if (body.botStatus) {   // 그 방에서 봇들의 권한(지우기 전에 확인)
+    const out = {};
+    for (const [k, t] of [['att', process.env.ATT_BOT_TOKEN], ['ts', process.env.TEACHERSQUARE_BOT_TOKEN]].filter(([, t]) => t)) {
+      const me = await (await fetch(`https://api.telegram.org/bot${t}/getMe`)).json();
+      const j = await (await fetch(`https://api.telegram.org/bot${t}/getChatMember?chat_id=${encodeURIComponent(body.botStatus)}&user_id=${me.result.id}`)).json();
+      out[k] = { bot: me.result.username, status: j.result?.status, canDelete: j.result?.can_delete_messages, error: j.description };
+    }
+    return out;
+  }
+  const { findMeeting } = await import('../actions/attendance.js');
+  const m = await findMeeting(String(body.meetingId || ''));
+  if(!m)throw new AccessError('모임을 찾을 수 없어요.',404);
+  if(body.jungjin){
+    const phase=validEduPhase(body.phase||'최종'),preview=await jungjinPreview(m,phase);
+    if(!preview)throw new AccessError('중진 보고 대상 교육을 골라 주세요.',400);
+    if(body.dry)return {ok:true,summary:preview.C,sent:preview.parts.map(p=>p.text)};
+    const sent=await postJungjin(m,phase,{force:true,to:body.test?{dept:JUNGJIN_KEY,chat_id:testChat()}:null});
+    return {ok:sent.length>0,sent};
+  }
+  const edu = m && await eduFor(m);
+  if (!edu) throw new AccessError('재적이 연결된 교육 모임을 골라 주세요.', 400);
+  const phase = validEduPhase(body.phase || (body.excel || body.wholeDept ? '최종' : '오전'));
+
+  let list;
+  if (body.excel || body.wholeDept) {
+    if (body.wholeDept && !WHOLE_DEPTS.includes(body.wholeDept)) throw new AccessError('부서를 골라 주세요.', 400);
+    // 운영의 부분 재전송 계약도 기존 수신 대상 확인·전달 기록 경계를 거친다.
+    list = (await buildEduAttendance(m, phase, edu, {eduOnly: true})).filter(p => body.excel ? p.part === '엑셀' : p.part === body.wholeDept);
+    if (!list.length) throw new AccessError('보낼 보고 자료와 교육 방 연결을 확인해 주세요.', 409);
+    if (body.dry && body.excel) return {ok:true,fileName:list[0].fileName,b64:Buffer.from(list[0].doc).toString('base64')};
+  } else if (body.previewDept) {
+    const { P } = await eduReport(m, phase, edu);
+    const [room] = await run(db().from('report_rooms').select('*').eq('dept', '#교육:' + edu.series.series_id).eq('active', true));
+    if (!room) throw new AccessError('교육 방 연결을 확인해 주세요.', 409);
+    if (!WHOLE_DEPTS.includes(body.previewDept)) throw new AccessError('부서를 골라 주세요.', 400);
+    list = (await deptParts(m, phase, P, edu, body.previewDept)).map(p => ({room,...p}));
+  } else list = (await buildEduAttendance(m, phase, edu, {eduOnly: true})).filter(p => !body.part || p.part === body.part);
+  if (body.dry) return {ok:true,sent:list.map(p=>p.doc?'[엑셀] '+p.docCaption:p.caption?'[카드] '+p.text:p.text)};
+  const result = await deliverEduParts(m, phase, list, {manual: true, prefix: body.previewDept ? '🧪 [시험] 부서 보고 미리보기\n' : ''});
+  return {...result, sent:[...result.sent.map(() => '성공'),...result.failed.map(() => '실패 · 수신 확인 필요')]};
+}
+async function tsEduAttTest(body) {
+  if (!process.env.TEACHERSQUARE_CRON_KEY || body.key !== process.env.TEACHERSQUARE_CRON_KEY) return { error: 'unauthorized' };
+  const { findMeeting } = await import('../actions/attendance.js');
+  const m = await findMeeting(String(body.meetingId || ''));
+  if (!m) throw new AccessError('모임을 찾을 수 없어요.', 404);
+  let edu = await eduFor(m);
+  if (!edu) {
+    const roster = (Array.isArray(body.roster) ? body.roster : []).map((p,i) => ({...p,nid:normId(p.member_id),sort_order:i}));
+    const [policy] = await run(db().from('edu_roster_policy').select('*').eq('roster_key', String(body.rosterKey || '')));
+    if (!roster.length || !policy) throw new AccessError('시험 재적과 확인된 집계 기준이 필요해요.', 400);
+    edu = {series:{series_id:m.seriesId || 'PREVIEW',title:body.title || m.title},roster,policy};
+  }
+  const phase = validEduPhase(body.phase || '오전'), chat = testChat();
+  const skip = new Set(Array.isArray(body.skip) ? body.skip.map(String) : []);
+  const list = (await buildEduAttendance(m, phase, edu, {test:true,allRegions:body.all!==false})).filter(p => !skip.has(p.room.dept));
+  const result = await deliverEduParts(m, phase, list, {testChat:chat, manual:true});
+  return {...result,sent:[...result.sent.map(x=>[x.room,'성공']),...result.failed.map(x=>[x.room,'실패 · 수신 확인 필요'])]};
+}
+export default { tsEduAttTest, tsEduAttSend };
+
+export async function eduLegacyPreview(m, phase, edu, samples = 2) {
+  const { P, C } = await eduReport(m, validEduPhase(phase), edu);
+  const keys = [...new Set(P.people.map(p => p.key).filter(k => k && k !== '교역자'))].slice(0, Math.max(0, samples));
+  const texts = [...kyoTexts(m, phase, P), ...keys.map(k => [...top(m, phase, P.sessions), ...sectionLines(k, P.people.filter(p => p.key === k), P.outside.filter(o => o.key === k), phase, P.sessions)].join('\n'))];
+  const depts = [];
+  for (const dept of WHOLE_DEPTS) if (P.people.some(p => p.dept === dept)) depts.push({dept,...(await deptWhole(m, phase, P, edu, dept))[0]});
+  return {basis:'사명자 재적',texts,depts,org:eduCard(m,P,C)};
+}
+
+// 중진 보고도 사명자 재적 정책과 별도 전달 이력을 사용한다. 개인 예외는 소스에 넣지 않는다.
+export const JUNGJIN_KEY='#중진';
+export const jungjinKind=m=>/화요전도단|화전단/.test(String(m.title||''))?'화전단':null;
+export async function jungjinKindFor(m){
+ if(jungjinKind(m))return '화전단';
+ if(!m.seriesId)return null;
+ const [s]=await run(db().from('attend_series').select('roster_key').eq('series_id',m.seriesId));
+ return s?.roster_key==='목요사명자'?'목사교':null;
+}
+export const roster24=()=>selectAll(()=>db().from('edu_roster').select('nid, member_id, name, dept, region, district, affiliation, position, sort_order').eq('roster_key','목요사명자').eq('dept','24부서').order('sort_order').order('id'));
+export async function excusedOf(kind,date){
+ return new Set((await selectAll(()=>db().from('cohort_summary_log').select('id,ref_id').eq('cohort_id','#excused').eq('kind',kind).eq('date',date).order('id'))).map(x=>x.ref_id));
+}
+export function buildJungjinReport(m,phase,kind,P,ex){
+  const came = (p) => P.sessions.some((x) => p.att[x]);
+  const isEx = (p) => !came(p) && ex.has(p.nid);
+  const defs = deptDefs(P, '24부서');
+  const one = (label, list) => {
+    const t = statOf(list, P.sessions), e = list.filter(isEx).length, a = t.absent - e;
+    return { label, n: t.n, came: t.came, rate: pct(t.came, t.n), excused: e, absent: a, absentRate: pct(a, t.n), late: t.late, by: t.by, r: t.n ? t.came / t.n : 0 };
+  };
+  const all = P.people.filter(defs.scope);
+  const rows = defs.map(([l, fn]) => one(l, all.filter(fn))).filter((r) => r.n);
+  const total = one('종합', all);
+  const [mo, d] = m.date.slice(5).split('-').map(Number);
+  const absentWord = phase === '최종' ? '불참' : '미참석';
+  const title = `${mo}/${d} 24부서 ${kind === '화전단' ? '화요전도단' : '목요 사명자 교육'} ${phase === '최종' ? '' : phase + ' '}출석현황`;
+  const C = { title, rows, total, reasonTotal: total.absent, firstHead: '부서', excusedCol: true };
+  let png = null;
+  try { png = eduCardPng(C); } catch (e) { console.log('중진 카드 오류: ' + e.message); }
+  const sorted = [...rows].sort((a, b) => b.r - a.r);
+  const NL = String.fromCharCode(10);
+  const sum = [`📊 <b>${esc(title)}</b> (24부서 사명자 기준)`, '',
+    `▸ 전체 참석률 ${total.rate} (대상 ${total.n}명 중 ${total.came}명 참석)`,
+    ...(P.sessions.length > 1 ? [`▸ ${P.sessions.map((x) => `${x} ${total.by[x]}명`).join(' · ')} (두 번 온 분은 한 번)`] : []),
+    ...(sorted.length > 1 ? [`▸ 가장 높은 곳 ${esc(sorted[0].label)} ${sorted[0].rate} · 가장 낮은 곳 ${esc(sorted.at(-1).label)} ${sorted.at(-1).rate}`] : []),
+    `▸ 지각 ${total.late}명 · 공무(사전보고) ${total.excused}명 · ${absentWord} ${total.absent}명(${total.absentRate})`].join(NL);
+  // 명단 글 — 장년회 전체 방 글과 같은 틀 + 공무(사전보고자)
+  const labelOf = new Map(defs.map(([l, , k]) => [k, l]));
+  const g = (p) => labelOf.get(defs.keyOf(p)) || p.affiliation;
+  const groups = [...new Set(all.map(g))];
+  const byGroup = (arr, fmt) => groups.map((x) => [x, arr.filter((p) => g(p) === x)]).filter(([, a]) => a.length).flatMap(([x,a])=>{const head=` ▸ ${esc(x)}(${a.length}): `,out=[];let line=head;for(const p of a){const name=fmt(p);if(line.length+name.length+2>3800){out.push(line);line=head;}line+=(line===head?'':', ')+name;}out.push(line);return out;});
+  const L = [...top(m, phase, P.sessions), `📍 <b>24부서 전체</b> · 사명자 재적 ${total.n}명`, LINE];
+  if (P.sessions.length > 1) L.push(P.sessions.map((x) => `${ICON[x] || '🙋'} ${x} ${total.by[x]}명`).join(' · '), `👥 합계 <b>${total.came}명</b> / ${total.n}명 (${total.rate})`);
+  else L.push(`${ICON[P.sessions[0]] || '👥'} ${P.sessions[0]} 참석 <b>${total.came}명</b> / ${total.n}명 (${total.rate})`);
+  L.push(`⏰ 지각 ${total.late}명 · 📋 공무 ${total.excused}명 · ❌ ${absentWord} ${total.absent}명`, LINE);
+  for (const x of P.sessions) { const c = all.filter((p) => p.att[x]); L.push(`${ICON[x] || '🙋'} <b>${x} 참석자 ${c.length}명</b>`, ...(c.length ? byGroup(c, (p) => esc(p.name)) : ['   없음'])); }
+  const late = all.filter((p) => P.sessions.some((x) => isLate(p.att[x])));
+  if (late.length) L.push(`⏰ <b>지각자 ${late.length}명</b>`, ...byGroup(late, (p) => esc(p.name) + '(' + P.sessions.filter((x) => isLate(p.att[x])).map((x) => (P.sessions.length > 1 ? x : '') + lateMin(p.att[x]) + '분').join('·') + ')'));
+  const exs = all.filter(isEx);
+  L.push(`📋 <b>공무(사전보고자) ${exs.length}명</b>`, ...(exs.length ? byGroup(exs, (p) => esc(p.name)) : ['   없음']));
+  const absent = all.filter((p) => !came(p) && !isEx(p));
+  L.push(`❌ <b>${phase === '최종' ? '불참자' : '미참석자'} ${absent.length}명</b>`, ...(absent.length ? byGroup(absent, (p) => esc(p.name)) : ['   없음 🎉']));
+  const texts = [];
+  let cur = '';
+  for (const l of L) { if (cur && cur.length + l.length + 1 > 3900) { texts.push(cur); cur = ''; } cur += (cur ? NL : '') + l; }
+  if (cur) texts.push(cur);
+  return {P, C, parts:[{png, caption:sum, text:sum, part:'중진 카드'}, ...texts.map(text=>({text,part:'중진 명단'}))]};
+}
+
+export async function jungjinReport(m,phase){
+ const kind=await jungjinKindFor(m);if(!kind)return null;
+ phase=validEduPhase(phase);
+ const [roster,policies,ex]=await Promise.all([roster24(),run(db().from('edu_roster_policy').select('*').eq('roster_key','목요사명자')),excusedOf(kind,m.date)]);
+ if(!roster.length||!policies.length)throw new AccessError('24부서 재적과 확인된 교육 집계 기준이 필요해요.',409);
+ const edu={series:{series_id:m.seriesId||'',title:m.title,roster_key:'목요사명자'},roster,policy:policies[0]};
+ const P={...(await prepare(m,phase,edu)),phase};
+ return{...buildJungjinReport(m,phase,kind,P,ex),edu,kind};
+}
+export async function jungjinParts(m,phase){return (await jungjinReport(m,phase))?.parts||[];}
+async function jungjinMode(m){
+ const [series]=m.seriesId?await run(db().from('attend_series').select('roster_key,summary_to').eq('series_id',m.seriesId)):[];
+ if(series?.roster_key&&!['live','room','test'].includes(series.summary_to))throw new AccessError('교육 보고 수신 설정을 확인해 주세요.',409);
+ return series?.roster_key&&series.summary_to==='test'?'test':'live';
+}
+export async function jungjinPreview(m,phase,roomOverride=null){
+ const report=await jungjinReport(m,phase);if(!report)return null;
+ const [room]=roomOverride?[roomOverride]:await run(db().from('report_rooms').select('*').eq('dept',JUNGJIN_KEY).eq('active',true));
+ report.edu.series.summary_to=await jungjinMode(m);
+ return{...report,parts:room&&!topicPending(room)?report.parts.map(p=>({...p,room})):[]};
+}
+export async function postJungjin(m,phase,{to=null,force=false,failures=[]}={}){
+ phase=validEduPhase(phase);
+ if(!await jungjinKindFor(m))return [];
+ const [room]=to?[to]:await run(db().from('report_rooms').select('*').eq('dept',JUNGJIN_KEY).eq('active',true));
+ if(!room||topicPending(room))return [];
+ const mode=await jungjinMode(m),target=to||{...room,chat_id:mode==='test'?testChat():room.chat_id};
+ const result=await deliverReportBatch({namespace:mode==='test'&&!to?'#jungjin-test':'#jungjin',kind:phase,ref:m.meetingId,date:m.date,room:target},async report=>{
+  for(const [i,p] of report.parts.entries()){if(i)await new Promise(r=>setTimeout(r,3200));await sendEduPart(p,target);}
+ },{manual:force||!!to,prepare:()=>jungjinReport(m,phase)});
+ if(!result.ok){failures.push({scope:'#jungjin',ref:m.meetingId,phase,state:result.state});console.log('중진 보고 수신 확인 필요: 자동 재전송하지 않습니다.');}
+ return result.state==='delivered'?['중진']:[];
+}

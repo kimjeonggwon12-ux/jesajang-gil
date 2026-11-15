@@ -1,0 +1,17 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import {useMember} from '../MemberArea';
+import {useQuery} from '../../lib/use-query';
+import {ErrorNote,Loading} from '../Ui';
+import type {CoachInfo,Feedback} from '../../lib/coaching';
+import ReportText from './ReportText';
+import {useNoticeOpened} from '../home/NoticeProvider';
+export function FeedbackPager({page,total,onPage}:{page:number;total:number;onPage:(page:number)=>void}){const pages=Math.max(1,Math.ceil(total/20));return <nav className="pager" aria-label="상담 페이지"><span>전체 {total.toLocaleString()}건 · {page}/{pages}쪽</span><div><button className="secondary" disabled={page<=1} onClick={()=>onPage(1)}>처음</button><button className="secondary" disabled={page<=1} onClick={()=>onPage(page-1)}>이전</button><button className="secondary" disabled={page>=pages} onClick={()=>onPage(page+1)}>다음</button><button className="secondary" disabled={page>=pages} onClick={()=>onPage(pages)}>마지막</button></div></nav>;}
+export default function CoachRequests({coach,revision,active=true}:{coach:CoachInfo|null;revision:number;active?:boolean}){
+ const {request}=useMember(),result=useQuery<{rows:Feedback[]}>('getMyCoachRequests'),[text,setText]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[page,setPage]=useState(1),alive=useRef(true),lock=useRef(false),seen=useRef(revision);
+ useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);useEffect(()=>{if(seen.current!==revision){seen.current=revision;result.reload();}},[revision,result.reload]);
+ useNoticeOpened('coach',active&&!!result.data&&!result.error);
+ const rows=result.data?.rows||[],current=Math.min(page,Math.max(1,Math.ceil(rows.length/20)));
+ async function send(){const content=text.trim();if(!content||lock.current)return;lock.current=true;setBusy(true);setError('');setNotice('');try{const r=await request<{receiptNo:string}>('requestCoach',{content});if(alive.current){setText('');setNotice(`요청을 접수했어요. ${r.receiptNo}`);result.reload();}}catch(e){if(alive.current)setError(e instanceof Error?e.message:'요청을 보내지 못했어요.');}finally{lock.current=false;if(alive.current)setBusy(false);}}
+ return <><section className="panel"><h2>교관에게 요청</h2><p>{coach?.coach?`담당 교관: ${coach.coach.coachName} · ${coach.coach.dept} ${coach.coach.region}`:'담당 교관이 아직 표시되지 않아요. 요청은 접수할 수 있습니다.'}</p><form onSubmit={e=>{e.preventDefault();void send();}}><label>요청할 내용<textarea rows={5} value={text} disabled={busy} onChange={e=>setText(e.target.value)}/></label><button className="primary" disabled={busy||!text.trim()}>{busy?'보내는 중…':'요청 보내기'}</button></form><ErrorNote message={error}/>{notice?<p role="status">{notice}</p>:null}</section><section className="panel"><div className="section-heading"><h2>내 요청과 답변</h2><button className="secondary" onClick={result.reload}>새로고침</button></div><ErrorNote message={result.error} retry={result.reload}/>{result.loading?<Loading/>:<><FeedbackPager page={current} total={rows.length} onPage={setPage}/>{rows.slice((current-1)*20,current*20).map(row=><article className="report-preview" key={row.receiptNo}><h3>{row.receiptNo} · {row.status}</h3><p className="muted">{row.submittedAt}</p><ReportText text={row.situation}/>{row.handlerAnswer?<><h4>교관 답변</h4><ReportText text={row.handlerAnswer}/><p className="muted">{row.answeredAt}</p></>:<p className="muted">답변을 기다리고 있어요.</p>}</article>)}{!rows.length?<p className="empty">아직 보낸 요청이 없어요.</p>:null}</>}</section></>;
+}

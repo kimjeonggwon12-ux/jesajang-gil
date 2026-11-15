@@ -1,0 +1,27 @@
+{
+  "name": "teacher-square-next",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ../tools/local-next-server.mjs dev",
+    "build": "node ../tools/prepare-next-legacy.mjs && next build --webpack",
+    "start": "node ../tools/local-next-server.mjs start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "server-only": "0.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

@@ -1,0 +1,4 @@
+'use client';
+import {ClassicAccountActions} from './ClassicIdentity';
+import ClassicIcon from './ClassicIcon';
+export default function ClassicPlazaHeader({title,search,onSearch,onSubmit}:{title:string;search?:string;onSearch?:(text:string)=>void;onSubmit?:()=>void}){return <div className="pz-appbar"><div className="pz-appbar-row"><div className="pz-logo"><span className="room-ic"><ClassicIcon name={title==='사례'?'story':title==='참여'?'join':'calendar'}/></span><span>{title}</span></div>{onSearch?<form className="pz-search" onSubmit={e=>{e.preventDefault();onSubmit?.();}}><input aria-label="게시글 검색" type="search" placeholder="검색" maxLength={40} value={search||''} onChange={e=>onSearch(e.target.value)}/><button aria-label="검색" type="submit">⌕</button></form>:null}<div className="pz-appbar-actions"><ClassicAccountActions/></div></div></div>;}

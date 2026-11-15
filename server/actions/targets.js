@@ -151,7 +151,9 @@ async function getTargets(body) {
   const rows = targets.map((t) => ({ ...toTarget(t), history: [] }));
   const byId = new Map(rows.map((t) => [t.targetId, t]));
 
-  const history = await selectAll(() => db().from('target_history').select('*').eq('nid', nid).order('id'));
+  // 목록 화면은 단계 이력을 쓰지 않는다. 이전 클라이언트의 기본 응답은 유지한다.
+  const history = rows.length && body.includeHistory !== false
+    ? await selectAll(() => db().from('target_history').select('target_id, changed_at, from_stage, to_stage, memo').eq('nid', nid).order('id')) : [];
   for (const h of history) byId.get(h.target_id.trim())?.history.push(toHistory(h));
   for (const t of rows) t.history.sort(newestFirst);
 
@@ -512,35 +514,76 @@ export async function coachingAbout(target, mid) {
   return feedbacks.filter((f) => about(String(f.situation || ''))).sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1));
 }
 
-export async function targetDossier(target, mid, budget = {}) {
-  const B = { acts: 30000, history: 4000, coaching: 15000, notes: 12000, info: 20000, ...budget };
-  const [acts, history, allNotes, coach] = await Promise.all([
-    activitiesAbout(target),
-    run(db().from('target_history').select('*').eq('target_id', target.target_id).order('id')),
-    run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).order('id')).catch(() => []),
-    coachingAbout(target, mid),
+// 기존 keepNewest와 같은 UTF-16 문자 예산·생략 건수. 최신 본문이 충분하면 더 읽지 않는다.
+async function dossierLines(loadPage, lineOf, budget) {
+  const newest=[];let offset=0,used=0,total=0;
+  while (true) {
+    const page=await loadPage(offset); total=page.total;
+    for (const row of page.rows) {
+      const line=lineOf(row);used+=line.length;
+      if(used>budget)return {lines:[`- (그 전 기록 ${total-newest.length}건은 길어서 생략)`,...newest.reverse()],total};
+      newest.push(line);
+    }
+    offset+=page.rows.length;
+    if(!page.rows.length || offset>=total)break;
+  }
+  return {lines:newest.length?newest.reverse():['- 없음'],total};
+}
+const dossierActLine=a=>'- '+[
+  day(a.submitted_at),a.roles.length&&`[${a.roles.join('·')}]`,a.activities.join(', '),a.target_stage&&`(단계: ${a.target_stage})`,
+  a.consult_title&&`상담 제목: ${a.consult_title}`,a.gospel_subject&&`과목: ${a.gospel_subject}`,
+  a.reaction&&`반응: ${a.reaction}${a.reaction_note?` — ${a.reaction_note}`:''}`,
+  a.today_work&&`한 일: ${cut(a.today_work,600)}`,a.next_work&&`다음: ${cut(a.next_work,300)}`,a.special_note&&`특이사항: ${cut(a.special_note,300)}`,
+].filter(Boolean).join(' / ');
+const dossierCoachLine=f=>[`- ${day(f.submitted_at)} [${f.source}] 상황: ${cut(f.situation,400)}`,
+ f.ai_coach_text&&`  AI 답: ${cut(f.ai_coach_text,1500)}`,f.handler_answer&&`  교관 답(${f.handler||'교관'}): ${cut(f.handler_answer,1200)}`].filter(Boolean).join('\n');
+async function dossierActivityLines(target,budget) {
+  const owners=[...new Set([target.creator_id,target.leader_id,target.helper_id].filter(id=>str(id)).map(normId))];
+  if(!target.target_name.trim() || !owners.length)return {lines:['- 없음'],total:0};
+  const [last]=await run(db().from('target_dossier_activities').select('id').in('nid',owners).eq('target_key',target.target_name.trim()).order('id',{ascending:false}).limit(1));
+  if(!last)return {lines:['- 없음'],total:0};
+  return dossierLines(async offset=>{
+    const {data,error,count}=await db().from('target_dossier_activities').select('*',{count:'exact'}).in('nid',owners)
+      .eq('target_key',target.target_name.trim()).lte('id',last.id).order('submitted_at',{ascending:false,nullsFirst:true}).order('id',{ascending:false}).range(offset,offset+99);
+    if(error)throw new Error(error.message);
+    return {rows:data,total:count};
+  },dossierActLine,budget);
+}
+async function dossierCoachingLines(target,mid,budget) {
+  const name=target.target_name.trim(),mask=maskName(name);
+  const owners=[...new Set([target.creator_id,target.leader_id,target.helper_id,mid].filter(id=>str(id)).map(normId))];
+  const mine=await run(db().from('targets').select('target_name').or(ownedBy(normId(mid))));
+  const unique=mine.filter(t=>maskName(t.target_name)===mask).length<=1;
+  let through=null;
+  return dossierLines(async offset=>{
+    const page=await run(db().rpc('target_coaching_page',{p_owners:owners,p_name:name,p_mask:mask,p_unique:unique,p_offset:offset,p_limit:20,p_through:through}));
+    through=page.through;return page;
+  },dossierCoachLine,budget);
+}
+// 기존 단일 조회의 Data API 상한 범위는 ID 색인으로 보존하고 필요한 본문만 가져온다.
+async function dossierIndexedLines(table,index,columns,lineOf,budget) {
+  const ids=index.map(r=>r.id).reverse();
+  return dossierLines(async offset=>({total:ids.length,rows:offset>=ids.length?[]:await run(db().from(table).select(columns).in('id',ids.slice(offset,offset+20)).order('id',{ascending:false}))}),lineOf,budget);
+}
+export async function targetDossier(target,mid,budget={}) {
+  const B={acts:30000,history:4000,coaching:15000,notes:12000,info:20000,...budget};
+  const [acts,history,notes,coach]=await Promise.all([
+    dossierActivityLines(target,B.acts),
+    (async()=>{
+      const index=await run(db().from('target_history').select('id').eq('target_id',target.target_id).order('id'));
+      return dossierIndexedLines('target_history',index,'changed_at,from_stage,to_stage,memo',h=>`- ${day(h.changed_at)} ${h.from_stage||'(처음)'} → ${h.to_stage}${h.memo?` (${cut(h.memo,200)})`:''}`,B.history);
+    })(),
+    (async()=>{
+      const index=await run(db().from('target_ai_notes').select('id,kind').eq('target_id',target.target_id).order('id'));
+      const [info,previous]=await Promise.all([
+        dossierIndexedLines('target_ai_notes',index.filter(n=>n.kind===INFO_KIND),'created_at,input,text',n=>`- ${day(n.created_at)} [${n.input||'기타'}] ${cut(n.text,1500)}`,B.info),
+        dossierIndexedLines('target_ai_notes',index.filter(n=>n.kind!==INFO_KIND&&n.kind!==MASTER_KIND),'created_at,kind,input,text',n=>`- ${day(n.created_at)} [${n.kind}] ${cut(n.input,300)}\n  ${cut(n.text,2500).replace(/\n/g,'\n  ')}`,B.notes),
+      ]);return {info,previous};
+    })().catch(()=>({info:{lines:['- 없음'],total:0},previous:{lines:['- 없음'],total:0}})),
+    dossierCoachingLines(target,mid,B.coaching),
   ]);
-  // 10/30: 교사가 파악한 정보(INFO_KIND)는 AI 기록과 따로 — 모든 AI 프롬프트에 '■ 교사가 파악한 정보'로 들어간다
-  const info = allNotes.filter((n) => n.kind === INFO_KIND);
-  const notes = allNotes.filter((n) => n.kind !== INFO_KIND && n.kind !== MASTER_KIND);
-  const infoLines = info.map((n) => `- ${day(n.created_at)} [${n.input || '기타'}] ${cut(n.text, 1500)}`);
-
-  const actLines = acts.sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1)).map((a) => '- ' + [
-    day(a.submitted_at), a.roles.length && `[${a.roles.join('·')}]`, a.activities.join(', '), a.target_stage && `(단계: ${a.target_stage})`,
-    a.consult_title && `상담 제목: ${a.consult_title}`, a.gospel_subject && `과목: ${a.gospel_subject}`,
-    a.reaction && `반응: ${a.reaction}${a.reaction_note ? ` — ${a.reaction_note}` : ''}`,
-    a.today_work && `한 일: ${cut(a.today_work, 600)}`, a.next_work && `다음: ${cut(a.next_work, 300)}`, a.special_note && `특이사항: ${cut(a.special_note, 300)}`,
-  ].filter(Boolean).join(' / '));
-  const histLines = history.map((h) => `- ${day(h.changed_at)} ${h.from_stage || '(처음)'} → ${h.to_stage}${h.memo ? ` (${cut(h.memo, 200)})` : ''}`);
-  const coachLines = coach.map((f) => [`- ${day(f.submitted_at)} [${f.source}] 상황: ${cut(f.situation, 400)}`,
-    f.ai_coach_text && `  AI 답: ${cut(f.ai_coach_text, 1500)}`, f.handler_answer && `  교관 답(${f.handler || '교관'}): ${cut(f.handler_answer, 1200)}`].filter(Boolean).join('\n'));
-  const noteLines = notes.map((n) => `- ${day(n.created_at)} [${n.kind}] ${cut(n.input, 300)}\n  ${cut(n.text, 2500).replace(/\n/g, '\n  ')}`);
-
-  return {
-    acts: keepNewest(actLines, B.acts), history: keepNewest(histLines, B.history),
-    coaching: keepNewest(coachLines, B.coaching), notes: keepNewest(noteLines, B.notes), info: keepNewest(infoLines, B.info), actN: acts.length, coachN: coach.length,
-    basis: `활동 ${acts.length}건 · 파악 정보 ${info.length}건 · 단계 이력 ${history.length}건 · AI상담·교관 ${coach.length}건 · 이전 AI 기록 ${notes.length}건 종합`,
-  };
+  return {acts:acts.lines,history:history.lines,coaching:coach.lines,notes:notes.previous.lines,info:notes.info.lines,actN:acts.total,coachN:coach.total,
+    basis:`활동 ${acts.total}건 · 파악 정보 ${notes.info.total}건 · 단계 이력 ${history.total}건 · AI상담·교관 ${coach.total}건 · 이전 AI 기록 ${notes.previous.total}건 종합`};
 }
 
 /**
@@ -555,13 +598,13 @@ async function deleteTarget(body) {
   if (!mid || (!targetId && !byName)) return { error: 'memberId, targetId 가 필요합니다.' };
   const nid = normId(mid);
   if (!targetId) {
-    const mine = await run(db().from('targets').select('target_id, target_name').or(ownedBy(nid)).order('id'));
+    const mine = await selectAll(() => db().from('targets').select('target_id, target_name').or(ownedBy(nid)).order('id'));
     const hit = mine.find((t) => t.target_name.trim() === byName);
     if (hit) targetId = hit.target_id;
     else {
-      const gone = (await run(db().from('activities').select('id, target_name').eq('nid', nid).order('id')))
+      const gone = (await selectAll(() => db().from('activities').select('id, target_name').eq('nid', nid).order('id')))
         .filter((a) => a.target_name.trim() === byName).map((a) => a.id);
-      if (gone.length) await run(db().from('activities').delete().in('id', gone));
+      for (let i = 0; i < gone.length; i += 200) await run(db().from('activities').delete().eq('nid', nid).in('id', gone.slice(i, i + 200)));
       return { ok: true, targetName: byName, deletedActivities: gone.length, deletedHistory: 0 };
     }
   }
@@ -570,7 +613,7 @@ async function deleteTarget(body) {
   if (!owns(target, nid)) return { error: '본인 담당의 전도 대상자만 삭제할 수 있습니다.' };
 
   const activityIds = (await activitiesAbout(target)).map((a) => a.id);
-  if (activityIds.length) await run(db().from('activities').delete().in('id', activityIds));
+  for (let i = 0; i < activityIds.length; i += 200) await run(db().from('activities').delete().in('id', activityIds.slice(i, i + 200)));
   const history = await run(db().from('target_history').delete().eq('target_id', targetId).select('id'));
   try { await run(db().from('target_ai_notes').delete().eq('target_id', targetId)); } catch { /* 표가 없어도 삭제는 계속 */ }
   try {   // 11/6: 섭외자 대화방(글·멤버)도 함께
@@ -588,58 +631,16 @@ const ROLES = ['인도자', '교사', '섬김이', '협력교사'];
 const COOP_ITEMS = ['피드백', '동아리', '잎사귀', '만남 동행', '밭보기', '은사', '멘토교사', '동행교사', '식구 복음방', '전도 행사 지원', '교육 지원', '특강'];
 
 /** 진행 중인 대상자마다 { stage, roles } — roles 는 담당자들이 그 대상자 활동에 적은 역할 + 담당 배정. */
-async function openTargetsWithRoles() {
-  const [activities, targets] = await Promise.all([
-    selectAll(() => db().from('activities').select('nid, target_name, roles').neq('member_id', '').neq('target_name', '').order('id')),
-    selectAll(() => db().from('targets').select('*').eq('completed', false).order('id')),
-  ]);
-  const rolesBy = new Map();
-  for (const a of activities) {
-    const name = a.target_name.trim();
-    if (!name) continue;
-    const key = `${a.nid}::${name}`;
-    if (!rolesBy.has(key)) rolesBy.set(key, new Set());
-    a.roles.forEach((r) => rolesBy.get(key).add(r));
-  }
-  return targets.map((t) => {
-    const roles = new Set();
-    for (const id of [t.creator_id, t.leader_id, t.helper_id]) {
-      if (str(id)) rolesBy.get(`${normId(id)}::${t.target_name.trim()}`)?.forEach((r) => roles.add(r));
-    }
-    if (str(t.leader_id)) roles.add('인도자');
-    if (str(t.helper_id)) roles.add('섬김이');
-    return { stage: t.stage, roles };
-  });
-}
-
 async function getTargetStageDistribution(body) {
   let role = str(body.role);
   if (role === '협력') role = '협력교사';
   if (role && !ROLES.includes(role)) return { error: '알 수 없는 역할: ' + role };
-
-  if (role === '협력교사') {
-    const year = Number(kstDate().slice(0, 4));
-    const activities = await selectAll(() => db().from('activities').select('activities')
-      .neq('member_id', '').contains('roles', [role])
-      .gte('submitted_at', `${year}-01-01`).lt('submitted_at', `${year + 1}-01-01`).order('id'));
-    const counts = Object.fromEntries(COOP_ITEMS.map((s) => [s, 0]));
-    let total = 0, other = 0;
-    for (const item of activities.flatMap((a) => a.activities)) {
-      if (!item) continue;
-      if (counts[item] === undefined) { other++; continue; }
-      counts[item]++; total++;
-    }
-    return { role, kind: 'items', total, other, stages: COOP_ITEMS.map((stage) => ({ stage, count: counts[stage] })) };
-  }
-
-  const counts = Object.fromEntries(TARGET_STAGES.map((s) => [s, 0]));
-  let total = 0, other = 0;
-  for (const t of await openTargetsWithRoles()) {
-    if (role && !t.roles.has(role)) continue;
-    if (counts[t.stage] === undefined) { other++; continue; }
-    counts[t.stage]++; total++;
-  }
-  return { role, total, other, stages: TARGET_STAGES.map((stage) => ({ stage, count: counts[stage] })) };
+  const coop = role === '협력교사', items = coop ? COOP_ITEMS : TARGET_STAGES;
+  const rows = await run(coop ? db().rpc('activity_item_counts', {p_year:Number(kstDate().slice(0,4)),p_role:role,p_fold:{},p_raw:true})
+    : db().rpc('target_stage_counts',{p_role:role}));
+  const counts=Object.fromEntries(items.map(s=>[s,0])); let total=0,other=0;
+  for(const r of rows) {const key=coop?r.item:r.stage;if(counts[key]===undefined){other+=r.n;continue;} counts[key]=Number(counts[key])+r.n;total+=r.n;}
+  return {role,...(coop?{kind:'items'}:{}),total,other,stages:items.map(stage=>({stage,count:counts[stage]}))};
 }
 
 // 11/8(사용자): 관리자 전체 요약의 막대 그래프 = 활동 기록 화면의 항목 그대로, 올해 기록 건수.
@@ -655,21 +656,11 @@ async function getActivityItemDistribution(body) {
   const items = role === '협력교사' ? COOP_ITEMS
     : [...ROLE_ITEMS, ...(role === '' || role === '교사' ? ['동행교사'] : []), ...EXTRA_ITEMS];
   const year = Number(kstDate().slice(0, 4));
-  const rows = await selectAll(() => {
-    const q = db().from('activities').select('activities, roles').neq('member_id', '')
-      .gte('submitted_at', `${year}-01-01`).lt('submitted_at', `${year + 1}-01-01`);
-    return (role ? q.contains('roles', [role]) : q).order('id');
-  });
-  const counts = Object.fromEntries(items.map((s) => [s, 0]));
-  let total = 0, other = 0;
-  for (const a of rows) {
-    if (!role && a.roles.includes('협력교사')) continue;   // 전체 = 인도·교사·섬김 기록(협력은 항목 체계가 달라 따로)
-    for (const raw of a.activities) {
-      const item = ITEM_FOLD[str(raw)] || str(raw);
-      if (!item) continue;
-      if (counts[item] === undefined) { other++; continue; }
-      counts[item]++; total++;
-    }
+  const rows = await run(db().rpc('activity_item_counts', {p_year:year,p_role:role,p_fold:ITEM_FOLD,p_raw:false}));
+  const counts = Object.fromEntries(items.map(s => [s, 0])); let total = 0, other = 0;
+  for (const {item,n} of rows) {
+    if (counts[item] === undefined) { other += n; continue; }
+    counts[item] = Number(counts[item]) + n; total += n;
   }
   return { role, kind: 'items', year, total, other, stages: items.map((stage) => ({ stage, count: counts[stage] })) };
 }

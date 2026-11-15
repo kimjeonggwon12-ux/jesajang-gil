@@ -1,0 +1,5 @@
+import type {Reminder} from './device.ts';
+export async function activeWorker(){const registration=await navigator.serviceWorker.getRegistration('/');if(!registration?.active)throw Error('알림 준비를 마치지 못했어요. 잠시 후 다시 확인해 주세요.');return registration;}
+export async function notificationOwner(token:string){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');}
+// 서명 토큰/고유번호는 워커에 보내지 않는다. 계정 세대 구분값과 예약은 워커 메모리에서만 사용한다.
+export async function syncReminders(owner:string,rows:Reminder[],valid:()=>boolean){const registration=await activeWorker();if(!valid())return null;return new Promise<number>((resolve,reject)=>{const channel=new MessageChannel();const timer=setTimeout(()=>{channel.port1.close();reject(Error('알림 준비 결과를 확인하지 못했어요. 다시 확인해 주세요.'));},3000);channel.port1.onmessage=e=>{clearTimeout(timer);channel.port1.close();if(e.data?.ok)resolve(e.data.count);else reject(Error('알림을 준비하지 못했어요.'));};registration.active!.postMessage({type:'SYNC_CALENDAR_REMINDERS',owner,rows},[channel.port2]);});}

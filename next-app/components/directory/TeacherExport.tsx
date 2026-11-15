@@ -1,0 +1,12 @@
+'use client';
+import {useRef,useState,type FormEvent} from 'react';
+import {ORG_DEPTS} from '../../lib/directory';
+import {downloadBase64} from '../../lib/download';
+import {useMember} from '../MemberArea';
+import {ErrorNote,Modal} from '../Ui';
+export default function TeacherExport({regionsByDept,initialDept,onClose}:{regionsByDept:Record<string,string[]>;initialDept:string;onClose:()=>void}) {
+ const {request}=useMember(),[dept,setDept]=useState(initialDept),[region,setRegion]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),pending=useRef(false);
+ async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();if(pending.current)return;const form=event.currentTarget,data=new FormData(form);pending.current=true;setBusy(true);setError('');
+  try{const result=await request<{fileName:string;base64:string}>('exportTeacherList',{dept,region,period:String(data.get('period')),password:String(data.get('password'))});downloadBase64(result.fileName,result.base64);onClose();}catch(e){setError((e as Error).message);}finally{const pw=form.elements.namedItem('password');if(pw instanceof HTMLInputElement)pw.value='';pending.current=false;setBusy(false);}}
+ return <Modal title="교사 명단 엑셀" onClose={onClose} busy={busy}><form onSubmit={submit}><fieldset disabled={busy}><label htmlFor="export-dept">부서</label><select id="export-dept" value={dept} onChange={e=>{setDept(e.target.value);setRegion('');}}><option value="">전체 부서</option>{ORG_DEPTS.map(d=><option key={d}>{d}</option>)}</select><label htmlFor="export-region">지역</label><select id="export-region" value={region} disabled={!dept} onChange={e=>setRegion(e.target.value)}><option value="">부서 전체 + 지역별 시트</option>{(regionsByDept[dept]||[]).map(r=><option key={r}>{r}</option>)}</select><label htmlFor="export-period">활동 집계 기간</label><select name="period" id="export-period" defaultValue="prev"><option value="this">이번 달</option><option value="prev">지난 달</option><option value="all">누적</option></select><label htmlFor="export-password">다운로드 비밀번호</label><input id="export-password" name="password" type="password" autoComplete="off" required/><p className="help">선택한 부서·지역의 전체 명단을 받습니다. 화면의 검색어·페이지·선택한 사람과는 별개입니다. 다운로드 권한과 비밀번호를 확인하고 실행 기록을 남깁니다.</p><ErrorNote message={error}/><button className="primary full" type="submit" disabled={busy}>{busy?'만드는 중…':'엑셀 받기'}</button></fieldset></form></Modal>;
+}

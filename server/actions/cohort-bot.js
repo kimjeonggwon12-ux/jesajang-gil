@@ -1,6 +1,6 @@
 // 교육 과정 텔레그램 방(출석 봇 웹훅): 방에 쓴 글로 과제 제출·시험 점수를 기록한다.
 //   제출 [이름] [과제이름] 내용     → 과제 제출(처음 한 번 이름을 쓰면 그 텔레그램 계정이 교육생과 연결됨, 사진·파일 설명에 써도 됨)
-//   점수 과목 [날짜] 이름 점수 …    → 그날 그 과목 점수(방 관리자만). 한 줄에 여럿 또는 여러 줄.
+//   점수 과목 [날짜] 이름 점수 …    → 그날 그 과목 점수(앱의 과정 시험 담당자). 한 줄에 여럿 또는 여러 줄.
 //   "점수" 없이 "10월 19일 시험 결과 / 송영라 60점 / 김순자 60점 …"도 점수로 본다(looksLikeScores).
 //   집계 · 방번호 · 도움말
 // ⚠️ 봇이 '제출'·'점수' 같은 일반 글을 받으려면 봇을 그 방의 관리자로 지정해야 한다(텔레그램 개인정보 모드).
@@ -16,9 +16,11 @@ import { scoreBoard } from '../lib/cohort-tables.js';
 /** 순위표 이미지를 방으로 — 2026-10-22: 과목 상관없이 모든 시험을 한 표로 */
 async function sendRanking(c) {
   // 순위표에는 교육생·점수만 받는다
-  try { const b = scoreBoard(await loadAll(c, ['members', 'scores']), '', 12, c.title); if (b) await sendBoard(c, b); } catch (e) { console.log('순위표 오류: ' + e); }
+  const b = scoreBoard(await loadAll(c, ['members', 'scores']), '', 12, c.title); if (b) await sendBoard(c, b, '', {strict:true});
 }
 import { isOwner } from './roster.js';
+import { connectEducationTelegram, telegramEducationActor } from './education-access.js';
+import { educationGrants, permits } from '../lib/education-access.js';
 
 const APP_URL = () => process.env.APP_URL || 'https://jesajang-gil.vercel.app';
 /** 텔레그램이 웹훅 머리글에 실어 보내는 비밀값(크론 키에서 만든다 — 따로 환경값을 늘리지 않으려고). */
@@ -32,7 +34,7 @@ const HELP = [
   '  사진·파일을 올릴 때 설명에 "제출 홍길동"이라고 써도 됩니다.',
   '  권하는 꼴(날짜 → 과제, 과제 이름은 일부만): 제출 13일 천국  /  제출 12,13,14일 천국 13일 성도',
   '  지난날: 어제·그제·10/15·15일·월요일  ("제출"을 빼거나 여러 줄로 써도 과제 이름과 날짜가 있으면 기록돼요)',
-  '• 시험 점수(방 관리자): 점수 계시록 홍길동 85 김영희 90',
+  '• 시험 점수(연결된 시험 담당자): 점수 계시록 홍길동 85 김영희 90',
   '  날짜를 넣으려면: 점수 계시록 10/16 홍길동 85  (없으면 오늘)',
   '  여러 줄로 써도 됩니다(첫 줄 "점수 과목", 다음 줄부터 "이름 점수").',
   '  "점수" 없이도 됩니다: 10월 19일 시험 결과 (다음 줄부터) 홍길동 60점 / 김영희 80점',
@@ -45,19 +47,24 @@ const HELP = [
   '• 방번호: 이 방 번호 보기',
 ].join('\n');
 
-const reply = (msg, text) => attendBotCall('sendMessage', {
+const callConfirmed = async (method, payload) => {
+  const result = await attendBotCall(method, payload);
+  if (!result?.ok) throw Error('교육 봇 응답 확인 필요');
+  return result;
+};
+const reply = (msg, text) => callConfirmed('sendMessage', {
   chat_id: msg.chat.id, text: String(text).slice(0, 3900), reply_to_message_id: msg.message_id, allow_sending_without_reply: true,
 });
 const tgName = (u) => [u?.first_name, u?.last_name].filter(Boolean).join(' ') || u?.username || '';
 
-async function isChatAdmin(chatId, userId) {
-  const r = await attendBotCall('getChatMember', { chat_id: chatId, user_id: userId });
-  return r.ok && ['creator', 'administrator'].includes(r.result?.status);
+async function operatorFor(msg, c, task) {
+  const actor = await telegramEducationActor(msg);
+  return actor && permits(await educationGrants(actor), 'cohort', c.cohortId, task) ? actor : null;
 }
 
 async function cohortOfChat(chatId) {
-  const [row] = await run(db().from('cohorts').select('*').eq('tg_chat', String(chatId)).eq('status', '진행').order('id', { ascending: false }).limit(1));
-  return row ? toCohort(row) : null;
+  const rows = await run(db().from('cohorts').select('*').eq('tg_chat', String(chatId)).eq('status', '진행').limit(2));
+  return rows.length === 1 ? toCohort(rows[0]) : null; // 같은 방에 활성 과정이 둘이면 임의로 고르지 않는다.
 }
 
 const loadMembers = (cohortId) => run(db().from('cohort_members').select('*').eq('cohort_id', cohortId).order('seq').order('id'));
@@ -162,7 +169,7 @@ async function onSubmit(msg, c, body, loose = false) {
     const { error } = await db().from('cohort_tg_links').upsert(
       { cohort_id: c.cohortId, tg_user_id: uid, member_id: member.member_id, name: member.name, linked_at: kstDateTime() },
       { onConflict: 'cohort_id,tg_user_id' });
-    if (error) console.log('텔레그램 연결 저장 오류: ' + error.message);
+    if (error) throw Error('교육생 연결 저장 확인 필요');
   } else {
     const [link] = await run(db().from('cohort_tg_links').select('*').eq('cohort_id', c.cohortId).eq('tg_user_id', uid).limit(1));
     if (link) member = members.find((m) => m.nid === link.nid) || null;
@@ -313,7 +320,7 @@ export function parseScoreTable(body, today) {
   return { dates, rows, rest: rest.join(' ') };
 }
 
-async function onScoreTable(msg, c, members, byName, table) {
+async function onScoreTable(msg, c, members, byName, table, operator) {
   const { dates, rows } = table;
   const width = Math.max(...rows.map((r) => r.values.length));
   if (!dates.length) return reply(msg, `날짜 줄을 찾지 못했어요. 이름 아래 점수가 ${width}개면 날짜도 ${width}개 적어 주세요.\n예:\n점수 계시록\n10.12 / 14/15/16\n1. 홍길동 80/ 90/ 미/ 100`);
@@ -337,7 +344,7 @@ async function onScoreTable(msg, c, members, byName, table) {
     if (m === 'dup') { dup.push(r.name); continue; }
     r.values.forEach((v, k) => {
       if (v == null || v > 1000) { absent.push(`${m.name} ${dates[k].slice(5).replace('-', '/')}`); return; }
-      save.push({ cohort_id: c.cohortId, date: dates[k], subject, member_id: m.member_id, name: m.name, score: v, by_name: by, at: now });
+      save.push({ cohort_id: c.cohortId, date: dates[k], subject, member_id: m.member_id, name: m.name, score: v, by_name: by, actor_nid: operator.nid, at: now });
     });
   }
   if (save.length) await run(db().from('cohort_scores').upsert(save, { onConflict: 'cohort_id,date,subject,nid' }));
@@ -374,14 +381,15 @@ export function splitScoreBlocks(body, today) {
 }
 
 async function onScore(msg, c, body) {
-  if (!(await isChatAdmin(msg.chat.id, msg.from.id))) return reply(msg, '점수는 방 관리자만 올릴 수 있어요.');
+  const operator = await operatorFor(msg,c,'exams');
+  if (!operator) return reply(msg, '앱에서 텔레그램을 연결한 이 과정의 시험 담당자만 점수를 올릴 수 있어요.');
   const blocks = splitScoreBlocks(body, kstDate());
   if (blocks.length > 1) { for (const b of blocks) await onScore(msg, c, b); return; }
   const members = await loadMembers(c.cohortId);
   const byName = new Map();
   for (const m of members) { const k = nameKey(m.name); byName.set(k, byName.has(k) ? 'dup' : m); }
   const table = parseScoreTable(body, kstDate());
-  if (table) return onScoreTable(msg, c, members, byName, table);
+  if (table) return onScoreTable(msg, c, members, byName, table, operator);
 
   // 교육생 이름+점수 짝을 뽑아 첫 줄에서 지우고, 첫 줄에 남은 낱말 = 과목(+날짜)
   const pairRe = /([가-힣A-Za-z]{2,10})\s*[:：]?\s*(\d{1,3}(?:\.\d{1,2})?)(?![\d/.])\s*점?/g;
@@ -421,7 +429,7 @@ async function onScore(msg, c, body) {
     const m = byName.get(nameKey(p.name));
     if (m === 'dup') { dup.push(p.name); continue; }
     if (p.score > 1000) continue;
-    rows.push({ cohort_id: c.cohortId, date, subject, member_id: m.member_id, name: m.name, score: p.score, by_name: tgName(msg.from), at: kstDateTime() });
+    rows.push({ cohort_id: c.cohortId, date, subject, member_id: m.member_id, name: m.name, score: p.score, by_name: tgName(msg.from), actor_nid: operator.nid, at: kstDateTime() });
     saved.push(`${m.name} ${p.score}`);
   }
   if (rows.length) await run(db().from('cohort_scores').upsert(rows, { onConflict: 'cohort_id,date,subject,nid' }));
@@ -442,15 +450,21 @@ export async function handleAttendUpdate(update) {
   const added = update.my_chat_member;
   const msg = update.message || update.edited_message;
   const chat = (msg || added || {}).chat;
-  if (!chat || chat.type === 'private') return;
+  if (!chat) return;
+  if (chat.type === 'private') {
+    if (!msg?.from || msg.from.is_bot || msg.sender_chat || update.edited_message) return;
+    const link = /^\/?연결\s+([A-Za-z0-9_-]{32})$/.exec(String(msg.text || '').trim());
+    if (link) return reply(msg, await connectEducationTelegram(link[1],msg.from.id) ? '앱 계정을 연결했어요. 맡은 과정의 업무를 사용할 수 있어요.' : '연결하지 못했어요. 앱에서 새 코드를 발급하거나 기존 계정 연결을 확인해 주세요.');
+    return;
+  }
   await run(db().from('cohort_tg_chats').upsert({ chat_id: String(chat.id), title: chat.title || '', seen_at: kstDateTime() }, { onConflict: 'chat_id' }));
   if (added && ['member', 'administrator'].includes(added.new_chat_member?.status) && !['member', 'administrator'].includes(added.old_chat_member?.status)) {
-    await attendBotCall('sendMessage', { chat_id: chat.id, text: `안녕하세요! 이 방 번호는 ${chat.id} 입니다.\n앱의 교육 과정 설정에서 이 방을 고르면 출석·과제·점수가 이 방과 연결됩니다.\n⚠️ "제출"·"점수" 글을 읽으려면 저를 방 관리자로 지정해 주세요.` });
+    await callConfirmed('sendMessage', { chat_id: chat.id, text: `안녕하세요! 이 방 번호는 ${chat.id} 입니다.\n앱의 교육 과정 설정에서 이 방을 고르면 출석·과제·점수가 이 방과 연결됩니다.\n⚠️ "제출"·"점수" 글을 읽으려면 저를 방 관리자로 지정해 주세요.` });
     return;
   }
   if (!msg || !msg.from || msg.from.is_bot) return;
   // 10/27: 부녀회 지역장+교관방 — '일일보고' 주제에 누가 글을 쓰면 총합이 그 주제로 가게 번호를 배운다
-  if (msg.is_topic_message && (await (await import('../lib/report-room.js')).learnSummaryTopic(msg).catch(() => false))) return;
+  if (msg.is_topic_message && (await (await import('../lib/report-room.js')).learnSummaryTopic(msg))) return;
   const text = String(msg.text || msg.caption || '').trim();
   if (/^\/?방번호/.test(text)) { await reply(msg, `이 방 번호: ${chat.id}${msg.is_topic_message ? ` · 주제 번호: ${msg.message_thread_id}` : ''}`); return; }
   const c = await cohortOfChat(chat.id);
@@ -462,10 +476,10 @@ export async function handleAttendUpdate(update) {
   if (text && !/^\/?(점수|집계|방번호)/.test(text) && looksLikeScores(text)) return onScore(msg, c, text);   // "점수" 없이 올린 시험 결과
   if (text && !/^\/?(점수|집계|방번호)/.test(text)) return onSubmit(msg, c, text, true);   // "제출" 없이 쓴 제출(조건 안 맞으면 조용히 넘어감)
   if (/^\/?집계$/.test(text)) {
-    if (!(await isChatAdmin(chat.id, msg.from.id))) return reply(msg, '집계는 방 관리자만 볼 수 있어요.');
+    if (!(await operatorFor(msg,c,'reports'))) return reply(msg, '앱에서 텔레그램을 연결한 이 과정의 집계 담당자만 보낼 수 있어요.');
     const { cohortSummaryText, sendBoards } = await import('./cohorts.js');
     await reply(msg, await cohortSummaryText(c));
-    return sendBoards(c);   // 출석표·과목별 순위표 이미지
+    return sendBoards(c, {strict:true});   // 출석표·과목별 순위표 이미지
   }
 }
 
@@ -476,6 +490,7 @@ const DENIED = { error: '교육 과정은 앱 관리자(7777)만 관리할 수 �
 /** 출석 봇이 이 서버로 글을 보내게 웹훅을 건다(처음 한 번 — 다시 눌러도 같음). */
 async function cohortBotConnect(body) {
   if (!isOwner(clip(body.memberId, 40))) return DENIED;
+  if (process.env.VERCEL_ENV !== 'production') return { error: '실제 봇 연결 설정은 운영 환경에서만 바꿀 수 있어요.' };
   if (!process.env.TEACHERSQUARE_CRON_KEY) return { error: '서버 비밀값(크론 키)이 없어요.' };
   const r = await attendBotCall('setWebhook', {
     url: `${APP_URL()}/api/tg`, secret_token: webhookSecret(),

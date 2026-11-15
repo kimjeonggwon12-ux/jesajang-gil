@@ -1,0 +1,11 @@
+'use client';
+import {useRef,useState,type FormEvent} from 'react';
+import {goalMonths,localDate,type Target} from '../../lib/activities';
+import {TARGET_STAGES_FALLBACK} from '../../lib/activity-report.mjs';
+import {useMember} from '../MemberArea';
+import {ErrorNote,Modal} from '../Ui';
+export default function TargetEditor({target,onClose,onSaved}:{target?:Target;onClose:()=>void;onSaved:()=>void}){
+ const {request}=useMember(),[busy,setBusy]=useState(false),pending=useRef(false),[error,setError]=useState('');
+ async function save(event:FormEvent<HTMLFormElement>){event.preventDefault();if(pending.current)return;pending.current=true;setBusy(true);setError('');const data=new FormData(event.currentTarget),body={targetName:String(data.get('name')||'').trim(),stage:String(data.get('stage')),nextMeetingDate:String(data.get('nextDate')),memo:String(data.get('memo')),...(target?{targetId:target.targetId,goalCohort:String(data.get('goal')),completed:data.get('completed')==='on'}:{})};try{await request(target?'updateTarget':'addTarget',body);onSaved();}catch(error){setError((error as Error).message);}finally{pending.current=false;setBusy(false);}}
+ return <Modal title={target?'대상자 정보 수정':'대상자 등록'} onClose={onClose} busy={busy}><form onSubmit={save}><fieldset disabled={busy}><label>대상자 이름<input name="name" required readOnly={!!target} defaultValue={target?.targetName||''}/></label>{target?<p className="help">이름은 활동 기록의 수정 화면에서 변경합니다.</p>:null}<label>단계<select name="stage" defaultValue={target?.stage||TARGET_STAGES_FALLBACK[0]}>{TARGET_STAGES_FALLBACK.map(s=><option key={s}>{s}</option>)}</select></label><label>다음 만남 날짜<input name="nextDate" type="date" defaultValue={target?.nextMeetingDate||''}/></label><label>메모<textarea name="memo" defaultValue={target?.memo||''}/></label>{target?<><label>센터 인도 목표 월<select name="goal" defaultValue={target.goalCohort||''}><option value="">목표 없음</option>{[...new Set([...goalMonths(localDate()),...(target.goalCohort?[target.goalCohort]:[])])].map(m=><option key={m}>{m}</option>)}</select></label><p className="help">목표 월을 바꾸면 현재 개강 계획은 비워지고 이전 계획은 이력에 남습니다.</p><label className="check-label"><input type="checkbox" name="completed" defaultChecked={target.completed}/>관리 완료</label></>:null}<ErrorNote message={error}/><button className="primary full">{busy?'저장 중…':'저장'}</button></fieldset></form></Modal>;
+}

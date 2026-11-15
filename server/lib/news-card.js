@@ -1,11 +1,9 @@
 // 📰 교사광장 전도 뉴스 카드(2026-11-05) — 사용자: "가독성 있게, 가능하면 카드 뉴스로. 텍스트는 밑에 달고, 데이터는 가독성 있는 카드 뉴스".
 // SVG → PNG(resvg, 나눔고딕 — progress-image.js 와 같은 글꼴). 그림 안에는 이모지를 쓰지 않는다(글꼴에 없음).
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Resvg } from '@resvg/resvg-js';
+import {bundledFontFiles} from './bundled-fonts.js';
 
-const FONT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'fonts');
-const FONTS = ['NanumGothic-Regular.ttf', 'NanumGothic-Bold.ttf'].map((f) => path.join(FONT_DIR, f));
+const FONTS = bundledFontFiles();
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const comma = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 

@@ -1,0 +1,5 @@
+export type EduRosterRow={memberId?:string;member_id:string;name:string;dept:string;region:string;district:string;affiliation:string;position:string;sort_order:number};
+export type EduPolicy={excluded_positions:string[];alwaysPresent:{memberId:string}[];overrides:{memberId:string;dept:string}[];source_note:string};
+export type EduRosterAdmin={key:string;series:{id:string;title:string;rosterKey:string;mode:string};rows:EduRosterRow[];policy:EduPolicy|null;linked:{id:string;title:string}[];canImport:boolean;canSettings:boolean;canLink:boolean;history:{id:number;kind:string;actor_name:string;source:string;created_at:string;after_summary:{before:number;after:number}}[]};
+export type RosterReview={review:string;key:string;linked:string[];summary:{before:number;after:number;added?:EduRosterRow[];removed?:EduRosterRow[];changed?:EduRosterRow[];excluded?:string[];present?:number;overrides?:number;mode?:string}};
+export const MODE_LABELS:Record<string,string>={live:'교육·부서·지역 보고방',room:'교육 보고방만',test:'설정된 시험 방만'};

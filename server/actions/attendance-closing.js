@@ -1,3 +1,5 @@
+import { requireMeetingTask, educationGrants, permits } from '../lib/education-access.js';
+import { currentActor, AccessError } from '../lib/request-context.js';
 // 출석 마감: 그날 명단을 교사명단과 대조해 정리한 엑셀을 만들어 출석 방에 보낸다.
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDateTime } from '../lib/util.js';
@@ -6,7 +8,7 @@ import { workbookFiles } from '../lib/xlsx-multi.js';
 import { zip } from '../lib/zip.js';
 import { sendAttendFile, sendAttendPhoto, sendAttendText } from '../lib/attend-bot.js';
 import { isAdmin } from './roster.js';
-import { loadMeetings, findMeeting, loadRecords, lateText, pickText, isTestMeeting, slotOf, slotLabel, GUEST_POSITION } from './attendance.js';
+import { loadMeetings, findMeeting, loadRecordsForMeetings, lateText, pickText, isTestMeeting, attendanceSlot, slotLabel, GUEST_POSITION } from './attendance.js';
 
 const ORGS = ['교역자', '자문회', '장년회', '부녀회', '청년회', '기타'];
 const EVENING_FROM = '15:00';   // 이 시각부터 출석한 사람은 '저녁'
@@ -104,13 +106,20 @@ function matchPerson(rec, dir) {
  * 그날의 마감 자료: 이 모임과, 같은 날 이 모임보다 먼저(또는 같이) 시작한 모임들의 출석을 합쳐
  * 오전/저녁으로 나누고, 같은 사람의 중복 출석은 인원에서 뺀다.
  */
-export async function closingData(m) {
-  const meetings = (await loadMeetings()).filter((x) => x.date === m.date && !isTestMeeting(x) && (x.start || '') <= (m.start || ''));
+export async function closingData(m, { onlyMeeting = false } = {}) {
+  let meetings = onlyMeeting ? [m] : (await loadMeetings()).filter((x) => x.date === m.date && !isTestMeeting(x) && (x.start || '') <= (m.start || ''));
+  // 예약 집계의 기존 합산은 유지한다. 사람이 요청하는 파일은 합산되는 모든 모임의 권한을 적용한다.
+  if (currentActor() && !currentActor().cron) {
+    const grants = await educationGrants();
+    const allowed = x => permits(grants,x.cohortId ? 'cohort' : x.seriesId ? 'series' : 'meeting',x.cohortId || x.seriesId || x.meetingId,'reports');
+    if (!allowed(m)) throw new AccessError('이 교육의 자료 담당자만 내려받을 수 있어요.');
+    meetings = meetings.filter(allowed);
+  }
   if (!meetings.some((x) => x.meetingId === m.meetingId)) meetings.push(m);
   meetings.sort((a, b) => ((a.start || '') < (b.start || '') ? -1 : 1));
   const meetingOf = new Map(meetings.map((x) => [x.meetingId, x]));
 
-  const records = await loadRecords((q) => q.in('meeting_id', [...meetingOf.keys()]));
+  const records = await loadRecordsForMeetings([...meetingOf.keys()], {sessions:true});
   const dir = await loadDirectory(records);
   records.sort((a, b) => (a.at < b.at ? -1 : (a.at > b.at ? 1 : 0)));
 
@@ -122,7 +131,7 @@ export async function closingData(m) {
     const { person, note: matchNote, guest } = matchPerson(r, dir);
     const id = person ? person.id : formatId(r.memberId);
     // 2026-10-15: 타임이 여러 개인 모임은 온 타임 이름(오전·오후·저녁), 아니면 15시 기준 오전/저녁
-    const slot = slotOf(meetingOf.get(r.meetingId), r.at.slice(11, 16));
+    const slot = attendanceSlot(meetingOf.get(r.meetingId), r.at);
     const session = slot ? slotLabel(slot.start) : (r.at.slice(11, 16) >= EVENING_FROM ? '저녁' : '오전');
     const org = orgOf(r, person);
     const late = r.late || lateText(meetingOf.get(r.meetingId), r.at);   // 지각 표시가 없는 옛 기록은 시작 시각으로 계산
@@ -360,18 +369,20 @@ async function tidyRecordIds(meetingIds) {
 }
 
 /** 마감 파일을 만들어 출석 방에 보낸다. */
-export async function sendClosing(m) {
+export async function sendClosing(m, {strict = false} = {}) {
   const file = await closingFile(m);
   try { await tidyRecordIds(file.data.meetings.map((x) => x.meetingId)); } catch (e) { console.log('번호 정리 오류: ' + e); }
-  const sent = await sendAttendFile(file.bytes, file.fileName, file.caption);
+  const sent = await sendAttendFile(file.bytes, file.fileName, file.caption, {strict});
+  if (strict && !sent.ok) throw Error('출석 파일 전달 확인 필요');
   // 교사교육이면 엑셀 다음에 지역별 참석 현황 그래프(교·자·장·부·청 순서)
   if (isTeacherEdu(m)) {
     try {
       for (const c of await regionCharts(m, file.data)) {
-        const photo = await sendAttendPhoto(c.png, c.caption);
+        const photo = await sendAttendPhoto(c.png, c.caption, undefined, {strict});
+        if (strict && !photo.ok) throw Error('출석 그래프 전달 확인 필요');
         if (!photo.ok) await sendAttendText(`⚠️ ${c.dept} 그래프를 보내지 못했어요: ${photo.error}\n\n${c.caption}`);
       }
-    } catch (e) { await sendAttendText('⚠️ 지역별 참석 현황 그래프를 만들지 못했어요: ' + (e.message || e)); }
+    } catch (e) { if (strict) throw e; await sendAttendText('⚠️ 지역별 참석 현황 그래프를 만들지 못했어요: ' + (e.message || e)); }
   }
   return { ok: sent.ok, error: sent.error, count: file.data.rows.length, fileName: file.fileName, caption: file.caption };
 }
@@ -380,13 +391,16 @@ export async function sendClosing(m) {
 async function attSendClosing(body) {
   const mid = clip(body.memberId, 40);
   if (!mid || !(await isAdmin(mid))) return { error: '관리자만 할 수 있어요.' };
+  await requireMeetingTask(String(body.meetingId || ''), 'reports');
   const m = await findMeeting(clip(body.meetingId, 40));
   if (!m) return { error: '모임을 찾을 수 없어요.' };
   if (body.dryRun) {
     const file = await closingFile(m);
     return { ok: true, dryRun: true, fileName: file.fileName, caption: file.caption, base64: file.bytes.toString('base64') };
   }
-  return sendClosing(m);
+  if(!process.env.ATT_BOT_TOKEN||!process.env.ATT_ADMIN_CHAT)return {ok:false,error:'봇 설정 없음'};
+  try {return await sendClosing(m, {strict:true});}
+  catch {return {ok:false,error:'출석 파일 또는 그래프의 전달을 확인하지 못했어요. 방의 실제 수신을 확인한 뒤 다시 시도해 주세요.'};}
 }
 
 export default { attSendClosing };

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": [
+    "icn1"
+  ],
+  "installCommand": "npm ci --prefix .. --omit=dev && npm ci --include=dev",
+  "buildCommand": "node ../tools/build-release-next.mjs",
+  "git": {
+    "deploymentEnabled": false
+  }
+}

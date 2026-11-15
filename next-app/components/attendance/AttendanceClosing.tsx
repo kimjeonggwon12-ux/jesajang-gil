@@ -1,0 +1,18 @@
+'use client';
+import {useEffect,useState} from 'react';
+import {Modal,ErrorNote,Loading} from '../Ui';
+import {useMember} from '../MemberArea';
+import {downloadBase64} from '../../lib/download';
+import {useAttendanceTask} from './useAttendanceTask';
+import type {AdminMeeting} from '../../lib/attendance-admin';
+import EduAttendanceReport,{type EduReport} from './EduAttendanceReport';
+type Closing={ok:boolean;fileName:string;caption:string;base64:string};
+function LegacyClosing({meeting,onClose,onJungjin}:{meeting:AdminMeeting;onClose:()=>void;onJungjin?:()=>void}){const {request}=useMember(),task=useAttendanceTask(),[file,setFile]=useState<Closing|null>(null),[confirm,setConfirm]=useState(false),[sent,setSent]=useState(false);return <Modal title="마감 명단·전달" onClose={onClose} busy={task.busy}><h3>{meeting.title}</h3>{onJungjin?<button className="secondary" disabled={task.busy} onClick={onJungjin}>중진 24부서 보고 확인</button>:null}<p>같은 날 먼저 시작한 모임 중 자료 권한이 있는 모임을 함께 집계해요. 오전·저녁 중복 구분은 기존 기준을 따릅니다.</p>{file?<><pre className="att-caption">{file.caption}</pre><p>{file.fileName}</p><div className="att-actions"><button className="primary" disabled={task.busy} onClick={()=>{void task.run(async()=>{const current=await request<Closing>('attSendClosing',{meetingId:meeting.meetingId,dryRun:true});if(task.active()){setFile(current);downloadBase64(current.fileName,current.base64);}});}}>마감 명단 엑셀 받기</button><button className="secondary" disabled={task.busy||sent} onClick={()=>setConfirm(true)}>텔레봇방으로 보내기</button></div>{confirm&&!sent?<section className="notice"><p>현재 설정된 출석 텔레그램 방으로 명단 파일을 보냅니다. 전송 시점의 기록으로 다시 집계해요.</p><button className="primary" disabled={task.busy} onClick={()=>{void task.run(async()=>{const r=await request<{ok:boolean;error?:string}>('attSendClosing',{meetingId:meeting.meetingId,dryRun:false});if(!r.ok)throw Error(r.error||'전달 결과를 확인하지 못했어요.');if(task.active()){setSent(true);setConfirm(false);task.setNotice('텔레봇방으로 보냈어요.');}});}}>확인하고 보내기</button> <button className="secondary" disabled={task.busy} onClick={()=>setConfirm(false)}>취소</button></section>:null}</>:<button className="primary" disabled={task.busy} onClick={()=>{void task.run(async()=>{const r=await request<Closing>('attSendClosing',{meetingId:meeting.meetingId,dryRun:true});if(task.active())setFile(r);});}}>{task.busy?'명단을 준비하고 있어요…':'마감 명단 확인'}</button>}<ErrorNote message={task.error}/>{task.notice?<p role="status">{task.notice}</p>:null}</Modal>;}
+
+export default function AttendanceClosing({meeting,onClose}:{meeting:AdminMeeting;onClose:()=>void}){
+ const {request}=useMember(),[data,setData]=useState<EduReport|null>(null),[error,setError]=useState(''),[attempt,setAttempt]=useState(0),[audience,setAudience]=useState('education');
+ useEffect(()=>{if(!meeting.seriesId&&audience==='education')return;let live=true;setData(null);setError('');request<EduReport>('getEduAttendanceReport',{meetingId:meeting.meetingId,phase:'최종',audience}).then(d=>{if(live)setData(d);}).catch(e=>{if(live)setError(e.message);});return()=>{live=false;};},[meeting.seriesId,meeting.meetingId,request,attempt,audience]);
+ if(audience==='education'&&(!meeting.seriesId||data&&!data.enabled))return <LegacyClosing meeting={meeting} onClose={onClose} onJungjin={data?.jungjinAvailable||/화요전도단|화전단/.test(meeting.title)?()=>{setData(null);setAudience('jungjin');}:undefined}/>;
+ if(data?.enabled)return <EduAttendanceReport meeting={meeting} initial={data} onClose={onClose}/>;
+ return <Modal title="교육 재적 확인" onClose={onClose}><ErrorNote message={error} retry={()=>setAttempt(n=>n+1)}/>{!error?<Loading/>:null}</Modal>;
+}

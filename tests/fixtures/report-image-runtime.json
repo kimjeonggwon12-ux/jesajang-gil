@@ -1,0 +1,130 @@
+{
+  "inputs": {
+    "table": {
+      "title": "교사광장",
+      "head": [
+        "확인"
+      ],
+      "rows": [
+        [
+          "한글 출력"
+        ]
+      ]
+    },
+    "progress": {
+      "title": "참여 확인",
+      "labels": [
+        "교역자회"
+      ],
+      "totals": [
+        10
+      ],
+      "panels": [
+        {
+          "title": "참여",
+          "color": "#00AE82",
+          "values": [
+            8
+          ]
+        }
+      ]
+    },
+    "education": {
+      "title": "교육 확인",
+      "rows": [
+        {
+          "label": "확인",
+          "n": 10,
+          "came": 8,
+          "rate": "80.0%",
+          "prev": "70.0%",
+          "absent": 2,
+          "absentRate": "20.0%",
+          "excused": 0,
+          "reasons": {
+            "직장": 1,
+            "병결": 1,
+            "가정사": 0,
+            "개인사": 0
+          }
+        }
+      ],
+      "total": {
+        "label": "확인",
+        "n": 10,
+        "came": 8,
+        "rate": "80.0%",
+        "prev": "70.0%",
+        "absent": 2,
+        "absentRate": "20.0%",
+        "excused": 0,
+        "reasons": {
+          "직장": 1,
+          "병결": 1,
+          "가정사": 0,
+          "개인사": 0
+        }
+      },
+      "reasonTotal": {
+        "직장": 1,
+        "병결": 1,
+        "가정사": 0,
+        "개인사": 0
+      }
+    },
+    "news": {
+      "date": "11월 15일",
+      "headline": "한글 확인",
+      "total": {
+        "records": 10,
+        "prevRecords": 8,
+        "teachers": 5,
+        "gospel": 2,
+        "center": 1,
+        "morning": 3
+      },
+      "depts": [
+        {
+          "label": "교역자회",
+          "records": 10,
+          "prevRecords": 8,
+          "teachers": 5,
+          "line": "확인"
+        }
+      ]
+    },
+    "total": {
+      "date": "11월 15일",
+      "title": "전체 확인",
+      "rows": [
+        {
+          "label": "교역자회",
+          "n": 10
+        }
+      ],
+      "sum": 10
+    }
+  },
+  "expected": {
+    "table": {
+      "bytes": 7156,
+      "sha256": "bb23c215d752743fcd1ead657704add173455ea6ab9fb4eb5535d3e11b5727dd"
+    },
+    "progress": {
+      "bytes": 17430,
+      "sha256": "eed84036783e16744494704d6a12b48c49d5c1902b06c268af7115bd9d3f8f9a"
+    },
+    "education": {
+      "bytes": 69943,
+      "sha256": "76e030c0801fa4b3e187daebc9385a5cfe0e69406bdf4f77595cc18177f8db63"
+    },
+    "news": {
+      "bytes": 42789,
+      "sha256": "1960f508c846119af3d0f48606e0e8c416c50e476dfa8e18987e1764facec0aa"
+    },
+    "total": {
+      "bytes": 43861,
+      "sha256": "f99487d0c5f72e46c8e81dc3f4afabb05f68ec3a466f23a17063bc420adf5dc0"
+    }
+  }
+}

@@ -5,13 +5,17 @@
 //   (등급은 밤 11시 '교사 활동 현황 서머리'에 휴·활·정·우 채움 막대로).
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
-import { sendAlert, alreadySent, logAlert, esc } from '../lib/alerts.js';
+import { alreadySent, esc } from '../lib/alerts.js';
+import { sendMainSummary, mainSummaryState } from '../lib/summary-delivery.js';
 import { afterAction, onStageReached } from '../lib/events.js';
 import { teachersByNid, rosterCounts, loadRoster, fixActivityNids, adminsAsTeachers } from './roster.js';
 import { progressPng } from '../lib/progress-image.js';
 import { boardTable, boardTotalLines, BOARD_COLS, boardLabel, countPairs, sendRoomBoard, sendRoomText, topicPending } from '../lib/report-room.js';
 import { askAiModels } from '../lib/gemini.js';
 import { newsCardPng, totalCardPng } from '../lib/news-card.js';
+import {deliverReportBatch,reportBatchStates,runReportBatch} from '../lib/report-delivery-batch.js';
+import {sendRoomBoardConfirmed} from '../lib/report-room.js';
+import {testChat} from '../lib/edu-attendance.js';
 
 // 11/5(사용자): "서머리 다섯 개에 번호를 매기고 머릿말에 어떤 서머리인지 설명" — 하루 순서대로 ①~⑤
 const SUMMARY_HEAD = {
@@ -138,11 +142,7 @@ async function sendDailySummary({ date, force }) {
     const day = date || kstDate();
     const { parts, total } = await composeDaily(day);
     if (!force && await alreadySent('서머리|' + day)) return { ok: false, date: day, total, skipped: true };
-    let ok = true;
-    for (const [i, part] of parts.entries()) {
-      const key = force ? '' : `서머리|${day}${i ? '|' + (i + 1) : ''}`;
-      ok = (await sendAlert(part, '일일서머리', key)) && ok;
-    }
+    const ok = await sendMainSummary(parts.map(text=>({text})),force?'':'서머리|'+day,'일일서머리');
     return { ok, date: day, total, messages: parts.length, skipped: false };
   } catch (err) {
     console.log('[교사광장 봇] 서머리 오류 ' + err);
@@ -201,8 +201,7 @@ async function composeTotalCard(day, board) {
 /** 표 사진 + 설명을 소통 방(TEACHERSQUARE_CHAT_ID)에. 사진을 못 보내면 글로. */
 async function sendBoard(day, kind, key, logKind) {
   const r = await composeBoard(day, kind);
-  let ok = r.png ? await sendChart(r.png, r.caption, key, logKind) : false;
-  if (!ok) ok = await sendAlert(r.text, logKind, key);
+  const ok = await sendMainSummary([r],key,logKind);
   return { ok, date: day, total: r.total, photo: !!r.png };
 }
 
@@ -270,8 +269,7 @@ async function sendStatusSummary({ date, force } = {}) {
   const key = force ? '' : 'status_' + day;
   if (key && await alreadySent(key)) return { ok: false, date: day, skipped: true };
   const r = await composeStatus(day);
-  let ok = r.png ? await sendChart(r.png, r.caption, key, '참여현황') : false;
-  if (!ok) ok = await sendAlert(r.text, '참여현황', key);   // 사진을 못 보내면 글로
+  const ok = await sendMainSummary([r],key,'참여현황');
   return { ok, date: day, photo: !!r.png };
 }
 
@@ -285,6 +283,7 @@ export async function summaryTick() {
   if (hm >= '23:00') out.daily = await sendDailySummary({ date: kstDate() }).catch((e) => ({ error: String(e) }));
   // 11/10(사용자): '10시 한 줄 데이터 뉴스' — 9시 뉴스처럼 22:00 틱에 바로(같은 틱에서 지역 표·보라 표 다음이라 맨 마지막). 옛: 11/5(사용자): "한 줄 데이터 뉴스 — 매일 밤 10시 맨 마지막, 글만, 내일(11/6)부터" → 22시 표들(③·④)이 먼저 나가게 22:05부터, 하루 한 번
   if (hm >= '22:00' && hm < '23:00' && kstDate() >= NEWS_START) out.news = await sendNewsOneline({ date: kstDate() }).catch((e) => ({ error: String(e) }));
+  if (hm >= '22:00' && hm < '23:00') out.jungjin=await sendJungjinTiers(kstDate()).catch(()=>({error:'중진 등급 보고 확인 필요'}));
   return out;
 }
 
@@ -346,22 +345,7 @@ async function composeEvening(day) {
 
 /** 그래프 사진 + 설명을 보낸다. 같은 중복키로 이미 보냈으면 다시 보내지 않는다. */
 async function sendChart(png, caption, dedupKey, kind = '저녁서머리') {
-  try {
-    if (await alreadySent(dedupKey)) return true;
-    if (!process.env.TEACHERSQUARE_BOT_TOKEN || !process.env.TEACHERSQUARE_CHAT_ID) return false;
-    const form = new FormData();
-    form.set('chat_id', process.env.TEACHERSQUARE_CHAT_ID);
-    form.set('caption', caption.slice(0, 1024));
-    form.set('parse_mode', 'HTML');
-    form.set('photo', new Blob([png], { type: 'image/png' }), 'participation.png');
-    const r = await fetch(`https://api.telegram.org/bot${process.env.TEACHERSQUARE_BOT_TOKEN}/sendPhoto`, { method: 'POST', body: form });
-    if (!r.ok) console.log(`[교사광장 봇] 사진 전송 실패 ${r.status} ${(await r.text()).slice(0, 300)}`);
-    await logAlert(kind, '[그래프] ' + caption, r.ok, dedupKey);
-    return r.ok;
-  } catch (e) {
-    console.log('[교사광장 봇] 사진 전송 오류 ' + e);
-    return false;
-  }
+  return sendMainSummary([{png,caption}],dedupKey,kind);
 }
 
 /** 저녁 서머리: 오늘 하루 교자장부청 × 활동 항목 표(11/4부터 한 통). */
@@ -384,40 +368,61 @@ async function sendEveningSummary({ date, force, tick }) {
 // ── 부서 전체 방·회장단 방 (2026-11-09) ── 사용자: "부서 전체 방엔 그 부서 전지역 통합 + 교자장부청 교회 통합 — 장부청이 자기 부서와 전체를 비교하게.
 //   회장단 방도 자기 부서와 교회 전체. 한 줄 데이터 뉴스도 각 부서 전체·회장단·소통 방에 매일."
 //   자기 부서 지역별 총합(③ 민트)은 report-room.js 총합 방('부서#총합…')이 보내고, 여기선 ④ 교자장부청 보라 표와 뉴스만. 방마다 하루 한 번.
-const CHURCH_ROOM_KEYS = ['교역자', '장년회', '부녀회', '청년회', '부녀회/기타'];   // 부서 전체 방(교역자 방 포함) + 부녀회 회장단 방
+const CHURCH_ROOM_KEYS = ['교역자', '장년회', '부녀회', '청년회', '부녀회/기타', '#중진'];   // 부서 전체 방(교역자 방 포함) + 부녀회 회장단 방
 async function churchRooms() {
-  const rows = await run(db().from('report_rooms').select('*').in('dept', CHURCH_ROOM_KEYS).eq('active', true)).catch(() => []);
+  const rows = await run(db().from('report_rooms').select('*').in('dept', CHURCH_ROOM_KEYS).eq('active', true));
   const seen = new Set();
   return CHURCH_ROOM_KEYS.map((k) => rows.find((r) => r.dept === k))
     .filter((r) => r && !topicPending(r) && !seen.has(String(r.chat_id)) && seen.add(String(r.chat_id)));
 }
 /** 아직 오늘 kind 를 받지 않은 방들 */
-async function pendingChurchRooms(kind, day) {
-  const done = new Set((await run(db().from('cohort_summary_log').select('ref_id').eq('cohort_id', '#church-room').eq('kind', kind).eq('date', day)).catch(() => [])).map((x) => x.ref_id));
-  return (await churchRooms()).filter((r) => !done.has(r.dept));
+const churchDelivery=(room,kind,day)=>({namespace:'#church-room',kind,ref:room.dept,date:day,room});
+async function pendingChurchRooms(kind,day,failures=[],filter=()=>true){
+ const rows=(await churchRooms()).filter(filter),states=await reportBatchStates(rows.map(room=>churchDelivery(room,kind,day)));
+ // sending/unknown은 다시 만들거나 자동 전송하지 않는다. sent인데 옛 완료 기록만 없는 경우는 다음 호출에서 복구한다.
+ rows.forEach((room,i)=>{if(['sending','unknown'].includes(states[i]))failures.push({scope:'#church-room',ref:room.dept,phase:kind,date:day,state:states[i]});});
+ return rows.filter((room,i)=>['pending','sent'].includes(states[i]));
 }
-async function sendToRooms(rooms, kind, day, send) {
-  const sent = [];
-  for (const room of rooms) {
-    const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#church-room', kind, ref_id: room.dept, date: day, sent_at: kstDateTime() });
-    if (error) continue;   // 이미 보냄
-    try { await send(room); sent.push(room.dept); }
-    catch (e) {
-      await db().from('cohort_summary_log').delete().eq('cohort_id', '#church-room').eq('kind', kind).eq('ref_id', room.dept).eq('date', day);   // 다음 5분에 다시
-      console.log(`[교사광장 봇] ${kind} 방 전송 실패(${room.dept}): ${e.message}`);
-    }
-  }
-  return sent;
+async function sendToRooms(rooms,kind,day,send,failures=[]){
+ const sent=[];
+ for(const room of rooms){
+  const result=await runReportBatch(churchDelivery(room,kind,day),()=>send(room),failures);
+  if(result.state==='delivered')sent.push(room.dept);
+  else if(!result.ok)console.log('[교사광장 봇] '+kind+' 보고 수신 확인 필요: 자동 재전송하지 않습니다.');
+ }
+ return sent;
 }
+export async function sendJungjinTiers(day,to=null){
+ const failures=[];
+ const rooms=to?[to]:await pendingChurchRooms('등급',day,failures,r=>r.dept==='#중진');
+ if(!rooms.length)return{ok:!failures.length,sent:[],needsReview:!!failures.length,failures};
+ const done=to|| (await run(db().from('cohort_summary_log').select('ref_id').eq('cohort_id','#church-room').eq('kind','데이터뉴스').eq('date',day).eq('ref_id','#중진').limit(1))).length;
+ if(!done)return{sent:[],wait:'뉴스 먼저'};
+ const {tiers}=await composeEvening(day),[,m,d]=day.split('-').map(Number);
+ const text=[`🏷 <b>교자장부청 교사 등급 현황</b> · ${m}월 ${d}일(${weekdayOf(day)}) 밤 10시`,'휴교사·활동교사·정교사·우수교사','',tiers].join(String.fromCharCode(10));
+ if(to){const r=await deliverReportBatch(churchDelivery(to,'등급',day),()=>sendRoomText(to.chat_id,text),{manual:true});return{ok:r.ok,sent:r.ok?['test']:[]};}
+ const sent=await sendToRooms(rooms,'등급',day,room=>sendRoomText(room.chat_id,text),failures);
+ return{ok:!failures.length,sent,needsReview:!!failures.length,failures};
+}
+const tsJungjinTest=async body=>{
+ if(!authorized(body))return{error:'unauthorized'};
+ const day=body.date||kstDate(),chat=testChat();
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(Date.parse(day+'T00:00:00Z'))||new Date(day+'T00:00:00Z').toISOString().slice(0,10)!==day)throw Error('날짜를 확인해 주세요.');
+ const news=await sendNewsOneline({date:day,to:'test'},chat);
+ if(!news.ok)return{news:false,tiers:{sent:[],wait:'뉴스 먼저'}};
+ return{news:true,tiers:await sendJungjinTiers(day,{dept:'#중진',chat_id:chat})};
+};
 /** 밤 10시: 교자장부청 방(부서 전체 방·교역자 방·회장단 방)에 교자장부청 '계' 큰 정사각형 카드.
  *  11/10(사용자): "대문짝만하게 해서 교자장부청 방에" — 보라 표는 소통 방에만. */
 async function sendEveningRooms(day) {
-  const rooms = await pendingChurchRooms('교자장부청', day);
-  if (!rooms.length) return { sent: [] };
+  const failures=[];
+  const rooms = await pendingChurchRooms('교자장부청', day, failures);
+  if (!rooms.length) return { ok:!failures.length, sent: [], needsReview:!!failures.length, failures };
   const r = await composeBoard(day, 'evening');
-  if (!r.total) return { sent: [], skipped: '기록 없음' };
+  if (!r.total) return { ok:!failures.length, sent: [], skipped:!failures.length?'기록 없음':false, failures };
   const c = await composeTotalCard(day, r);
-  return { sent: await sendToRooms(rooms, '교자장부청', day, (room) => sendRoomBoard(room, c.png, c.caption, c.text)) };
+  const sent=await sendToRooms(rooms, '교자장부청', day, (room) => sendRoomBoardConfirmed(room, c.png, c.caption, c.text), failures);
+  return { ok:!failures.length, sent, needsReview:!!failures.length, failures };
 }
 /** 소통 방에 '계' 카드(보라 표 다음, 뉴스 앞). 하루 한 번. */
 async function sendMainCard(day) {
@@ -739,7 +744,7 @@ export { composeDaily, composeEvening, composeTotalCard };
 // 11/5(사용자): "오늘 부서별 총합 카드 뉴스를 소통 방에 — 교자장부청 한 줄 데이터 뉴스"
 //   { action:'tsNewsSend', key, date?, today?:true, to?:'test' } — 카드 사진 + 아래 한 줄 뉴스 글. 같은 날 한 번만(force로 다시).
 const tsNewsSend = async (body) => (authorized(body) ? sendNewsOneline(body) : { error: 'unauthorized' });
-async function sendNewsOneline(body) {
+async function sendNewsOneline(body,testTarget='') {
   const day = body.date || kstDate();
   // 11/5(사용자): "이미지는 하지 말고 한 줄 데이터 뉴스 텍스트만" → photo:false. text 를 주면 확인한 글 그대로(AI 다시 안 씀)
   const compose = async () => (body.text ? { text: String(body.text), png: null, ai: false } : composeNews(day, { oneline: true, today: body.today !== false }));
@@ -748,22 +753,27 @@ async function sendNewsOneline(body) {
     if (body.photo !== false) { try { const c = await composeTotalCard(day); if (c.total) r.png = c.png; } catch (e) { console.log('[교사광장 봇] 계 카드 오류 ' + e); } }
     return r;
   };
-  if (body.to === 'test') { const r = await withCard(await compose()); return { ...(await testPhoto(r.png, r.text, r.text)), ai: r.ai, text: r.text }; }
+  if (body.to === 'test') { const r = await withCard(await compose()); if(testTarget){const result=await deliverReportBatch(churchDelivery({dept:'#중진',chat_id:testTarget},'데이터뉴스',day),()=>sendRoomBoardConfirmed({chat_id:testTarget},r.png,r.text,r.text),{manual:true});return {ok:result.ok,ai:r.ai,text:r.text};} return { ...(await testPhoto(r.png, r.text, r.text)), ai: r.ai, text: r.text }; }
   const key = body.force ? '' : 'news1_' + day;
   // 11/9(사용자): 뉴스는 소통 방 + 각 부서 전체 방·회장단 방에도 매일(손으로 다시 보내는 force 는 소통 방만)
-  const rooms = body.force ? [] : await pendingChurchRooms('데이터뉴스', day);
-  const mainDone = !!key && await alreadySent(key);
-  if (mainDone && !rooms.length) return { ok: false, skipped: true, date: day };   // 다 보냈으면 AI 도 다시 부르지 않음
+  const failures=[];
+  const rooms = body.force ? [] : await pendingChurchRooms('데이터뉴스', day, failures);
+  const mainState = await mainSummaryState(key,'데이터뉴스');
+  const mainDone = mainState==='legacy';
+  const mainBlocked = ['sending','unknown'].includes(mainState);
+  if(mainBlocked)failures.push({scope:'#main-summary',ref:key,phase:'데이터뉴스',date:day,state:mainState});
+  // 이미 보냈거나 수신 확인 중인 대상만 남으면 AI·카드도 다시 만들지 않는다.
+  if ((mainDone||mainBlocked) && !rooms.length) return { ok: false, skipped:!failures.length, needsReview:!!failures.length, failures, date: day };
   const r = await withCard(await compose());
   let ok = mainDone;
-  if (!mainDone) {
-    ok = r.png ? await sendChart(r.png, r.text, key, '데이터뉴스') : false;
-    if (!ok) ok = await sendAlert(r.text, '데이터뉴스', key);
+  if (!mainDone && !mainBlocked) {
+    ok = await sendMainSummary([r],key,'데이터뉴스');
+    if(!ok)failures.push({scope:'#main-summary',ref:key,phase:'데이터뉴스',date:day,state:'review'});
   }
-  const roomsSent = await sendToRooms(rooms, '데이터뉴스', day, (room) => (r.png ? sendRoomBoard(room, r.png, r.text, r.text) : sendRoomText(room.chat_id, r.text)));
-  return { ok, date: day, ai: r.ai, photo: !!r.png, text: r.text, rooms: roomsSent };
+  const roomsSent = await sendToRooms(rooms, '데이터뉴스', day, (room) => (r.png ? sendRoomBoardConfirmed(room, r.png, r.text, r.text) : sendRoomText(room.chat_id, r.text)), failures);
+  return { ok:ok&&!failures.length, needsReview:!!failures.length, failures, date: day, ai: r.ai, photo: !!r.png, text: r.text, rooms: roomsSent };
 }
 // 11/5: 전체 텔레그램 방 연결 점검(보내지 않음)
 const tsRoomHealth = async (body) => (authorized(body) ? (await import('../lib/room-health.js')).roomHealth() : { error: 'unauthorized' });
 
-export default { tsNewsSend, tsRoomHealth, tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };
+export default { tsJungjinTest, tsNewsSend, tsRoomHealth, tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };

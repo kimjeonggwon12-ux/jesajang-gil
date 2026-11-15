@@ -1,11 +1,9 @@
 // 채움 막대 → PNG(SVG 를 resvg 로). 막대 한 줄 = 그 조직 전체 인원, 채운 만큼 = 해당 인원. 글꼴은 table-image.js 와 같은 나눔고딕.
 // 10/30(사용자): "참여 현황이 옆으로 뻗는 그래프로 5개 조직이 한 눈에 — 총 몇 명 중 얼만큼 채워졌구나가 보이게"
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Resvg } from '@resvg/resvg-js';
+import {bundledFontFiles} from './bundled-fonts.js';
 
-const FONT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'fonts');
-const FONTS = ['NanumGothic-Regular.ttf', 'NanumGothic-Bold.ttf'].map((f) => path.join(FONT_DIR, f));
+const FONTS = bundledFontFiles();
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const comma = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 

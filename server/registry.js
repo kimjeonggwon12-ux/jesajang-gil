@@ -1,5 +1,9 @@
 // action 이름 → 처리 함수. 묶음(파일)을 옮길 때마다 여기에 추가한다.
+import directory from './actions/directory.js';
+import pilot from './lib/pilot.js';
+import deliveryReview from './actions/delivery-review.js';
 import roster from './actions/roster.js';
+import centerPolicy from './lib/center-policy.js';
 import rosterAdmin from './actions/roster-admin.js';
 import rosterImport from './actions/roster-import.js';
 import backup from './actions/backup.js';
@@ -27,11 +31,20 @@ import cohortSchedule from './actions/cohort-schedule.js';
 import pins from './actions/pins.js';
 import centerSend from './actions/center-send.js';
 import newMarks from './actions/new-marks.js';
+import homeNotices from './actions/home-notices.js';
 import targetRoom from './actions/target-room.js';
 import auth from './actions/auth.js';
+import educationAccess from './actions/education-access.js';
+import eduAtt from './lib/edu-attendance.js';
+import eduReports from './actions/edu-reports.js';
+import eduRosterAdmin from './actions/edu-roster-admin.js';
+import eduExcused from './actions/edu-excused.js';
 
 export const actions = {
+  ...pilot,
   ...roster,
+  ...centerPolicy,
+  ...directory,
   ...rosterAdmin,
   ...rosterImport,
   ...backup,
@@ -59,8 +72,15 @@ export const actions = {
   ...pins,
   ...centerSend,
   ...newMarks,
+  ...homeNotices,
   ...targetRoom,
   ...auth,
+  ...educationAccess,
+  ...eduAtt,
+  ...eduReports,
+  ...eduRosterAdmin,
+  ...eduExcused,
+  ...deliveryReview,
 };
 
 // 11/4 개인정보: AI(제미나이)를 부르는 기능은 요청한 교사의 섭외자 이름을 '섭외자A·B…'로 가려서 보낸다(lib/gemini.js withPrivacy).

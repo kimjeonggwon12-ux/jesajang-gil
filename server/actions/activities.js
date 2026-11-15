@@ -7,6 +7,7 @@ import { upsertTargetFromActivity, updateProfileFromEdit, raiseStageFromActivity
 import { findTeacher, findTeacherLoose } from './roster.js';
 import { roomForTeacher, roomsForReport, postReport, reportRooms, reportRoomsAdmin } from '../lib/report-room.js';
 import { storeImage } from '../lib/images.js';
+import { AccessError, requireActor } from '../lib/request-context.js';
 
 // ⚠️ app.html 의 같은 이름 상수와 같이 맞출 것.
 export const ROLE_OPTIONS = ['인도자', '교사', '섬김이', '협력교사'];
@@ -76,8 +77,8 @@ async function submitActivity(body) {
   const sent = await autoReport(row, 'post');   // 10/23: 기록을 남기면 보고방에 바로 올림
   // 11/2(사용자): 휴교사는 최근 한 달 기록 4회 이상이면 활동교사(한 달 기록 없으면 tiers.js autoRestTick 이 휴교사로)
   let tier = null;
-  try { tier = await (await import('./tiers.js')).promoteOnRecord(memberId); } catch (e) { console.log('활동교사 전환 오류: ' + e); }
-  return afterAction('submitActivity', body, { ok: true, submittedAt: fields.submitted_at, ...sent, ...(tier || {}) });
+  try { tier = await (await import('./tiers.js')).promoteOnRecord(memberId); } catch (e) { tier={tierUpdatePending:true}; console.log('활동교사 전환 오류: ' + e); }
+  return afterAction('submitActivity', body, { ok: true, id: row.id, submittedAt: fields.submitted_at, ...sent, ...(tier || {}) });
 }
 
 /**
@@ -177,8 +178,20 @@ const toActivityRow = (a) => ({
 
 /** 내 활동 기록 + 올해 역할별·항목별 건수. */
 async function getMyActivities(body) {
-  const data = await selectAll(() => db().from('activities').select('*').eq('nid', normId(body.memberId)).order('id'));
-  const rows = data.map(toActivityRow).sort(byDesc('submittedAt'));
+  if (body.summary === true && body.aggregate === true) {
+    const actor = requireActor();
+    const [overview, recent, room] = await Promise.all([
+      run(db().rpc('my_activity_overview', { p_nid: actor.nid, p_year: Number(kstDate().slice(0, 4)), p_edu: ['상담1', '상담2', '복음방'] })),
+      body.includeRecent === false ? null : getMyActivityPage({ limit: 3 }), myRoom(actor.nid).catch(() => null),
+    ]);
+    return { overview, rows: recent?.rows || [], ...(recent ? { recent } : {}),
+      roleCounts: Object.fromEntries(ROLE_OPTIONS.map(r => [r, overview.roleCounts[r] || 0])),
+      roleItemCounts: Object.fromEntries(ROLE_OPTIONS.map(r => [r, overview.roleItemCounts[r] || {}])),
+      reportRoom: room ? { title: room.title || '보고방' } : null };
+  }
+  const summary = body.summary === true;
+  const data = await selectAll(() => db().from(summary ? 'activity_list_index' : 'activities').select('*').eq('nid', normId(body.memberId)).order('id'));
+  const rows = data.map(a => ({ ...toActivityRow(a), ...(summary ? { _summary: true, hasReportText: a.has_report_text } : {}) })).sort(byDesc('submittedAt'));
 
   const year = kstDate().slice(0, 4);
   const roleCounts = emptyRoleCounts();
@@ -195,7 +208,45 @@ async function getMyActivities(body) {
   }
   // 2026-10-23: 내 부서 보고방(없으면 기본 방) — 있으면 기록 카드에 [보고방에 올리기]
   const room = await myRoom(body.memberId).catch(() => null);
-  return { rows, roleCounts, roleItemCounts, reportRoom: room ? { title: room.title || '보고방' } : null };
+  const recent = summary ? await getMyActivityPage({ limit: 3 }) : undefined;
+  return { rows, roleCounts, roleItemCounts, reportRoom: room ? { title: room.title || '보고방' } : null, ...(summary ? { recent } : {}) };
+}
+
+// 본문 조회에는 요청 본문의 memberId 대신 검증된 로그인 신원을 사용한다.
+async function getMyActivityPage(body = {}) {
+  const actor = requireActor();
+  const query = String(body.query || '').trim(), target = body.targetName == null ? null : String(body.targetName).trim();
+  const page = Number(body.page ?? 1), limit = Number(body.limit ?? 20);
+  const through = body.through == null ? null : Number(body.through);
+  if (query.length > 120 || (target && target.length > 200) || !Number.isSafeInteger(page) || page < 1 || page > 10_000_000
+    || ![3, 20, 50].includes(limit) || (through != null && (!Number.isSafeInteger(through) || through < 0)))
+    throw new AccessError('검색·페이지 정보를 확인해 주세요.', 400);
+  const cards = body.cards === true;
+  const detail = cards || body.withSequence === true || body.feedbackOnly === true;
+  const result = await run(db().rpc(cards ? 'my_activity_card_page' : detail ? 'my_activity_detail_page' : 'my_activity_page', {
+    p_nid: actor.nid, p_query: query, p_target: target, p_page: page, p_limit: limit, p_through: through,
+    ...(detail ? { p_feedback: body.feedbackOnly === true } : {}),
+  }));
+  // 목록은 표시 필드만 반환한다. 원문·사진·피드백은 기존 본인 상세에서 읽는다.
+  // 원래 표의 보고 표시: 현재 페이지의 표시 필드만 한 번에 읽는다. 원문/사진은 상세에서만 읽는다.
+  const display = cards && body.reportStatus === true && result.rows.length
+    ? await run(db().from('activities').select('id, tg_posts').eq('nid', actor.nid).in('id', result.rows.map(a => a.id))) : null;
+  const posted = display ? new Map(display.map(a => [a.id, (a.tg_posts || []).some(p => p.kind === 'post')])) : null;
+  if (cards) return { ...result, rows: result.rows.map(a => ({
+    id: a.id, submittedAt: fmtTs(a.submitted_at), activities: a.activities, roles: a.roles,
+    targetName: a.target_name, targetStage: a.target_stage, sequence: a.sequence,
+    preview: a.lesson || a.gospel_subject || a.consult_title || a.today_work?.slice(0, 160).replace(/[\uD800-\uDBFF]$/, '') || '',
+    hasAiFeedback: a.has_ai_feedback,
+    ...(body.reportStatus === true ? { reported: posted?.get(a.id) || false } : {}),
+  })) };
+  return { ...result, rows: result.rows.map(a => ({ ...toActivityRow(a), ...(detail ? { sequence: a.sequence } : {}) })) };
+}
+async function getMyActivity(body = {}) {
+  const actor = requireActor(), id = Number(body.id);
+  if (!Number.isSafeInteger(id) || id < 1) throw new AccessError('기록 번호를 확인해 주세요.', 400);
+  const [row] = await run(db().from('activities').select('*').eq('nid', actor.nid).eq('id', id).limit(1));
+  if (!row) throw new AccessError('기록을 찾을 수 없어요.', 404);
+  return { row: toActivityRow(row) };
 }
 
 async function getAllActivities() {
@@ -209,7 +260,7 @@ async function getAllActivities() {
   return { rows };
 }
 
-// ── 격려 메시지 ── 메시지 식별은 "받는 사람 번호::보낸 시각".
+// ── 격려 메시지 ── 새 화면은 행 번호, 기존 화면은 "받는 사람 번호::보낸 시각" 호환.
 
 async function sendEncouragement(body) {
   const toId = str(body.toId);
@@ -224,24 +275,31 @@ async function sendEncouragement(body) {
 
 async function getMyEncouragements(body) {
   const nid = normId(body.memberId);
-  const data = await run(db().from('encouragements').select('*').eq('to_nid', nid).eq('is_read', false).order('id'));
+  const data = await selectAll(() => db().from('encouragements').select('*').eq('to_nid', nid).eq('is_read', false).order('id'));
   const rows = data.map((e) => {
     const sentAt = fmtTs(e.sent_at);
-    return { id: `${nid}::${sentAt}`, fromName: e.from_name, message: e.message, sentAt };
+    return { id: `${nid}::${sentAt}`, messageKey: e.id, fromName: e.from_name, message: e.message, sentAt };
   }).sort(byDesc('sentAt'));
   return { rows };
 }
 
 async function markEncouragementRead(body) {
+  if (body.messageKey != null) {
+    if (!Number.isSafeInteger(body.messageKey) || body.messageKey <= 0) return {error:'메시지를 찾을 수 없습니다.'};
+    const rows = await run(db().from('encouragements').update({is_read:true}).eq('id',body.messageKey).eq('to_nid',requireActor().nid).select('id'));
+    if (!rows.length) throw new AccessError('본인이 받은 격려 메시지만 읽음으로 바꿀 수 있어요.');
+    return {ok:true};
+  }
   const messageId = String(body.messageId || '');
   const sep = messageId.indexOf('::');
   if (sep === -1) return { error: 'messageId 형식이 올바르지 않습니다.' };
-  const nid = messageId.slice(0, sep);
+  const nid = normId(messageId.slice(0, sep));
+  if (nid !== requireActor().nid) throw new AccessError('본인이 받은 격려 메시지만 읽음으로 바꿀 수 있어요.');
   const sentAt = messageId.slice(sep + 2);
   if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(sentAt)) return { error: '메시지를 찾을 수 없습니다.' };
   const found = await run(db().from('encouragements').select('id').eq('to_nid', nid).eq('sent_at', sentAt).order('id').limit(1));
   if (!found.length) return { error: '메시지를 찾을 수 없습니다.' };
-  await run(db().from('encouragements').update({ is_read: true }).eq('id', found[0].id));
+  await run(db().from('encouragements').update({ is_read: true }).eq('id', found[0].id).eq('to_nid', nid));
   return { ok: true };
 }
 
@@ -270,7 +328,7 @@ async function getMyGospelLeads(body) {
 }
 
 export default {
-  submitActivity, updateActivity, postActivityReport, reportRooms, reportRoomsAdmin, getMyActivities, getAllActivities,
+  getMyActivityPage, getMyActivity, submitActivity, updateActivity, postActivityReport, reportRooms, reportRoomsAdmin, getMyActivities, getAllActivities,
   sendEncouragement, getMyEncouragements, markEncouragementRead,
   submitCenterLead, submitGospelLead, getMyGospelLeads,
 };

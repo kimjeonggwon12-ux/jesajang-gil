@@ -1,6 +1,13 @@
+import {createHash} from 'node:crypto';
+import {canManagePilot} from '../lib/pilot.js';
+import {isSystemOwner} from '../lib/system-owner.js';
+import {sensitiveActor} from '../lib/sensitive-actor.js';
+import { educationCandidates } from '../../shared/education-search.js';
 // 교사명단 · 관리자 명단
+import { invalidateDirectory } from '../lib/directory-cache.js';
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, str } from '../lib/util.js';
+import { currentActor, requireActor, AccessError } from '../lib/request-context.js';
 
 // 교사구분(낮음→높음). 프런트에는 getRoster 응답의 tiers 로 내려간다.
 // 11/5(사용자·서무님): 엑셀 구분 '기타'(교육 미참석, 활동 또는 인교 1명 이상)를 교사광장에서도 '기타'로 — 휴교사와 활동교사 사이
@@ -86,8 +93,38 @@ export async function findAdmin(memberId) {
 
 /** 한 사람의 명단 행과 관리자 명단 행을 DB 한 번에. */
 export async function memberInfo(memberId) {
+  const actor = currentActor();
+  if (actor && actor.nid === normId(memberId) && actor.admins) {
+    return { teacher: actor.teacher, admin: actor.admins[0] || null };
+  }
   const info = await run(db().rpc('member_info', { p_nid: normId(memberId) }));
   return { teacher: info?.teacher || null, admin: info?.admin || null };
+}
+
+/** 겸직을 빠짐없이 읽는다. 요청 안에서 확인한 자료만 재사용한다. */
+export async function memberRoles(memberId) {
+  const actor = currentActor(), nid = normId(memberId);
+  if (actor?.nid === nid && actor.admins) return { teacher: actor.teacher, admins: actor.admins };
+  const [teacher, admins] = await Promise.all([
+    findTeacher(memberId), run(db().from('admins').select('*').eq('nid', nid).order('id')),
+  ]);
+  return { teacher, admins };
+}
+
+const compact = (v) => String(v || '').replace(/\s/g, '');
+export const hasDuty = (row, area) => !!row && (compact(row.dept) === area + '부'
+  || new Set([area + '부', area + '부장', area + '과장', area + '팀장', area + '담당', area + '사명자']).has(compact(row.position)));
+
+export async function isEvangelism(memberId) {
+  if (isSystemOwner(memberId)) return true;
+  const { teacher, admins } = await memberRoles(memberId);
+  return [teacher, ...admins].some((row) => hasDuty(row, '전도'));
+}
+
+export async function requireApprover() {
+  const actor = requireActor();
+  if (!(await isApprover(actor.memberId))) throw new AccessError('교육·전도 담당자만 할 수 있어요.');
+  return actor;
 }
 
 // ── 명단 전체 ── 여러 화면이 연달아 읽으므로 10초 동안 기억해 둔다(그 사이 DB 는 한 번만 읽는다).
@@ -95,7 +132,7 @@ const ROSTER_TTL_MS = 10_000;
 let rosterCache = null;   // { at, rows: Promise<DB 행[]> }
 
 /** 명단을 고친 뒤에 부른다 — 다음 조회는 DB 에서 새로 읽는다. */
-export function forgetRoster() { rosterCache = null; }
+export function forgetRoster() { rosterCache = null; invalidateDirectory(); }
 
 function allTeachers() {
   if (!rosterCache || Date.now() - rosterCache.at > ROSTER_TTL_MS) {
@@ -143,22 +180,20 @@ const ADMIN_POSITIONS = LEADER_POSITIONS.filter(Boolean);
 
 /** 광장·일정·영상의 관리자 권한: 관리자 명단에 있거나, 명단 직책·부서(교역자)·소속비고(센터)로 판정. */
 export async function isAdmin(memberId) {
-  if (normId(memberId) === OWNER_NID) return true;
-  const { admin, teacher } = await memberInfo(memberId);
-  if (admin) return true;
+  if (isOwner(memberId)) return true;
+  const { admins, teacher } = await memberRoles(memberId);
+  if (admins.length) return true;
   if (!teacher) return false;
   return ADMIN_POSITIONS.includes(teacher.position.trim()) || teacher.dept.trim() === '교역자' || teacher.note.includes('센터');
 }
 
-export const isOwner = (memberId) => normId(memberId) === OWNER_NID;
+export const isOwner = (memberId) => isSystemOwner(memberId) || normId(memberId) === OWNER_NID;
 
 /** 교육·전도 담당 관리자(또는 앱 관리자): 영상 승인, 명단 관리처럼 한 단계 높은 권한. */
 export async function isApprover(memberId) {
   if (isOwner(memberId)) return true;
-  const { admin, teacher } = await memberInfo(memberId);
-  const adminRights = !!admin || (!!teacher
-    && (ADMIN_POSITIONS.includes(teacher.position.trim()) || teacher.dept.trim() === '교역자' || teacher.note.includes('센터')));
-  return adminRights && /교육|전도/.test([admin?.position, admin?.dept, teacher?.position].join(' '));
+  const { teacher, admins } = await memberRoles(memberId);
+  return [teacher, ...admins].some((row) => hasDuty(row, '교육') || hasDuty(row, '전도'));
 }
 
 /** 그 부서·지역을 맡은 교관(관리자 명단에서 직책에 '교관'이 들어간 사람). */
@@ -168,47 +203,56 @@ export async function findCoaches(dept, region) {
     .eq('dept', dept).eq('region', region).like('position', '%교관%').order('id'));
 }
 
-const getRoster = async () => ({ rows: await loadRoster(), tiers: TEACHER_TIERS });
+const getRoster = async (body = {}) => {
+  let rows = await loadRoster();
+  // 기존 전체 조회 계약은 유지하고, 명시한 이수 검색만 번호 가림 전에 대조한다.
+  if (body.indexOnly === true && Object.hasOwn(body, 'query')) rows = educationCandidates(rows, String(body.query || ''), String(body.dept || ''));
+  return { rows: body.indexOnly === true ? rows.map(({ memberId, name, dept, region, tier }) => ({ memberId, name, dept, region, tier })) : rows, tiers: TEACHER_TIERS };
+};
 
 async function checkAdmin(body) {
   const mid = str(body.memberId);
   if (!mid) return { isAdmin: false };
   const { admin, teacher } = await memberInfo(mid);
   const roster = teacher ? toRosterRow(teacher) : null;
-  return admin
-    ? { isAdmin: true, name: admin.name, position: admin.position, dept: admin.dept, roster }
-    : { isAdmin: false, roster };
+  const permissions = { canManagePilot: canManagePilot(mid), canViewBackupStatus: isSystemOwner(mid), canManageBackup: isOwner(mid), canManageRoster: await isApprover(mid), canExportTeachers: await isApprover(mid), canChangeTier: await isEvangelism(mid) };
+  return { isAdmin: await isAdmin(mid), name: admin?.name || teacher?.name || '', position: admin?.position || teacher?.position || '', dept: admin?.dept || teacher?.dept || '', roster, permissions };
 }
 
-/** 명단에 있으면 이름·지역·직책을 고치고, 없으면 새로 넣는다(교사구분은 건드리지 않음). */
-async function upsertRosterLeader(body) {
-  const mid = str(body.memberId);
-  const name = str(body.name);
-  const region = str(body.region);
-  const position = str(body.position);
-  const dept = str(body.dept);
-  if (!mid || !name) return { error: 'memberId, name 이 필요합니다.' };
-  if (!LEADER_POSITIONS.includes(position)) {
-    return { error: '직책은 다음 중 하나여야 합니다: ' + LEADER_POSITIONS.filter(Boolean).join(', ') };
+/** 상세에서 본 부서·지역·직책을 검토한다. 삭제된 교사를 오래된 화면에서 재생성하지 않는다. */
+const leaderFields=t=>Object.fromEntries(['name','dept','region','position'].map(k=>[k,str(t[k])]));
+async function leaderPlan(body) {
+  await requireApprover();
+  const mid=str(body.memberId),nid=normId(mid),fields=leaderFields(body),create=body.create===true;
+  if(mid.replace(/\D/g,'').length<5||nid==='0'||!fields.name)return {error:'고유번호와 이름을 확인해 주세요.'};
+  if(!LEADER_POSITIONS.includes(fields.position))return {error:'지정할 수 없는 직책입니다.'};
+  const [expected,identity]=await Promise.all([run(db().rpc('roster_member_state',{p_nids:[nid]})),sensitiveActor()]);
+  if(expected.length>1)return {error:'고유번호가 중복된 명단입니다. 담당자 확인이 필요해요.'};
+  const current=expected[0]?.row;
+  if(create&&current)return {error:'이미 명단에 있어요. 다시 조회해 주세요.',stale:true};
+  if(!create){
+    if(!current)return {error:'명단에서 찾을 수 없어요. 다시 조회해 주세요.',stale:true};
+    if(!body.expected||Object.entries(leaderFields(current)).some(([k,v])=>str(body.expected[k])!==v))
+      return {error:'화면의 명단과 현재 정보가 달라요. 다시 조회해 주세요.',stale:true};
   }
-
-  const found = await run(db().from('teachers').select('member_id').eq('member_id', mid).limit(1));
-  if (found.length) {
-    const patch = { name, position, updated_at: new Date().toISOString() };
-    if (dept) patch.dept = dept;
-    if (region) patch.region = region;
-    await run(db().from('teachers').update(patch).eq('member_id', mid));
-    forgetRoster();
-    return { ok: true, updated: true, memberId: mid, name, region, position };
-  }
-
-  const last = await run(db().from('teachers').select('sort_order').order('sort_order', { ascending: false }).limit(1));
-  await run(db().from('teachers').insert({
-    member_id: mid, name, dept, region, position, tier: '활동교사',
-    sort_order: (last[0]?.sort_order || 0) + 1,
-  }));
-  forgetRoster();
-  return { ok: true, created: true, memberId: mid, name, region, position };
+  const before=current?leaderFields(current):null;
+  // 빈 부서/지역 입력은 기존처럼 현재 값을 유지한다. 등급·활동·별도 보직은 변경 대상이 아니다.
+  const after={...fields,dept:fields.dept||before?.dept||'',region:fields.region||before?.region||''};
+  const request={create,nid,memberId:current?.member_id||mid,fields:after,expected,...identity};
+  const review=createHash('sha256').update(JSON.stringify(request)).digest('hex');
+  return {ok:true,request,review,before,after};
+}
+async function previewRosterLeader(body){
+  const plan=await leaderPlan(body);
+  return plan.error?plan:{ok:true,review:plan.review,before:plan.before,after:plan.after};
+}
+async function upsertRosterLeader(body){
+  const plan=await leaderPlan(body);if(plan.error)return plan;
+  if(body.confirmed!==true||!body.review)return {error:'직책 변경 내용을 먼저 확인해 주세요.'};
+  if(body.review!==plan.review)return {error:'확인 뒤 명단이나 담당자 권한이 바뀌었어요. 다시 조회해 주세요.',stale:true};
+  const result=await run(db().rpc('roster_leader_apply',{p:plan.request}));
+  if(!result.error&&!result.unchanged)forgetRoster();
+  return result;
 }
 
-export default { getRoster, checkAdmin, upsertRosterLeader };
+export default { getRoster, checkAdmin, previewRosterLeader, upsertRosterLeader };

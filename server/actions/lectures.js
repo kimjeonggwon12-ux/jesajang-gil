@@ -33,7 +33,7 @@ async function getLectures(body) {
     ? await selectAll(() => db().from('lecture_progress').select('*').eq('nid', normId(mid)).order('id'))
     : [];
   const videoOf = new Map(videos.map((v) => [v.video_key, v]));
-  const docs = new Set(done.map((t) => t.video_key));
+  const docs = new Set(done.filter((t) => videoOf.get(t.video_key)?.youtube_id === t.youtube_id).map((t) => t.video_key));
   const progOf = new Map(mine.map((p) => [`${p.lecture_id}|${p.video_key}`, p]));
 
   const lectures = rows.filter((l) => approver || l.status === '').map((l) => {
@@ -100,8 +100,10 @@ async function saveLectureProgress(body) {
   const mid = clip(body.memberId, 40);
   if (!mid || !(await canWatch(mid))) return { error: '교사명단에 있는 교사만 진도가 남아요.' };
   const lectureId = clip(body.lectureId, 40), videoKey = clip(body.videoKey, 40);
-  const [lec] = await run(db().from('lectures').select('lessons').eq('lecture_id', lectureId).neq('status', '삭제').limit(1));
-  if (!lec || !(lec.lessons || []).includes(videoKey)) return { error: '강좌를 찾을 수 없어요.' };
+  const [lec] = await run(db().from('lectures').select('lessons,status').eq('lecture_id', lectureId).neq('status', '삭제').limit(1));
+  if (!lec || (lec.status !== '' && !(await isApprover(mid))) || !(lec.lessons || []).includes(videoKey)) return { error: '강좌를 찾을 수 없어요.' };
+  const [video] = await run(db().from('videos').select('video_key').eq('video_key', videoKey).not('status', 'in', '(신청,반려,삭제)').limit(1));
+  if (!video) return { error: '영상을 찾을 수 없어요.' };
   const duration = Math.max(0, Math.min(6 * 3600, Math.round(Number(body.duration) || 0)));
   const maxB = Math.ceil((duration || 6 * 3600) / BUCKET);
   const fresh = (Array.isArray(body.buckets) ? body.buckets : []).map(Number).filter((b) => Number.isInteger(b) && b >= 0 && b <= maxB);

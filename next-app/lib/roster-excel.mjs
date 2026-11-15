@@ -1,0 +1,136 @@
+// 기존 roster-excel.js의 순수 파서. 기존 서식·중복/등급 계산을 보존한다.
+  var text = function (v) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); };
+  var num = function (v) { var n = Number(v); return isFinite(n) ? n : 0; };
+  var isMemberId = function (v) { return text(v).replace(/\D/g, '').length >= 11; };
+  var normId = function (v) { return text(v).replace(/\D/g, '').replace(/^0+/, '') || '0'; };
+
+  /** 달 탭 이름("9월", "10월")을 달 숫자가 큰 것부터. */
+  function monthTabs(sheetNames) {
+    return sheetNames.filter(function (n) { return /^\d{1,2}월$/.test(text(n)); })
+      .sort(function (a, b) { return parseInt(b, 10) - parseInt(a, 10); });
+  }
+
+  function findRow(rows, limit, test) {
+    for (var i = 0; i < Math.min(limit, rows.length); i++) if (test(rows[i] || [])) return i;
+    return -1;
+  }
+  function findCol(row, test, from) {
+    for (var c = from || 0; c < (row || []).length; c++) if (test(text(row[c]))) return c;
+    return -1;
+  }
+
+  /**
+   * @param rowsOf  탭 이름 → 줄 배열(칸 배열)의 배열. 없는 탭이면 null.
+   * @param tabName 읽을 달 탭("9월")
+   * @returns { rows: [{ memberId, name, dept, region, note, regLeads, unregLeads, counsel, gospelRoom, companion, activeState, tier }], dormant, problems }
+   */
+  function parse(rowsOf, tabName) {
+    var sheet = rowsOf(tabName);
+    if (!sheet) return { rows: [], problems: ['"' + tabName + '" 탭이 없습니다.'] };
+    var problems = [];
+
+    var h = findRow(sheet, 10, function (r) { return findCol(r, function (t) { return t === '고유번호'; }) !== -1 && findCol(r, function (t) { return t === '이름'; }) !== -1; });
+    if (h < 1) return { rows: [], problems: ['"고유번호"·"이름" 머리글 줄을 찾지 못했습니다.'] };
+    var head = sheet[h], group = sheet[h - 1] || [], top = sheet[0] || [];
+    var col = function (label) { return findCol(head, function (t) { return t === label; }); };
+    // 11/4(사용자): 신43 "교사활동현황" 서식 — 부서기록(교육·상담·복음방·식구복방·동행교사·과제제출) + 전도부기록(인도·교사·섬김)
+    //   + 활동·우수,정 + 구분(= 등급). '구분' 열이 있고 '결과' 열이 없으면 이 서식으로 읽는다.
+    if (col('구분') !== -1 && col('결과') === -1) return parseActivitySheet(sheet, h, col, tabName);
+    var C = { id: col('고유번호'), name: col('이름'), dept: col('부서'), region: col('지역'), note: col('소속비고'),
+              counsel: col('상담'), gospel: col('복음방'), companion: col('동행교사'), result: col('결과') };
+    ['dept', 'region', 'note', 'result'].forEach(function (k) {
+      if (C[k] === -1) problems.push('"' + { dept: '부서', region: '지역', note: '소속비고', result: '결과' }[k] + '" 열을 찾지 못했습니다.');
+    });
+    // 센터등록(인도·교사·섬김) / 센터미등록(인도·교사·섬김·섬등추가)은 머리글 윗줄의 묶음 이름으로 찾는다.
+    var reg = findCol(group, function (t) { return t.indexOf('센터등록') === 0; });
+    var unreg = findCol(group, function (t) { return t.indexOf('센터미등록') === 0; });
+    if (reg === -1) problems.push('"센터등록" 묶음을 찾지 못했습니다.');
+    if (unreg === -1) problems.push('"센터미등록" 묶음을 찾지 못했습니다.');
+    // 신천기 올해 센터등록 명단(수강생 한 줄에 실제인도·실제교사·섬김이의 고유번호)
+    var lead = findCol(top, function (t) { return t === '실제인도'; });
+    if (lead === -1) problems.push('"실제인도" 열(올해 센터등록 명단)을 찾지 못했습니다.');
+    if (problems.length) return { rows: [], problems: problems };
+
+    // 휴면 탭: 휴교사 명단
+    var dormant = {};
+    var dSheet = rowsOf('휴면');
+    if (dSheet) {
+      var dh = findRow(dSheet, 10, function (r) { return findCol(r, function (t) { return t === '고유번호'; }) !== -1; });
+      var dc = dh === -1 ? -1 : findCol(dSheet[dh], function (t) { return t === '고유번호'; });
+      for (var d = dh + 1; dc !== -1 && d < dSheet.length; d++) if (isMemberId((dSheet[d] || [])[dc])) dormant[normId(dSheet[d][dc])] = true;
+    } else problems.push('"휴면" 탭이 없어 휴교사를 가려내지 못했습니다(모두 활동교사 기준으로 봅니다).');
+
+    // 올해 센터등록 수: 수강생 한 줄에 같은 사람이 여러 칸에 있어도 한 명으로 센다.
+    var leads = {};
+    for (var i = h + 1; i < sheet.length; i++) {
+      var seen = {};
+      for (var k = 0; k < 3; k++) {
+        var v = (sheet[i] || [])[lead + k];
+        if (!isMemberId(v)) continue;
+        var nid = normId(v);
+        if (seen[nid]) continue;
+        seen[nid] = true;
+        leads[nid] = (leads[nid] || 0) + 1;
+      }
+    }
+
+    var rows = [], dup = {};
+    for (var r = h + 1; r < sheet.length; r++) {
+      var x = sheet[r] || [];
+      if (!isMemberId(x[C.id]) || !text(x[C.name])) continue;
+      var id = text(x[C.id]), n = normId(id);
+      if (dup[n]) continue;   // 같은 번호가 두 번 나오면 첫 줄만
+      dup[n] = true;
+      var result = text(x[C.result]);
+      var count = leads[n] || 0;
+      rows.push({
+        memberId: id, name: text(x[C.name]), dept: text(x[C.dept]), region: text(x[C.region]), note: text(x[C.note]),
+        regLeads: num(x[reg]) + num(x[reg + 1]) + num(x[reg + 2]),
+        unregLeads: num(x[unreg]) + num(x[unreg + 1]) + num(x[unreg + 2]) + num(x[unreg + 3]),
+        counsel: C.counsel === -1 ? 0 : num(x[C.counsel]), gospelRoom: C.gospel === -1 ? 0 : num(x[C.gospel]),
+        companion: C.companion === -1 ? 0 : num(x[C.companion]), activeState: result,
+        // 등급: 올해 센터등록 2명 이상 우수교사, 1명 정교사. 그 밖에는 결과가 활동교사면 활동교사, 휴면 탭에 있으면 휴교사, 나머지 활동교사.
+        tier: count >= 2 ? '우수교사' : count === 1 ? '정교사' : result === '활동교사' ? '활동교사' : dormant[n] ? '휴교사' : '활동교사'
+      });
+    }
+    if (!rows.length) problems.push('명단을 한 명도 읽지 못했습니다.');
+    return { rows: rows, dormant: Object.keys(dormant).length, problems: problems };
+  }
+
+  var TIERS = ['휴교사', '기타', '활동교사', '정교사', '우수교사'];   // 11/5: 구분 '기타'도 등급으로
+  /** 신43 교사활동현황 서식. 구분이 네 등급 중 하나면 그 등급, '기타' 등은 tier '' (앱의 지금 등급을 그대로 둔다). */
+  function parseActivitySheet(sheet, h, col, tabName) {
+    var C = { id: col('고유번호'), name: col('이름'), dept: col('부서'), region: col('지역'), note: col('소속비고'),
+              edu: col('교육'), counsel: col('상담'), gospel: col('복음방'), family: col('식구복방'), companion: col('동행교사'),
+              task: col('과제제출'), lead: col('인도'), teach: col('교사'), serve: col('섬김'), active: col('활동'),
+              excel: col('우수,정'), tier: col('구분') };
+    var problems = [];
+    ['dept', 'region', 'note'].forEach(function (k) { if (C[k] === -1) problems.push('"' + { dept: '부서', region: '지역', note: '소속비고' }[k] + '" 열을 찾지 못했습니다.'); });
+    if (problems.length) return { rows: [], problems: problems };
+    var v = function (x, c) { return c === -1 ? 0 : num(x[c]); };
+    var rows = [], dup = {}, other = 0;
+    for (var r = h + 1; r < sheet.length; r++) {
+      var x = sheet[r] || [];
+      if (!isMemberId(x[C.id]) || !text(x[C.name])) continue;
+      var id = text(x[C.id]), n = normId(id);
+      if (dup[n]) continue;
+      dup[n] = true;
+      var raw = text(x[C.tier]);
+      if (raw === '기타교사') raw = '기타';   // 11/6: 엑셀 구분이 '기타교사'로 바뀜 — 앱 등급 '기타'
+      var tier = TIERS.indexOf(raw) !== -1 ? raw : '';
+      if (!tier) other++;
+      var stats = { month: tabName, edu: v(x, C.edu), counsel: v(x, C.counsel), gospel: v(x, C.gospel), family: v(x, C.family),
+                    companion: v(x, C.companion), task: v(x, C.task), lead: v(x, C.lead), teach: v(x, C.teach), serve: v(x, C.serve),
+                    active: v(x, C.active), excellent: v(x, C.excel), tierRaw: raw };
+      rows.push({
+        memberId: id, name: text(x[C.name]), dept: text(x[C.dept]), region: text(x[C.region]), note: text(x[C.note]),
+        counsel: stats.counsel, gospelRoom: stats.gospel, companion: stats.companion, activeState: raw,
+        tier: tier, monthStats: stats, format: 'activity'
+      });
+    }
+    if (!rows.length) problems.push('명단을 한 명도 읽지 못했습니다.');
+    return { rows: rows, dormant: 0, other: other, format: 'activity', problems: problems };
+  }
+
+
+export {monthTabs,parse};

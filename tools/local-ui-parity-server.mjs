@@ -1,0 +1,24 @@
+// 기존 합성 A/B DB를 재사용하는 로컬 UI 검토. 초기화/시드/운영 접속 없음.
+import http from 'node:http';
+import {readFileSync,mkdirSync,cpSync,symlinkSync,existsSync,readdirSync} from 'node:fs';
+import {createHmac} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const repo=fileURLToPath(new URL('../',import.meta.url)),dir=path.resolve(repo,'../.local-ui-parity-20261115/source'),port=58574;
+mkdirSync(path.join(dir,'next-app'),{recursive:true});
+for(const name of ['app','components','lib','worker'])cpSync(path.join(repo,'next-app',name),path.join(dir,'next-app',name),{recursive:true});
+for(const name of ['package.json','tsconfig.json','next-env.d.ts','next.config.mjs','proxy.ts'])cpSync(path.join(repo,'next-app',name),path.join(dir,'next-app',name));
+for(const name of readdirSync(repo).filter(x=>x.endsWith('.html')))cpSync(path.join(repo,name),path.join(dir,name));
+for(const name of ['api','server','shared','tools','node_modules'])if(!existsSync(path.join(dir,name)))symlinkSync(path.join(repo,name),path.join(dir,name),'dir');
+for(const [name,target] of [['node_modules',path.join(repo,'next-app/node_modules')],['public',path.resolve(repo,'../.local-db-ab-stage5-20261115/candidate/next-app/public')]])if(!existsSync(path.join(dir,'next-app',name)))symlinkSync(target,path.join(dir,'next-app',name),'dir');
+const runtime=JSON.parse(readFileSync(path.resolve(repo,'../.local-auth-20261111/runtime.json'),'utf8'));
+for(const key of Object.keys(process.env))if(/SUPABASE|TEACHER_EXPORT|TEACHERSQUARE|GEMINI|TELEGRAM|R2_|BOT_TOKEN|ATT_|VERCEL|AUTH_SIGNING|PILOT_|NEXT_PUBLIC_/.test(key))delete process.env[key];
+const payload=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')+'.'+Buffer.from(JSON.stringify({role:'service_role',exp:4102444800})).toString('base64url');
+Object.assign(process.env,{NODE_ENV:'development',NEXT_TELEMETRY_DISABLED:'1',SUPABASE_URL:'http://127.0.0.1:58443',SUPABASE_SERVICE_ROLE_KEY:payload+'.'+createHmac('sha256',runtime.jwtSecret).update(payload).digest('base64url'),AUTH_SIGNING_KEY:runtime.authSigningKey,TEACHERSQUARE_SYSTEM_OWNER_ID:'9900000000990',TEACHER_EXPORT_PW:'local-only-export-password'});
+const actualFetch=globalThis.fetch;
+globalThis.fetch=(input,init)=>{const url=new URL(typeof input==='string'||input instanceof URL?input:input.url);if(url.hostname!=='127.0.0.1'||!['58443',String(port)].includes(url.port))throw Error('UI 검토 서버는 외부 통신을 하지 않습니다.');return actualFetch(input,{...init,redirect:'error'});};
+const next=(await import('../next-app/node_modules/next/dist/server/next.js')).default;
+const app=next({dev:true,webpack:true,dir:path.join(dir,'next-app'),hostname:'127.0.0.1',port});await app.prepare();
+const handler=app.getRequestHandler(),server=http.createServer((req,res)=>handler(req,res));
+server.listen(port,'127.0.0.1',()=>console.log('UI comparison B: http://127.0.0.1:'+port+'; existing synthetic DB; external API blocked'));
+async function stop(){server.close();await app.close();process.exit(0);}process.once('SIGTERM',stop);process.once('SIGINT',stop);

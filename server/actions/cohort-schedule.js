@@ -2,13 +2,12 @@
 // 여러 줄 붙여 넣기로 한 번에 등록:  "10/12 09:00~10:00 성구 시험 / 총회장님 말씀 시청 시험① | 강사 #시험"
 //   - 날짜만 있는 줄("10/12" 또는 "10/12(월)")은 아래 줄들의 날짜가 된다.  - 시간이 없으면 그날 전체(종일) 항목.
 //   - "|" 뒤는 설명(강사 등), "#종류"는 교육·시험·과제·실습·활동·예배·식사·기타·주간메모(없으면 제목으로 짐작).
-import { db, run } from '../lib/db.js';
+import { db, run, selectAll } from '../lib/db.js';
 import { kstDate, kstDateTime } from '../lib/util.js';
 import { clip, newId, isDate } from '../lib/input.js';
 import { findCohort } from '../lib/cohort.js';
-import { isOwner } from './roster.js';
+import { protectCourses } from '../lib/education-access.js';
 
-const DENIED = { error: '교육 일정표는 앱 관리자(7777)만 관리할 수 있어요.' };
 const KINDS = ['교육', '시험', '과제', '실습', '활동', '예배', '식사', '기타', '주간메모'];
 const hm = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || '').trim()); return m && +m[1] < 24 && +m[2] < 60 ? `${m[1].padStart(2, '0')}:${m[2]}` : ''; };
 
@@ -27,14 +26,13 @@ export function guessKind(title) {
 }
 
 async function owned(body) {
-  if (!isOwner(clip(body.memberId, 40))) return { denied: DENIED };
   const c = await findCohort(clip(body.cohortId, 40));
   return c ? { c } : { denied: { error: '교육 과정을 찾을 수 없어요.' } };
 }
 
 async function cohortTimetable(body) {
   const { c, denied } = await owned(body); if (denied) return denied;
-  const rows = await run(db().from('cohort_schedule').select('*').eq('cohort_id', c.cohortId).order('date').order('start_time').order('id'));
+  const rows = await selectAll(() => db().from('cohort_schedule').select('*').eq('cohort_id', c.cohortId).order('date').order('start_time').order('id'));
   return { cohort: c, items: rows.map(toItem), today: kstDate() };
 }
 
@@ -126,7 +124,7 @@ async function cohortCopyDay(body) {
   const from = clip(body.from, 10);
   const to = (Array.isArray(body.to) ? body.to : [body.to]).map((x) => clip(x, 10)).filter((d) => isDate(d) && d !== from);
   if (!isDate(from) || !to.length) return { error: '복사할 날과 붙일 날을 골라 주세요.' };
-  const src = await run(db().from('cohort_schedule').select('*').eq('cohort_id', c.cohortId).eq('date', from).order('start_time'));
+  const src = await selectAll(() => db().from('cohort_schedule').select('*').eq('cohort_id', c.cohortId).eq('date', from).order('start_time').order('id'));
   if (!src.length) return { error: '그날은 일정이 없어요.' };
   const now = kstDateTime();
   const rows = [];
@@ -138,4 +136,4 @@ async function cohortCopyDay(body) {
   return { ok: true, added: rows.length };
 }
 
-export default { cohortTimetable, cohortSaveItem, cohortDeleteItem, cohortImportTimetable, cohortCopyDay };
+export default protectCourses({ cohortTimetable, cohortSaveItem, cohortDeleteItem, cohortImportTimetable, cohortCopyDay });

@@ -1,0 +1,8 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+import {centerOrg,centerName,centerMonth,referralRows,documentLines,referralMatches} from '../next-app/lib/centers.ts';
+const html=readFileSync(new URL('../app.html',import.meta.url),'utf8');
+test('센터 부서 분류·기수 이름·개강일 표시는 기존 HTML 함수와 같다',()=>{const source=html.slice(html.indexOf("const CS_ORGS ="),html.indexOf('const smallBtn =',html.indexOf('const CS_ORGS ='))),ctx=vm.createContext({});vm.runInContext(source+';this.org=csOrgOf;this.name=csName;this.month=csMonth;',ctx);for(const dept of ['교역자','교회교역자','장로회','장년회 2지역','부녀회','청년 새신자','자문회','24부서',''])assert.equal(centerOrg({dept}),ctx.org({dept}));for(const c of [{name:'가짜',cohortNo:'18기',openMonth:'2026-11',openDate:''},{name:'가짜',cohortNo:'',openMonth:'',openDate:'2026-11-19'},{name:'',cohortNo:'',openMonth:'',openDate:''}]){assert.equal(centerName(c),ctx.name(c));assert.equal(centerMonth(c),ctx.month(c));}});
+test('센터 승인 대기·전달·반려 범위와 문서 없음 제외는 기존 계약을 유지한다',()=>{const rows=['요청','승인','전달','반려','취소'].map((status,i)=>({id:i,status,targetName:'가짜'+i,teacherName:'교사',dept:'청년회',region:'1지역'}));assert.deepEqual(referralRows(rows,'waiting').map(r=>r.id),[0,1]);assert.deepEqual(referralRows(rows,'sent').map(r=>r.id),[2]);assert.deepEqual(referralRows(rows,'rejected').map(r=>r.id),[3]);assert.deepEqual(documentLines(['없음','- 없음','(없음)',' - (없음)','기록 없음','<script>내용</script>']),['기록 없음','<script>내용</script>']);assert.equal(referralMatches(rows[0],'청년회 1지역'),true);assert.equal(referralMatches(rows[0],'다른사람'),false);});

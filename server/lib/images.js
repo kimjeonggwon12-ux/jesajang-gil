@@ -4,6 +4,8 @@
 // R2 설정(환경값 5개)이 없으면 예전처럼 data:image 를 그대로 둔다 — 설정 전에 배포해도 안전하다.
 import { AwsClient } from 'aws4fetch';
 import { randomUUID } from 'node:crypto';
+import { IMAGE_MAX_BYTES, prepareImage } from './image-variants.js';
+import { AccessError } from './request-context.js';
 
 const env = () => ({
   account: process.env.R2_ACCOUNT_ID, bucket: process.env.R2_BUCKET,
@@ -22,21 +24,42 @@ export const isStoredUrl = (v) => { const b = env().base; return !!b && String(v
 
 /** data:image → { type, bytes }. 아니면 null. */
 function decode(v) {
-  const m = String(v || '').match(/^data:(image\/[a-z+.-]+);base64,([A-Za-z0-9+/=\s]+)$/i);
+  const input = String(v || '');
+  if (input.length > Math.ceil(IMAGE_MAX_BYTES / 3) * 4 + 100) throw new AccessError('사진 용량을 줄여 주세요.', 400);
+  const m = input.match(/^data:(image\/[a-z+.-]+);base64,([A-Za-z0-9+/=]+)$/i);
   if (!m || !TYPES[m[1].toLowerCase()]) return null;
+  if (m[2].length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(m[2])) return null;
   return { type: m[1].toLowerCase(), bytes: Buffer.from(m[2], 'base64') };
 }
 
 /** 바이트를 R2 에 올리고 공개 주소를 돌려준다. */
 export async function putImage(bytes, type, folder) {
-  const e = env();
   const name = `${folder}/${new Date().toISOString().slice(0, 7)}/${randomUUID()}.${TYPES[type] || 'bin'}`;
+  return putImageObject(bytes, type, name);
+}
+
+async function putImageObject(bytes, type, name) {
+  const e = env();
   const r = await r2().fetch(`https://${e.account}.r2.cloudflarestorage.com/${e.bucket}/${name}`, {
     method: 'PUT', body: bytes,
     headers: { 'Content-Type': type, 'Cache-Control': 'public, max-age=31536000, immutable' },
   });
   if (!r.ok) throw new Error(`R2 업로드 실패 HTTP ${r.status}`);
   return `${e.base}/${name}`;
+}
+
+/** 모든 사본 업로드 성공 후에만 버전 표시 주소를 반환한다. 기존 URL/원본 덮어쓰기 없음. */
+async function putImageWithVariants(bytes, type, folder, variants) {
+  if (!variants.length) return putImage(bytes, type, folder);
+  const stem = `${folder}/${new Date().toISOString().slice(0, 7)}/${randomUUID()}.iv1-${variants.map(v => v.side).join('-')}`;
+  try {
+    for (const v of variants) await putImageObject(v.bytes, v.type, `${stem}.w${v.side}.webp`);
+  } catch {
+    // 사본 장애가 원본 등록을 막지 않도록 옛 주소 형식으로 저장한다.
+    // 일부 만들어진 미참조 사본의 정리는 후속 작업이며 여기서 파일을 지우지 않는다.
+    return putImage(bytes, type, folder);
+  }
+  return putImageObject(bytes, type, `${stem}.${TYPES[type]}`);
 }
 
 // ── 문서 파일(2026-11-10, 섭외자 대화방 첨부) ── PPT·한글·PDF. 받을 때 원래 이름으로 내려받게 Content-Disposition 을 붙인다.
@@ -103,7 +126,11 @@ export async function storeImage(v, folder) {
   if (!s) return '';
   if (isStoredUrl(s)) return s;
   const img = decode(s);
-  if (!img) return '';
+  if (!img) {
+    if (s.startsWith('data:image')) throw new AccessError('올바른 사진 파일을 선택해 주세요.', 400);
+    return '';
+  }
+  const prepared = await prepareImage(img.bytes, img.type);
   if (!r2Configured()) return s;
-  return putImage(img.bytes, img.type, folder);
+  return putImageWithVariants(img.bytes, img.type, folder, prepared.variants);
 }

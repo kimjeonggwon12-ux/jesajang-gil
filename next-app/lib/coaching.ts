@@ -1,0 +1,22 @@
+import {buildAnalyzePrompt,buildAnalyzeSystemInstruction,buildCoachingPrompt,buildFollowUpPrompt,ageGenderToOrg,HEARTS_STAGE_MAP,extractHeartsTypes,plainText} from './coaching-prompts.mjs';
+import {maskName} from './status-extra.ts';
+export type CoachInfo={region:string;coach:{coachId:string;coachName:string;dept:string;region:string}|null;isCoach:boolean;myCoachInfo:{regions:string[];depts:string[]}|null};
+export type Feedback={receiptNo:string;source?:string;memberId?:string;name?:string;dept?:string;region?:string;tier?:string;situation:string;aiCoachText?:string;handlerAnswer:string;status:string;submittedAt:string;answeredAt:string;handler?:string};
+export type Dossier={target:{targetId:string;name:string;stage:string;gender:string;ageGroup:string;goalCohort:string;course:string};context:string;basis:string;actN:number;coachN:number;lastAnalyze:string};
+export type StudentForm={subMode:'script'|'analyze';targetGroup:string;stage:string;courseType:string;studentStatus:string;selMbti:string;selEnneagram:string;selDisc:string;selSagunja:string;situationText:string;linkedTypes:string[]};
+export const initialStudent=():StudentForm=>({subMode:'script',targetGroup:'',stage:'',courseType:'',studentStatus:'',selMbti:'',selEnneagram:'',selDisc:'',selSagunja:'',situationText:'',linkedTypes:[]});
+export function fromDossier(form:StudentForm,d:Dossier):StudentForm{const t=d.target,goal=t.goalCohort?` / 목표: ${Number(String(t.goalCohort).slice(5))}월 개강 센터 인도`:'';return {...form,stage:(HEARTS_STAGE_MAP as Record<string,string>)[t.stage]||form.stage,targetGroup:ageGenderToOrg(t.ageGroup,t.gender)||form.targetGroup,situationText:`대상자: ${maskName(t.name)} / 단계: ${t.stage||'섭외'}${goal}\n지금까지 쌓인 기록 전체를 바탕으로 다음 단계로 이끌 맞춤 코칭을 부탁드립니다.`,linkedTypes:extractHeartsTypes(d.lastAnalyze)};}
+export const safetySettings=()=>['HARASSMENT','HATE_SPEECH','SEXUALLY_EXPLICIT','DANGEROUS_CONTENT'].map(k=>({category:'HARM_CATEGORY_'+k,threshold:'BLOCK_NONE'}));
+export function studentRequest(f:StudentForm,person:Dossier|null){
+ let prompt='',systemInstruction='',tag='',situation=f.situationText;
+ if(f.subMode==='analyze'){prompt=buildAnalyzePrompt(f.targetGroup,f.stage,f.selMbti,f.selEnneagram,f.selDisc,f.selSagunja,f.situationText);systemInstruction=buildAnalyzeSystemInstruction(f.targetGroup);tag=`[심리상담/${f.targetGroup}]`;}
+ else {const b=buildCoachingPrompt(f.targetGroup,f.stage,f.courseType,f.studentStatus,f.selMbti,f.selEnneagram,f.selDisc,f.selSagunja,f.situationText,f.linkedTypes);prompt=b.prompt;systemInstruction=b.systemInstruction;tag=`[수강생코칭/${f.targetGroup}/${f.stage}]`;}
+ if(person?.context){prompt+=`\n\n[이 멘티에 대해 지금까지 쌓인 모든 기록 — 교사광장 누적 데이터]\n${person.context}\n\n`+'위 누적 기록 전체(만남·교육 흐름, 교사가 파악한 정보, 단계 변화, 이전 HEARTS 상담과 교관 답)를 근거로, 한 번의 사건이 아니라 이 사람이 지금까지 걸어온 흐름에 맞춘 답을 주세요. '+'이전 상담에서 이미 한 조언은 되풀이하지 말고 그다음 걸음을 제시하고, 기록에 없는 사실은 지어내지 마세요. 실명 대신 "그분"이라고 부르세요.';const m=maskName(person.target.name);if(m&&!situation.includes(m)&&!situation.includes(person.target.name))situation=`대상자: ${m} / ${situation}`;tag+='[누적기록]';}
+ return {situation:`${tag} ${situation}`,payload:{contents:[{role:'user',parts:[{text:prompt}]}],systemInstruction:{parts:[{text:systemInstruction}]},safetySettings:safetySettings()}};
+}
+export function teacherRequest(situation:string){return {situation,payload:{contents:[{parts:[{text:'당신은 교회 교사를 위한 코칭 도우미입니다. 다음 상황에 대해 구체적이고 실천 가능한 코칭 방향을 제시해주세요.\\n\\n상황: '+situation}]}]}};}
+export type FollowUp={role:'user'|'model';text:string};
+export function followUpRequest(situation:string,result:string,history:FollowUp[],question:string){return {model:'gemini-3-flash-preview',payload:{contents:[{role:'user',parts:[{text:buildFollowUpPrompt(situation,result,history,question)}]}],systemInstruction:{parts:[{text:'당신은 따뜻하고 전문적인 라이프 코치이자 멘토입니다.'}]},safetySettings:safetySettings()}};}
+export function resultText(value:unknown){if(typeof value!=='string'||!value.trim()||value.startsWith('⚠️'))throw Error(typeof value==='string'?value.replace(/^⚠️\s*/,''):'AI 응답이 비어 있어요.');return value;}
+// Word/인쇄에는 AI 응답을 HTML로 실행하지 않고 이스케이프한 글만 넣는다.
+export function reportHtml(text:string){const safe=plainText(text).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>코칭 리포트</title></head><body><pre style="white-space:pre-wrap;font-family:sans-serif;line-height:1.7">${safe}</pre></body></html>`;}

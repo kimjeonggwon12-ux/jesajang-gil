@@ -2,7 +2,7 @@
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs, sameId } from '../lib/util.js';
 import { clip, newId, isDate } from '../lib/input.js';
-import { findTeacher, isAdmin, isOwner, memberInfo } from './roster.js';
+import { findTeacher, isAdmin, isOwner, memberInfo, isEvangelism } from './roster.js';
 import { storeImage } from '../lib/images.js';
 
 const DEPTS = ['교', '자', '장', '부', '청'];            // 신청용 부서 약칭
@@ -60,9 +60,7 @@ async function deptManagerOf(memberId) {
 async function isJeondo(memberId) {
   if (!memberId) return false;
   if (isOwner(memberId)) return true;
-  const { admin, teacher } = await memberInfo(memberId);
-  if (String(admin?.dept || '').trim() === '전도부' || /전도/.test(String(admin?.position || ''))) return true;
-  return /전도/.test(String(teacher?.position || '')) && (await isAdmin(memberId));
+  return isEvangelism(memberId);
 }
 const canManageDept = (mgr, dept) => mgr === 'all' || (!!mgr && mgr === String(dept || '').trim().charAt(0));
 
@@ -167,7 +165,7 @@ async function saveCalendarEvent(body) {
   if (mid && category === '부서' && !canManageDept(mgr, dept)) return { error: '부서 일정은 그 부서 관리자만 올릴 수 있어요.' };
   const eventId = clip(ev.eventId, 40);
   if (eventId) {
-    const [row] = await run(db().from('calendar_events').select('id, repeat_days, category, created_by').eq('event_id', eventId).limit(1));
+    const [row] = await run(db().from('calendar_events').select('id, repeat_days, category, created_by, dept').eq('event_id', eventId).limit(1));
     if (row) {
       // 삭제와 같은 규칙: 공식 일정이 아니면 등록한 본인만 고친다(memberId 를 보내는 화면에서만 확인).
       if (mid && toEvent(row).category === '공식' && !(await isJeondo(mid))) return { error: '전도부 공식 일정은 전도부만 고칠 수 있어요.' };
@@ -200,6 +198,7 @@ async function deleteCalendarEvent(body) {
   if (!eventId) return { error: 'eventId 가 필요합니다.' };
   if (mid) {
     const [row] = await run(db().from('calendar_events').select('*').eq('event_id', eventId).limit(1));
+    if (row && toEvent(row).category === '공식' && !(await isJeondo(mid))) return { error: '전도부 공식 일정은 전도부만 삭제할 수 있어요.' };
     if (row && toEvent(row).category === '내일정' && !sameId(row.created_by, mid)) {
       return { error: '본인이 등록한 일정만 삭제할 수 있습니다.' };
     }
@@ -275,10 +274,16 @@ async function deleteEventCheer(body) {
 // ── 스탭·참석 신청 ──
 
 const myStaffRows = async (eventId, mid) =>
-  (await run(db().from('event_staff').select('*').eq('event_id', eventId).order('id'))).filter((s) => sameId(s.member_id, mid));
+  (await selectAll(() => db().from('event_staff').select('*').eq('event_id', eventId).order('id'))).filter((s) => sameId(s.member_id, mid));
+
+async function signupEventExists(eventId) {
+  const [event] = await run(db().from('calendar_events').select('category,type').eq('event_id', eventId).limit(1));
+  return !!event && (!CATEGORIES.includes(event.category) || event.category === '공식') && (!event.type || event.type === '행사');
+}
 
 async function applyEventStaff(body) {
   const eventId = clip(body.eventId, 40);
+  if (!(await signupEventExists(eventId))) return { error: '신청할 수 있는 공식 행사를 찾지 못했어요.' };
   const mid = clip(body.memberId, 40);
   const dept = clip(body.dept, 4);
   if (!eventId || !mid) return { error: 'eventId, memberId 가 필요합니다.' };
@@ -301,6 +306,7 @@ async function cancelEventStaff(body) {
 
 async function applyEventAttendee(body) {
   const eventId = clip(body.eventId, 40);
+  if (!(await signupEventExists(eventId))) return { error: '신청할 수 있는 공식 행사를 찾지 못했어요.' };
   const mid = clip(body.applicantId, 40);
   if (!eventId || !mid) return { error: 'eventId, applicantId 가 필요합니다.' };
   const applicantDept = clip(body.applicantDept, 4);
@@ -342,10 +348,11 @@ const toAttendee = (a) => ({
 /** 한 행사에 대한 내 신청(스탭 1건 + 참석자 여러 명)과 전체 참석 신청 수. */
 async function getMyEventSignups(body) {
   const eventId = clip(body.eventId, 40);
+  if (!(await signupEventExists(eventId))) return { error: '신청할 수 있는 공식 행사를 찾지 못했어요.' };
   const mid = clip(body.memberId, 40);
   const [staffRows, attendees] = await Promise.all([
     myStaffRows(eventId, mid),
-    run(db().from('event_attendees').select('*').eq('event_id', eventId).order('id')),
+    selectAll(() => db().from('event_attendees').select('*').eq('event_id', eventId).order('id')),
   ]);
   const staff = staffRows.at(-1);
   return {
@@ -366,6 +373,7 @@ const tally = (rows, key, keys) => {
 
 /** 관리자 집계: 행사별(또는 전체) 스탭·참석 신청 명단과 부서·역할·단계별 수. */
 async function getCalendarReport(body) {
+  if (!(await isAdmin(body.memberId))) return { error: '행사 집계는 관리자만 볼 수 있어요.' };
   const eventId = clip(body.eventId, 40);
   const only = (q) => (eventId ? q.eq('event_id', eventId) : q);
   const [{ rows: events }, attendeeRows, staffRows] = await Promise.all([
@@ -416,6 +424,7 @@ async function getCalendarAds(body = {}) {
 }
 
 async function saveCalendarAd(body) {
+  if (!(await isAdmin(body.memberId))) return { error: '공지 관리는 관리자만 할 수 있어요.' };
   const ad = body.ad || {};
   const title = clip(ad.title, 60);
   if (!title) return { error: '제목을 입력해주세요.' };
@@ -439,6 +448,7 @@ async function saveCalendarAd(body) {
 }
 
 async function deleteCalendarAd(body) {
+  if (!(await isAdmin(body.memberId))) return { error: '공지 관리는 관리자만 할 수 있어요.' };
   await run(db().from('calendar_ads').delete().eq('ad_id', clip(body.adId, 40)));
   return { ok: true };
 }

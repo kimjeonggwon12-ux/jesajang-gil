@@ -3,7 +3,7 @@ import { db, run, selectAll, isDuplicate } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs, sameId } from '../lib/util.js';
 import { clip, pickList, newId, isDate } from '../lib/input.js';
 import { afterAction } from '../lib/events.js';
-import { teachersByNid, isOwner } from './roster.js';
+import { teachersByNid, isOwner, isAdmin } from './roster.js';
 import { storeImage } from '../lib/images.js';
 
 const DEPTS = ['교', '자', '장', '부', '청'];
@@ -24,7 +24,6 @@ const TIMES = ['오전', '오후', '저녁'];
 const PHOTO_MAX = 45000;
 
 const newestBy = (key) => (a, b) => (a[key] < b[key] ? 1 : -1);
-const digits = (s) => String(s || '').replace(/[^0-9]/g, '');
 const rosterFor = (rows) => teachersByNid(rows.map((r) => r.member_id));
 
 // ── 명함 ──
@@ -46,7 +45,7 @@ function toCard(c, roster, viewerId) {
 
 const allCards = () => selectAll(() => db().from('connect_cards').select('*').neq('member_id', '').order('id'));
 
-/** 내 명함 저장. 같은 번호의 명함, 또는 이름+전화번호가 같은 명함이 있으면 그 하나로 합친다. */
+/** 내 명함 저장. 공개 이름·전화번호는 계정 소유의 증거가 아니므로 본인 번호만 사용한다. */
 async function saveConnectCard(body) {
   try {
     return await saveCardOnce(body);
@@ -89,9 +88,8 @@ async function saveCardOnce(body) {
     sched_type: schedType, ...schedule, dept: p.dept || '', region: p.region || '', updated_at: kstDateTime(),
   };
 
-  const phoneDigits = digits(phone);
-  const hits = (await allCards()).filter((c) => sameId(c.member_id, mid)
-    || (!!phoneDigits && c.name.trim() === name && digits(c.phone) === phoneDigits));
+  const hits = (await run(db().from('connect_cards').select('*').eq('nid', normId(mid)).order('id')))
+    .filter((c) => sameId(c.member_id, mid));
   // 합칠 때는 나머지를 먼저 지운다(한 사람에 명함 한 장 제약에 걸리지 않게).
   if (hits.length > 1) await run(db().from('connect_cards').delete().in('id', hits.slice(1).map((c) => c.id)));
   const saved = hits.length
@@ -174,6 +172,7 @@ function toHelp(h, roster, viewerId) {
     target: h.target, need: h.need,
     createdAt: fmtTs(h.created_at), region: p.region || '',
     expired: !!h.end_date && h.end_date < kstDate(), isMine: !!viewerId && sameId(h.member_id, viewerId),
+    canDelete: !!viewerId && (sameId(h.member_id, viewerId) || isOwner(viewerId)),
   };
 }
 
@@ -206,6 +205,7 @@ async function saveHelpPost(body) {
       await run(db().from('help_posts').update(content).eq('id', row.id));
       return afterAction('saveHelpPost', body, { ok: true, helpId });
     }
+    return { error: '본인이 등록한 글만 수정할 수 있습니다.' };
   }
   const fresh = newId('HP');
   await run(db().from('help_posts').insert({
@@ -221,8 +221,10 @@ async function getHelpPosts(body) {
   const dept = clip(body.dept, 4);
   const helps = await allHelps();
   const roster = await rosterFor(helps);
+  // 새 화면은 소유자 번호를 내려받지 않고 기존 마감 글 표시 범위를 요청한다.
+  const includeClosed = body.includeClosed === 'owner' ? isOwner(me) : !!body.includeClosed;
   const rows = helps.map((h) => toHelp(h, roster, me)).filter((h) => {
-    if (!body.includeClosed && (h.status !== '진행' || h.expired) && !h.isMine) return false;
+    if (!includeClosed && (h.status !== '진행' || h.expired) && !h.isMine) return false;
     if (type && !h.type.includes(type)) return false;
     return !dept || h.dept === dept;
   }).sort(newestBy('createdAt'));
@@ -234,7 +236,7 @@ const findHelp = async (helpId) => (await run(db().from('help_posts').select('id
 async function closeHelpPost(body) {
   const row = await findHelp(clip(body.helpId, 40));
   if (!row) return { error: '글을 찾지 못했습니다.' };
-  if (!body.admin && !sameId(row.member_id, clip(body.memberId, 40))) return { error: '본인이 등록한 글만 마감할 수 있습니다.' };
+  if (!sameId(row.member_id, clip(body.memberId, 40)) && !(await isAdmin(body.memberId))) return { error: '본인이 등록한 글만 마감할 수 있습니다.' };
   await run(db().from('help_posts').update({ status: '마감' }).eq('id', row.id));
   return { ok: true };
 }
@@ -269,13 +271,19 @@ async function recordMatch(body) {
 }
 
 async function setMatchDone(body) {
+  const [match] = await run(db().from('matches').select('from_id, to_id').eq('match_id', clip(body.matchId, 40)).limit(1));
+  if (!match) return { error: '매칭을 찾지 못했습니다.' };
+  if (!sameId(match.from_id, body.memberId) && !sameId(match.to_id, body.memberId) && !(await isAdmin(body.memberId))) {
+    return { error: '참여한 매칭만 변경할 수 있어요.' };
+  }
   const updated = await run(db().from('matches').update({ status: body.status === '성사' ? '성사' : '요청' })
     .eq('match_id', clip(body.matchId, 40)).select('id'));
   return updated.length ? { ok: true } : { error: '매칭을 찾지 못했습니다.' };
 }
 
 /** 관리자 연결 현황: 명함·도와주세요·매칭 전체와 요약 숫자(명함 사진은 뺀다 — 응답이 너무 커진다). */
-async function getConnectAdminOverview() {
+async function getConnectAdminOverview(body) {
+  if (!(await isAdmin(body.memberId))) return { error: '관리자만 연결 현황을 볼 수 있어요.' };
   const [cardRows, helpRows, matchRows] = await Promise.all([
     allCards(), allHelps(), selectAll(() => db().from('matches').select('*').order('id')),
   ]);

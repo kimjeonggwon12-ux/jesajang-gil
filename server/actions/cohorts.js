@@ -1,4 +1,4 @@
-// 교육 과정(교육생 반): 앱 관리자(7777 = 김정권 계정)만 만들고 교육생을 넣는다.
+// 교육 과정: 생성·위임은 앱 관리자, 지정된 과정 운영은 업무별 담당자.
 // 2026-10-16(2차): 기간·요일이 있는 정기 교육 — 날짜마다 출석 모임(고정 QR 하나로 그날 모임에 출석),
 // 과제는 한번/매일/요일 반복이고 날짜마다 따로 기록, 시험 점수는 텔레그램으로 수시로(cohort-bot.js).
 import { db, run, selectAll, isDuplicate } from '../lib/db.js';
@@ -8,11 +8,11 @@ import { runLater } from '../lib/background.js';
 import { sendAttendText, sendAttendHtml, sendAttendPhoto } from '../lib/attend-bot.js';
 import { scoreBoard, scoreSubjects, attendBoard, assignBoard, timetableBoard, boardHtml, boardPng } from '../lib/cohort-tables.js';
 import { toCohort, findCohort, WEEK, weekdayOf, isClassDay, assignmentOn, cleanDates } from '../lib/cohort.js';
-import { isOwner, memberInfo } from './roster.js';
+import { memberInfo } from './roster.js';
 
-const DENIED = { error: '교육 과정은 앱 관리자(7777)만 관리할 수 있어요.' };
-const owner = (body) => isOwner(clip(body.memberId, 40));
-const hm = (v) => (/^\d{1,2}:\d{2}$/.test(clip(v, 5)) ? clip(v, 5).padStart(5, '0') : '');
+import { protectCourses, educationGrants, permits, EDUCATION_TASKS } from '../lib/education-access.js';
+import { requireActor, AccessError } from '../lib/request-context.js';
+const hm = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(clip(v, 5)); return m && +m[1] < 24 && +m[2] < 60 ? `${m[1].padStart(2, '0')}:${m[2]}` : ''; };
 const cleanDays = (v) => [...WEEK].filter((d) => String(v || '').includes(d)).join('');
 const mmdd = (d) => String(d).slice(5).replace('-', '/');
 const REPEATS = ['한번', '매일', '요일', '날짜'];
@@ -64,17 +64,17 @@ const logChange = (body, kind, target, after) => run(db().from('roster_changes')
 // ── 과정 ──
 
 async function cohortList(body) {
-  if (!owner(body)) return DENIED;
-  const rows = await run(db().from('cohorts').select('*').neq('status', '삭제').order('id', { ascending: false }));
+  const grants = await educationGrants();
+  const rows = (await selectAll(() => db().from('cohorts').select('*').neq('status', '삭제').order('id', { ascending: false }))).filter(r => permits(grants,'cohort',r.cohort_id,'view'));
   const ids = rows.map((r) => r.cohort_id);
-  const members = ids.length ? await run(db().from('cohort_members').select('cohort_id').in('cohort_id', ids)) : [];
+  const members = [];
+  for (let i = 0; i < ids.length; i += 200) members.push(...await selectAll(() => db().from('cohort_members').select('cohort_id').in('cohort_id', ids.slice(i, i + 200)).order('id')));
   const count = {};
   for (const m of members) count[m.cohort_id] = (count[m.cohort_id] || 0) + 1;
   return { cohorts: rows.map((r) => ({ ...toCohort(r), memberCount: count[r.cohort_id] || 0 })) };
 }
 
 async function cohortSave(body) {
-  if (!owner(body)) return DENIED;
   const c = body.cohort || {};
   const title = clip(c.title, 60);
   if (!title) return { error: '교육명칭을 넣어 주세요.' };
@@ -135,18 +135,20 @@ export async function loadAll(c, parts = FULL, { content = false } = {}) {
   const none = Promise.resolve([]);
   const id = c.cohortId;
   const [members, assignments, meetings, subs, scores, examRows, schedule] = await Promise.all([
-    has('members') ? run(db().from('cohort_members').select(COLS.members).eq('cohort_id', id).order('seq').order('id')) : none,
-    has('assignments') ? run(db().from('cohort_assignments').select(COLS.assignments).eq('cohort_id', id).neq('status', '삭제').order('id')) : none,
-    has('meetings') || has('records') ? run(db().from('attend_meetings').select(COLS.meetings).eq('cohort_id', id).neq('status', '삭제').order('date').order('start_time')) : none,
+    has('members') ? selectAll(() => db().from('cohort_members').select(COLS.members).eq('cohort_id', id).order('seq').order('id')) : none,
+    has('assignments') ? selectAll(() => db().from('cohort_assignments').select(COLS.assignments).eq('cohort_id', id).neq('status', '삭제').order('id')) : none,
+    has('meetings') || has('records') ? selectAll(() => db().from('attend_meetings').select(COLS.meetings).eq('cohort_id', id).neq('status', '삭제').order('date').order('start_time').order('id')) : none,
     has('subs') ? selectAll(() => db().from('cohort_submissions').select(content ? COLS.subs + ', content' : COLS.subs).eq('cohort_id', id).order('id')) : none,
     has('scores') ? selectAll(() => db().from('cohort_scores').select(COLS.scores).eq('cohort_id', id).order('date').order('subject').order('id')) : none,
-    has('exams') ? run(db().from('cohort_exams').select('*').eq('cohort_id', id).neq('status', '삭제').order('id')) : none,
-    has('schedule') ? run(db().from('cohort_schedule').select(COLS.schedule).eq('cohort_id', id).order('date').order('start_time')) : none,
+    has('exams') ? selectAll(() => db().from('cohort_exams').select('*').eq('cohort_id', id).neq('status', '삭제').order('id')) : none,
+    has('schedule') ? selectAll(() => db().from('cohort_schedule').select(COLS.schedule).eq('cohort_id', id).order('date').order('start_time').order('id')) : none,
   ]);
   let records = [];
   if (has('records') && meetings.length) {
     // 출석 기록: 표에 쓰는 칸만(설문 답 등 제외), 같은 모임·같은 사람은 첫 기록만
-    const rows = await selectAll(() => db().from('attend_records').select('id, meeting_id, member_id, nid, late, at').in('meeting_id', meetings.map((m) => m.meeting_id)).neq('record_id', '').order('id'));
+    const rows = [], ids = meetings.map((m) => m.meeting_id);
+    for (let i = 0; i < ids.length; i += 200) rows.push(...await selectAll(() => db().from('attend_records').select('id, meeting_id, member_id, nid, late, at').in('meeting_id', ids.slice(i, i + 200)).neq('record_id', '').order('id')));
+    rows.sort((a, b) => a.id - b.id);
     const seen = new Set();
     records = rows.filter((r) => { const k = r.meeting_id + '|' + r.nid; if (seen.has(k)) return false; seen.add(k); return true; })
       .map((r) => ({ meetingId: r.meeting_id, memberId: r.member_id, late: r.late, at: fmtTs(r.at) }));
@@ -263,7 +265,7 @@ function crunch(c, all) {
     heldCount: held.length,
     examRoutines: routines,
     todayMeetings,
-    assignments: asg.map(({ dates, ...a }) => ({ ...a, dayCount: dates.length })),
+    assignments: asg.map(({ dates, ...a }, i) => ({ ...a, dates: assignments[i].dates, dayCount: dates.length })),
     exams: [...exams.values()].map((e) => ({ date: e.date, subject: e.subject, count: e.count, avg: Math.round((e.sum / e.count) * 10) / 10 })),
   };
 }
@@ -271,7 +273,6 @@ function crunch(c, all) {
 const isClassDayForAssign = (c, d) => isClassDay({ ...c, days: '' }, d);
 
 async function cohortDetail(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const [all, free] = await Promise.all([
@@ -279,14 +280,15 @@ async function cohortDetail(body) {
     run(db().from('attend_meetings').select(COLS.meetings).eq('cohort_id', '').neq('status', '삭제').order('id', { ascending: false }).limit(20)),
   ]);
   const d = crunch(c, all);
-  return { cohort: c, ...d, freeMeetings: free.map(toMeetingRow), sheet: buildSheet(c, all, d, false) };
+  const grants = await educationGrants();
+  const permissions = grants === null ? Object.keys(EDUCATION_TASKS) : (grants.find(g => g.scope_type === 'cohort' && g.scope_id === c.cohortId)?.permissions || []);
+  return { cohort: c, ...d, permissions, canDelegate: grants === null, freeMeetings: grants === null ? free.map(toMeetingRow) : [], sheet: buildSheet(c, all, d, false) };
 }
 
 // ── 교육생 ──
 
 /** 교육생 넣기: [{ church, name, memberId }] — 여러 명을 한 번에(붙여 넣기). 변경 기록에 '교육생 추가'로 남는다. */
 async function cohortAddMembers(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 먼저 고르거나 만들어 주세요.' };
   const list = (Array.isArray(body.members) ? body.members : []).slice(0, 500);
@@ -316,18 +318,16 @@ async function cohortAddMembers(body) {
 
 /** 교육생 번호 순서: memberIds 를 1번부터 차례로 */
 async function cohortSetOrder(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const ids = (Array.isArray(body.memberIds) ? body.memberIds : []).map((x) => normId(x));
-  const members = await run(db().from('cohort_members').select('id, nid').eq('cohort_id', c.cohortId).order('seq').order('id'));
+  const members = await selectAll(() => db().from('cohort_members').select('id, nid').eq('cohort_id', c.cohortId).order('seq').order('id'));
   const ordered = [...ids.map((nid) => members.find((m) => m.nid === nid)).filter(Boolean), ...members.filter((m) => !ids.includes(m.nid))];
   for (const [i, m] of ordered.entries()) await run(db().from('cohort_members').update({ seq: i + 1 }).eq('id', m.id));
   return { ok: true, count: ordered.length };
 }
 
 async function cohortRemoveMember(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const nid = normId(body.targetId);
@@ -344,14 +344,13 @@ async function cohortRemoveMember(body) {
  * 없는 날은 만들고, 오늘 이후 모임은 시간을 새로 맞추며, 교육 날이 아니게 된 날의 모임은(출석 기록이 없으면) 지운다.
  */
 async function cohortMakeSchedule(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   if (!c.startDate || !c.endDate) return { error: '먼저 교육 기간(시작·끝 날짜)을 넣고 [설정 저장]을 눌러 주세요.' };
   if (!c.startTime || !c.endTime) return { error: '먼저 교육 시간(시작·끝)을 넣고 [설정 저장]을 눌러 주세요.' };
   const today = kstDate();
   const want = dateRange(c.startDate, c.endDate, 370).filter((d) => isClassDay(c, d));
-  const have = await run(db().from('attend_meetings').select('meeting_id, date, start_time, end_time').eq('cohort_id', c.cohortId).neq('status', '삭제'));
+  const have = await selectAll(() => db().from('attend_meetings').select('meeting_id, date, start_time, end_time').eq('cohort_id', c.cohortId).neq('status', '삭제').order('id'));
   const haveDates = new Set(have.map((m) => m.date));
   const now = kstDateTime();
   const fresh = want.filter((d) => !haveDates.has(d) && d >= today).map((d) => ({
@@ -365,7 +364,8 @@ async function cohortMakeSchedule(body) {
   const wantSet = new Set(want);
   for (const m of have.filter((x) => x.date >= today)) {
     if (!wantSet.has(m.date)) {
-      const { count } = await db().from('attend_records').select('*', { count: 'exact', head: true }).eq('meeting_id', m.meeting_id);
+      const { count, error } = await db().from('attend_records').select('*', { count: 'exact', head: true }).eq('meeting_id', m.meeting_id);
+      if (error || count == null) throw new Error('출석 인원을 확인하지 못해 모임 삭제를 중단했어요.');
       if (!count) { await run(db().from('attend_meetings').update({ status: '삭제', updated_at: now }).eq('meeting_id', m.meeting_id)); removed++; }
     } else if (String(m.start_time).slice(0, 5) !== c.startTime || String(m.end_time).slice(0, 5) !== c.endTime) {
       await run(db().from('attend_meetings').update({ start_time: c.startTime, end_time: c.endTime, updated_at: now }).eq('meeting_id', m.meeting_id));
@@ -376,7 +376,6 @@ async function cohortMakeSchedule(body) {
 }
 
 async function cohortLinkMeeting(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const meetingId = clip(body.meetingId, 40);
@@ -394,7 +393,6 @@ async function cohortLinkMeeting(body) {
  * 알림은 보내지 않는다.
  */
 async function cohortSetAttendance(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const date = clip(body.date, 10);
@@ -403,7 +401,10 @@ async function cohortSetAttendance(body) {
   if (!status) return { error: '출석·지각·부분·결석 중에서 골라 주세요.' };
   const note = clip(body.note, 40);
   const ids = (Array.isArray(body.memberIds) ? body.memberIds : [body.targetId]).map((x) => normId(x)).filter((x) => x !== '0');
-  const members = (await run(db().from('cohort_members').select('*').eq('cohort_id', c.cohortId))).filter((m) => ids.includes(m.nid));
+  const members = (await selectAll(() => db().from('cohort_members').select('*').eq('cohort_id', c.cohortId).order('id'))).filter((m) => ids.includes(m.nid));
+  // 잘못된 수기 입력은 모임을 만들거나 기존 기록을 지우기 전에 거절한다.
+  if (status === '지각' && !hm(note)) return { error: '지각은 온 시각을 넣어 주세요(예: 10:20).' };
+  if (status === '부분' && !note) return { error: '부분 결석은 결석한 시간을 적어 주세요(예: 15:00부터 결석).' };
   if (!members.length) return { error: '교육생을 찾을 수 없어요.' };
   // 그날 모임(없으면 과정 시간으로 만들고, 지난날이면 마감 처리)
   let [m] = await run(db().from('attend_meetings').select('*').eq('cohort_id', c.cohortId).eq('date', date).neq('status', '삭제').order('start_time').limit(1));
@@ -428,7 +429,7 @@ async function cohortSetAttendance(body) {
     late = /결석|조퇴|외출/.test(note) ? note : note + ' 결석';
   }
   const nids = members.map((x) => x.nid);
-  await run(db().from('attend_records').delete().eq('meeting_id', m.meeting_id).in('nid', nids));
+  for (let i = 0; i < nids.length; i += 200) await run(db().from('attend_records').delete().eq('meeting_id', m.meeting_id).in('nid', nids.slice(i, i + 200)));
   if (status !== '결석') {
     await run(db().from('attend_records').insert(members.map((x) => ({
       record_id: newId('AT') + x.nid.slice(-4), meeting_id: m.meeting_id, member_id: x.member_id, name: x.name, dept: x.church,
@@ -439,7 +440,6 @@ async function cohortSetAttendance(body) {
 }
 
 async function cohortCreateMeeting(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const m = body.meeting || {};
@@ -459,7 +459,6 @@ async function cohortCreateMeeting(body) {
 // ── 과제 ──
 
 async function cohortSaveAssignment(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const a = body.assignment || {};
@@ -490,15 +489,14 @@ async function cohortSaveAssignment(body) {
 
 /** 과제 한 개의 제출(반복 과제면 그날 것 — date 를 안 주면 오늘). */
 async function cohortSubmissions(body) {
-  if (!owner(body)) return DENIED;
   const id = clip(body.assignmentId, 40);
   const [row] = await run(db().from('cohort_assignments').select('*').eq('assignment_id', id).limit(1));
   if (!row) return { error: '과제를 찾을 수 없어요.' };
   const a = toAssignment(row);
   const date = a.repeat === '한번' ? '' : (isDate(clip(body.date, 10)) ? clip(body.date, 10) : kstDate());
   const [subs, members] = await Promise.all([
-    run(db().from('cohort_submissions').select('*').eq('assignment_id', id).eq('work_date', date).order('id')),
-    run(db().from('cohort_members').select('*').eq('cohort_id', row.cohort_id).order('seq').order('id')),
+    selectAll(() => db().from('cohort_submissions').select('*').eq('assignment_id', id).eq('work_date', date).order('id')),
+    selectAll(() => db().from('cohort_members').select('*').eq('cohort_id', row.cohort_id).order('seq').order('id')),
   ]);
   const done = new Set(subs.map((s) => s.nid));
   return { assignment: { ...a, repeatText: repeatText(a) }, date, submissions: subs.map(toSubmission), missing: members.filter((m) => !done.has(m.nid)).map(toMember) };
@@ -508,7 +506,6 @@ async function cohortSubmissions(body) {
 
 /** 시험 루틴: 과목 + 요일(월~일, 비우면 한 번만: 날짜) + 점수 마감 시각. 점수는 텔레그램 "점수 과목 이름 점수…". */
 async function cohortSaveExam(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const e = body.exam || {};
@@ -528,7 +525,7 @@ async function cohortSaveExam(body) {
   const examId = newId('EX');
   await run(db().from('cohort_exams').insert({ exam_id: examId, cohort_id: c.cohortId, ...fields, created_at: kstDateTime() }));
   runLater(sendAttendText(`🧪 [${c.title}] 시험: ${subject} (${examText(toExam(fields))})
-✍️ 점수 올리는 법(방 관리자): 점수 ${subject} 홍길동 85 김영희 90`, c.tgChat));
+✍️ 점수 올리는 법(앱에서 연결한 시험 담당자): 점수 ${subject} 홍길동 85 김영희 90`, c.tgChat));
   return { ok: true, examId };
 }
 
@@ -579,7 +576,8 @@ function makeBoard(all, c, kind, { subject = '', week = '', maxCols = 12 } = {})
 }
 
 /** 표를 과정 방으로. kind: attend | assign | score | timetable | all(출석부 + 과제 제출 현황 + 과목별 시험 결과 및 순위) */
-export async function sendBoards(c, { kind = 'all', subject = '', week = '', all = null, caption = '' } = {}) {
+export async function sendBoards(c, { kind = 'all', subject = '', week = '', all = null, caption = '', strict = false } = {}) {
+  if (strict && !c.tgChat) throw new AccessError('이 과정에 연결된 텔레그램 방이 없어요.', 400);
   const kinds = kind === 'all' ? ['attend', 'assign', 'score'] : [kind];
   all = all || await loadAll(c, [...new Set(kinds.flatMap((k) => NEED[k] || []))]);
   const boards = [];
@@ -587,23 +585,23 @@ export async function sendBoards(c, { kind = 'all', subject = '', week = '', all
     if (k === 'score') { const b = makeBoard(all, c, 'score', { subject: '' }); if (b) boards.push(['score', b]); continue; }   // 2026-10-22: 과목 상관없이 한 표
     const b = makeBoard(all, c, k, { week }); if (b) boards.push([k, b]);
   }
-  for (const [i, [, b]] of boards.entries()) await sendBoard(c, b, i === 0 ? caption : '');
+  for (const [i, [, b]] of boards.entries()) await sendBoard(c, b, i === 0 ? caption : '', { strict });
   return boards.map(([name]) => name);
 }
 
 /** 표 한 장: 이미지(사진)로, 안 되면 글 표로 */
-export async function sendBoard(c, b, caption = '') {
+export async function sendBoard(c, b, caption = '', { strict = false } = {}) {
+  if (strict && !c.tgChat) throw new AccessError('이 과정에 연결된 텔레그램 방이 없어요.', 400);
   const png = boardPng(b);
   if (png) {
-    const r = await sendAttendPhoto(png, [caption, b.foot].filter(Boolean).join('\n').slice(0, 1000) || b.title, c.tgChat);
+    const r = await sendAttendPhoto(png, [caption, b.foot].filter(Boolean).join('\n').slice(0, 1000) || b.title, c.tgChat, { strict });
     if (r && r.ok) return;
   }
-  await sendAttendHtml(boardHtml(b, caption), c.tgChat);
+  await sendAttendHtml(boardHtml(b, caption), c.tgChat, { strict });
 }
 
 /** 앱 화면용 표 이미지(data URL) — 우클릭으로 복사·저장 */
 async function cohortBoardImage(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const kind = clip(body.kind, 20);
@@ -617,40 +615,36 @@ async function cohortBoardImage(body) {
 }
 
 async function cohortSendSummary(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const all = await loadAll(c);
   const text = summaryText(c, crunch(c, all), all);
-  await sendAttendText(text, c.tgChat);
-  await sendBoards(c, { all });
+  await sendAttendText(text, c.tgChat, { strict: true });
+  await sendBoards(c, { all, strict: true });
   return { ok: true, text };
 }
 
 /** 표만 보내기(앱의 [텔레그램으로 출석표·점수표 보내기]) */
 async function cohortSendBoard(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
-  const sent = await sendBoards(c, { kind: ['attend', 'assign', 'score', 'timetable'].includes(body.kind) ? body.kind : 'all', subject: clip(body.subject, 40), week: clip(body.week, 10) });
+  const sent = await sendBoards(c, { kind: ['attend', 'assign', 'score', 'timetable'].includes(body.kind) ? body.kind : 'all', subject: clip(body.subject, 40), week: clip(body.week, 10), strict: true });
   return sent.length ? { ok: true, sent } : { error: '보낼 표가 없어요(아직 기록이 없음).' };
 }
 
 /** 과정 방에 글 한 편 보내기(7777 — 교육생에게 안내·피드백) */
 async function cohortSendText(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   if (!c.tgChat) return { error: '이 과정에 연결된 텔레그램 방이 없어요.' };
   const text = clip(body.text, 3900);
   if (!text) return { error: '보낼 글이 없어요.' };
-  await sendAttendText(text, c.tgChat);
+  await sendAttendText(text, c.tgChat, { strict: true });
   return { ok: true };
 }
 
 /** 점수 하나 고치기(앱 시험 결과표 칸): score 가 비면 지움(미응시) */
 async function cohortSetScore(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const date = clip(body.date, 10), subject = clip(body.subject, 40);
@@ -664,7 +658,7 @@ async function cohortSetScore(body) {
   }
   const score = Number(raw);
   if (!Number.isFinite(score) || score < 0 || score > 1000) return { error: '점수는 0~1000 숫자로 넣어 주세요.' };
-  await run(db().from('cohort_scores').upsert({ cohort_id: c.cohortId, date, subject, member_id: m.member_id, name: m.name, score, by_name: '앱', at: kstDateTime() }, { onConflict: 'cohort_id,date,subject,nid' }));
+  await run(db().from('cohort_scores').upsert({ cohort_id: c.cohortId, date, subject, member_id: m.member_id, name: m.name, score, by_name: requireActor().name || '앱', actor_nid: requireActor().nid, at: kstDateTime() }, { onConflict: 'cohort_id,date,subject,nid' }));
   return { ok: true };
 }
 
@@ -673,7 +667,6 @@ async function cohortSetScore(body) {
  * 날짜 칸은 교육 시작일(없으면 첫 모임·첫 제출)부터 오늘(끝난 교육이면 끝나는 날)까지.
  */
 async function cohortSheet(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const all = await loadAll(c, FULL, { content: !!body.content });
@@ -682,14 +675,13 @@ async function cohortSheet(body) {
 
 /** 그날 한 교육생이 낸 과제(내용 포함) — 앱 과제 현황표 칸 */
 async function cohortDayWork(body) {
-  if (!owner(body)) return DENIED;
   const c = await findCohort(clip(body.cohortId, 40));
   if (!c) return { error: '교육 과정을 찾을 수 없어요.' };
   const date = clip(body.date, 10);
   if (!isDate(date)) return { error: '날짜가 필요해요.' };
   const [subs, asg] = await Promise.all([
-    run(db().from('cohort_submissions').select('assignment_id, content, late, source, submitted_at, updated_at, work_date').eq('cohort_id', c.cohortId).eq('nid', normId(body.targetId)).or(`work_date.eq.${date},and(work_date.eq.,submitted_at.gte.${date}T00:00:00,submitted_at.lte.${date}T23:59:59)`).order('id')),
-    run(db().from('cohort_assignments').select('assignment_id, title').eq('cohort_id', c.cohortId)),
+    selectAll(() => db().from('cohort_submissions').select('assignment_id, content, late, source, submitted_at, updated_at, work_date').eq('cohort_id', c.cohortId).eq('nid', normId(body.targetId)).or(`work_date.eq.${date},and(work_date.eq.,submitted_at.gte.${date}T00:00:00,submitted_at.lte.${date}T23:59:59)`).order('id')),
+    selectAll(() => db().from('cohort_assignments').select('assignment_id, title').eq('cohort_id', c.cohortId).order('id')),
   ]);
   const title = new Map(asg.map((a) => [a.assignment_id, a.title]));
   return { items: subs.map((s) => ({ title: title.get(s.assignment_id) || '', content: s.content, late: !!s.late, at: fmtTs(s.updated_at || s.submitted_at) })) };
@@ -754,7 +746,7 @@ function buildSheet(c, all, d, withSubs) {
   };
 }
 
-export default {
+export default protectCourses({
   cohortList, cohortSave, cohortDetail, cohortAddMembers, cohortRemoveMember, cohortMakeSchedule, cohortLinkMeeting, cohortCreateMeeting,
   cohortSaveAssignment, cohortSubmissions, cohortSaveExam, cohortSendSummary, cohortSheet, cohortSetAttendance, cohortSendBoard, cohortSendText, cohortSetScore, cohortBoardImage, cohortSetOrder, cohortDayWork,
-};
+});

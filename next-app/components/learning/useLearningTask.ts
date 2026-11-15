@@ -1,0 +1,3 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+export function useLearningTask(){const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),alive=useRef(true),lock=useRef(false);useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);async function run(fn:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(true);setError('');setNotice('');try{await fn();}catch(e){if(alive.current)setError(e instanceof Error?e.message:'처리하지 못했어요.');}finally{lock.current=false;if(alive.current)setBusy(false);}}return{busy,error,notice,setError,setNotice,alive,run};}

@@ -33,3 +33,17 @@ tools/export/
 
 .vercel
 .env*
+
+# 공동 개발 저장소에는 소스와 가짜 검증 코드만 보관한다.
+.local-*/
+.hosted-*/
+artifacts/
+backups/
+*.dump
+*.sql.gz
+*.tar.gz
+*.log
+*.tsbuildinfo
+.next/
+next-app/public/
+next-app/next-env.d.ts

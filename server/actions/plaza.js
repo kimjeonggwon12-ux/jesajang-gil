@@ -112,7 +112,7 @@ async function getPlazaPost(body) {
 
   const [counts, commentRows, cards] = await Promise.all([
     commentCounts(),
-    run(db().from('plaza_comments').select('*').eq('post_id', postId).neq('status', '삭제').order('id')),
+    selectAll(() => db().from('plaza_comments').select('*').eq('post_id', postId).neq('status', '삭제').order('id')),
     run(db().from('connect_cards').select('member_id, photo_url').eq('nid', normId(row.member_id)).order('id')),
   ]);
   const roster = await teachersByNid([row.member_id, ...commentRows.map((c) => c.member_id)]);
@@ -148,15 +148,18 @@ async function savePlazaPost(body) {
   const text = clip(d.body, 5000);
   if (!text) return { error: '내용을 입력해주세요.' };
   const tags = pickList((Array.isArray(d.tags) ? d.tags : []).map((t) => String(t || '').replace(/^#/, '').slice(0, 20)), null, 10);
+  // 사진 업로드보다 먼저 글 소유권/삭제 여부를 확인한다.
+  const postId = clip(d.postId, 40);
+  let existing;
+  if (postId) {
+    [existing] = await run(db().from('plaza_posts').select('id, member_id').eq('post_id', postId).neq('status', '삭제').limit(1));
+    if (!existing) return { error: '글을 찾지 못했어요.' };
+    if (!sameId(existing.member_id, mid)) return { error: '내가 쓴 글만 고칠 수 있어요.' };
+  }
   const content = { category, title, body: text, tags, ...(await storePhotos(photosFrom(d.photos), image(d.thumb, THUMB_MAX))) };
   const now = kstDateTime();
-
-  const postId = clip(d.postId, 40);
-  if (postId) {
-    const [row] = await run(db().from('plaza_posts').select('id, member_id').eq('post_id', postId).limit(1));
-    if (!row) return { error: '글을 찾지 못했어요.' };
-    if (!sameId(row.member_id, mid)) return { error: '내가 쓴 글만 고칠 수 있어요.' };
-    await run(db().from('plaza_posts').update({ ...content, updated_at: now }).eq('id', row.id));
+  if (existing) {
+    await run(db().from('plaza_posts').update({ ...content, updated_at: now }).eq('id', existing.id).neq('status', '삭제'));
     return afterAction('savePlazaPost', body, { ok: true, postId });
   }
 
@@ -202,6 +205,9 @@ async function addPlazaComment(body) {
   const text = clip(body.text, 1000);
   if (!mid) return { error: 'memberId 가 필요합니다.' };
   if (!text) return { error: '댓글을 입력해주세요.' };
+  const postId = clip(body.postId, 40);
+  const [post] = await run(db().from('plaza_posts').select('id').eq('post_id', postId).neq('status', '삭제').limit(1));
+  if (!post) return { error: '삭제되었거나 없는 글이에요.' };
   await run(db().from('plaza_comments').insert({
     comment_id: newId('PC'), post_id: clip(body.postId, 40), member_id: mid,
     name: clip(body.name, 30) || await rosterName(mid), body: text, created_at: kstDateTime(), status: '게시',
@@ -317,7 +323,10 @@ async function getPlazaMonthly(body) {
   }
   const couponIds = coupon.map((p) => p.postId);
   const popular = liked.slice(0, 10).map((p) => Object.assign(p, { coupon: couponIds.includes(p.postId) }));
-  return { month, teachers, coupon, popular };
+  // 순위/점수는 그대로 두고 목록과 같은 작성자별 가림을 적용한다.
+  const shown = await scrubPosts([...new Map([...coupon, ...popular].map(p => [p.postId, p])).values()], body.memberId);
+  const byId = new Map(shown.map(p => [p.postId, p]));
+  return { month, teachers, coupon: coupon.map(p => byId.get(p.postId)), popular: popular.map(p => byId.get(p.postId)) };
 }
 
 /**

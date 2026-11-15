@@ -16,7 +16,7 @@ if (!id) {
 const [snapshot] = await run(db().from('roster_snapshots').select('*').eq('id', id).limit(1));
 if (!snapshot) { console.error('그 번호의 스냅샷이 없습니다.'); process.exit(1); }
 const COLUMNS = ['member_id', 'name', 'dept', 'region', 'affiliation', 'position', 'tier', 'note', 'tier_changed_at',
-  'reg_leads', 'unreg_leads', 'counsel', 'gospel_room', 'companion', 'active_state', 'sort_order'];
+  'reg_leads', 'unreg_leads', 'counsel', 'gospel_room', 'companion', 'active_state', 'month_stats', 'sort_order'];
 const rows = snapshot.teachers.map((t) => Object.fromEntries(COLUMNS.map((c) => [c, t[c]])));
 const keep = new Set(rows.map((r) => r.member_id));
 const now = await selectAll(() => db().from('teachers').select('member_id').order('member_id'), 3);

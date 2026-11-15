@@ -1,11 +1,8 @@
 // 표 → PNG 이미지(SVG 를 resvg 로). 텔레그램 사진·앱 이미지(우클릭 복사)용. 글꼴은 저장소에 넣은 나눔고딕(OFL).
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Resvg } from '@resvg/resvg-js';
+import {bundledFontFiles} from './bundled-fonts.js';
 
-const FONT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'fonts');
-const FONTS = ['NanumGothic-Regular.ttf', 'NanumGothic-Bold.ttf'].map((f) => path.join(FONT_DIR, f));
+const FONTS = bundledFontFiles();
 
 const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
 const fixGlyphs = (t) => String(t ?? '').replace(/[①-⑳]/g, (ch) => `(${CIRCLED.indexOf(ch) + 1})`);

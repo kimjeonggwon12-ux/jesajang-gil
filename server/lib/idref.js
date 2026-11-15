@@ -28,8 +28,8 @@ export function decId(r) {
 
 // 고유번호가 담기는 칸(응답). chatId 는 두 사람 번호를 이은 것('a__b')일 때만.
 const ID_KEYS = new Set([
-  'memberId', 'creatorId', 'leaderId', 'helperId', 'fromId', 'toId', 'teacherId', 'coachId', 'writerId', 'authorId',
-  'assigneeId', 'applicantId', 'viewerId', 'createdById', 'approverId', 'handlerId', 'ownerId', 'requesterId', 'targetMemberId',
+  'memberId', 'creatorId', 'leaderId', 'helperId', 'fromId', 'toId', 'otherId', 'refId', 'teacherId', 'coachId', 'writerId', 'authorId',
+  'assigneeId', 'applicantId', 'viewerId', 'createdById', 'createdBy', 'approverId', 'handlerId', 'ownerId', 'requesterId', 'targetMemberId',
   'member_id', 'from_id', 'to_id', 'creator_id', 'leader_id', 'helper_id', 'teacher_id', 'author_id', 'assignee_id',
   'applicant_id', 'created_by_id', 'approver_id', 'handler_id', 'owner_id', 'requester_id', 'created_by',
 ]);

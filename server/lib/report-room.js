@@ -1,7 +1,9 @@
 // 보고방(교자장부청 공식 보고방, 텔레그램) — 출석 봇이 보고 문자를 그대로 올린다(2026-10-23).
 // 부서 → 방은 report_rooms 표. 고친 보고는 처음 올린 글에 답장으로 "수정본"을 다시 올린다.
 // 10/25: 지역 방(dept '부녀회/03지역')이 있으면 그 지역 사람 보고는 지역 방으로, 매일 22시에 방마다 일일 보고 취합(reportDailyTick).
-import { db, run } from './db.js';
+import { db, run, selectAll } from './db.js';
+import {runReportBatch} from './report-delivery-batch.js';
+import { createHash } from 'node:crypto';
 import { kstDate, kstDateTime, normId } from './util.js';
 import { findTeacher, findTeacherLoose, fixActivityNids, adminsAsTeachers, loadRoster, isApprover } from '../actions/roster.js';
 import { tablePng } from './table-image.js';
@@ -87,7 +89,7 @@ async function tg(method, body, token = botToken()) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const j = await r.json().catch(() => ({}));
-  if (!j.ok) {
+  if (!r.ok || j.ok !== true) {
     const err = new Error('보고방에 올리지 못했습니다: ' + (j.description || r.status));
     err.migrateTo = j.parameters && j.parameters.migrate_to_chat_id;   // 일반 그룹 → 슈퍼그룹으로 바뀐 방의 새 번호
     throw err;
@@ -544,17 +546,15 @@ function rollText(key, meeting, members, records) {
   ].join('\n');
 }
 /** 출석 마감 때(attAutoSummary) 부름 — 출결 방마다 그 모임 멤버 출결을 한 번 올린다. records = loadRecords 결과. */
-export async function postRollCalls(meeting, records) {
-  const rooms = await run(db().from('report_rooms').select('*').in('dept', ROLL_ROOMS).eq('active', true)).catch(() => []);
+export async function postRollCalls(meeting, records, failures = []) {
+  const rooms = await run(db().from('report_rooms').select('*').in('dept', ROLL_ROOMS).eq('active', true));
   const sent = [];
   for (const room of rooms) {
     if (topicPending(room)) continue;
     const text = rollText(room.dept, meeting, await rollMembers(room.dept), records);
     if (!text) continue;
-    const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#roll-call', kind: '출결', ref_id: `${room.dept}|${meeting.meetingId}`, date: meeting.date, sent_at: kstDateTime() });
-    if (error) continue;   // 이미 보냄
-    await sendText(room.chat_id, text);
-    sent.push(room.dept);
+    const result = await runReportBatch({namespace:'#roll-call',kind:'출결',ref:`${room.dept}|${meeting.meetingId}`,date:meeting.date,room},()=>sendText(room.chat_id,text),failures);
+    if(result.state==='delivered')sent.push(room.dept);
   }
   return sent;
 }
@@ -579,7 +579,7 @@ export async function rollCallSample(key, dryRun = false) {
 }
 
 /** 일일 보고 한 통 — 총합은 표 사진 + 설명(사진을 못 만들거나 못 보내면 글로). pre = 맨 위에 붙일 HTML 한 줄. */
-async function sendDaily(r, pre = '') {
+async function sendDaily(r, pre = '', strict = false) {
   if (r.png) {
     try {
       const form = new FormData();
@@ -589,20 +589,24 @@ async function sendDaily(r, pre = '') {
       form.set('caption', (pre + r.caption).slice(0, 1024));
       form.set('parse_mode', 'HTML');
       form.set('photo', new Blob([r.png], { type: 'image/png' }), 'summary.png');
-      const j = await (await fetch(`https://api.telegram.org/bot${tokenFor(r.room.chat_id)}/sendPhoto`, { method: 'POST', body: form })).json().catch(() => ({}));
-      if (j.ok) { r.via = '사진'; return j.result.message_id; }
+      const response = await fetch(`https://api.telegram.org/bot${tokenFor(r.room.chat_id)}/sendPhoto`, { method: 'POST', body: form });
+      const j = strict ? await response.json() : await response.json().catch(() => ({}));
+      if (strict && (typeof j.ok !== 'boolean' || (!response.ok && j.ok))) throw Error('사진 전송 응답을 확인하지 못했어요.');
+      if (response.ok && j.ok) { r.via = '사진'; return j.result.message_id; }
       r.photoError = j.description || '';
       console.log('총합 사진 실패, 글로 보냄: ' + r.photoError);
-    } catch (e) { r.photoError = e.message; console.log('총합 사진 실패, 글로 보냄: ' + e.message); }
+    } catch (e) { if (strict) throw Error('사진 수신 여부를 확인하지 못했어요.'); r.photoError = e.message; console.log('총합 사진 실패, 글로 보냄: ' + e.message); }
   }
   return sendText(r.room.chat_id, pre + (r.html ? r.text : esc(r.text)));
 }
 
 // 11/4: 방별 출석 표(room-attendance.js) — 표 사진 + 설명, 사진이 안 되면 글
 export const sendRoomBoard = (room, png, caption, text) => sendDaily({ room, png, caption, text, html: true });
+// 확정된 거절만 글로 대체한다. 통신/응답 오류 후에는 사진과 글의 중복을 만들지 않는다.
+export const sendRoomBoardConfirmed = (room, png, caption, text) => sendDaily({ room, png, caption, text, html: true }, '', true);
 
 /** 5분마다: 22시가 지나면 오늘 일일 보고를 방마다 한 번씩. */
-export async function reportDailyTick() {
+export async function reportDailyTick(failures = []) {
   if (kstDateTime().slice(11, 16) < '22:00') return [];
   const date = kstDate();
   const sent = [];
@@ -610,14 +614,8 @@ export async function reportDailyTick() {
     const { room, count } = r;
     if (!count) continue;   // 그날 기록이 하나도 없는 방은 보내지 않는다(빈 보고로 방을 채우지 않게)
     if (topicPending(room)) continue;   // 정한 주제 번호를 아직 모름
-    const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#report-room', kind: '일일보고', ref_id: room.dept, date, sent_at: kstDateTime() });
-    if (error) continue;   // 이미 보냄
-    try { await sendDaily(r); sent.push(room.dept); }
-    catch (e) {
-      // 못 보냈으면 표시를 지워 다음 5분에 다시
-      await db().from('cohort_summary_log').delete().eq('cohort_id', '#report-room').eq('ref_id', room.dept).eq('date', date);
-      console.log(`일일 보고 실패(${room.dept}): ${e.message}`);
-    }
+    const result = await runReportBatch({namespace:'#report-room',kind:'일일보고',ref:room.dept,date,room},()=>sendDaily(r,'',true),failures);
+    if(result.state==='delivered')sent.push(room.dept);
   }
   return sent;
 }
@@ -746,29 +744,49 @@ export async function reportRooms(body) {
 //   운영 키 대신 앱 관리자(교육·전도 담당) 로그인으로. 방 열쇠 = 교사명단의 부서('교역자') 또는 '부서/지역'('부녀회/03지역').
 //   op 'list' = 연결 목록 + 명단에 있는 부서·지역 칸, op 'set' {dept, region?, chatId} = 봇이 그 방에 있는지 보고 연결 + 방에 확인 글,
 //   op 'off' {key} = 연결 끊기(그 방 사람 보고는 부서 방 → 기본 방으로).
+const roomRevision = rooms => createHash('sha256').update(JSON.stringify(rooms)).digest('hex');
 export async function reportRoomsAdmin(body) {
+  // 공무 등록은 방 연결 권한과 분리해 교육별 출석/자료 위임을 확인한다.
+  if (['excusedGet','excusedSet'].includes(body.op)) {
+    const {getEduExcused,applyEduExcused}=await import('../actions/edu-excused.js');
+    if(body.op==='excusedSet') await applyEduExcused({...body,people:body.people||(Array.isArray(body.nids)?body.nids.map(memberId=>({memberId})):undefined)});
+    const result=await getEduExcused(body),{encId}=await import('./idref.js');
+    return {...result,people:result.people.map(p=>({...p,nid:encId(p.memberId)}))};
+  }
   if (!(await isApprover(body.memberId))) return { error: '보고방은 교육·전도 담당 관리자만 연결할 수 있어요.' };
   const op = String(body.op || 'list');
+  if (body.requireReview && ['set','off'].includes(op)) {
+    const current = await selectAll(() => db().from('report_rooms').select('*').order('dept'));
+    if (body.confirmed !== true || body.review !== roomRevision(current)) return {error:'보고방 연결이 바뀌었어요. 확인 내용을 다시 열어 주세요.'};
+  }
   if (op === 'set') {
     const dept = String(body.dept || '').trim(), region = String(body.region || '').trim();
     let chatId = String(body.chatId || '').replace(/\s/g, '');
     if (!dept) return { error: '부서를 골라 주세요.' };
     if (!/^-\d+$/.test(chatId)) return { error: '방 번호는 -100… 처럼 빼기(-)로 시작하는 숫자예요.' };
-    const key = region ? `${dept}/${region}` : dept;
+    // 11/12(사용자): 교육 방('#교육:RS…' = 정기 교육 하나)도 부서처럼 골라 연결
+    const edu = dept.startsWith('#교육:') ? (await run(db().from('attend_series').select('series_id, title').eq('series_id', dept.slice(4)).neq('status', '삭제').limit(1)))[0] : null;
+    if (dept.startsWith('#교육:') && !edu) return { error: '그 정기 교육을 찾지 못했어요.' };
+    const jungjin = dept === '#중진';
+    const key = edu || jungjin ? dept : region ? `${dept}/${region}` : dept;
     // 일반 그룹이 슈퍼그룹으로 바뀌면 번호가 새로 생긴다 — 방 찾기·확인 글 어느 쪽에서 알려 주든 텔레그램이 준 새 번호로 한 번 더
     const moved = async (fn) => { try { return await fn(); } catch (e) { if (!e.migrateTo) throw e; chatId = String(e.migrateTo); return fn(); } };
     let chat;
     try { chat = await moved(() => tg('getChat', { chat_id: chatId })); }
     catch (e) { return { error: `봇이 그 방을 찾지 못했어요(${e.message}). 방에 '교사광장 도우미' 봇을 초대했는지, 번호가 맞는지 확인해 주세요.` }; }
     const title = chat.title || key;
-    const label = region ? `${deptLabelOf(dept)} ${regionOf({ region }) || region}` : deptLabelOf(dept);
-    try { await moved(() => sendText(chatId, `✅ 이 방이 <b>${esc(label)}</b> 보고방으로 연결됐어요.\n교사가 활동 보고를 올리면 이 방으로 오고, 매일 22시에 일일 보고가 모여 올라와요.`)); }
+    const label = edu ? edu.title : region ? `${deptLabelOf(dept)} ${regionOf({ region }) || region}` : deptLabelOf(dept);
+    const hello = jungjin ? `✅ 이 방이 <b>중진 대화방</b>으로 연결됐어요.\n① 화요전도단·목요 사명자 교육 24부서 출석 현황(참석·지각·불참·공무) — 오전 교육 후·저녁 교육 후\n② 매일 밤 10시 뉴스(카드+한 줄 데이터 뉴스)와 부서별 휴·활·정·우 현황이 이 방에 올라와요.`
+      : edu ? `✅ 이 방이 <b>${esc(label)}</b> 교육 방으로 연결됐어요.\n교육 타임이 끝날 때마다 출석 현황 표(재적 기준)와 지각자·불참자 명단이 이 방에 올라와요.`
+      : `✅ 이 방이 <b>${esc(label)}</b> 보고방으로 연결됐어요.\n교사가 활동 보고를 올리면 이 방으로 오고, 매일 22시에 일일 보고가 모여 올라와요.`;
+    try { await moved(() => sendText(chatId, hello)); }
     catch (e) { return { error: `방은 찾았지만 글을 올리지 못했어요(${e.message}). 봇이 글을 쓸 수 있게 권한을 확인해 주세요.` }; }
     await run(db().from('report_rooms').upsert({ dept: key, chat_id: chatId, title, active: true, created_at: kstDateTime() }));
   } else if (op === 'off') {
     await run(db().from('report_rooms').update({ active: false }).eq('dept', String(body.key || '')));
   }
-  const [rooms, roster] = await Promise.all([run(db().from('report_rooms').select('*').order('dept')), loadRoster()]);
+  const [rooms, roster, series] = await Promise.all([selectAll(() => db().from('report_rooms').select('*').order('dept')), loadRoster(),
+    selectAll(() => db().from('attend_series').select('series_id, title').neq('status', '삭제').order('id'))]);
   // 명단에 있는 부서·지역(사람 수) — 화면의 고르기 칸. 교역자처럼 지역 없이 쓰는 부서도 부서 칸은 나온다.
   const slots = {};
   for (const t of roster) {
@@ -779,7 +797,10 @@ export async function reportRoomsAdmin(body) {
     if (r) slots[d].regions[r] = (slots[d].regions[r] || 0) + 1;
   }
   return {
+    revision: roomRevision(rooms),
+    specials: [{key:'#중진',title:'중진 대화방'}],
     rooms: rooms.map((r) => ({ key: r.dept, chatId: r.chat_id, title: r.title, active: r.active, at: r.created_at || '' })),
+    edus: series.filter((x) => !String(x.title).startsWith('[TEST]')).map((x) => ({ key: '#교육:' + x.series_id, title: x.title })),
     depts: Object.values(slots).map((s) => ({ dept: s.dept, n: s.n, regions: Object.entries(s.regions).map(([region, n]) => ({ region, n })).sort((a, b) => a.region.localeCompare(b.region, 'ko', { numeric: true })) })),
   };
 }

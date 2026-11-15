@@ -1,0 +1,9 @@
+import {test,beforeEach,afterEach} from 'node:test';
+import assert from 'node:assert/strict';
+import {sendAttendText,sendAttendHtml} from '../server/lib/attend-bot.js';
+const original=globalThis.fetch;
+beforeEach(()=>{delete process.env.ATT_BOT_TOKEN;delete process.env.ATT_ADMIN_CHAT;globalThis.fetch=async()=>{throw Error('External network forbidden');};});
+afterEach(()=>{delete process.env.ATT_BOT_TOKEN;delete process.env.ATT_ADMIN_CHAT;globalThis.fetch=original;});
+test('기존 자동 알림은 설정이 없으면 비차단, 수동 전달은 전송 성공으로 처리하지 않는다',async()=>{await sendAttendText('가짜 알림','-990001');await sendAttendHtml('가짜 표','-990001');await assert.rejects(sendAttendText('가짜 글','-990001',{strict:true}),/연결/);await assert.rejects(sendAttendHtml('가짜 표','-990001',{strict:true}),/연결/);});
+test('수동 보고는 Telegram 오류·잘못된 응답·통신 실패를 성공으로 표시하지 않는다',async()=>{process.env.ATT_BOT_TOKEN='fake-token';process.env.ATT_ADMIN_CHAT='-990001';for(const result of [()=>new Response(JSON.stringify({ok:false}),{status:200}),()=>new Response('bad',{status:503}),()=>{throw Error('fake outage');}]){globalThis.fetch=async()=>result();await assert.rejects(sendAttendText('가짜 보고','-990002',{strict:true}),/확인하지 못/);await assert.rejects(sendAttendHtml('가짜 표','-990002',{strict:true}),/확인하지 못/);}});
+test('부분 전송 실패는 자동 재시도하지 않으며 명시한 방만 사용한다',async()=>{process.env.ATT_BOT_TOKEN='fake-token';process.env.ATT_ADMIN_CHAT='-990001';const sent=[];globalThis.fetch=async(url,init)=>{sent.push(JSON.parse(init.body));return new Response(JSON.stringify({ok:sent.length===1}),{status:200});};await assert.rejects(sendAttendText('가'.repeat(3000)+'\n'+'나'.repeat(3000),' -990002 ',{strict:true}),/일부 글/);assert.equal(sent.length,2);assert.ok(sent.every(x=>x.chat_id==='-990002'));await assert.rejects(sendAttendText('글','',{strict:true}),/연결/);assert.equal(sent.length,2);});

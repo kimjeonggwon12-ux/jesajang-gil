@@ -3,18 +3,41 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": "24.x"
   },
   "scripts": {
-    "parity": "node tools/parity.mjs"
+    "parity": "node tools/parity.mjs",
+    "test:auth": "node --experimental-test-module-mocks --test tests/auth-*.test.mjs",
+    "test:auth:db": "node --test tests/local-db-auth.test.mjs",
+    "test:workflows:db": "node --test tests/local-workflows.test.mjs",
+    "test:backup:local": "node tools/local-backup-check.mjs",
+    "test:education:db": "node --test tests/local-education.test.mjs",
+    "test:traffic": "node --test tests/traffic-ui.test.mjs",
+    "test:traffic:db": "node --test tests/local-traffic.test.mjs",
+    "test:images": "node --experimental-test-module-mocks --test tests/images.test.mjs",
+    "test:images:db": "node --test tests/local-images.test.mjs",
+    "images:icons": "node tools/optimize-static-images.mjs",
+    "test:lists:db": "node --test tests/local-lists.test.mjs",
+    "test:lists": "node --test tests/lists-ui.test.mjs",
+    "test:aggregates:db": "node --test tests/local-aggregates.test.mjs",
+    "test:status:db": "node --test tests/local-status.test.mjs",
+    "test:status": "node --test tests/status-ui.test.mjs",
+    "test:remaining": "node --test tests/remaining-ui.test.mjs",
+    "test:remaining:db": "node --test tests/local-remaining.test.mjs",
+    "test:next": "node --test tests/next-*.test.mjs",
+    "test:next:db": "node --test --test-concurrency=1 tests/local-next*.test.mjs",
+    "check:handoff": "node tools/check-collaboration.mjs",
+    "test:handoff": "node tools/test-collaboration.mjs",
+    "build:handoff": "node tools/build-collaboration.mjs"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "@supabase/supabase-js": "^2.45.0",
-    "@vercel/functions": "^3.9.11",
-    "aws4fetch": "^1.0.20"
+    "@vercel/functions": "3.10.6",
+    "aws4fetch": "^1.0.20",
+    "sharp": "0.35.5"
   },
   "devDependencies": {
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

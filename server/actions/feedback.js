@@ -1,8 +1,12 @@
+import {isSystemOwner} from '../lib/system-owner.js';
 // AI 상담 · 피드백 이력 · 교관 요청/답변
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, str, isoTs, kstDateTime } from '../lib/util.js';
 import { callAi, askAi, askAiModels, textOf } from '../lib/gemini.js';
-import { findTeacher } from './roster.js';
+import rosterActions, { findTeacher, isAdmin } from './roster.js';
+import tierActions from './tiers.js';
+import { buildOrgSnapshot } from '../lib/org-coaching.js';
+import { maskOut } from '../lib/idref.js';
 import { addTargetAiNote, ownedTarget, targetDossier, TARGET_STAGES } from './targets.js';
 
 const SOURCE = { ai: 'AI셀프코칭', escalation: '사람에스컬레이션', coach: '교관요청' };
@@ -86,7 +90,8 @@ async function addFeedback(fields) {
 /** AI 셀프 코칭: 답을 받아 이력에 남긴다. */
 async function aiCoach(body) {
   const result = await callAi(body.payload, body.model);
-  const coachText = textOf(result) ?? `(AI 응답 파싱 실패: ${JSON.stringify(result)})`;
+  const coachText = textOf(result);
+  if (!coachText?.trim() || coachText.startsWith('⚠️')) return { error: coachText?.replace(/^⚠️\s*/, '') || 'AI 응답이 비어 있어요. 다시 시도해 주세요.' };
   const receiptNo = await addFeedback({
     member_id: String(body.memberId ?? ''), name: String(body.name ?? ''), source: SOURCE.ai,
     situation: String(body.situation ?? ''), ai_coach_text: coachText, status: '완료',
@@ -114,9 +119,14 @@ async function getHistory(body) {
   return { rows };
 }
 
-async function getAllFeedback() {
-  const data = await selectAll(() => db().from('feedbacks').select('*').order('id'));
-  const rows = data.map((f) => ({
+async function getAllFeedback(body) {
+  if (!(await isAdmin(body.memberId))) return { error: '관리자만 조회할 수 있습니다.' };
+  const [data,coachRows]=await Promise.all([selectAll(() => db().from('feedbacks').select('id,member_id,nid,source').order('id')),coachRowsOf(body.memberId)]);
+  const teacherOf=await teachersOf(data),nid=normId(body.memberId);
+  // 전체 통계 권한은 상담 원문 열람이 아니다. 본인 기록과 담당 교관에게 전달된 요청만 반환한다.
+  const visible=data.filter(f=>isSystemOwner(nid)||f.nid===nid||(COACH_VISIBLE.includes(f.source)&&covers(coachRows,teacherOf.get(f.nid))));
+  const details=[];for(let i=0;i<visible.length;i+=200)details.push(...await run(db().from('feedbacks').select('*').in('id',visible.slice(i,i+200).map(f=>f.id)).order('id')));
+  const rows = details.map((f) => ({
     receiptNo: f.receipt_no, memberId: f.member_id, name: f.name, source: f.source, situation: f.situation,
     aiCoachText: f.ai_coach_text, handlerAnswer: f.handler_answer, status: f.status,
     submittedAt: isoTs(f.submitted_at), handler: f.handler, answeredAt: isoTs(f.answered_at),
@@ -124,7 +134,28 @@ async function getAllFeedback() {
   return { rows };
 }
 
-// ── 교관 ── 교관 = 관리자 명단에서 직책에 '교관'이 들어간 사람. 맡은 범위는 그 줄의 부서·지역(지역이 비면 부서 전체).
+// 기존 비교 HTML의 집계 계약. 상담 본문/접수번호/이름/담당자는 제외한다.
+async function getFeedbackIndex(body){
+  if(!(await isAdmin(body.memberId)))return {error:'관리자만 조회할 수 있습니다.'};
+  const data=await selectAll(()=>db().from('feedbacks').select('id,member_id,source,status,submitted_at,answered_at').order('id'));
+  return {rows:data.map(f=>({memberId:f.member_id,source:f.source,status:f.status,submittedAt:isoTs(f.submitted_at),answeredAt:isoTs(f.answered_at)}))};
+}
+
+// 상담 원문을 브라우저로 내려보내지 않고 기존 전체 현황 AI 입력의 집계만 반환한다.
+async function getOrgAiSnapshot(body) {
+  if (!(await isAdmin(body.memberId))) return { error: '관리자만 조회할 수 있습니다.' };
+  const [roster, feedbacks, settlement] = await Promise.all([
+    rosterActions.getRoster({ indexOnly: true }),
+    selectAll(() => db().from('feedbacks').select('id, member_id, source, status, submitted_at, answered_at').order('id')),
+    body.includeSettlement === true ? tierActions.getSettlementReport({ memberId: body.memberId }) : null,
+  ]);
+  const rows = feedbacks.map(f => ({ memberId:f.member_id,source:f.source,status:f.status,submittedAt:isoTs(f.submitted_at),answeredAt:isoTs(f.answered_at) }));
+  // 이전 브라우저는 이미 가려진 번호끼리 비교했다. 공백/별칭도 그 경계를 보존한다.
+  const actorNid = normId(body.memberId);
+  return { snapshot: buildOrgSnapshot(maskOut(roster.rows, actorNid), roster.tiers, maskOut(rows, actorNid), settlement), settlementIncluded: body.includeSettlement === true };
+}
+
+// ── 교관 ── 교관 = 관리자 명단에서 직책에 '교관'이 들어간 사람. 맡은 범위는 그 줄의 부서·지역(지역 공란에는 범위를 부여하지 않음).
 
 const coachRowsOf = async (memberId) =>
   run(db().from('admins').select('*').eq('nid', normId(memberId)).like('position', '%교관%').order('id'));
@@ -133,7 +164,7 @@ const toCoach = (a) => ({ region: a.region, coachId: a.member_id, coachName: a.n
 
 /** 이 교관이 그 교사를 맡는가. */
 const covers = (coachRows, teacher) =>
-  !!teacher && coachRows.some((c) => c.dept === teacher.dept && (!c.region || c.region === teacher.region));
+  !!teacher && coachRows.some((c) => c.dept === teacher.dept && (!!c.region && c.region === teacher.region));
 
 /** 내 담당 교관, 그리고 내가 교관인지. */
 async function getMyCoach(body) {
@@ -144,11 +175,11 @@ async function getMyCoach(body) {
   let coach = null;
   if (teacher && region) {
     const candidates = await run(db().from('admins').select('*').eq('dept', teacher.dept).like('position', '%교관%').order('id'));
-    const mine = candidates.find((c) => c.region === region) || candidates.find((c) => !c.region);
+    const mine = candidates.find((c) => c.region === region);
     coach = mine ? toCoach(mine) : null;
   }
   return {
-    region, coach, isCoach: selfRows.length > 0,
+    region, coach, isCoach: isSystemOwner(mid)||selfRows.length > 0,
     myCoachInfo: selfRows.length ? {
       coachId: selfRows[0].member_id, coachName: selfRows[0].name,
       regions: selfRows.map((c) => c.region), depts: selfRows.map((c) => c.dept),
@@ -168,7 +199,7 @@ async function getMyCoachRequests(body) {
   const mid = str(body.memberId);
   if (!mid) return { error: 'memberId 가 필요합니다.' };
   // 10/25: AI상담 '피드백 이력' 탭을 없애 AI 답을 교관에게 넘긴 것(사람에스컬레이션)의 답도 여기서 본다
-  const data = await run(db().from('feedbacks').select('*').eq('nid', normId(mid)).in('source', COACH_VISIBLE).order('id'));
+  const data = await selectAll(() => db().from('feedbacks').select('*').eq('nid', normId(mid)).in('source', COACH_VISIBLE).order('id'));
   const rows = data.map((f) => ({
     receiptNo: f.receipt_no, situation: f.situation, handlerAnswer: f.handler_answer,
     status: f.status, submittedAt: isoTs(f.submitted_at), answeredAt: isoTs(f.answered_at),
@@ -180,8 +211,13 @@ async function getMyCoachRequests(body) {
 async function teachersOf(feedbacks) {
   const nids = [...new Set(feedbacks.map((f) => f.nid))];
   if (!nids.length) return new Map();
-  const teachers = await run(db().from('teachers').select('nid, name, region, dept, tier').in('nid', nids));
-  return new Map(teachers.map((t) => [t.nid, t]));
+  const byNid = new Map();
+  // IN 길이와 1,000행 제한을 피하고 답변 권한의 findTeacher와 같은 첫 명단을 사용한다.
+  for (let i = 0; i < nids.length; i += 100) {
+    const teachers = await selectAll(() => db().from('teachers').select('member_id, nid, name, region, dept, tier, sort_order').in('nid', nids.slice(i, i + 100)).order('sort_order').order('member_id'));
+    for (const t of teachers) if (!byNid.has(t.nid)) byNid.set(t.nid, t);
+  }
+  return byNid;
 }
 
 /** 교관 화면: 내가 맡은 교사들의 요청(대기 / 답변 완료). */
@@ -189,16 +225,16 @@ async function getCoachFeedbacks(body) {
   const coachId = str(body.coachId);
   if (!coachId) return { error: 'coachId 가 필요합니다.' };
   const coachRows = await coachRowsOf(coachId);
-  if (!coachRows.length) return { error: '활성 교관으로 등록되어 있지 않습니다.' };
+  if (!coachRows.length&&!isSystemOwner(coachId)) return { error: '활성 교관으로 등록되어 있지 않습니다.' };
 
-  const requests = await selectAll(() => db().from('feedbacks').select('*').eq('source', SOURCE.coach).order('id'));
+  const requests = await selectAll(() => db().from('feedbacks').select('*').in('source', COACH_VISIBLE).order('id'));
   const teacherOf = await teachersOf(requests);
   const pending = [], answered = [];
   for (const f of requests) {
     const t = teacherOf.get(f.nid);
-    if (!covers(coachRows, t)) continue;
+    if (!isSystemOwner(coachId)&&!covers(coachRows, t)) continue;
     const item = {
-      receiptNo: f.receipt_no, memberId: f.member_id, name: t.name || f.name, region: t.region, tier: t.tier || '',
+      receiptNo: f.receipt_no, memberId: f.member_id, name: t?.name || f.name, region: t?.region || '', dept: t?.dept || '', tier: t?.tier || '', source: f.source, aiCoachText: f.ai_coach_text,
       situation: f.situation, handlerAnswer: f.handler_answer, status: f.status,
       submittedAt: isoTs(f.submitted_at), answeredAt: isoTs(f.answered_at),
     };
@@ -213,20 +249,20 @@ async function submitCoachReply(body) {
   const coachId = str(body.coachId);
   if (!feedbackId || !reply || !coachId) return { error: 'feedbackId, reply, coachId 가 필요합니다.' };
   const coachRows = await coachRowsOf(coachId);
-  if (!coachRows.length) return { error: '활성 교관으로 등록되어 있지 않습니다.' };
+  if (!coachRows.length&&!isSystemOwner(coachId)) return { error: '활성 교관으로 등록되어 있지 않습니다.' };
 
   const [f] = await run(db().from('feedbacks').select('*').eq('receipt_no', feedbackId).order('id').limit(1));
   if (!f) return { error: '해당 요청을 찾을 수 없습니다.' };
   if (!COACH_VISIBLE.includes(f.source)) return { error: '답변 가능한 요청 유형이 아닙니다.' };
-  if (!covers(coachRows, await findTeacher(f.member_id))) return { error: '담당 지역의 요청이 아닙니다.' };
+  if (!isSystemOwner(coachId)&&!covers(coachRows, await findTeacher(f.member_id))) return { error: '담당 지역의 요청이 아닙니다.' };
 
   await run(db().from('feedbacks').update({
-    handler_answer: reply, status: '완료', handler: coachRows[0].name || coachId, answered_at: new Date().toISOString(),
+    handler_answer: reply, status: '완료', handler: coachRows[0]?.name || body.name || coachId, answered_at: new Date().toISOString(),
   }).eq('id', f.id));
   return { ok: true };
 }
 
 export default {
-  generateContent, getActivityFeedback, analyzeDistrictData, aiCoach, escalate, getHistory, getAllFeedback,
+  generateContent, getActivityFeedback, analyzeDistrictData, aiCoach, escalate, getHistory, getAllFeedback, getFeedbackIndex, getOrgAiSnapshot,
   getMyCoach, requestCoach, getMyCoachRequests, getCoachFeedbacks, submitCoachReply,
 };

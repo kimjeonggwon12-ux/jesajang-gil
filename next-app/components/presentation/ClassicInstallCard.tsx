@@ -1,0 +1,6 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import {qrLibrary} from '../../lib/qr';
+import {installAddress} from '../../lib/device';
+import InstallQr from '../entry/InstallQr';
+export default function ClassicInstallCard(){const box=useRef<HTMLSpanElement>(null),[open,setOpen]=useState(false),[failed,setFailed]=useState(false);useEffect(()=>{let live=true;const host=box.current;void qrLibrary().then(QR=>{if(live&&host){host.replaceChildren();new QR(host,{text:installAddress(location.href),width:150,height:150,correctLevel:QR.CorrectLevel.M});}}).catch(()=>{if(live)setFailed(true);});return()=>{live=false;host?.replaceChildren();};},[]);return <><button className="pz-ev pz-qr classic-install-card" onClick={()=>setOpen(true)}><span className="pz-ev-top"><span className="pz-ev-tag">📲 교사광장 앱 설치 QR</span><span className="pz-ev-dd">부서 모임용</span></span><span className="pz-qr-row"><span className="pz-qr-img" ref={box} aria-label="교사광장 앱 설치 QR"/>{failed?<span>QR 크게 보기에서 다시 열어 주세요.</span>:null}<span className="pz-qr-txt"><b>휴대폰 카메라로 찍어 주세요</b>교사광장이 열리면 오른쪽 위 <strong>앱 설치</strong>를 눌러 홈 화면에 설치해요.<br/><span className="pz-qr-zoom">🔍 누르면 크게 보기</span></span></span></button>{open?<InstallQr onClose={()=>setOpen(false)}/>:null}</>;}

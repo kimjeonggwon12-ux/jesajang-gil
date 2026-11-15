@@ -25,6 +25,8 @@ async function getVideoTranscript(body) {
   const key = clip(body.id, 40);
   const rec = key ? await findRecord(key) : null;
   if (!rec) return { exists: false };
+  const [video] = await run(db().from('videos').select('youtube_id,status').eq('video_key', key).limit(1));
+  if (!video || ['신청', '반려', '삭제'].includes(video.status) || video.youtube_id !== rec.youtube_id) return { exists: false };
   return {
     exists: true, status: rec.status, duration: rec.duration, segs: rec.segs, done: rec.done, summary: rec.summary,
     transcript: joined(rec), pkg: Object.fromEntries(PACKAGE_KEYS.map((k) => [k, rec.pkg[k] || ''])),

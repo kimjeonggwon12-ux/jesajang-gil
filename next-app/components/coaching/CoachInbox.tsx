@@ -1,0 +1,15 @@
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import {useMember} from '../MemberArea';
+import {useQuery} from '../../lib/use-query';
+import {ErrorNote,Loading} from '../Ui';
+import type {Feedback} from '../../lib/coaching';
+import ReportText from './ReportText';
+import {FeedbackPager} from './CoachRequests';
+export default function CoachInbox(){
+ const {request}=useMember(),result=useQuery<{pending:Feedback[];answered:Feedback[];regions:string[]}>('getCoachFeedbacks'),[tab,setTab]=useState<'pending'|'answered'>('pending'),[page,setPage]=useState(1),[drafts,setDrafts]=useState<Record<string,string>>({}),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),alive=useRef(true),lock=useRef(false);
+ useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
+ const rows=result.data?.[tab]||[],current=Math.min(page,Math.max(1,Math.ceil(rows.length/20)));
+ async function reply(row:Feedback){const value=drafts[row.receiptNo]?.trim();if(lock.current||!value)return;lock.current=true;setBusy(row.receiptNo);setError('');setNotice('');try{await request('submitCoachReply',{feedbackId:row.receiptNo,reply:value});if(alive.current){setDrafts(d=>{const next={...d};delete next[row.receiptNo];return next;});setNotice(`${row.receiptNo} 답변을 보냈어요.`);result.reload();}}catch(e){if(alive.current)setError(e instanceof Error?e.message:'답변을 보내지 못했어요.');}finally{lock.current=false;if(alive.current)setBusy('');}}
+ return <section className="panel"><div className="section-heading"><h2>담당 교사 요청</h2><button className="secondary" disabled={!!busy} onClick={result.reload}>새로고침</button></div><p className="help">담당 부서·지역의 직접 요청과 AI 상담 전달을 함께 확인합니다.</p><div className="toolbar">{(['pending','answered'] as const).map(t=><button key={t} className="secondary" aria-pressed={tab===t} disabled={!!busy} onClick={()=>{setTab(t);setPage(1);}}>{t==='pending'?'답변 대기':'답변 완료'} {result.data?.[t].length||0}</button>)}</div><ErrorNote message={result.error||error} retry={result.error?result.reload:undefined}/>{notice?<p role="status">{notice}</p>:null}{result.loading?<Loading/>:<><FeedbackPager page={current} total={rows.length} onPage={setPage}/>{rows.slice((current-1)*20,current*20).map(row=><article className="report-preview" key={row.receiptNo}><h3>{row.name} · {row.dept} {row.region}</h3><p className="muted">{row.receiptNo} · {row.tier} · {row.submittedAt}</p><ReportText text={row.situation}/>{row.aiCoachText?<details><summary>전달된 AI 답변</summary><ReportText text={row.aiCoachText}/></details>:null}{tab==='answered'?<><h4>내 답변</h4><ReportText text={row.handlerAnswer}/><p className="muted">{row.answeredAt}</p></>:<form onSubmit={e=>{e.preventDefault();void reply(row);}}><label>{row.receiptNo} 답변<textarea rows={4} value={drafts[row.receiptNo]||''} disabled={!!busy} onChange={e=>setDrafts(d=>({...d,[row.receiptNo]:e.target.value}))}/></label><button className="primary" disabled={!!busy||!drafts[row.receiptNo]?.trim()}>{busy===row.receiptNo?'보내는 중…':'답변 보내기'}</button></form>}</article>)}{!rows.length?<p className="empty">해당 요청이 없어요.</p>:null}</>}</section>;
+}

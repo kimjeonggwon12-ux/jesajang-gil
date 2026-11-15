@@ -1,10 +1,14 @@
+import {runReportBatch} from '../lib/report-delivery-batch.js';
+import {reportInstant} from '../lib/report-schedule.js';
 // QR 출석: 모임 · 출석 · 관리자 화면 · 마감 서머리
+import { currentActor, AccessError } from '../lib/request-context.js';
 import { db, run, selectAll } from '../lib/db.js';
 import { normId, kstDate, kstDateTime, fmtTs } from '../lib/util.js';
 import { clip, pickList, newId, isDate } from '../lib/input.js';
 import { sendAttendText } from '../lib/attend-bot.js';
 import { runLater } from '../lib/background.js';
 import { memberInfo, isAdmin } from './roster.js';
+import { requireEducationOwner, requireEducationScope, requireMeetingTask, educationGrants, permits } from '../lib/education-access.js';
 import { closingBoxText, sendClosing } from './attendance-closing.js';
 import { cohortMember, notifyCohortAttendance, resolveCohortMeeting } from '../lib/cohort.js';
 
@@ -70,7 +74,7 @@ function districtFromRegion(org, region) {
   return n >= 1 && n <= (DISTRICT_MAX_OF[org] || DISTRICT_MAX) ? n : '';
 }
 
-// ── 타임(2026-10-15) ── 한 모임에 타임이 여러 개면(slots) 어느 타임에 와도 출석 1번.
+// ── 타임 ── 하루 출석은 1번, 타임별 시각·설문은 별도로 보존한다.
 const toMin = (t) => { const [h, mm] = String(t).split(':').map(Number); return h * 60 + mm; };
 const fromMin = (n) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
 
@@ -87,6 +91,8 @@ export function slotOf(m, hm) {
   return hit;
 }
 
+export const attendanceSlot = (m, at) => m.slots.length > 1 && String(at).slice(0, 10) < m.date ? m.slots[0] : slotOf(m, String(at).slice(11, 16));
+
 /**
  * 출석 시각으로 본 지각 여부: '정상 출석' 또는 'N분 지각'.
  * 타임이 여러 개면 온 타임의 시작 시각, 아니면 저녁 시작(start2, 15시 이후) 또는 모임 시작을 기준으로 본다.
@@ -94,7 +100,7 @@ export function slotOf(m, hm) {
 export function lateText(m, at) {
   if (!m || !m.start || !m.date) return '';
   const a = String(at || '');
-  const slot = slotOf(m, a.slice(11, 16));
+  const slot = attendanceSlot(m, a);
   const base = slot ? slot.start : (m.start2 && a.slice(11, 16) >= '15:00' ? m.start2 : m.start);
   if (a.slice(0, 10) !== m.date || a <= `${m.date} ${base}:00`) return '정상 출석';
   const [h, min, s] = a.slice(11).split(':').map(Number);
@@ -107,7 +113,7 @@ export function lateText(m, at) {
 
 function toMeeting(r) {
   const district = cleanDistrict(r.org, r.district);
-  return {
+  const meeting = {
     meetingId: r.meeting_id, title: r.title, date: r.date, start: hhmm(r.start_time), end: hhmm(r.end_time),
     place: r.place, openBefore: r.open_before >= 0 ? r.open_before : 30, questions: r.questions || [],
     status: r.status || '열림', createdBy: r.created_by, createdAt: fmtTs(r.created_at),
@@ -115,6 +121,10 @@ function toMeeting(r) {
     askDistrict: r.ask_district, askDept: r.ask_dept, start2: hhmm(r.start2),
     slots: cleanSlots(r.slots), cohortId: r.cohort_id || '', seriesId: r.series_id || '',
   };
+  Object.defineProperty(meeting, '_attendanceState', { value: Object.fromEntries(
+    ['date','start_time','end_time','open_before','questions','status','slots','cohort_id','series_id','org','district','ask_district','ask_dept','start2'].map(key => [key,r[key]])
+  ) });
+  return meeting;
 }
 
 /** 타임 목록 다듬기: 시작·끝이 있는 것만, 시작 순, 최대 5개. */
@@ -187,7 +197,8 @@ function attendWindow(m) {
 /** 참석자에게 보여 주는 모임 정보. */
 function toPublic(m) {
   const { meetingId, title, date, start, end, place, openBefore, questions, status, org, district, askDistrict, askDept, slots } = m;
-  return { meetingId, title, date, start, end, place, openBefore, questions, status, org, district, askDistrict, askDept, slots, ...attendWindow(m) };
+  const slot = attendanceSlot(m, kstDateTime());
+  return { meetingId, title, date, start, end, place, openBefore, questions, status, org, district, askDistrict, askDept, slots, ...(slot ? {sessionStart:slot.start,sessionLabel: `${slotLabel(slot.start)} ${slot.start}~${slot.end}`} : {}), ...attendWindow(m) };
 }
 
 // ── 출석 기록 ──
@@ -197,11 +208,27 @@ const toRecord = (r) => ({
   answers: r.answers || {}, at: fmtTs(r.at), method: r.method, pickOrg: r.pick_org,
   pickDistrict: /^\d+$/.test(r.pick_district) ? Number(r.pick_district) : r.pick_district,
   dept24: r.dept24, late: r.late,
+  ...(r.additional_records?.length ? {additionalRecords: rawSessions(r).slice(1).map(toRecord)} : {}),
 });
+
+function rawSessions(row) {
+  const {additional_records = [], ...first} = row;
+  return [first, ...additional_records.map(extra => ({...first,...extra}))];
+}
+
+function currentAttendance(m, row) {
+  if (!row) return null;
+  const slot = attendanceSlot(m, kstDateTime());
+  return rawSessions(row).find(r => !slot || attendanceSlot(m, fmtTs(r.at))?.start === slot.start) || null;
+}
 
 /** 출석 기록(적힌 순서). 같은 모임에 같은 사람이 두 번 있으면 첫 기록만. */
 export async function loadRecords(filter) {
   const rows = await selectAll(() => filter(db().from('attend_records').select('*').neq('record_id', '')).order('id'));
+  return recordsFromRows(rows);
+}
+
+function recordsFromRows(rows) {
   const seen = new Set();
   return rows.map(toRecord).filter((rec) => {
     const key = `${rec.meetingId}|${normId(rec.memberId)}`;
@@ -209,6 +236,18 @@ export async function loadRecords(filter) {
     seen.add(key);
     return true;
   });
+}
+
+/** 긴 모임 ID URL과 1,000행 제한을 피하면서 원래 DB 순서·첫 기록을 유지한다. */
+export async function loadRecordsForMeetings(ids, {sessions = false} = {}) {
+  const rows = [];
+  for (let start = 0; start < ids.length; start += 200) {
+    const batch = ids.slice(start, start + 200);
+    rows.push(...await selectAll(() => db().from('attend_records').select('*').neq('record_id', '').in('meeting_id', batch).order('id')));
+  }
+  rows.sort((a, b) => a.id - b.id);
+  const records = recordsFromRows(rows);
+  return sessions ? records.flatMap(({additionalRecords = [], ...first}) => [first,...additionalRecords]) : records;
 }
 
 // 2026-10-15: 출석은 명단에 있는 사람만 — 고유번호 13자리 + 이름이 명단(교사·관리자)과 맞아야 한다.
@@ -245,24 +284,31 @@ async function checkIdentity(memberId, name, checkName = true, cohortId = '') {
   };
 }
 
+const canReadOwnAttendance = (id) => {
+  const actor = currentActor();
+  return !!actor && !actor.guest && actor.nid === normId(id);
+};
+
 async function getAttendMeeting(body) {
   // 2026-10-16: 교육 과정 고정 QR(#attend=CH…)이면 오늘 그 과정의 출석 모임으로
   const pick = await resolveMeetingId(clip(body.meetingId, 40), { create: true });
   if (pick.error) return { error: pick.error };
   const m = await findMeeting(pick.meetingId);
   if (!m) return { error: '출석 모임을 찾을 수 없어요. QR을 다시 확인해 주세요.' };
+  if (!body.memberId || !body.name) return { meeting: toPublic(m), mine: null };
   const nid = normId(body.memberId);
   const [mineRows, who] = await Promise.all([
-    run(db().from('attend_records').select('*').eq('meeting_id', m.meetingId).eq('nid', nid).order('id').limit(1)),
+    canReadOwnAttendance(body.memberId) ? run(db().from('attend_records').select('*').eq('meeting_id', m.meetingId).eq('nid', nid).order('id').limit(1)) : [],
     checkIdentity(body.memberId, body.name, body.name != null, m.cohortId),
   ]);
   if (who.badLogin) return { badLogin: true, error: who.error };
   const p = who.person;
+  const mine = currentAttendance(m, mineRows[0]);
   if (who.guest) {
     // 같은 이름의 교사가 명단에 있으면 "번호를 잘못 넣은 교사"일 수 있어 화면에서 알려 준다.
     const same = p.name ? await run(db().from('teachers').select('dept, region').eq('name', p.name).limit(3)) : [];
     return {
-      meeting: toPublic(m), mine: mineRows[0] ? toRecord(mineRows[0]) : null,
+      meeting: toPublic(m), mine: mine ? toRecord(mine) : null,
       me: { guest: true, name: p.name, position: GUEST_POSITION, sameName: same.map((t) => [t.dept, t.region].filter(Boolean).join(' ')),
         late: m.date === kstDate() ? lateText(m, kstDateTime()) : '' },
     };
@@ -271,7 +317,7 @@ async function getAttendMeeting(body) {
   const district = districtFromRegion(org, p.region);
   return {
     meeting: toPublic(m),
-    mine: mineRows[0] ? toRecord(mineRows[0]) : null,
+    mine: mine ? toRecord(mine) : null,
     me: {
       dept: p.dept || '', region: p.region || '', position: p.position || '', org, district,
       label: meetLabel({ org, district: district === '' ? null : district }),
@@ -356,7 +402,8 @@ async function submitAttendance(body) {
   /** 이미 출석했으면 그 기록으로 답한다. */
   const alreadyDone = async () => {
     const [first] = await run(db().from('attend_records').select('*').eq('meeting_id', m.meetingId).eq('nid', nid).order('id').limit(1));
-    return first ? { ok: true, already: true, record: toRecord(first) } : null;
+    const record = currentAttendance(m, first);
+    return record ? { ok: true, already: true, record: canReadOwnAttendance(mid) ? toRecord(record) : { meetingId: m.meetingId, limited: true } } : null;
   };
 
   // 숫자가 없는 번호는 DB 의 '한 사람 한 번' 제약에 걸리지 않으므로 먼저 확인한다.
@@ -382,21 +429,39 @@ async function submitAttendance(body) {
   }
 
   const at = kstDateTime();
+  // 명단 확인 중 타임이 넘어가도 오래 열린 양식을 다음 타임으로 저장하지 않는다.
+  const latestWindow = attendWindow(m);
+  if (!latestWindow.open) return {error:latestWindow.reason};
+  if (body.sessionStart != null && body.sessionStart !== attendanceSlot(m, at)?.start) return {error:'출석 타임이 바뀌었어요. 현재 타임을 다시 확인해 주세요.'};
   const row = {
     record_id: newId('AT') + nid.slice(-4), meeting_id: m.meetingId, member_id: mid,
     name: person.name || clip(body.name, 40), dept: person.dept || '', position: person.position || '',
     answers: read.answers, at, method: body.method === 'scan' ? '앱스캔' : 'QR',
     pick_org: picks.pickOrg, pick_district: String(picks.pickDistrict), dept24: picks.dept24, late: lateText(m, at),
   };
-  const { data, error } = await db().from('attend_records').insert(row).select();
+  const multi = m.slots.length > 1;
+  const result = multi
+    ? await db().rpc('attendance_session_submit', {p_record: row, p_expected: m._attendanceState})
+    : await db().from('attend_records').insert(row).select();
+  const {error} = result;
+  if (multi && result.data?.errorCode) {
+    forgetMeeting(m.meetingId);
+    return {error: result.data.errorCode === 'session_limit' ? '모임의 타임 설정을 담당자에게 확인해 주세요.' : '모임 설정이 바뀌었어요. 출석 시간을 다시 확인해 주세요.'};
+  }
   if (error) {
     // 이미 출석한 사람(또는 동시에 두 번 누른 경우): 먼저 들어간 기록을 돌려준다.
     return (await alreadyDone()) || { retry: true, error: '접속이 몰려 순서대로 처리하고 있어요.' };
   }
-  const record = toRecord(data[0]);
+  if (multi && result.data?.already) return {ok: true, already: true, record: canReadOwnAttendance(mid) ? toRecord(result.data.record) : {meetingId:m.meetingId,limited:true}};
+  const saved = multi ? result.data?.record : result.data?.[0];
+  if (!saved) return {error: '출석 결과를 확인하지 못했어요. 다시 눌러 확인해 주세요.'};
+  const record = toRecord(saved);
   // 11/4(김논 서무님): 엑셀 구분 '기타'인 분은 11/5 이후 출석 2번이면 활동교사
-  try { const p = await (await import('./tiers.js')).promoteOnAttend(mid); if (p && p.tierNow) record.tierNow = p.tierNow; } catch (e) { console.log('기타 출석 승급 오류: ' + e.message); }
-  runLater(m.cohortId && !isTestMeeting(m) ? notifyCohortAttendance(m, record) : notifyAttendance(m, record, data[0].id));   // 알림은 응답을 보낸 뒤에
+  if (!multi || result.data.firstAttendance) {
+    try { const p = await (await import('./tiers.js')).promoteOnAttend(mid); if (p && p.tierNow) record.tierNow = p.tierNow; } catch (e) { record.tierUpdatePending=true; console.log('기타 출석 승급 오류: ' + e.message); }
+    // 개인별 입장 알림은 기존 하루 한 번을 유지한다. 타임별 보고는 두 기록을 읽는다.
+    runLater(m.cohortId && !isTestMeeting(m) ? notifyCohortAttendance(m, record) : notifyAttendance(m, record, saved.id));
+  }
   return { ok: true, record };
 }
 
@@ -467,6 +532,9 @@ async function saveAttendMeeting(body) {
   const denied = await requireAdmin(body, '모임은 관리자만 만들 수 있어요.');
   if (denied) return denied;
   const m = body.meeting || {};
+  if (m.meetingId) await requireMeetingTask(String(m.meetingId)); else requireEducationOwner();
+  const previous = m.meetingId ? await findMeeting(clip(m.meetingId, 40), { fresh: true }) : null;
+  if (m.meetingId && !previous) return { error: '모임을 찾을 수 없어요.' };
   const title = clip(m.title, 80);
   const date = clip(m.date, 10);
   if (!title) return { error: '모임 이름을 입력해 주세요.' };
@@ -490,13 +558,12 @@ async function saveAttendMeeting(body) {
   const fields = {
     title, date, start_time: start, end_time: end, place: clip(m.place, 80),
     open_before: Math.max(0, Math.min(600, Number(m.openBefore) || 0)), questions: cleanQuestions(m.questions),
-    status: ['열림', '닫힘'].includes(String(m.status)) ? String(m.status) : '열림',
+    status: m.status === '집계완료' && previous?.status === '집계완료' ? '집계완료' : ['열림', '닫힘'].includes(String(m.status)) ? String(m.status) : '열림',
     org, district: String(cleanDistrict(org, m.district)), ask_district: !!m.askDistrict, ask_dept: !!m.askDept,
     ...(slots ? { slots } : {}),
   };
   const meetingId = clip(m.meetingId, 40);
   if (meetingId) {
-    if (!(await findMeeting(meetingId, { fresh: true }))) return { error: '모임을 찾을 수 없어요.' };
     await run(db().from('attend_meetings').update({ ...fields, updated_at: now }).eq('meeting_id', meetingId));
     forgetMeeting(meetingId);
     return { ok: true, meetingId };
@@ -514,6 +581,7 @@ async function setStatus(meetingId, status) {
 async function deleteAttendMeeting(body) {
   const denied = await requireAdmin(body, '관리자만 지울 수 있어요.');
   if (denied) return denied;
+  await requireMeetingTask(String(body.meetingId || ''));
   const m = await findMeeting(clip(body.meetingId, 40));
   if (!m) return { error: '모임을 찾을 수 없어요.' };
   await setStatus(m.meetingId, '삭제');
@@ -526,18 +594,29 @@ async function getAttendAdmin(body) {
   if (denied) return denied;
   const org = clip(body.filterOrg, 20);
   const district = body.filterDistrict != null && body.filterDistrict !== '' ? String(body.filterDistrict) : null;
-  const meetings = (await loadMeetings()).filter((m) => (!org || m.org === org)
+  const grants = await educationGrants();
+  let meetings = (await loadMeetings()).filter(m => permits(grants, m.cohortId ? 'cohort' : m.seriesId ? 'series' : 'meeting', m.cohortId || m.seriesId || m.meetingId, 'attendance') || permits(grants, m.cohortId ? 'cohort' : m.seriesId ? 'series' : 'meeting', m.cohortId || m.seriesId || m.meetingId, 'reports')).filter((m) => (!org || m.org === org)
     && (district == null || String(m.district == null ? '' : m.district) === district));
+  const exportId = clip(body.exportMeetingId, 40);
+  if (exportId) {
+    meetings = meetings.filter(m => m.meetingId === exportId);
+    if (!meetings.length) throw new AccessError('출석 모임을 찾을 수 없어요.', 404);
+  }
+  if (body.requireReports === true || exportId) {
+    for (const m of meetings) if (!permits(grants, m.cohortId ? 'cohort' : m.seriesId ? 'series' : 'meeting', m.cohortId || m.seriesId || m.meetingId, 'reports')) throw new AccessError('선택한 모임의 자료 담당자만 내려받을 수 있어요.');
+  }
   const ids = meetings.map((m) => m.meetingId);
-  const records = ids.length ? await loadRecords((q) => q.in('meeting_id', ids)) : [];
+  const records = await loadRecordsForMeetings(ids);
   const counts = new Map();
   for (const r of records) counts.set(r.meetingId, (counts.get(r.meetingId) || 0) + 1);
-  const series = (await run(db().from('attend_series').select('*').neq('status', '삭제').order('id'))).map(toSeries)
+  const series = (exportId ? [] : await selectAll(() => db().from('attend_series').select('*').neq('status', '삭제').order('id'))).map(toSeries)
+    .filter(x => permits(grants,'series',x.seriesId,'view'))
     .filter((x) => (!org || x.org === org) && (district == null || String(x.district == null ? '' : x.district) === district));
   return {
-    meetings: meetings.map((m) => ({ ...toPublic(m), count: counts.get(m.meetingId) || 0, createdAt: m.createdAt, seriesId: m.seriesId })),
+    canCreate: grants === null,
+    meetings: meetings.map((m) => ({ permissions: ['attendance','reports'].filter(task => permits(grants,m.cohortId ? 'cohort' : m.seriesId ? 'series' : 'meeting',m.cohortId || m.seriesId || m.meetingId,task)), ...toPublic(m), count: counts.get(m.meetingId) || 0, createdAt: m.createdAt, cohortId: m.cohortId, seriesId: m.seriesId })),
     records,
-    series: series.map((x) => ({ ...x, ...seriesToday(x) })),
+    series: series.map((x) => ({ ...x, permissions: ['attendance','reports'].filter(task => permits(grants,'series',x.seriesId,task)), ...seriesToday(x) })),
   };
 }
 
@@ -552,7 +631,10 @@ async function getAttendCount(body) {
 async function deleteAttendRecord(body) {
   const denied = await requireAdmin(body, '관리자만 지울 수 있어요.');
   if (denied) return denied;
-  await run(db().from('attend_records').delete().eq('record_id', clip(body.recordId, 40)));
+  const [record] = await run(db().from('attend_records').select('meeting_id').eq('record_id', clip(body.recordId,40)).limit(1));
+  if (!record) return { error: '출석 기록을 찾을 수 없어요.' };
+  await requireMeetingTask(record.meeting_id);
+  await run(db().from('attend_records').delete().eq('record_id', clip(body.recordId, 40)).eq('meeting_id',record.meeting_id));
   return { ok: true };
 }
 
@@ -560,17 +642,13 @@ async function deleteAttendRecord(body) {
 async function attSetEveningStart(body) {
   const denied = await requireAdmin(body, '관리자만 할 수 있어요.');
   if (denied) return denied;
+  await requireMeetingTask(String(body.meetingId || ''));
   const m = await findMeeting(clip(body.meetingId, 40));
   if (!m) return { error: '모임을 찾을 수 없어요.' };
   m.start2 = hhmm(body.start2);
-  await run(db().from('attend_meetings').update({ start2: m.start2 }).eq('meeting_id', m.meetingId));
+  const {data: recalculated, error} = await db().rpc('attendance_evening_start', {p_meeting_id: m.meetingId, p_start2: m.start2});
+  if (error) return {error:'지각 기준을 저장하지 못했어요. 다시 확인해 주세요.'};
   forgetMeeting(m.meetingId);
-  const rows = await selectAll(() => db().from('attend_records').select('id, at, late').eq('meeting_id', m.meetingId).order('id'));
-  let recalculated = 0;
-  for (const r of rows) {
-    const late = lateText(m, fmtTs(r.at));
-    if (r.late !== late) { await run(db().from('attend_records').update({ late }).eq('id', r.id)); recalculated++; }
-  }
   return { ok: true, start2: m.start2, recalculated };
 }
 
@@ -646,6 +724,11 @@ async function seriesDayMeeting(x, date, create) {
 
 /** QR 번호 → 오늘의 출석 모임 번호. 교육 과정(CH…)·정기 교육(RS…)이 아니면 그대로. */
 export async function resolveMeetingId(id, { create = false } = {}) {
+  // 기존 MT QR이 정기 교육에 연결되어 있으면 다른 날짜에는 오늘 모임으로 연결한다.
+  if (/^MT/.test(String(id || ''))) {
+    const linked = await findMeeting(id);
+    if (linked?.seriesId && linked.date !== kstDate()) return resolveMeetingId(linked.seriesId, { create });
+  }
   if (!isSeriesId(id)) return resolveCohortMeeting(id);
   const x = await findSeries(id);
   if (!x) return { meetingId: '', error: '출석 QR을 찾을 수 없어요. 관리자에게 새 QR을 받아 주세요.' };
@@ -663,6 +746,7 @@ async function saveAttendSeries(body) {
   const denied = await requireAdmin(body, '정기 교육은 관리자만 만들 수 있어요.');
   if (denied) return denied;
   const x = body.series || {};
+  if (x.seriesId) await requireEducationScope('series',String(x.seriesId),'attendance'); else requireEducationOwner();
   const title = clip(x.title, 80);
   if (!title) return { error: '교육 이름을 입력해 주세요.' };
   const weekdays = cleanWeekdays(x.weekdays);
@@ -687,9 +771,11 @@ async function saveAttendSeries(body) {
     seriesCache.delete(seriesId);
     // 오늘·앞으로의 모임(아직 마감 전)에도 바뀐 시간·설정을 반영한다
     const saved = toSeries({ ...fields, series_id: seriesId });
-    const upcoming = await run(db().from('attend_meetings').select('meeting_id').eq('series_id', seriesId).gte('date', kstDate()).not('status', 'in', '("삭제","집계완료")'));
+    const upcoming = await selectAll(() => db().from('attend_meetings').select('meeting_id').eq('series_id', seriesId).gte('date', kstDate()).not('status', 'in', '("삭제","집계완료")').order('id'));
     if (upcoming.length) {
-      await run(db().from('attend_meetings').update({ ...seriesFields(saved), updated_at: now }).in('meeting_id', upcoming.map((r) => r.meeting_id)));
+      for (let start = 0; start < upcoming.length; start += 200) {
+        await run(db().from('attend_meetings').update({ ...seriesFields(saved), updated_at: now }).in('meeting_id', upcoming.slice(start, start + 200).map((r) => r.meeting_id)));
+      }
       upcoming.forEach((r) => forgetMeeting(r.meeting_id));
     }
     return { ok: true, seriesId };
@@ -704,6 +790,7 @@ async function setAttendSeriesStatus(body) {
   const denied = await requireAdmin(body, '관리자만 할 수 있어요.');
   if (denied) return denied;
   const seriesId = clip(body.seriesId, 40);
+  await requireEducationScope('series',seriesId,'attendance');
   const status = String(body.status);
   if (!['열림', '멈춤', '삭제'].includes(status)) return { error: '상태가 올바르지 않아요.' };
   if (!isSeriesId(seriesId) || !(await findSeries(seriesId, { fresh: true }))) return { error: '정기 교육을 찾을 수 없어요.' };
@@ -716,6 +803,7 @@ async function setAttendSeriesStatus(body) {
 async function attTestCleanup(body) {
   const denied = await requireAdmin(body, '관리자만 할 수 있어요.');
   if (denied) return denied;
+  await requireMeetingTask(String(body.meetingId || ''));
   const m = await findMeeting(clip(body.meetingId, 40));
   if (!m) return { error: '모임을 찾을 수 없어요.' };
   if (!isTestMeeting(m)) return { error: '[TEST] 모임만 정리할 수 있어요.' };
@@ -727,16 +815,18 @@ async function attTestCleanup(body) {
 // ── 마감 서머리 ── 끝난 지 10분이 지난 모임(또는 관리자가 닫은 모임)을 집계해 방에 알리고 명단 파일을 보낸다.
 
 /** 설문 결과: 선택형은 보기별 수, 글은 사람별 답. */
-function surveySummary(questions, records) {
+export function surveySummary(questions, records) {
   if (!questions.length || !records.length) return '';
+  const sessions = records.flatMap(({additionalRecords = [], ...first}) => [first,...additionalRecords]);
+  const multiple = sessions.length > records.length;
   const blocks = questions.map((q) => {
     if (q.type === 'text') {
-      const rows = records.map((r) => { const a = answerText(r.answers[q.id]); return a ? `  - ${r.name}: ${a}` : ''; }).filter(Boolean);
+      const rows = sessions.map((r) => { const a = answerText(r.answers[q.id]); return a ? `  - ${r.name}${multiple ? ' ('+r.at.slice(11,16)+')' : ''}: ${a}` : ''; }).filter(Boolean);
       return `▪ ${q.label}` + (rows.length ? '\n' + rows.join('\n') : ' — (응답 없음)');
     }
     const counts = Object.fromEntries((q.options || []).map((o) => [o, 0]));
     let none = 0;
-    for (const r of records) {
+    for (const r of sessions) {
       const v = r.answers[q.id];
       const picked = Array.isArray(v) ? v : (v ? [String(v)] : []);
       if (!picked.length) none++;
@@ -746,7 +836,7 @@ function surveySummary(questions, records) {
     if (none) parts.push('무응답 ' + none);
     return `▪ ${q.label}${q.type === 'multi' ? ' (복수 선택)' : ''} — ${parts.join(' · ')}`;
   });
-  return '📝 설문 결과\n' + blocks.join('\n');
+  return '📝 설문 결과'+(multiple ? ' (타임별 응답)' : '')+'\n' + blocks.join('\n');
 }
 
 /** 참석자가 고른 지역별·부서별 수. */
@@ -770,56 +860,64 @@ async function attAutoSummary(body) {
   const now = new Date();
   const today = kstDate();
   const closed = [];
+  const failures = [];
   // 2026-10-16: 5분마다 도므로 마감 대상이 될 수 있는 것만 받는다 — 일반 모임(교육 과정 모임 제외), 아직 집계 전, 최근 이틀
   const since = kstDate(new Date(Date.now() - 2 * 864e5));
-  const recent = (await run(db().from('attend_meetings').select('*').eq('cohort_id', '').not('status', 'in', '("삭제","집계완료")').gte('date', since).order('id'))).map(toMeeting);
+  const recent = (await selectAll(() => db().from('attend_meetings').select('*').eq('cohort_id', '').not('status', 'in', '("삭제","집계완료")').gte('date', since).order('id'))).map(toMeeting);
   for (const m of recent) {
     if (!m.end || !m.date || m.status === '집계완료') continue;
     if (m.cohortId) continue;   // 교육 과정 모임은 과정 방으로 따로(cohort-tick.js)
-    const [y, mo, d] = m.date.split('-').map(Number);
-    const [h, min] = m.end.split(':').map(Number);
     // 11/3(사용자): 개설자가 걸어 놓은 끝나는 시각 = 마감 = 서머리 시각(예전엔 끝나고 10분 뒤)
-    const sinceClose = Math.round((now - new Date(y, mo - 1, d, h, min)) / 60000);
+    const closeAt = reportInstant(m.date, m.end);
+    if (!Number.isFinite(closeAt)) { failures.push({scope:'#attendance-close',ref:m.meetingId,state:'invalid-schedule'}); continue; }
+    const sinceClose = (now.getTime() - closeAt) / 60000;
     const manual = m.status === '닫힘' && sinceClose <= 24 * 60 && m.date <= today;
     if (!manual && (sinceClose < 0 || sinceClose > 360)) continue;
-    await setStatus(m.meetingId, '집계완료');
-    closed.push(m.meetingId);
+    const failureStart = failures.length;
+    try {
+    // 출석 접수 마감과 보고 전달 완료를 구분한다. 미완료 보고는 다음 틱에서 상태만 대조한다.
+    if(m.status!=='닫힘')await run(db().from('attend_meetings').update({status:'닫힘',updated_at:kstDateTime()}).eq('meeting_id',m.meetingId).eq('status',m.status));
 
     const records = await loadRecords((q) => q.eq('meeting_id', m.meetingId));
     const label = meetLabel(m);
     const test = isTestMeeting(m);
+    await runReportBatch({namespace:'#attendance-close',kind:'최종',ref:m.meetingId,date:m.date,room:{dept:'#attendance',chat_id:process.env.ATT_ADMIN_CHAT||''}},async()=>{
     let box = '';
-    if (records.length && !test) { try { box = (await closingBoxText(m)) + '\n'; } catch (e) { console.log('박스 오류: ' + e); } }
+    if (records.length && !test) box = (await closingBoxText(m)) + '\n';
     const picks = records.length ? pickSummary(m, records) : '';
     await sendAttendText(
       `📋 출석 마감 서머리\n📌 ${m.title}${label ? ` [${label}]` : ''} (${m.date})\n⏰ ${m.start} ~ ${m.end}${manual ? ' (관리자 마감)' : ''}\n` +
       `✅ 총 ${records.length}명 출석\n${box}${picks ? picks + '\n' : ''}` +
       (!records.length ? '\n(출석자 없음)' : (test ? '' : '\n📎 명단 파일은 바로 이어서 보냅니다.')) +
-      (records.length && m.questions.length ? '\n\n' + surveySummary(m.questions, records) : ''));
+      (records.length && m.questions.length ? '\n\n' + surveySummary(m.questions, records) : ''), process.env.ATT_ADMIN_CHAT, {strict:true});
+    if (records.length && !test) await sendClosing(m,{strict:true});
+    }, failures);
     if (records.length && !test) {
-      try { await sendClosing(m); } catch (e) { await sendAttendText('⚠️ 출석 명단 파일을 만들지 못했어요: ' + e); }
       // 11/2: 회장단 등 멤버 출결 취합(멤버 전원 대비 출석) → 그 방의 '출결' 주제
-      try { await (await import('../lib/report-room.js')).postRollCalls(m, records); } catch (e) { console.log('멤버 출결 취합 오류: ' + e.message); }
+      try { await (await import('../lib/report-room.js')).postRollCalls(m, records, failures); } catch { failures.push({scope:'#roll-call',ref:m.meetingId,state:'review'}); }
       // 11/3: 지역 방·교역자 방·부서 총합/전체 방마다 그 방 사람 총 참석(교사는 등록 지역, 비교사는 적은 지역)
-      try { await (await import('../lib/room-attendance.js')).postRoomAttendance(m, '최종'); } catch (e) { console.log('방별 출석 서머리 오류: ' + e.message); }
+      try { await (await import('../lib/room-attendance.js')).postRoomAttendance(m, '최종', '', failures); } catch { failures.push({scope:'#room-att',ref:m.meetingId,state:'review'}); }
     }
+    if(failures.length===failureStart){await run(db().from('attend_meetings').update({status:'집계완료',updated_at:kstDateTime()}).eq('meeting_id',m.meetingId).eq('status','닫힘'));closed.push(m.meetingId);}
+    } catch {failures.push({scope:'#attendance-close',ref:m.meetingId,state:'review'});}
   }
   // 11/3: 개설자가 정한 앞 타임(예: 오전 09:00~10:30)이 끝나면 방마다 그 타임 출석
   let roomAm = [];
-  try { roomAm = await (await import('../lib/room-attendance.js')).roomAttendanceSlotTick(recent.filter((x) => !closed.includes(x.meetingId))); } catch (e) { console.log('오전 방별 출석 오류: ' + e.message); }
+  try { roomAm = await (await import('../lib/room-attendance.js')).roomAttendanceSlotTick(recent.filter((x) => !closed.includes(x.meetingId)), failures); } catch (e) { failures.push({scope:'room-slots',state:'review'}); }
   // 2026-10-16: 교육 과정 — 출석·과제·시험 마감 시각이 지나면 과정 방으로 결과 서머리
   let cohort = [];
-  try { cohort = await (await import('./cohort-tick.js')).cohortTick(); } catch (e) { console.log('교육 과정 서머리 오류: ' + e); }
+  try { cohort = await (await import('./cohort-tick.js')).cohortTick('', failures); } catch (e) { failures.push({scope:'cohort',state:'review'}); }
   // 2026-10-25: 22시가 지나면 보고방(지역·부서 방)마다 오늘 일일 보고 취합
   let daily = [];
-  try { daily = await (await import('../lib/report-room.js')).reportDailyTick(); } catch (e) { console.log('일일 보고 취합 오류: ' + e); }
+  try { daily = await (await import('../lib/report-room.js')).reportDailyTick(failures); } catch (e) { failures.push({scope:'daily',state:'review'}); }
   // 2026-10-30: 교사광장 활동 방 정오·저녁 10시 서머리
   let summary = {};
-  try { summary = await (await import('./bot.js')).summaryTick(); } catch (e) { console.log('정오·저녁 서머리 오류: ' + e); }
+  try { summary = await (await import('./bot.js')).summaryTick(); } catch (e) { failures.push({scope:'summary',state:'review'}); }
   // 2026-11-01: 하루 한 번 휴교사 ↔ 활동교사 자동 전환(한 달 기록 기준)
   let tier = null;
-  try { tier = await (await import('./tiers.js')).autoRestTick(); } catch (e) { console.log('등급 자동 전환 오류: ' + e); }
-  return { ok: true, closed, roomAm, cohort, daily, summary, tier };
+  try { tier = await (await import('./tiers.js')).autoRestTick(); } catch (e) { tier={pending:true}; console.log('등급 자동 전환 오류: ' + e); }
+  if(Object.values(summary).some(x=>x?.error||x?.ok===false&&!x.skipped))failures.push({scope:'summary',state:'review'});
+  return { ok: failures.length===0, closed, roomAm, cohort, daily, summary, tier, failures };
 }
 
 export default {

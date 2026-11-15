@@ -1,3 +1,4 @@
+import {runReportBatch} from './report-delivery-batch.js';
 // 11/3(사용자): 교육(출석 모임) 방별 출석 서머리 — 개설자가 걸어 놓은 타임 끝나는 시각마다(예: 오전 10:30, 저녁 21:00)
 //   지역 방·교역자 방·부서 총합 방·부서 전체 방에 그 방 사람 출석. 마지막 타임 끝(=모임 끝) = 하루 총 참석.
 //   교사는 명단에 등록된 지역(고른 지역이 아니라), 비교사는 적은 부서·지역 방으로. 교육 과정(cohort)·[TEST] 모임은 뺀다.
@@ -7,7 +8,7 @@
 //   교자장부청 = 같은 칸의 파랑 표(11/4 보라→파랑)(ATT_TOTAL_ROOM — 사용자 확인 전까지는 시험 방에만).
 import { db, run, selectAll } from './db.js';
 import { kstDate, kstDateTime } from './util.js';
-import { sendRoomText, sendRoomBoard, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
+import { sendRoomText, sendRoomBoardConfirmed, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
 import { tablePng } from './table-image.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -204,6 +205,9 @@ export async function buildRoomAttendance(m, phase) {
 
 /** 시험 방 미리보기용: 지역 글 몇 개 + 부서 민트 표 + 교자장부청 보라 표. */
 export async function attendancePreview(m, phase, regionSamples = 2) {
+  const ea = await import('./edu-attendance.js');
+  const edu = await ea.eduFor(m);
+  if (edu) return ea.eduLegacyPreview(m, phase, edu, regionSamples);
   const { by, counts, order } = await prepare(m, phase);
   const regionKeys = [...by.keys()].filter((k) => k !== '교역자').sort((a, b) => allOf(by.get(b)).length - allOf(by.get(a)).length).slice(0, regionSamples);
   if (by.has('교역자')) regionKeys.unshift('교역자');
@@ -213,26 +217,27 @@ export async function attendancePreview(m, phase, regionSamples = 2) {
 }
 
 /** 실제로 올림(방·모임·단계마다 한 번). prefix 가 있으면 샘플(기록 안 남김). */
-export async function postRoomAttendance(m, phase, prefix = '') {
+export async function postRoomAttendance(m, phase, prefix = '', failures = []) {
   if (!isRoomAttMeeting(m)) return [];
-  const sent = [];
+  const ea = await import('./edu-attendance.js');
+  const jj=prefix?[]:await ea.postJungjin(m,phase,{failures});
+  const edu = await ea.eduFor(m);
+  if (edu) return [...jj,...await ea.postEduAttendance(m, phase, edu, prefix, failures)];
+  const sent = [...jj];
   for (const p of await buildRoomAttendance(m, phase)) {
     const { room } = p;
-    if (!prefix) {
-      const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#room-att', kind: phase, ref_id: `${room.dept}|${m.meetingId}`, date: m.date, sent_at: kstDateTime() });
-      if (error) continue;   // 이미 보냄
-    }
-    try {
-      if (p.caption) await sendRoomBoard(room, p.png, prefix + p.caption, prefix + p.text);
+    const send = async()=>{
+      if (p.caption) await sendRoomBoardConfirmed(room, p.png, prefix + p.caption, prefix + p.text);
       else await sendRoomText(room.chat_id, prefix + p.text);
-      sent.push(room.dept);
-    } catch (e) { console.log(`방 출석 서머리 실패 ${room.dept}: ${e.message}`); }
+    };
+    const result = await runReportBatch({namespace:'#room-att',kind:phase,ref:`${room.dept}|${m.meetingId}`,date:m.date,room},send,failures,{manual:!!prefix});
+    if(result.state==='delivered')sent.push(room.dept);
   }
   return sent;
 }
 
 /** 5분 주기(attAutoSummary)에서: 오늘 열린 모임의 앞 타임들(마지막 제외)이 끝났으면 그 타임 서머리. 마지막 타임 = 모임 끝 = 최종(마감 때). */
-export async function roomAttendanceSlotTick(meetings) {
+export async function roomAttendanceSlotTick(meetings, failures = []) {
   const now = kstDateTime().slice(11, 16);
   const done = [];
   for (const m of meetings) {
@@ -241,7 +246,7 @@ export async function roomAttendanceSlotTick(meetings) {
     for (const s of slots) {
       if (now < s.end) continue;
       if (slots.filter((x) => x.name === s.name).length > 1 && s !== slots.filter((x) => x.name === s.name).at(-1)) continue;   // 같은 이름 타임이 여럿이면 마지막 것 끝날 때 한 번
-      done.push(...(await postRoomAttendance(m, s.name)).map((d) => `${m.meetingId}:${s.name}:${d}`));
+      done.push(...(await postRoomAttendance(m, s.name, '', failures)).map((d) => `${m.meetingId}:${s.name}:${d}`));
     }
   }
   return done;

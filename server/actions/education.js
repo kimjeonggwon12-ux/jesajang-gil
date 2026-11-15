@@ -1,6 +1,7 @@
 // 필수교육 이수 현황
 import { db, run } from '../lib/db.js';
 import { normId, str, kstDate, kstDateTime, fmtTs, sameId } from '../lib/util.js';
+import { requireApprover } from './roster.js';
 
 const CATEGORIES = ['복음방교사양성교육', '섭외전도교육', '상담교육', '복음방교재교육', '교사소양교육'];
 
@@ -25,6 +26,7 @@ async function getRequiredEducation(body) {
 
 /** 항목 하나의 이수일을 넣거나(clear 면) 지운다. 이력에도 남긴다. */
 async function updateRequiredEducation(body) {
+  const actor = await requireApprover();
   const memberId = str(body.memberId);
   const category = str(body.category);
   if (!memberId) return { error: 'memberId가 필요합니다.' };
@@ -44,7 +46,7 @@ async function updateRequiredEducation(body) {
   }
   await run(db().from('required_education_log').insert({
     logged_at: kstDateTime(), member_id: memberId, name, category, completed_on: value,
-    registrar: str(body.registrar), kind: body.clear ? '취소' : '등록',
+    registrar: actor.name, kind: body.clear ? '취소' : '등록',
   }));
   return toRecord(memberId, await findRecord(memberId));
 }
