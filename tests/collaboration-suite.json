@@ -12,6 +12,8 @@
     "backup-ui.test.mjs",
     "backup-watch.test.mjs",
     "classic-presentation.test.mjs",
+    "edu-mgmt-ui.test.mjs",
+    "edu-mgmt.test.mjs",
     "images.test.mjs",
     "lists-ui.test.mjs",
     "next-account-education.test.mjs",

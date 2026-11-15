@@ -223,7 +223,7 @@ function nameListTexts(m, P, kind) {
 const XS = { plain: 0, head: 1, cell: 2, title: 3, session: 4, warn: 6, total: 7, text: 8 };
 const xc = (v, st = XS.cell) => ({ v, s: st });
 // 카드·총합 시트 줄(사용자 9/10 표 순서 + 교역자 둘을 맨 위에)
-const CARD_ROWS = [['교회 교역자', ['교회교역']], ['신학부 교역자', ['신학교역']], ['협력 교회', ['협력교회']], ['24부서', ['24부서']], ['장로, 자문회', ['장로회', '자문회']], ['장년회', ['장년회']], ['부녀회', ['부녀회']], ['청년회', ['청년회']]];
+export const CARD_ROWS = [['교회 교역자', ['교회교역']], ['신학부 교역자', ['신학교역']], ['협력 교회', ['협력교회']], ['24부서', ['24부서']], ['장로, 자문회', ['장로회', '자문회']], ['장년회', ['장년회']], ['부녀회', ['부녀회']], ['청년회', ['청년회']]];
 /** 같은 정기 교육의 바로 앞 모임(지난주) 부서별 참석률 { label: 숫자% } — 없으면 null */
 const ORG_DEFS = CARD_ROWS.map(([l, d]) => [l, (p) => d.includes(p.dept)]);
 async function previousPeople(m, edu) {
@@ -669,3 +669,5 @@ export async function postJungjin(m,phase,{to=null,force=false,failures=[]}={}){
  if(!result.ok){failures.push({scope:'#jungjin',ref:m.meetingId,phase,state:result.state});console.log('중진 보고 수신 확인 필요: 자동 재전송하지 않습니다.');}
  return result.state==='delivered'?['중진']:[];
 }
+// 2026-11-16 교육 관리 탭(edu-mgmt.js)이 같은 재적·출석 판정(오전·저녁 중복 제거, 항상 출석·제외 직책)을 그대로 쓰도록 공개한다.
+export const eduPeople = (m, phase, edu) => prepare(m, validEduPhase(phase), edu);

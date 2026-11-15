@@ -39,6 +39,7 @@ import eduAtt from './lib/edu-attendance.js';
 import eduReports from './actions/edu-reports.js';
 import eduRosterAdmin from './actions/edu-roster-admin.js';
 import eduExcused from './actions/edu-excused.js';
+import eduMgmt from './actions/edu-mgmt.js';   // 2026-11-16 교육 관리(화전단·목사교) — 기본 꺼짐 EDU_MGMT_ENABLED
 
 export const actions = {
   ...pilot,
@@ -80,6 +81,7 @@ export const actions = {
   ...eduReports,
   ...eduRosterAdmin,
   ...eduExcused,
+  ...eduMgmt,
   ...deliveryReview,
 };
 
