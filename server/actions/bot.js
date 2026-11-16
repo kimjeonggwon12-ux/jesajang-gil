@@ -656,6 +656,8 @@ async function tsTest(body) {
 //   실제 방에는 보내지 않고 이 방에만 하루 서머리 세트를 순서대로(설명 붙여) 올린다. 중복 표시(alert_log)도 남기지 않는다.
 //   { action:'tsTestRoom', key, date?, only?:['morning','noon','dept','evening','status'], intro?:false }
 const MY_TEST_CHAT = '-1004460094453';
+// 11/17(사용자): "화전단 오전 집계 샘플은 목사교 행정 방에만, 나머지 방은 절대 아님" — tsTestRoom{room:'edu'} 이면 시험 방 대신 목사교 교육 방('#교육:…') 하나로만.
+let testChat = MY_TEST_CHAT;
 
 /** 시험 방에 글·사진 — 교사광장 봇으로, 안 되면 출석 봇으로(어느 봇이 들어가 있든). */
 async function testSend(method, fields, photo) {
@@ -663,7 +665,7 @@ async function testSend(method, fields, photo) {
   let last = '';
   for (const token of tokens) {
     const form = new FormData();
-    form.set('chat_id', MY_TEST_CHAT);
+    form.set('chat_id', testChat);
     form.set('parse_mode', 'HTML');
     for (const [k, v] of Object.entries(fields)) form.set(k, v);
     if (photo) form.set('photo', new Blob([photo], { type: 'image/png' }), 'summary.png');
@@ -681,6 +683,12 @@ const testPhoto = async (png, caption, fallback) => {
 
 async function tsTestRoom(body) {
   if (!authorized(body)) return { error: 'unauthorized' };
+  testChat = MY_TEST_CHAT;
+  if (body.room === 'edu') {
+    const [r] = await run(db().from('report_rooms').select('chat_id').like('dept', '#교육:%').eq('active', true).limit(1));
+    if (!r) return { error: '목사교 교육 방이 연결돼 있지 않아요.' };
+    testChat = String(r.chat_id).split('/')[0];
+  }
   const day = body.date || kstDate();
   const yesterday = kstDate(new Date(new Date(day + 'T12:00:00+09:00').getTime() - 24 * 3600 * 1000));
   const only = Array.isArray(body.only) && body.only.length ? body.only : ['status', 'noon', 'dept', 'evening', 'morning'];
@@ -753,8 +761,13 @@ async function tsTestRoom(body) {
     for (const t of p.texts) out.push(['att:region', await testText(tag('①', '지역 방') + t)]);
     for (const d of p.depts) out.push(['att:' + d.dept, await testPhoto(d.png, tag('②', `${d.dept} 총합 방`) + d.caption, tag('②', d.dept) + d.text)]);
     if (p.org) out.push(['att:org', await testPhoto(p.org.png, tag('③', '교자장부청') + p.org.caption, tag('③', '교자장부청') + p.org.text)]);
+    if (body.jungjin) {   // 11/17: 화전단·목사교면 중진 방 24부서 카드·명단도 견본으로
+      const ea = await import('../lib/edu-attendance.js');
+      const kind = ea.jungjinKind(m) || '목사교';
+      for (const [i, q] of (await ea.jungjinParts(m, phase, kind)).entries()) out.push(['att:jungjin', q.png ? await testPhoto(q.png, tag('④', '중진 대화방(24부서)') + q.caption, tag('④', '중진 대화방(24부서)') + q.text) : await testText((i ? '' : tag('④', '중진 대화방(24부서)')) + q.text)]);
+    }
   }
-  return { ok: out.every(([, r]) => r.ok), chat: MY_TEST_CHAT, date: day, sent: out.map(([k, r]) => [k, r.ok ? '성공' : '실패 ' + (r.error || '')]), ...(newsEcho ? { newsText: newsEcho } : {}) };
+  return { ok: out.every(([, r]) => r.ok), chat: testChat, date: day, sent: out.map(([k, r]) => [k, r.ok ? '성공' : '실패 ' + (r.error || '')]), ...(newsEcho ? { newsText: newsEcho } : {}) };
 }
 
 export { composeDaily, composeEvening, composeTotalCard };

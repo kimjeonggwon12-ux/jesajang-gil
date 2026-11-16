@@ -661,7 +661,9 @@ export async function jungjinParts(m, phase, kind) {
   if (!roster.length) return [];
   const edu = { series: { series_id: m.seriesId || '', title: m.title }, roster };
   const P = { ...(await prepare(m, phase, edu)), phase };
+  // 11/17: 본인 신고(나의 교실 '공무 결석 보고')도 공무로
   const ex = await excusedOf(kind, m.date);
+  try { const { selfExcusedOf } = await import('../actions/edu-excused-self.js'); for (const n of (await selfExcusedOf(kind, m.date)).keys()) ex.add(n); } catch (e) { console.log('본인 공무 신고 읽기 실패: ' + e.message); }
   const came = (p) => P.sessions.some((x) => p.att[x]);
   const isEx = (p) => !came(p) && ex.has(p.nid);
   const defs = deptDefs(P, '24부서');

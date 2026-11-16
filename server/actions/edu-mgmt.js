@@ -31,6 +31,9 @@ async function who(body) {
   return { actor: { nid, name: t?.name || String(body.name || '') }, owner, manager: owner || !!approver, heads: [...new Set(heads.map((h) => h.affiliation))].sort() };
 }
 const managerOf = (w) => w.manager;
+// 11/17(사용자): 공무 결석자 내려받기는 김논 서무님 + 김정권(개발자)만 — 나머지 관리자는 불가
+const DOWNLOAD_NIDS = new Set(['13050200001', '20113000010']);
+const canDownload = (w) => DOWNLOAD_NIDS.has(w.actor.nid);
 
 /** 그 주(월~일)의 두 교육 모임. 분류는 기존 edu_excused_state 와 같다. */
 async function weekMeetings(date) {
@@ -76,7 +79,7 @@ const basisLabel = (b) => (b === 'full' ? '교육 대상 재적' : '24부서 사
 export async function eduMgmtAccess(body = {}) {
   if (!eduMgmtEnabled()) return { enabled: false };
   const w = await who(body);
-  return { enabled: true, owner: w.owner, manager: w.manager, heads: w.heads, visible: w.manager || w.heads.length > 0 };
+  return { enabled: true, owner: w.owner, manager: w.manager, heads: w.heads, visible: w.manager || w.heads.length > 0, canDownload: canDownload(w) };
 }
 
 export async function getEduWeekly(body = {}) {
@@ -114,6 +117,8 @@ export async function getEduWeeklyDetail(body = {}) {
 const withSelf = (d, self) => ({ ...d, people: d.people.map((p) => (p.status === '공무' && self.has(p.memberId) ? { ...p, selfReason: self.get(p.memberId) } : p)) });
 
 export async function exportEduWeekly(body = {}) {
+  requireOn();
+  if (!canDownload(await who(body))) fail('내려받기는 김논 서무님만 할 수 있어요.', 403);
   const data = await getEduWeekly(body);
   return { filename: `주간교육출석_${data.week.from}.csv`, mime: 'text/csv;charset=utf-8', text: weeklyCsv(data.week, data.items) };
 }
