@@ -43,3 +43,13 @@ export function emHistoryText(h:EmHistory){
  return String(h.at||'').slice(0,16).replace('T',' ')+' · '+who+' · '+h.name+' '+EM_ACTION[h.action]+what;
 }
 export const emToday=()=>new Date(Date.now()+9*3600e3).toISOString().slice(0,10);
+
+// 11/16(4차): 두 교육 테마 + 공무자 관리 줄(A EM-VIEW 블록과 같음)
+export const EM_THEME:Record<string,{icon:string;title:string;cls:string}>={화전단:{icon:'🔥',title:'화요 전도단',cls:'tue'},목사교:{icon:'📖',title:'목요 사명자 교육',cls:'thu'}};
+export type ExlRow={memberId:string;name:string;group:string;place:string;source:string;registeredBy:string;reason:string;attended:boolean|null;at?:string};
+export type ExlList={kind:string;kindLabel:string;date:string;meeting:{title:string;date:string}|null;rows:ExlRow[];counts:{total:number;self:number;admin:number;list:number;attended:number}};
+export type ExlHit={memberId:string;name:string;group:string;place:string;position:string};
+export function exlPlaceText(r:{group:string;place:string}){return r.group+(r.place?' · '+r.place:'');}
+export function exlSourceText(r:ExlRow){return r.source+(r.registeredBy?' ('+r.registeredBy+')':'');}
+export function exlStatusText(r:ExlRow){return (r.reason?'사유: '+r.reason:'사유 없음')+(r.attended===true?' · 그날 출석함(참석으로 셈)':r.attended===false?' · 미출석':'');}
+export function exlCountsText(L:ExlList){return '공무 '+L.counts.total+'명 · 본인 신고 '+L.counts.self+' · 관리자 등록 '+L.counts.admin+' · 도우미연결 '+L.counts.list+(L.meeting?' · 그날 출석 '+L.counts.attended+'명':'');}

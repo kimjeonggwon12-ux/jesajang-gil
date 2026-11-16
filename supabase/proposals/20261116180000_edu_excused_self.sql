@@ -21,3 +21,7 @@ alter table public.edu_excused_self enable row level security;
 revoke all on public.edu_excused_self from public, anon, authenticated;
 grant all on public.edu_excused_self to service_role;
 grant usage, select on sequence public.edu_excused_self_id_seq to service_role;
+
+-- 11/16(4차) 공무자 관리: 관리자가 대신 등록·해제한 사람(운영 적용함)
+alter table public.edu_excused_self add column if not exists registered_by text not null default '';
+alter table public.edu_excused_self add column if not exists canceled_by text not null default '';

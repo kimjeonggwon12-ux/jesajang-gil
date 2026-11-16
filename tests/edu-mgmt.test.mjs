@@ -171,3 +171,32 @@ test('본인 신고는 관리자 명단과 합쳐 공무로 세고(실제 참석
   const d = await as(OWNER, () => mgmt.getEduWeeklyDetail({ date: '2026-11-19', meetingId: 'MTHU', group: '장년회' }));
   assert.deepEqual(d.people.map((p) => [p.name, p.status, p.selfReason || '']), [['가짜육', '참석', ''], ['가짜칠', '공무', '가짜 병원']]);
 });
+
+// ── 공무자 관리(11/16 4차) ──
+test('공무자 관리: 본인 신고·관리자 등록·도우미연결 명단을 한 목록으로, 그날 출석 여부와 함께(관리자만)', async () => {
+  fake.rows.edu_excused_self = [
+    { id: 1, kind: '목사교', date: '2026-11-19', nid: n(7), name: '가짜칠', dept: '장년회', region: '03지역', reason: '가짜 병원', active: true, registered_by: '' },
+    { id: 2, kind: '목사교', date: '2026-11-19', nid: n(8), name: '가짜팔', dept: '교회교역', region: '', reason: '가짜 대신', active: true, registered_by: '가짜관리' },
+    { id: 3, kind: '목사교', date: '2026-11-19', nid: n(6), name: '가짜육', dept: '장년회', region: '03지역', reason: '취소됨', active: false, registered_by: '' }];
+  const L = await as(MANAGER, () => mgmt.getExcusedList({ kind: '목사교', date: '2026-11-19' }));
+  assert.deepEqual(L.rows.map((r) => [r.name, r.group, r.source, r.attended]),
+    [['가짜팔', '교역자', '관리자 등록', true], ['가짜삼', '24부서', '도우미연결 명단', true], ['가짜사', '24부서', '도우미연결 명단', false], ['가짜칠', '장년회', '본인 신고', false]]);
+  assert.deepEqual(L.counts, { total: 4, self: 1, admin: 1, list: 2, attended: 2 });
+  assert.equal((await err(as(HEAD, () => mgmt.getExcusedList({ kind: '목사교', date: '2026-11-19' })))).status, 403, '관리자가 아니면 거절');
+});
+test('공무자 관리: 대신 등록은 등록자를 남기고, 해제는 본인 신고는 비활성·도우미연결은 그 한 줄만 지운다', async () => {
+  fake.rows.edu_excused_self = [];
+  const r = await as(MANAGER, () => mgmt.adminSetExcused({ kind: '목사교', date: '2026-11-19', memberId: n(7), reason: '' }));
+  assert.equal(r.name, '가짜칠');
+  assert.deepEqual(fake.rows.edu_excused_self.map((x) => [x.nid, x.reason, x.registered_by, x.region]), [[n(7), '공무', '가짜901', '03지역']]);
+  assert.match((await err(as(MANAGER, () => mgmt.adminSetExcused({ kind: '목사교', date: '2026-11-19', memberId: n(9) })))).message, /원장/);
+  await as(MANAGER, () => mgmt.adminCancelExcused({ kind: '목사교', date: '2026-11-19', memberId: n(7) }));
+  assert.deepEqual(fake.rows.edu_excused_self.map((x) => [x.active, x.canceled_by]), [[false, '가짜901']]);
+  const before = fake.rows.cohort_summary_log.length;
+  await as(MANAGER, () => mgmt.adminCancelExcused({ kind: '목사교', date: '2026-11-19', memberId: n(4) }));
+  assert.equal(fake.rows.cohort_summary_log.length, before - 1);
+  assert.ok(fake.rows.cohort_summary_log.some((x) => x.ref_id === n(3) && x.kind === '목사교'), '다른 사람 줄은 그대로');
+  assert.equal((await err(as(MANAGER, () => mgmt.adminCancelExcused({ kind: '목사교', date: '2026-11-19', memberId: n(4) })))).status, 409);
+  const hits = await as(MANAGER, () => mgmt.searchEduRosterForExcused({ q: '가짜' }));
+  assert.ok(!hits.rows.some((h) => h.name === '가짜구'), '원장은 찾기에서 빠짐');
+});

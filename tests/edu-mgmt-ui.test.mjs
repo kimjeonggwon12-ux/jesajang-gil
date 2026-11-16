@@ -8,7 +8,7 @@ import * as BX from '../next-app/lib/edu-excused-self.ts';
 
 const html = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
 const block = html.slice(html.indexOf('/* EM-VIEW-START */'), html.indexOf('/* EM-VIEW-END */'));
-const A = vm.runInNewContext(block + ';({EM_HEAD,EM_STATUS,EM_ACTION,EM_SOURCE,emCells,emPeopleGroups,emPersonText,emItemHead,emSessionsText,emDraft,emChanges,emChangeProblem,emHistoryText})');
+const A = vm.runInNewContext(block + ';({EM_HEAD,EM_STATUS,EM_ACTION,EM_SOURCE,EM_THEME,exlPlaceText,exlSourceText,exlStatusText,exlCountsText,emCells,emPeopleGroups,emPersonText,emItemHead,emSessionsText,emDraft,emChanges,emChangeProblem,emHistoryText})');
 const same = (a, b, msg) => assert.deepEqual(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b)), msg);
 
 const row = { key: '24부서', label: '24부서', n: 5, came: 3, onTime: 2, late: 1, excused: 1, absent: 1, rate: '60.0%' };
@@ -105,4 +105,19 @@ test('A·B 공무 본인 신고 카드 문구와 사람 표시(본인 신고 사
   assert.deepEqual([...hdr.matchAll(/>([^<>{}]+)<\/button>/g)].map((m) => m[1]), ['내 활동 보고', '피드백방', '출석'], 'B: 같은 순서');
   const act = readFileSync(new URL('../next-app/components/activities/Activities.tsx', import.meta.url), 'utf8');
   assert.match(act, /params\.get\('view'\)==='attend'\)return <section id="sec-activity"><ClassroomHeader attend\/><ExcusedSelfCard\/>/);
+});
+
+test('A·B 공무자 관리 줄 문구와 두 교육 테마가 같다', () => {
+  same(A.EM_THEME, B.EM_THEME);
+  assert.deepEqual(Object.values(B.EM_THEME).map((t) => t.title), ['화요 전도단', '목요 사명자 교육']);
+  const rows = [
+    { memberId: '1', name: '가', group: '교역자', place: '신학', source: '본인 신고', registeredBy: '', reason: '수업', attended: false },
+    { memberId: '2', name: '나', group: '24부서', place: '기획부', source: '도우미연결 명단', registeredBy: '', reason: '', attended: true },
+    { memberId: '3', name: '다', group: '장년회', place: '', source: '관리자 등록', registeredBy: '관리', reason: '병원', attended: null }];
+  for (const r of rows) { assert.equal(A.exlPlaceText(r), B.exlPlaceText(r)); assert.equal(A.exlSourceText(r), B.exlSourceText(r)); assert.equal(A.exlStatusText(r), B.exlStatusText(r)); }
+  const L = { counts: { total: 3, self: 1, admin: 1, list: 1, attended: 1 }, meeting: { title: 't', date: 'd' } };
+  assert.equal(A.exlCountsText(L), B.exlCountsText(L)); assert.equal(A.exlCountsText({ ...L, meeting: null }), B.exlCountsText({ ...L, meeting: null }));
+  assert.match(html, /const tabs = \[\['week', '주간 출석 현황'\], \['list', '공무자 관리'\]\];/);
+  const em = readFileSync(new URL('../next-app/components/education/EduMgmt.tsx', import.meta.url), 'utf8');
+  assert.match(em, /\[\['week','주간 출석 현황'\],\['list','공무자 관리'\]\]/);
 });

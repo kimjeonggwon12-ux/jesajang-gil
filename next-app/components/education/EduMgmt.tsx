@@ -5,7 +5,8 @@ import {useMember} from '../MemberArea';
 import {useAttendanceTask} from '../attendance/useAttendanceTask';
 import {ErrorNote} from '../Ui';
 import {EM_HEAD,EM_SOURCE,emCells,emPeopleGroups,emPersonText,emItemHead,emSessionsText,emDraft,emChanges,emChangeProblem,emHistoryText,emToday,
- type EmAccess,type EmWeek,type EmDetail,type EmScope,type EmDraft,type EmChange,type EmRow} from '../../lib/edu-mgmt';
+ EM_THEME,exlPlaceText,exlSourceText,exlStatusText,exlCountsText,
+ type EmAccess,type EmWeek,type EmDetail,type EmScope,type EmDraft,type EmChange,type EmRow,type ExlList,type ExlHit} from '../../lib/edu-mgmt';
 
 function Table({rows,total,onPick}:{rows:EmRow[];total:EmRow;onPick?:(r:EmRow)=>void}){
  return <div className="em-scroll"><table className="em-tbl"><thead><tr>{EM_HEAD.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>
@@ -14,10 +15,11 @@ function Table({rows,total,onPick}:{rows:EmRow[];total:EmRow;onPick?:(r:EmRow)=>
 }
 
 export default function EduMgmt({access}:{access:EmAccess}){
- const [view,setView]=useState<'week'|'excused'|'heads'>('week');
- const tabs:[typeof view,string][]=[['week','주간 출석 현황'],['excused','공무 사전보고'],...(access.owner?[['heads','부서장 지정'] as [typeof view,string]]:[])];
+ const [view,setView]=useState<'week'|'list'>('week');
+ // 11/16(4차): 본인 신고로 바뀌어 부서별 공무 사전보고·부서장 지정 대신 '공무자 관리'(A 와 같음)
+ const tabs:[typeof view,string][]=[['week','주간 출석 현황'],['list','공무자 관리']];
  return <section className="em-wrap"><div className="att-actions" role="tablist">{tabs.map(([k,l])=><button key={k} role="tab" aria-selected={view===k} className={view===k?'primary':'secondary'} onClick={()=>setView(k)}>{l}</button>)}</div>
-  {view==='week'?<Weekly/>:view==='excused'?<Excused/>:<Heads/>}</section>;
+  {view==='week'?<Weekly/>:<ExcusedList/>}</section>;
 }
 
 function Weekly(){
@@ -90,4 +92,26 @@ function Heads(){
    <button className="secondary" onClick={()=>{void set('grant',id,aff);}}>지정</button></fieldset>
   <ErrorNote message={task.error}/>{task.notice?<p role="status">{task.notice}</p>:null}
   {data.heads.length?data.heads.map(h=><p key={h.memberId+h.affiliation} className="em-p">{h.affiliation} · <b>{h.name}</b> <button className="secondary" disabled={task.busy} onClick={()=>{void set('revoke',h.memberId,h.affiliation);}}>거두기</button></p>):<p className="muted">지정된 부서장이 없어요.</p>}</>;
+}
+
+function ExcusedList(){
+ const {request}=useMember(),task=useAttendanceTask(),[kind,setKind]=useState('목사교'),[date,setDate]=useState(emToday),[list,setList]=useState<ExlList|null>(null),[q,setQ]=useState(''),[reason,setReason]=useState(''),[hits,setHits]=useState<ExlHit[]|null>(null),[sure,setSure]=useState('');
+ const load=(k=kind,d=date)=>task.run(async()=>{setSure('');const r=await request<ExlList>('getExcusedList',{kind:k,date:d});if(task.active())setList(r);});
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ useEffect(()=>{void load();},[]);
+ const find=()=>task.run(async()=>{const r=await request<{rows:ExlHit[]}>('searchEduRosterForExcused',{q:q.trim()});if(task.active())setHits(r.rows);});
+ const add=(id:string)=>task.run(async()=>{const r=await request<{name:string}>('adminSetExcused',{kind,date,memberId:id,reason:reason.trim()});const l=await request<ExlList>('getExcusedList',{kind,date});if(task.active()){setList(l);setHits(null);setQ('');setReason('');task.setNotice(r.name+' 님을 공무로 등록했어요.');}});
+ const cancel=(id:string)=>{if(sure!==id){setSure(id);return;}void task.run(async()=>{await request('adminCancelExcused',{kind,date,memberId:id});const l=await request<ExlList>('getExcusedList',{kind,date});if(task.active()){setList(l);setSure('');task.setNotice('공무를 해제했어요.');}});};
+ const th=EM_THEME[kind];
+ return <>
+  <div className="em-themes">{Object.keys(EM_THEME).map(k=><button key={k} className={'em-theme '+EM_THEME[k].cls+(kind===k?' on':'')} aria-pressed={kind===k} onClick={()=>{setKind(k);setHits(null);void load(k,date);}}><span>{EM_THEME[k].icon}</span>{EM_THEME[k].title}</button>)}</div>
+  <fieldset disabled={task.busy} className="att-form-row"><label>날짜<input type="date" value={date} onChange={e=>{setDate(e.target.value);void load(kind,e.target.value);}}/></label><button className="secondary" onClick={()=>{void load();}}>조회</button></fieldset>
+  <p className="muted">본인 신고 · 관리자 대신 등록 · 도우미연결 명단을 함께 보여요. 그날 실제로 출석한 분은 공무가 아니라 참석으로 셉니다.</p>
+  {task.busy?<p role="status">처리하는 중…</p>:null}<ErrorNote message={task.error}/>{task.notice?<p role="status">{task.notice}</p>:null}
+  {list?<div className={'card em-card em-kcard '+th.cls}><h3>{th.icon} {th.title} · {list.date}</h3><p className="muted">{exlCountsText(list)}{list.meeting?'':' · 아직 출석 모임 없음'}</p>
+   {list.rows.length?list.rows.map(r=><div className="em-p" key={r.memberId}><b>{r.name}</b> <small>{exlPlaceText(r)}</small> <small className="em-src">{exlSourceText(r)}</small><p className="muted">{exlStatusText(r)}</p><button className="secondary" disabled={task.busy} onClick={()=>cancel(r.memberId)}>{sure===r.memberId?'한 번 더 누르면 해제':'공무 해제'}</button></div>):<p className="muted">이 날짜에 공무자가 없어요.</p>}</div>:null}
+  <div className="card em-card"><h3>대신 등록</h3><p className="muted">전화로 알려 온 분 등을 관리자가 대신 공무로 등록해요(등록한 사람이 기록돼요).</p>
+   <fieldset disabled={task.busy} className="att-form-row"><label>이름<input value={q} autoComplete="off" onChange={e=>setQ(e.target.value)}/></label><label>사유 기록<input value={reason} maxLength={200} onChange={e=>setReason(e.target.value)}/></label><button className="secondary" onClick={()=>{void find();}}>찾기</button></fieldset>
+   {hits?(hits.length?hits.map(h=><p className="em-p" key={h.memberId}><b>{h.name}</b> <small>{exlPlaceText(h)} {h.position}</small> <button className="secondary" disabled={task.busy} onClick={()=>{void add(h.memberId);}}>공무로 등록</button></p>):<p className="muted">찾는 이름이 재적에 없어요.</p>):null}</div>
+ </>;
 }
