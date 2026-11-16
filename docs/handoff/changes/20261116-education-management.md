@@ -6,6 +6,7 @@
   - 공무 사전보고: 부서장이 자기 소속만 등록·수정·취소한다. 개인별 사유, 추후 교육 방법·결과, 변경 이력을 남긴다.
   - 부서장 지정: 앱 책임자만 한다.
   - 기본 꺼짐(`EDU_MGMT_ENABLED`).
+- **(11/16 추가) 진입 변경**: 사용자 지시로 '교육 관리 안 전환 단추'를 없애고 A·B 모두 관리자 '출석' 옆 **'교육보고' 탭**으로 옮겼다(B `/admin/edu-report`, A/B 경로 추가). 운영 A에는 배포·DB 적용·스위치 켜기까지 완료했다(`EDU_MGMT.md` '운영 반영').
 - **A HTML 변경 파일·진입 동선**: `app.html`. 관리자 > 교육 관리 > [화전단·목사교] 전환 단추를 누르면 열린다. 단추는 서버가 켜짐과 권한을 알려 줄 때만 보인다. 표시 함수는 `/* EM-VIEW-START */` 블록에 있다.
 - **B Next.js 변경 파일·진입 동선**: `next-app/components/education/EduMgmt.tsx`(신규), `Education.tsx`(전환 단추), `next-app/lib/edu-mgmt.ts`(A와 같은 표시 함수), `lib/api.ts`(읽기 액션 이름), `app/globals.css`. 진입: `/admin/education?view=edu-mgmt`. 새 라우트나 A/B 경로 변경은 없다.
 - **공통 API/권한/계산 변경**:

@@ -3222,6 +3222,7 @@
           <button type="button" class="kko-tab" data-subtab="connectAdmin" onclick="adminSwitchSubTab('connectAdmin')" style="display:none">연결</button>   <!-- 11/2(사용자): 탭은 숨김, 연결 관리 기능·서버는 그대로 -->
           <button type="button" class="kko-tab" data-subtab="calAdmin" onclick="adminSwitchSubTab('calAdmin')">행사</button>
           <button type="button" class="kko-tab" data-subtab="attend" onclick="adminSwitchSubTab('attend')">출석</button>
+          <button type="button" class="kko-tab" data-subtab="eduReport" onclick="adminSwitchSubTab('eduReport')" style="display:none">교육보고</button>   <!-- 2026-11-16 화전단·목사교 주간 출석·부서 공무 사전보고(서버가 권한 확인 후 보임) -->
           <button type="button" class="kko-tab" data-subtab="openfb" onclick="adminSwitchSubTab('openfb')">개강피드백</button>   <!-- 2026-11-10 상담 이상 섭외자 피드백방 -->
           <!-- 11/2(사용자): 명단은 '교사' 탭 맨 위 '교사명단'으로 옮김 -->
           <button type="button" class="kko-tab" data-subtab="center" onclick="adminSwitchSubTab('center')">지역장 승인</button>   <!-- 2026-11-02 지역장 승인 → 센터(기수)로 보내기 -->
@@ -3229,11 +3230,7 @@
           <button type="button" class="kko-tab" data-subtab="rooms" onclick="adminSwitchSubTab('rooms')">도우미연결</button>   <!-- 2026-10-25 부서·지역 텔레그램 보고방 연결 -->
           <button type="button" class="kko-tab" data-subtab="cohort" onclick="adminSwitchSubTab('cohort')" style="display:none">교육 관리</button>   <!-- 교육생·교육 과정: 지정된 담당 업무 -->
         </div>
-        <div id="admin-pane-cohort" class="admin-pane">
-          <!-- 2026-11-16 교육 관리 안 두 번째 보기(화전단·목사교) — 서버 eduMgmtAccess 가 켜져 있고 볼 권한이 있을 때만 보임 -->
-          <div id="emSwitch" class="em-switch" style="display:none"><button type="button" data-v="cohort" class="on" onclick="eduMgmt.show(false)">교육 과정</button><button type="button" data-v="em" onclick="eduMgmt.show(true)">화전단·목사교</button></div>
-          <div id="cohortAdmRoot" class="ra"></div><div id="eduMgmtRoot" class="ra" style="display:none"></div>
-        </div>
+        <div id="admin-pane-cohort" class="admin-pane"><div id="cohortAdmRoot" class="ra"></div></div>
         <div id="admin-pane-rooms" class="admin-pane"><div id="roomsAdmRoot" class="ra"></div></div>
         <div id="admin-pane-openfb" class="admin-pane"><div id="ofbRoot" style="padding:12px 14px 90px"></div></div>
         <div id="admin-pane-center" class="admin-pane"><div id="centerAdmRoot" class="ra"></div></div>
@@ -3246,6 +3243,7 @@
         <div id="admin-pane-connectAdmin" class="admin-pane">
           <div id="cnAdmRoot"><div class="text-center py-16"><span class="loading loading-spinner"></span></div></div>
         </div>
+        <div id="admin-pane-eduReport" class="admin-pane"><div id="eduMgmtRoot" class="ra"></div></div>
         <div id="admin-pane-attend" class="admin-pane"><div id="attAdmRoot" class="att-adm"></div></div>   <!-- 2026-10-05 QR 출석 관리 -->
         <div id="admin-pane-calAdmin" class="admin-pane">
           <div class="calAdm-tabs2">
@@ -17597,6 +17595,7 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         else if (tab === 'connectAdmin') cnAdmLoad();
         else if (tab === 'calAdmin') calAdmInit();
         else if (tab === 'attend') attAdmLoad();
+        else if (tab === 'eduReport') eduMgmt.mount();
         else if (tab === 'roster') rosterAdm.mount();
         else if (tab === 'rooms') roomsAdm.mount();
         else if (tab === 'center') centerAdm.mount('send');
@@ -17604,6 +17603,7 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         else if (tab === 'cohort') cohortAdm.mount();
       }
       else if (tab === 'attend') attAdmLoad();   // 다시 들어올 때마다 최신 출석 인원
+      else if (tab === 'eduReport') eduMgmt.mount();   // 다시 들어올 때마다 최신
       else if (tab === 'cohort') cohortAdm.mount();   // 다시 들어올 때마다 최신(보던 과정이면 그 과정)
       else if (tab === 'center') centerAdm.mount('send');     // 다시 들어올 때마다 최신 요청 건
       else if (tab === 'centerMgmt') centerAdm.mount('mgmt');
@@ -19915,7 +19915,7 @@ async function calAdmInit() {
     window.roomsAdm = roomsAdm;
 
     // ════════════════════════════════════════════════════════════════
-    // [ADMIN] 2026-11-16 교육 관리 > 화전단·목사교 — 주간 출석 현황 + 부서 공무 사전보고(기본 꺼짐, 서버 eduMgmtAccess).
+    // [ADMIN] 2026-11-16 관리자 > 교육보고(출석 옆 탭) — 화전단·목사교 주간 출석 현황 + 부서 공무 사전보고(서버 eduMgmtAccess 가 켜짐·권한일 때만 탭 보임).
     // 숫자·권한·저장은 서버(edu-mgmt.js)가 한다. 아래 EM-VIEW 표시 함수는 B(next-app/lib/edu-mgmt.ts)와 같아야 한다(tests/edu-mgmt-ui.test.mjs).
     // ════════════════════════════════════════════════════════════════
     /* EM-VIEW-START */
@@ -19970,24 +19970,25 @@ async function calAdmInit() {
           .em-tbl th:first-child,.em-tbl td:first-child{text-align:left}.em-tbl tr.sum td{font-weight:800;background:#f6faf8}.em-tbl button{border:0;background:none;color:#00875f;font-weight:700;text-decoration:underline;padding:0}
           .em-scroll{overflow-x:auto}.em-p{border-top:1px solid #eef1f0;padding:8px 0}.em-p .em-name{font-weight:800}.em-p .em-two{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
           .em-p .em-two input,.em-p textarea{width:100%}.em-hist{font-size:12px;color:#5b6661;border-top:1px dashed #e3e8e6;padding:4px 0}
+          #eduMgmtRoot .ra-btn{height:44px;padding:0 16px;border-radius:10px;border:1px solid #00AE82;background:#00AE82;color:#fff;font-weight:700;font-size:15px;white-space:nowrap}
+          #eduMgmtRoot .ra-btn.line{background:#fff;color:#00875f}#eduMgmtRoot .ra-btn.warn{background:#fff;color:#c0392b;border-color:#e3b5ae}#eduMgmtRoot .ra-btn:disabled{opacity:.5}
           @media (max-width:520px){.em-p .em-two{grid-template-columns:1fr}}`;
         document.head.appendChild(el);
       }
-      /** 관리자 탭을 열 때 한 번: 기능이 켜져 있고 볼 권한이 있으면 '교육 과정 | 화전단·목사교' 전환을 보인다. */
+      /** 관리자 화면을 열 때 한 번: 기능이 켜져 있고 볼 권한이 있으면 '교육보고' 탭을 보인다. */
       async function probe() {
-        const sw = document.getElementById('emSwitch'); if (!sw) return;
+        const tab = document.querySelector('#admin-subtabs [data-subtab="eduReport"]'); if (!tab) return;
         try { st.access = await call({ action: 'eduMgmtAccess' }); } catch (e) { st.access = null; }
         const ok = !!(st.access && st.access.enabled && st.access.visible);
-        sw.style.display = ok ? 'flex' : 'none';
-        if (!ok && st.on) show(false);
+        tab.style.display = ok ? '' : 'none';
+        if (!ok && adminSubTab === 'eduReport') adminSwitchSubTab('dist');
       }
-      function show(on) {
-        st.on = !!on; css();
-        document.querySelectorAll('#emSwitch button').forEach(b => b.classList.toggle('on', (b.dataset.v === 'em') === st.on));
-        const c = document.getElementById('cohortAdmRoot'), r = root();
-        if (c) c.style.display = st.on ? 'none' : '';
-        if (r) r.style.display = st.on ? '' : 'none';
-        if (st.on) { if (!st.date) st.date = today(); if (!st.exDate) st.exDate = today(); render(); if (st.view === 'week' && !st.week) loadWeek(); }
+      /** 교육보고 탭을 열 때(들어올 때마다 최신 주간 현황). */
+      async function mount() {
+        st.on = true; css();
+        if (!st.access) { try { st.access = await call({ action: 'eduMgmtAccess' }); } catch (e) { st.access = null; } }
+        if (!st.date) st.date = today(); if (!st.exDate) st.exDate = today();
+        render(); if (st.view === 'week') loadWeek(); else if (st.view === 'excused' && st.scope) loadScope();
       }
       function pick(view) { st.view = view; st.msg = st.error = ''; st.confirm = null; render(); if (view === 'week' && !st.week) loadWeek(); if (view === 'excused' && !st.scope) loadScope(); if (view === 'heads') loadHeads(); }
       async function busy(fn) { st.busy = true; st.msg = st.error = ''; render(); try { await fn(); } catch (e) { st.error = e.message || '서버에 연결하지 못했어요.'; } st.busy = false; render(); }
@@ -20098,7 +20099,7 @@ async function calAdmInit() {
           ${st.busy ? '<p class="em-note">처리하는 중…</p>' : ''}${st.msg ? `<p class="em-note em-ok">${esc(st.msg)}</p>` : ''}${st.error ? `<p class="em-note em-bad">${esc(st.error)}</p>` : ''}
           ${st.view === 'week' ? weekHtml() : st.view === 'excused' ? excusedHtml() : headsHtml()}</div>`;
       }
-      return { probe, show, pick, loadWeek, openDetail, download, loadScope, edit, review, save, saveFollow, setHead,
+      return { probe, mount, pick, loadWeek, openDetail, download, loadScope, edit, review, save, saveFollow, setHead,
         cancelConfirm() { st.confirm = null; render(); },
         setDate(v) { st.date = v; st.week = null; st.detail = null; render(); },
         setKind(v) { st.kind = v; st.scope = null; st.aff = ''; render(); },
@@ -20114,7 +20115,7 @@ async function calAdmInit() {
       try { sub = sessionStorage.getItem('adm_sub') || 'dist'; } catch (e) {}
       if ((sub === 'cohort' && !isAdmin()) || !document.getElementById('admin-pane-' + sub)) sub = 'dist';
       adminSwitchSubTab(sub);
-      if (isAdmin()) eduMgmt.probe();   // 11/16 화전단·목사교 보기(기능 꺼짐·권한 없음이면 숨김)
+      if (isAdmin()) eduMgmt.probe();   // 11/16 교육보고 탭(기능 꺼짐·권한 없음이면 숨김)
     } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
 
   </script>

@@ -4,7 +4,7 @@
 
 ## 진입과 기본 꺼짐
 
-- A: 관리자 > **교육 관리** 탭 안에 `교육 과정 | 화전단·목사교` 전환 단추. B: `/admin/education` 같은 위치(`?view=edu-mgmt`). 관리자 작은 탭 목록·A/B 경로(`shared/pilot-paths.mjs`)·`ClassicAdminFrame`은 바꾸지 않았다.
+- (11/16 사용자 지시로 변경) A·B 모두 관리자 **'출석' 바로 옆 '교육보고' 탭**. A `data-subtab="eduReport"`, B `/admin/edu-report`(`ClassicAdminFrame` 탭·`shared/pilot-paths.mjs`에 추가). 탭은 서버 `eduMgmtAccess`가 켜짐·권한을 알려 줄 때만 보인다. 교육 관리(과정) 화면은 원래대로.
 - 서버 환경값 `EDU_MGMT_ENABLED=1`일 때만 동작한다. 없으면 `eduMgmtAccess`는 `{enabled:false}`만 돌려주고(DB 조회 없음) 나머지 새 액션은 모두 503이다. 화면 전환 단추도 숨는다.
 - 새 예약·봇·웹훅·Telegram 발송은 없다. 공무 저장은 기존 보고가 읽는 원본에 반영될 뿐 보고를 다시 보내지 않는다.
 - 기능 중지 = 환경값 제거(재배포 필요). 전체 A 복귀와 별개이며, 중지해도 저장된 공무·상세·이력은 DB에 남고 기존 보고·전체 공무 화면이 그대로 읽는다.
@@ -54,6 +54,14 @@
   EDU_MGMT_PG_MODULE=<pg 패키지 index.js의 file URL; 저장소 의존성에 넣지 않음> \
   node --experimental-test-module-mocks --test tests/local-edu-mgmt-pg.test.mjs
   ```
+
+## 운영(A) 반영 — 2026-11-16 사용자 지시
+
+- 운영 `vercel-supabase`에 같은 화면·계약으로 배포했다(운영 커밋 `3439b33`). 운영 DB에 제안 SQL을 적용했고(Supabase SQL 편집기, 내용 해시 일치 확인), `EDU_MGMT_ENABLED=1`을 설정했다.
+- 운영 서버는 아직 강화 인증·교육 위임 모듈이 없어 두 가지가 다르다.
+  - 신원: `api/index.js`가 입장 표로 확인한 번호를 `_actorNid`로 넘긴다.
+  - 전체 관리 권한: 앱 책임자 + 교육·전도 담당(`isApprover`)이다. 기존 도우미연결 공무 체크와 같은 기준이다.
+  - B 전환 때는 이 PR의 위임 기준(`educationGrants`)으로 바뀐다. 전환 측에 기준 확인을 요청한다.
 
 ## 담당자 확인 (임의 확정하지 않음)
 

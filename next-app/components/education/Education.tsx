@@ -16,15 +16,9 @@ import CourseReports from './CourseReports';
 import EducationTelegram from './EducationTelegram';
 import {Contact} from './EducationUi';
 import AttendanceDelegation from '../attendance/AttendanceDelegation';
-import EduMgmt from './EduMgmt';
-import type {EmAccess} from '../../lib/edu-mgmt';
 const TABS={timetable:'시간표',attendance:'출석',assignments:'과제',exams:'시험',reports:'자료·전달',members:'교육생',settings:'설정'};
 type Tab=keyof typeof TABS;
-export default function Education(){const {access}=useMember();return access.isAdmin?<EducationViews/>:<section className="panel"><h1>교육 과정 운영</h1><p>교육 운영을 맡은 관리자만 사용할 수 있어요.</p></section>;}
-// 2026-11-16 교육 관리 안 두 번째 보기(화전단·목사교) — A 와 같이 서버 eduMgmtAccess 가 켜져 있고 볼 권한이 있을 때만 전환 단추를 보인다.
-function EducationViews(){const em=useQuery<EmAccess>('eduMgmtAccess'),params=useSearchParams(),router=useRouter(),on=params.get('view')==='edu-mgmt'&&!!em.data?.visible;
- if(!em.data?.enabled||!em.data.visible)return <Courses/>;
- return <><div className="em-switch"><button className={on?'secondary':'primary'} onClick={()=>router.push('/admin/education')}>교육 과정</button><button className={on?'primary':'secondary'} onClick={()=>router.push('/admin/education?view=edu-mgmt')}>화전단·목사교</button></div>{on?<EduMgmt access={em.data}/>:<Courses/>}</>;}
+export default function Education(){const {access}=useMember();return access.isAdmin?<Courses/>:<section className="panel"><h1>교육 과정 운영</h1><p>교육 운영을 맡은 관리자만 사용할 수 있어요.</p></section>;}
 function Courses(){
  const router=useRouter(),params=useSearchParams(),id=params.get('course')||'',tab=(Object.hasOwn(TABS,params.get('tab')||'')?params.get('tab'):'timetable') as Tab,week=params.get('week')||'',q=useQuery<{cohorts:Cohort[]}>('cohortList',{},!id),access=useQuery<EducationAccess>('educationAccess'),[create,setCreate]=useState(false),[telegram,setTelegram]=useState(false),[search,setSearch]=useState(''),[phase,setPhase]=useState('active');
  const navigate=(course:string,section:Tab='timetable',w='')=>{const p=new URLSearchParams();if(course)p.set('course',course);if(course&&section!=='timetable')p.set('tab',section);if(w)p.set('week',w);router.push('/admin/education'+(p.size?'?'+p.toString():''));};

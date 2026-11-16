@@ -67,18 +67,22 @@ test('A·B 이력 문구가 같다', () => {
   assert.equal(B.emHistoryText(hist[1]), '2026-11-20 10:00 · 가짜담당(교육 담당) · 가짜일 교육 결과 — 영상 / 시청 완료 (완료)');
 });
 
-test('A·B 모두 서버가 기능을 켜고 볼 권한을 줄 때만 전환 단추를 보이고, 메뉴 구조는 그대로다', () => {
-  assert.match(html, /<div id="emSwitch" class="em-switch" style="display:none">/);
-  assert.match(html, /const ok = !!\(st\.access && st\.access\.enabled && st\.access\.visible\);/);
+test('A·B 모두 관리자 "출석" 옆 "교육보고" 탭이고, 서버가 기능을 켜고 볼 권한을 줄 때만 보인다', () => {
+  assert.match(html, /data-subtab="eduReport" onclick="adminSwitchSubTab\('eduReport'\)" style="display:none">교육보고<\/button>/);
+  assert.match(html, /const ok = !!\(st\.access && st\.access\.enabled && st\.access\.visible\);\s*tab\.style\.display = ok \? '' : 'none';/);
   assert.match(html, /if \(isAdmin\(\)\) eduMgmt\.probe\(\);/);
   const tabs = [...html.matchAll(/data-subtab="(\w+)" onclick/g)].map((m) => m[1]);
-  assert.deepEqual(tabs, ['dist', 'edu', 'connectAdmin', 'calAdmin', 'attend', 'openfb', 'center', 'centerMgmt', 'rooms', 'cohort'], '관리자 작은 탭 목록은 바뀌지 않는다');
-  const edu = readFileSync(new URL('../next-app/components/education/Education.tsx', import.meta.url), 'utf8');
-  assert.match(edu, /if\(!em\.data\?\.enabled\|\|!em\.data\.visible\)return <Courses\/>;/);
+  assert.deepEqual(tabs, ['dist', 'edu', 'connectAdmin', 'calAdmin', 'attend', 'eduReport', 'openfb', 'center', 'centerMgmt', 'rooms', 'cohort'], 'A: 출석 바로 다음');
   const frame = readFileSync(new URL('../next-app/components/presentation/ClassicAdminFrame.tsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(frame, /edu-mgmt|화전단/, 'B 관리자 탭 목록도 바꾸지 않는다');
+  const ids = [...frame.slice(frame.indexOf('const tabs='), frame.indexOf(';', frame.indexOf('const tabs='))).matchAll(/\['(\w+)','/g)].map((m) => m[1]);
+  assert.deepEqual(ids.slice(ids.indexOf('attendance'), ids.indexOf('attendance') + 2), ['attendance', 'eduReport'], 'B: 출석 바로 다음');
+  assert.match(frame, /id!=='eduReport'\|\|!!\(em\.data\?\.enabled&&em\.data\.visible\)/);
+  const page = readFileSync(new URL('../next-app/app/(member)/admin/edu-report/page.tsx', import.meta.url), 'utf8');
+  assert.match(page, /em\.data\.enabled&&em\.data\.visible\?<EduMgmt/);
   const paths = readFileSync(new URL('../shared/pilot-paths.mjs', import.meta.url), 'utf8');
-  assert.doesNotMatch(paths, /edu-mgmt/, 'A/B 경로 목록은 바꾸지 않는다');
+  assert.match(paths, /'\/admin\/edu-report'/, 'A/B 경로에 교육보고 포함');
+  const edu = readFileSync(new URL('../next-app/components/education/Education.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(edu, /EduMgmt/, '교육 관리(과정) 화면은 원래대로');
 });
 
 test('A 화면 쓰기 요청은 자동 재시도 대상(get/list/check/search)이 아니다', () => {
