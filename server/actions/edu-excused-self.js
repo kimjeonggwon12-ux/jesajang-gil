@@ -7,7 +7,8 @@
 import { db, run } from '../lib/db.js';
 import { kstDate } from '../lib/util.js';
 
-const KIND = '목사교', ROSTER = '목요사명자';
+// 11/16(2차, 사용자): 화요전도단·목요 사명자 교육 둘 다 — 나의교실 '출석' 칸에서 교육·날짜를 골라 신고.
+const KINDS = { 화전단: { title: '화요 전도단', days: [2] }, 목사교: { title: '목요 사명자 교육', days: null } }, ROSTER = '목요사명자';
 export const SELF_DEPTS = ['교회교역', '신학교역', '협력교회', '장로회', '자문회', '장년회', '부녀회', '청년회'];
 const GROUP = { 교회교역: '교역자', 신학교역: '교역자', 협력교회: '교역자', 장로회: '자문회', 자문회: '자문회', 장년회: '장년회', 부녀회: '부녀회', 청년회: '청년회' };
 const on = () => process.env.EDU_MGMT_ENABLED === '1';
@@ -17,10 +18,13 @@ const addDays = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 864e5).toI
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 const dayLabel = (d) => { const x = new Date(d + 'T00:00:00Z'); return `${x.getUTCMonth() + 1}/${x.getUTCDate()}(${WD[x.getUTCDay()]})`; };
 
-/** 다가오는 교육 날짜 2개(오늘 포함) — 정기 교육 요일 기준, 없으면 목요일. */
-async function nextDates() {
-  const [s] = await run(db().from('attend_series').select('weekdays').eq('roster_key', ROSTER).neq('status', '삭제').limit(1)).catch(() => []);
-  const days = Array.isArray(s?.weekdays) && s.weekdays.length ? s.weekdays.map(Number) : [4];
+/** 다가오는 교육 날짜 2개(오늘 포함). 화요전도단 = 화요일, 목요 사명자 교육 = 정기 교육 요일(없으면 목요일). */
+async function nextDates(kind) {
+  let days = KINDS[kind].days;
+  if (!days) {
+    const [s] = await run(db().from('attend_series').select('weekdays').eq('roster_key', ROSTER).neq('status', '삭제').limit(1)).catch(() => []);
+    days = Array.isArray(s?.weekdays) && s.weekdays.length ? s.weekdays.map(Number) : [4];
+  }
   const out = [];
   for (let i = 0, d = kstDate(); i < 21 && out.length < 2; i++) { const x = addDays(d, i); if (days.includes(new Date(x + 'T00:00:00Z').getUTCDay())) out.push(x); }
   return out;
@@ -39,10 +43,14 @@ export async function getMyExcused(body = {}) {
   if (!on()) return { enabled: false };
   const m = await me(body);
   if (!m.p) return { enabled: true, eligible: false, reason: m.outside ? '24부서는 부서 공무 보고로 올려요.' : '목요 사명자 교육 재적에 없어요.' };
-  const dates = await nextDates();
-  const rows = await run(db().from('edu_excused_self').select('*').eq('kind', KIND).eq('nid', m.nid).in('date', dates));
-  return { enabled: true, eligible: true, kind: KIND, title: '목요 사명자 교육', group: GROUP[m.p.dept], dept: m.p.dept, region: m.p.region || '',
-    name: m.p.name, dates: dates.map((d) => ({ date: d, label: dayLabel(d), mine: view(rows.find((r) => r.date === d && r.active)) })) };
+  const kinds = [];
+  for (const kind of Object.keys(KINDS)) {
+    const dates = await nextDates(kind);
+    const rows = await run(db().from('edu_excused_self').select('*').eq('kind', kind).eq('nid', m.nid).in('date', dates));
+    kinds.push({ kind, title: KINDS[kind].title, dates: dates.map((d) => ({ date: d, label: dayLabel(d), mine: view(rows.find((r) => r.date === d && r.active)) })) });
+  }
+  return { enabled: true, eligible: true, title: '화요 전도단 · 목요 사명자 교육 공무 보고', group: GROUP[m.p.dept], dept: m.p.dept, region: m.p.region || '',
+    name: m.p.name, kinds };
 }
 
 /** 공무 신고(바로 누르기: 사유 없으면 '공무'). 같은 날 다시 누르면 사유만 고친다. */
@@ -50,19 +58,20 @@ export async function submitMyExcused(body = {}) {
   if (!on()) fail('교육보고 기능이 아직 꺼져 있어요.');
   const m = await me(body);
   if (!m.p) fail(m.outside ? '24부서는 부서 공무 보고로 올려요.' : '목요 사명자 교육 재적에 없어요. 담당자에게 알려 주세요.');
-  const date = String(body.date || ''), reason = String(body.reason || '').trim() || '공무';
-  if (!validDate(date) || !(await nextDates()).includes(date)) fail('다가오는 교육 날짜만 신고할 수 있어요.');
+  const kind = String(body.kind || '목사교'), date = String(body.date || ''), reason = String(body.reason || '').trim() || '공무';
+  if (!KINDS[kind]) fail('교육을 골라 주세요.');
+  if (!validDate(date) || !(await nextDates(kind)).includes(date)) fail('다가오는 교육 날짜만 신고할 수 있어요.');
   if (reason.length > 200) fail('사유는 200자 이내로 적어 주세요.');
-  const row = { kind: KIND, date, nid: m.nid, name: m.p.name, dept: m.p.dept, region: m.p.region || '', reason, active: true, updated_at: new Date().toISOString() };
+  const row = { kind, date, nid: m.nid, name: m.p.name, dept: m.p.dept, region: m.p.region || '', reason, active: true, updated_at: new Date().toISOString() };
   await run(db().from('edu_excused_self').upsert(row, { onConflict: 'kind,date,nid' }));
-  return { ok: true, label: dayLabel(date), dept: m.p.dept, region: m.p.region || '' };
+  return { ok: true, label: KINDS[kind].title + ' ' + dayLabel(date), dept: m.p.dept, region: m.p.region || '' };
 }
 
 export async function cancelMyExcused(body = {}) {
   if (!on()) fail('교육보고 기능이 아직 꺼져 있어요.');
-  const m = await me(body), date = String(body.date || '');
-  if (!validDate(date)) fail('날짜를 확인해 주세요.');
-  await run(db().from('edu_excused_self').update({ active: false, updated_at: new Date().toISOString() }).eq('kind', KIND).eq('date', date).eq('nid', m.nid));
+  const m = await me(body), kind = String(body.kind || '목사교'), date = String(body.date || '');
+  if (!KINDS[kind] || !validDate(date)) fail('교육과 날짜를 확인해 주세요.');
+  await run(db().from('edu_excused_self').update({ active: false, updated_at: new Date().toISOString() }).eq('kind', kind).eq('date', date).eq('nid', m.nid));
   return { ok: true };
 }
 
