@@ -26,7 +26,6 @@ import cohortBot from './actions/cohort-bot.js';
 import eduAtt from './lib/edu-attendance.js';
 import cohortSchedule from './actions/cohort-schedule.js';
 import pins from './actions/pins.js';
-import centerSend from './actions/center-send.js';
 import newMarks from './actions/new-marks.js';
 import targetRoom from './actions/target-room.js';
 import auth from './actions/auth.js';
@@ -59,7 +58,6 @@ export const actions = {
   ...eduAtt,
   ...cohortSchedule,
   ...pins,
-  ...centerSend,
   ...newMarks,
   ...targetRoom,
   ...auth,
