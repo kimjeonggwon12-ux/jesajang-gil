@@ -16,7 +16,7 @@ export default function ExcusedSelfCard(){
  if(!d.eligible)return <p className="exs-empty">{d.reason||'공무 보고 대상이 아니에요.'}</p>;
  const act=(kind:string,date:string,cancel:boolean)=>{setBusy(kind+date);void task.run(async()=>{if(cancel){await request('cancelMyExcused',{kind,date});task.setNotice('공무 신고를 취소했어요');}else{const r=await request<{label:string}>('submitMyExcused',{kind,date,reason:reason.trim()});task.setNotice(r.label+' 공무로 신고했어요');setReason('');}q.reload();}).finally(()=>setBusy(''));};
  return <section className="exs-card" aria-label="공무 보고"><strong>📋 {d.title}</strong><small>{d.name} · {exsGroupText(d)} — 누르면 소속까지 자동으로 기록돼요</small>
-  <input aria-label="공무 사유(선택)" maxLength={200} placeholder="사유(선택) — 비워 두면 '공무'" value={reason} onChange={e=>setReason(e.target.value)}/>
+  <input aria-label="사유 기록" maxLength={200} placeholder="사유 기록" value={reason} onChange={e=>setReason(e.target.value)}/>
   {(d.kinds||[]).map(k=><div className="exs-k" key={k.kind}><b className="exs-kt">{k.title}</b>{k.dates.map(x=><div className="exs-row" key={x.date}><b>{x.label}</b><span className={x.mine?'on':''}>{exsLine(x)}</span>{x.mine?<button className="secondary" disabled={task.busy} onClick={()=>act(k.kind,x.date,true)}>취소</button>:<button className="primary" disabled={task.busy} onClick={()=>act(k.kind,x.date,false)}>{busy===k.kind+x.date?'신고하는 중…':'공무로 신고'}</button>}</div>)}</div>)}
   <ErrorNote message={task.error}/>{task.notice?<p role="status">{task.notice}</p>:null}</section>;
 }

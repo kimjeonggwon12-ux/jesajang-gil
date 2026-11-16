@@ -8744,7 +8744,7 @@
       return '<div class="ex-self-card">'
         + '<div class="ex-self-t">📋 ' + esc(d.title) + '</div>'
         + '<div class="ex-self-sub">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
-        + '<input id="exsReason" maxlength="200" placeholder="사유(선택) — 비워 두면 \'공무\'" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value">'
+        + '<input id="exsReason" maxlength="200" placeholder="사유 기록" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value">'
         + sections + '</div>';
     }
     window.exsState = exsState;
