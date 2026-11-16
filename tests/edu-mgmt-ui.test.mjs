@@ -8,7 +8,7 @@ import * as BX from '../next-app/lib/edu-excused-self.ts';
 
 const html = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
 const block = html.slice(html.indexOf('/* EM-VIEW-START */'), html.indexOf('/* EM-VIEW-END */'));
-const A = vm.runInNewContext(block + ';({EM_HEAD,EM_STATUS,EM_ACTION,EM_SOURCE,EM_THEME,exlPlaceText,exlSourceText,exlStatusText,exlCountsText,emCells,emPeopleGroups,emPersonText,emItemHead,emSessionsText,emDraft,emChanges,emChangeProblem,emHistoryText})');
+const A = vm.runInNewContext(block + ';({EM_HEAD,EM_STATUS,EM_ACTION,EM_SOURCE,EM_THEME,EXL_GROUPS,exlGroups,emNextDate,exlPlaceText,exlSourceText,exlStatusText,exlCountsText,emCells,emPeopleGroups,emPersonText,emItemHead,emSessionsText,emDraft,emChanges,emChangeProblem,emHistoryText})');
 const same = (a, b, msg) => assert.deepEqual(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b)), msg);
 
 const row = { key: '24부서', label: '24부서', n: 5, came: 3, onTime: 2, late: 1, excused: 1, absent: 1, rate: '60.0%' };
@@ -96,13 +96,13 @@ test('A·B 공무 본인 신고 카드 문구와 사람 표시(본인 신고 사
   const AX = vm.runInNewContext(xb + ';({exsGroupText,exsLine})');
   for (const d of [{ group: '장년회', region: '03지역' }, { group: '교역자', region: '' }]) assert.equal(AX.exsGroupText(d), BX.exsGroupText(d));
   for (const x of [{ date: 'd', label: 'l' }, { date: 'd', label: 'l', mine: { reason: '공무' } }, { date: 'd', label: 'l', mine: { reason: '병원' } }]) assert.equal(AX.exsLine(x), BX.exsLine(x));
-  assert.equal(BX.exsLine({ date: 'd', label: 'l', mine: { reason: '병원' } }), '✅ 공무 신고됨 · 병원');
+  assert.equal(BX.exsLine({ date: 'd', label: 'l', mine: { reason: '병원' } }), '✅ 공무 결석 신고됨 · 병원');
   const p = { memberId: '7', name: '가짜칠', sub: '3지역', position: '', status: '공무', sessions: [], lateMin: [], selfReason: '병원' };
   assert.equal(A.emPersonText(p), B.emPersonText(p)); assert.equal(B.emPersonText(p), '가짜칠 · 3지역 · 본인 신고: 병원');
-  assert.match(html, /const ACT_PAGES = \[\['targets', '내 활동 보고'\], \['rooms', '피드백방'\], \['attend', '출석'\]\];/, 'A: 내 활동 보고 · 피드백방 · 출석');
+  assert.match(html, /const ACT_PAGES = \[\['targets', '내 활동 보고'\], \['rooms', '피드백방'\], \['attend', '공무 결석 보고'\]\];/, 'A: 내 활동 보고 · 피드백방 · 공무 결석 보고');
   assert.match(html, /<div data-ap="attend">\$\{excusedSelfPageHtml\(\)\}<\/div>/);
   const hdr = readFileSync(new URL('../next-app/components/presentation/ClassroomHeader.tsx', import.meta.url), 'utf8');
-  assert.deepEqual([...hdr.matchAll(/>([^<>{}]+)<\/button>/g)].map((m) => m[1]), ['내 활동 보고', '피드백방', '출석'], 'B: 같은 순서');
+  assert.deepEqual([...hdr.matchAll(/>([^<>{}]+)<\/button>/g)].map((m) => m[1]), ['내 활동 보고', '피드백방', '공무 결석 보고'], 'B: 같은 순서');
   const act = readFileSync(new URL('../next-app/components/activities/Activities.tsx', import.meta.url), 'utf8');
   assert.match(act, /params\.get\('view'\)==='attend'\)return <section id="sec-activity"><ClassroomHeader attend\/><ExcusedSelfCard\/>/);
 });
@@ -117,7 +117,18 @@ test('A·B 공무자 관리 줄 문구와 두 교육 테마가 같다', () => {
   for (const r of rows) { assert.equal(A.exlPlaceText(r), B.exlPlaceText(r)); assert.equal(A.exlSourceText(r), B.exlSourceText(r)); assert.equal(A.exlStatusText(r), B.exlStatusText(r)); }
   const L = { counts: { total: 3, self: 1, admin: 1, list: 1, attended: 1 }, meeting: { title: 't', date: 'd' } };
   assert.equal(A.exlCountsText(L), B.exlCountsText(L)); assert.equal(A.exlCountsText({ ...L, meeting: null }), B.exlCountsText({ ...L, meeting: null }));
-  assert.match(html, /const tabs = \[\['week', '주간 출석 현황'\], \['list', '공무자 관리'\]\];/);
+  assert.match(html, /const tabs = \[\['list', '공무자 관리'\], \['week', '주간 출석 현황'\]\];/);
   const em = readFileSync(new URL('../next-app/components/education/EduMgmt.tsx', import.meta.url), 'utf8');
-  assert.match(em, /\[\['week','주간 출석 현황'\],\['list','공무자 관리'\]\]/);
+  assert.match(em, /\[\['list','공무자 관리'\],\['week','주간 출석 현황'\]\]/);
+});
+
+test('A·B 공무자 명단을 교자장부청·24부서로 같게 묶고, 가까운 교육 날짜를 같게 고른다', () => {
+  same(A.EXL_GROUPS, B.EXL_GROUPS);
+  assert.deepEqual(B.EXL_GROUPS.map((g) => g[1]), ['교', '자', '장', '부', '청', '24부서']);
+  const rows = ['장년회', '교역자', '24부서', '부녀회', '청년회', '장로·자문회', '장년회', '협력'].map((group, i) => ({ memberId: String(i), name: 'n' + i, group, place: '', source: '본인 신고', registeredBy: '', reason: '', attended: null }));
+  same(A.exlGroups(rows), B.exlGroups(rows));
+  assert.deepEqual(B.exlGroups(rows).map((g) => [g.key, g.rows.length]), [['교역자', 1], ['장로·자문회', 1], ['장년회', 2], ['부녀회', 1], ['청년회', 1], ['24부서', 1], ['기타', 1]]);
+  for (const today of ['2026-11-16', '2026-11-17', '2026-11-19', '2026-11-20', '2026-11-22'])
+    for (const kind of ['화전단', '목사교']) assert.equal(A.emNextDate(kind, today), B.emNextDate(kind, today), kind + today);
+  assert.equal(B.emNextDate('화전단', '2026-11-18'), '2026-11-24'); assert.equal(B.emNextDate('목사교', '2026-11-19'), '2026-11-19');
 });

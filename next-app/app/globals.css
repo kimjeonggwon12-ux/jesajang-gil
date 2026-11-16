@@ -87,3 +87,6 @@
 .exs-k.tue{border-color:#FDBA74;background:#FFF8F1}.exs-k.tue .exs-kt{color:#C2410C}.exs-k.thu{border-color:#A9C4FA;background:#F5F8FF}.exs-k.thu .exs-kt{color:#1E40AF}
 .em-themes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}.em-theme{display:flex;align-items:center;justify-content:center;gap:6px;min-height:58px;border-radius:14px;font-size:1.05rem;font-weight:900;border:2px solid transparent;background:#f3f4f6;color:#6b7280}.em-theme span{font-size:1.4rem}
 .em-theme.tue.on{background:#FFF1E6;border-color:#F97316;color:#C2410C}.em-theme.thu.on{background:#EAF1FF;border-color:#2F6BEB;color:#1E40AF}.em-kcard.tue{border:2px solid #FDBA74;background:#FFFBF7}.em-kcard.thu{border:2px solid #A9C4FA;background:#F8FAFF}.em-src{color:#7c3aed}
+/* 2026-11-16(5차) 공무자 관리 교자장부청 묶음 */
+.em-grps{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.em-grps button{min-width:44px;height:36px;padding:0 12px;border-radius:18px;border:1px solid #cfd8d4;background:#fff;font-weight:800}.em-grps button b{color:#00875f;margin-left:2px}.em-grps button.on{background:#00AE82;border-color:#00AE82;color:#fff}.em-grps button.on b{color:#fff}
+.em-gh{margin-top:12px;padding:6px 10px;border-radius:8px;background:#eef3f1;font-weight:900}.em-gh b{color:#00875f;margin-left:4px}

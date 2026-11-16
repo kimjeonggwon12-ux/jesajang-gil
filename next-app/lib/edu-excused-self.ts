@@ -4,4 +4,4 @@ export type ExsDate={date:string;label:string;mine?:ExsMine|null};
 export type ExsKind={kind:string;title:string;dates:ExsDate[]};
 export type ExsData={enabled:boolean;eligible?:boolean;reason?:string;title?:string;group?:string;dept?:string;region?:string;name?:string;kinds?:ExsKind[]};
 export function exsGroupText(d:{group?:string;region?:string}){return (d.group||'')+(d.region?' · '+d.region:'');}
-export function exsLine(x:ExsDate){return x.mine?'✅ 공무 신고됨'+(x.mine.reason&&x.mine.reason!=='공무'?' · '+x.mine.reason:''):'아직 신고 안 함';}
+export function exsLine(x:ExsDate){return x.mine?'✅ 공무 결석 신고됨'+(x.mine.reason&&x.mine.reason!=='공무'?' · '+x.mine.reason:''):'아직 신고 안 함';}

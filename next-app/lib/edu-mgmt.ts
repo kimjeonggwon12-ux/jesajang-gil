@@ -53,3 +53,17 @@ export function exlPlaceText(r:{group:string;place:string}){return r.group+(r.pl
 export function exlSourceText(r:ExlRow){return r.source+(r.registeredBy?' ('+r.registeredBy+')':'');}
 export function exlStatusText(r:ExlRow){return (r.reason?'사유: '+r.reason:'사유 없음')+(r.attended===true?' · 그날 출석함(참석으로 셈)':r.attended===false?' · 미출석':'');}
 export function exlCountsText(L:ExlList){return '공무 '+L.counts.total+'명 · 본인 신고 '+L.counts.self+' · 관리자 등록 '+L.counts.admin+' · 도우미연결 '+L.counts.list+(L.meeting?' · 그날 출석 '+L.counts.attended+'명':'');}
+// 11/16(5차): 교자장부청 + 24부서 묶음, 가까운 교육 날짜(A EM-VIEW 블록과 같음)
+export const EXL_GROUPS:[string,string][]=[['교역자','교'],['장로·자문회','자'],['장년회','장'],['부녀회','부'],['청년회','청'],['24부서','24부서']];
+export function exlGroups(rows:ExlRow[]){
+ const known=EXL_GROUPS.map(g=>g[0]);
+ const out=EXL_GROUPS.map(([key,short])=>({key,short,rows:rows.filter(r=>r.group===key)}));
+ const etc=rows.filter(r=>known.indexOf(r.group)<0);
+ if(etc.length)out.push({key:'기타',short:'기타',rows:etc});
+ return out;
+}
+export function emNextDate(kind:string,today:string){
+ const want=kind==='화전단'?2:4;
+ for(let i=0;i<7;i++){const d=new Date(Date.parse(today+'T00:00:00Z')+i*864e5);if(d.getUTCDay()===want)return d.toISOString().slice(0,10);}
+ return today;
+}
