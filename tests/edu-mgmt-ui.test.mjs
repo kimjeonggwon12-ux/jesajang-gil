@@ -93,7 +93,9 @@ test('A 화면 쓰기 요청은 자동 재시도 대상(get/list/check/search)�
 
 test('A·B 공무 본인 신고 카드 문구와 사람 표시(본인 신고 사유)가 같다', () => {
   const xb = html.slice(html.indexOf('/* EXS-VIEW-START */'), html.indexOf('/* EXS-VIEW-END */'));
-  const AX = vm.runInNewContext(xb + ';({exsGroupText,exsLine})');
+  const AX = vm.runInNewContext(xb + ';({exsGroupText,exsLine,exsWindowText})');
+  for (const k of ['화전단', '목사교', '기타']) assert.equal(AX.exsWindowText(k), BX.exsWindowText(k));
+  assert.equal(BX.exsWindowText('화전단'), '⏰ 보고 가능시간 월 09:00 ~ 화 19:30'); assert.equal(BX.exsWindowText('목사교'), '⏰ 보고 가능시간 수 09:00 ~ 목 19:30');
   for (const d of [{ group: '장년회', region: '03지역' }, { group: '교역자', region: '' }]) assert.equal(AX.exsGroupText(d), BX.exsGroupText(d));
   for (const x of [{ date: 'd', label: 'l' }, { date: 'd', label: 'l', mine: { reason: '공무' } }, { date: 'd', label: 'l', mine: { reason: '병원' } }]) assert.equal(AX.exsLine(x), BX.exsLine(x));
   assert.equal(BX.exsLine({ date: 'd', label: 'l', mine: { reason: '병원' } }), '✅ 공무 결석 신고됨 · 병원');
