@@ -8718,7 +8718,7 @@
         + '<span style="font-size:22px">📮</span><div class="flex-1 min-w-0" style="font-size:14.5px;font-weight:700;color:#1E3A8A">' + parts + '</div><span style="font-size:13px;font-weight:700;color:#1D4ED8;white-space:nowrap">처리 ›</span></div></div>';
     }
     // 11/16(사용자): 공무 본인 신고 — 로그인돼 있으면 바로 누르기만 해도 소속(교육 재적의 부서·지역)까지 서버가 기록.
-    //   대상 = 목요 사명자 교육 재적의 교역자·장로/자문회·장년회·부녀회·청년회(24부서는 부서 공무 보고). 서버 = server/actions/edu-excused-self.js
+    //   대상 = 목요 사명자 교육 재적 전원(24부서 포함, 원장 제외 — 11/16 3차). 서버 = server/actions/edu-excused-self.js
     // 11/16(2차, 사용자): 나의교실 '내 활동 보고 · 피드백방' 옆 '출석' 칸으로 옮김, 제목 '화요 전도단 · 목요 사명자 교육 공무 보고', 두 교육 날짜·사유.
     /* EXS-VIEW-START */
     function exsGroupText(d) { return d.group + (d.region ? ' · ' + d.region : ''); }

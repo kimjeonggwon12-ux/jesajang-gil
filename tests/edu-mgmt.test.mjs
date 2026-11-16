@@ -144,10 +144,15 @@ test('본인 신고: 로그인한 장년회 사명자는 바로 눌러 신고되
   await as(n(6), () => self.cancelMyExcused({ kind: '목사교', date: nextThu() }));
   assert.equal(fake.rows.edu_excused_self[0].active, false);
 });
-test('본인 신고: 24부서·재적 밖·로그인 없음·지난 날짜·기능 꺼짐은 거절', async () => {
+test('본인 신고: 24부서 사명자도 같은 카드(소속 부서 기록), 원장·재적 밖·로그인 없음·지난 날짜·기능 꺼짐은 거절', async () => {
   fake.rows.edu_excused_self = [];
-  assert.equal((await as(n(1), () => self.getMyExcused({}))).eligible, false);
-  assert.match((await err(as(n(1), () => self.submitMyExcused({ date: nextThu() })))).message, /24부서/);
+  const m24 = await as(n(1), () => self.getMyExcused({}));
+  assert.equal(m24.eligible, true); assert.equal(m24.group, '24부서 가짜기획부');
+  await as(n(1), () => self.submitMyExcused({ kind: '목사교', date: nextThu() }));
+  assert.deepEqual(fake.rows.edu_excused_self.map((x) => [x.dept, x.region]), [['24부서', '가짜기획부']]);
+  fake.rows.edu_excused_self = [];
+  assert.equal((await as(n(9), () => self.getMyExcused({}))).eligible, false, '원장은 집계 제외라 카드 없음');
+  assert.match((await err(as(n(9), () => self.submitMyExcused({ kind: '목사교', date: nextThu() })))).message, /원장/);
   assert.match((await err(as(NOBODY, () => self.submitMyExcused({ date: nextThu() })))).message, /재적에 없어요/);
   assert.equal((await err(self.submitMyExcused({ date: nextThu() }))).status, 401);
   assert.match((await err(as(n(6), () => self.submitMyExcused({ date: '2026-01-01' })))).message, /다가오는/);
