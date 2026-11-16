@@ -20032,6 +20032,8 @@ async function calAdmInit() {
       for (let i = 0; i < 7; i++) { const d = new Date(Date.parse(today + 'T00:00:00Z') + i * 864e5); if (d.getUTCDay() === want) return d.toISOString().slice(0, 10); }
       return today;
     }
+    // 11/16(6차): 탭을 열면 더 가까운 교육부터(같은 날이면 목요 사명자 교육)
+    function emNextKind(today) { return emNextDate('화전단', today) < emNextDate('목사교', today) ? '화전단' : '목사교'; }
     /* EM-VIEW-END */
     const eduMgmt = (() => {
       const st = { lgrp: '', lkind: '목사교', ldate: '', list: null, q: '', hits: null, addReason: '', sure: '', access: null, on: false, view: 'list', week: null, detail: null, date: '', scope: null, drafts: {}, kind: '목사교', exDate: '', aff: '', confirm: null, heads: null, busy: false, msg: '', error: '' };
@@ -20075,7 +20077,7 @@ async function calAdmInit() {
         st.on = true; css();
         if (!st.access) { try { st.access = await call({ action: 'eduMgmtAccess' }); } catch (e) { st.access = null; } }
         if (!st.date) st.date = today(); if (!st.exDate) st.exDate = today();
-        if (!st.ldate) st.ldate = emNextDate(st.lkind, today());
+        if (!st.ldate) { st.lkind = emNextKind(today()); st.ldate = emNextDate(st.lkind, today()); }
         render(); if (st.view === 'week') loadWeek(); else if (st.view === 'list') loadList(); else if (st.view === 'excused' && st.scope) loadScope();
       }
       function pick(view) { st.view = view; st.msg = st.error = ''; st.confirm = null; render(); if (view === 'list') { if (!st.ldate) st.ldate = emNextDate(st.lkind, today()); loadList(); } if (view === 'week' && !st.week) loadWeek(); if (view === 'excused' && !st.scope) loadScope(); if (view === 'heads') loadHeads(); }

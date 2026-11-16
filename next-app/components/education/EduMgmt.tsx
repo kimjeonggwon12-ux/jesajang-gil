@@ -5,7 +5,7 @@ import {useMember} from '../MemberArea';
 import {useAttendanceTask} from '../attendance/useAttendanceTask';
 import {ErrorNote} from '../Ui';
 import {EM_HEAD,EM_SOURCE,emCells,emPeopleGroups,emPersonText,emItemHead,emSessionsText,emDraft,emChanges,emChangeProblem,emHistoryText,emToday,
- EM_THEME,exlPlaceText,exlSourceText,exlStatusText,exlCountsText,exlGroups,emNextDate,
+ EM_THEME,exlPlaceText,exlSourceText,exlStatusText,exlCountsText,exlGroups,emNextDate,emNextKind,
  type EmAccess,type EmWeek,type EmDetail,type EmScope,type EmDraft,type EmChange,type EmRow,type ExlList,type ExlHit} from '../../lib/edu-mgmt';
 
 function Table({rows,total,onPick}:{rows:EmRow[];total:EmRow;onPick?:(r:EmRow)=>void}){
@@ -95,7 +95,7 @@ function Heads(){
 }
 
 function ExcusedList(){
- const {request}=useMember(),task=useAttendanceTask(),[kind,setKind]=useState('목사교'),[date,setDate]=useState(()=>emNextDate('목사교',emToday())),[grp,setGrp]=useState(''),[list,setList]=useState<ExlList|null>(null),[q,setQ]=useState(''),[reason,setReason]=useState(''),[hits,setHits]=useState<ExlHit[]|null>(null),[sure,setSure]=useState('');
+ const {request}=useMember(),task=useAttendanceTask(),[kind,setKind]=useState(()=>emNextKind(emToday())),[date,setDate]=useState(()=>emNextDate(emNextKind(emToday()),emToday())),[grp,setGrp]=useState(''),[list,setList]=useState<ExlList|null>(null),[q,setQ]=useState(''),[reason,setReason]=useState(''),[hits,setHits]=useState<ExlHit[]|null>(null),[sure,setSure]=useState('');
  const load=(k=kind,d=date)=>task.run(async()=>{setSure('');const r=await request<ExlList>('getExcusedList',{kind:k,date:d});if(task.active())setList(r);});
  // eslint-disable-next-line react-hooks/exhaustive-deps
  useEffect(()=>{void load();},[]);

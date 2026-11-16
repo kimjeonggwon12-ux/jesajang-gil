@@ -8,7 +8,7 @@ import * as BX from '../next-app/lib/edu-excused-self.ts';
 
 const html = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
 const block = html.slice(html.indexOf('/* EM-VIEW-START */'), html.indexOf('/* EM-VIEW-END */'));
-const A = vm.runInNewContext(block + ';({EM_HEAD,EM_STATUS,EM_ACTION,EM_SOURCE,EM_THEME,EXL_GROUPS,exlGroups,emNextDate,exlPlaceText,exlSourceText,exlStatusText,exlCountsText,emCells,emPeopleGroups,emPersonText,emItemHead,emSessionsText,emDraft,emChanges,emChangeProblem,emHistoryText})');
+const A = vm.runInNewContext(block + ';({EM_HEAD,EM_STATUS,EM_ACTION,EM_SOURCE,EM_THEME,EXL_GROUPS,exlGroups,emNextDate,emNextKind,exlPlaceText,exlSourceText,exlStatusText,exlCountsText,emCells,emPeopleGroups,emPersonText,emItemHead,emSessionsText,emDraft,emChanges,emChangeProblem,emHistoryText})');
 const same = (a, b, msg) => assert.deepEqual(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b)), msg);
 
 const row = { key: '24부서', label: '24부서', n: 5, came: 3, onTime: 2, late: 1, excused: 1, absent: 1, rate: '60.0%' };
@@ -131,4 +131,6 @@ test('A·B 공무자 명단을 교자장부청·24부서로 같게 묶고, 가�
   for (const today of ['2026-11-16', '2026-11-17', '2026-11-19', '2026-11-20', '2026-11-22'])
     for (const kind of ['화전단', '목사교']) assert.equal(A.emNextDate(kind, today), B.emNextDate(kind, today), kind + today);
   assert.equal(B.emNextDate('화전단', '2026-11-18'), '2026-11-24'); assert.equal(B.emNextDate('목사교', '2026-11-19'), '2026-11-19');
+  for (const today of ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-22']) assert.equal(A.emNextKind(today), B.emNextKind(today), today);
+  assert.deepEqual(['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-20'].map(B.emNextKind), ['화전단', '화전단', '목사교', '화전단']);
 });

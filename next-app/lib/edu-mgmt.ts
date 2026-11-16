@@ -62,6 +62,8 @@ export function exlGroups(rows:ExlRow[]){
  if(etc.length)out.push({key:'기타',short:'기타',rows:etc});
  return out;
 }
+// 11/16(6차): 탭을 열면 더 가까운 교육부터(같은 날이면 목요 사명자 교육)
+export function emNextKind(today:string){return emNextDate('화전단',today)<emNextDate('목사교',today)?'화전단':'목사교';}
 export function emNextDate(kind:string,today:string){
  const want=kind==='화전단'?2:4;
  for(let i=0;i<7;i++){const d=new Date(Date.parse(today+'T00:00:00Z')+i*864e5);if(d.getUTCDay()===want)return d.toISOString().slice(0,10);}
