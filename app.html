@@ -19171,9 +19171,23 @@ async function calAdmInit() {
     function exlSourceText(r) { return r.source + (r.registeredBy ? ' (' + r.registeredBy + ')' : ''); }
     function exlStatusText(r) { return (r.reason ? '사유: ' + r.reason : '사유 없음') + (r.attended === true ? ' · 그날 출석함(참석으로 셈)' : r.attended === false ? ' · 미출석' : ''); }
     function exlCountsText(L) { return '공무 ' + L.counts.total + '명 · 본인 신고 ' + L.counts.self + ' · 관리자 등록 ' + L.counts.admin + ' · 도우미연결 ' + L.counts.list + (L.meeting ? ' · 그날 출석 ' + L.counts.attended + '명' : ''); }
+    // 11/16(5차): 교자장부청(교역자·장로/자문회·장년회·부녀회·청년회) + 24부서로 묶어 보기, 탭을 열면 가까운 교육 날짜로 바로
+    const EXL_GROUPS = [['교역자', '교'], ['장로·자문회', '자'], ['장년회', '장'], ['부녀회', '부'], ['청년회', '청'], ['24부서', '24부서']];
+    function exlGroups(rows) {
+      const known = EXL_GROUPS.map(g => g[0]);
+      const out = EXL_GROUPS.map(([key, short]) => ({ key, short, rows: rows.filter(r => r.group === key) }));
+      const etc = rows.filter(r => known.indexOf(r.group) < 0);
+      if (etc.length) out.push({ key: '기타', short: '기타', rows: etc });
+      return out;
+    }
+    function emNextDate(kind, today) {
+      const want = kind === '화전단' ? 2 : 4;
+      for (let i = 0; i < 7; i++) { const d = new Date(Date.parse(today + 'T00:00:00Z') + i * 864e5); if (d.getUTCDay() === want) return d.toISOString().slice(0, 10); }
+      return today;
+    }
     /* EM-VIEW-END */
     const eduMgmt = (() => {
-      const st = { lkind: '목사교', ldate: '', list: null, q: '', hits: null, addReason: '', sure: '', access: null, on: false, view: 'week', week: null, detail: null, date: '', scope: null, drafts: {}, kind: '목사교', exDate: '', aff: '', confirm: null, heads: null, busy: false, msg: '', error: '' };
+      const st = { lgrp: '', lkind: '목사교', ldate: '', list: null, q: '', hits: null, addReason: '', sure: '', access: null, on: false, view: 'list', week: null, detail: null, date: '', scope: null, drafts: {}, kind: '목사교', exDate: '', aff: '', confirm: null, heads: null, busy: false, msg: '', error: '' };
       const call = payload => callApi({ ...payload, memberId: App.memberId, name: App.name });
       const today = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
       const root = () => document.getElementById('eduMgmtRoot');
@@ -19191,6 +19205,8 @@ async function calAdmInit() {
           .em-tbl th:first-child,.em-tbl td:first-child{text-align:left}.em-tbl tr.sum td{font-weight:800;background:#f6faf8}.em-tbl button{border:0;background:none;color:#00875f;font-weight:700;text-decoration:underline;padding:0}
           .em-scroll{overflow-x:auto}.em-p{border-top:1px solid #eef1f0;padding:8px 0}.em-p .em-name{font-weight:800}.em-p .em-two{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
           .em-p .em-two input,.em-p textarea{width:100%}.em-hist{font-size:12px;color:#5b6661;border-top:1px dashed #e3e8e6;padding:4px 0}
+          .em-grps{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.em-grps button{min-width:44px;height:36px;padding:0 12px;border-radius:18px;border:1px solid #cfd8d4;background:#fff;font-weight:800;font-size:15px}.em-grps button b{color:#00875f;margin-left:2px}
+          .em-grps button.on{background:#00AE82;border-color:#00AE82;color:#fff}.em-grps button.on b{color:#fff}.em-gh{margin-top:12px;padding:6px 10px;border-radius:8px;background:#eef3f1;font-weight:900;font-size:15px}.em-gh b{color:#00875f;margin-left:4px}
           .em-themes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 8px}.em-theme{display:flex;align-items:center;justify-content:center;gap:6px;min-height:58px;border-radius:14px;font-size:17px;font-weight:900;border:2px solid transparent;background:#f3f4f6;color:#6b7280}
           .em-theme span{font-size:22px}.em-theme.tue.on{background:#FFF1E6;border-color:#F97316;color:#C2410C}.em-theme.thu.on{background:#EAF1FF;border-color:#2F6BEB;color:#1E40AF}
           .em-kcard.tue{border:2px solid #FDBA74;background:#FFFBF7}.em-kcard.thu{border:2px solid #A9C4FA;background:#F8FAFF}.em-kcard h4{font-size:18px}.em-src{color:#7c3aed}
@@ -19212,9 +19228,10 @@ async function calAdmInit() {
         st.on = true; css();
         if (!st.access) { try { st.access = await call({ action: 'eduMgmtAccess' }); } catch (e) { st.access = null; } }
         if (!st.date) st.date = today(); if (!st.exDate) st.exDate = today();
-        render(); if (st.view === 'week') loadWeek(); else if (st.view === 'excused' && st.scope) loadScope();
+        if (!st.ldate) st.ldate = emNextDate(st.lkind, today());
+        render(); if (st.view === 'week') loadWeek(); else if (st.view === 'list') loadList(); else if (st.view === 'excused' && st.scope) loadScope();
       }
-      function pick(view) { st.view = view; st.msg = st.error = ''; st.confirm = null; render(); if (view === 'list') { if (!st.ldate) st.ldate = today(); loadList(); } if (view === 'week' && !st.week) loadWeek(); if (view === 'excused' && !st.scope) loadScope(); if (view === 'heads') loadHeads(); }
+      function pick(view) { st.view = view; st.msg = st.error = ''; st.confirm = null; render(); if (view === 'list') { if (!st.ldate) st.ldate = emNextDate(st.lkind, today()); loadList(); } if (view === 'week' && !st.week) loadWeek(); if (view === 'excused' && !st.scope) loadScope(); if (view === 'heads') loadHeads(); }
       async function busy(fn) { st.busy = true; st.msg = st.error = ''; render(); try { await fn(); } catch (e) { st.error = e.message || '서버에 연결하지 못했어요.'; } st.busy = false; render(); }
       const need = res => { if (!res || res.error) throw new Error((res && res.error) || '서버에 연결하지 못했어요.'); return res; };
       function loadWeek() { st.detail = null; return busy(async () => { st.week = need(await call({ action: 'getEduWeekly', date: st.date })); }); }
@@ -19338,9 +19355,14 @@ async function calAdmInit() {
           <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.loadList()">조회</button></div>
           <p class="em-note">본인 신고 · 관리자 대신 등록 · 도우미연결 명단을 함께 보여요. 그날 실제로 출석한 분은 공무가 아니라 참석으로 셉니다.</p>`;
         if (!L) return head;
-        const rows = L.rows.length ? L.rows.map(r => `<div class="em-p"><span class="em-name">${esc(r.name)}</span> <small>${esc(exlPlaceText(r))}</small> <small class="em-src">${esc(exlSourceText(r))}</small>
+        const groups = exlGroups(L.rows);
+        const chips = `<div class="em-grps"><button type="button" class="${st.lgrp ? '' : 'on'}" onclick="eduMgmt.setLGrp('')">전체 <b>${L.rows.length}</b></button>`
+          + groups.map(g => `<button type="button" class="${st.lgrp === g.key ? 'on' : ''}" onclick="eduMgmt.setLGrp('${g.key}')">${g.short} <b>${g.rows.length}</b></button>`).join('') + '</div>';
+        const one = r => `<div class="em-p"><span class="em-name">${esc(r.name)}</span> <small>${esc(exlPlaceText(r))}</small> <small class="em-src">${esc(exlSourceText(r))}</small>
             <div class="em-note">${esc(exlStatusText(r))}</div>
-            <button type="button" class="ra-btn warn" style="height:30px;font-size:12px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.cancelOne('${esc(r.memberId)}')">${st.sure === r.memberId ? '한 번 더 누르면 해제' : '공무 해제'}</button></div>`).join('')
+            <button type="button" class="ra-btn warn" style="height:30px;font-size:12px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.cancelOne('${esc(r.memberId)}')">${st.sure === r.memberId ? '한 번 더 누르면 해제' : '공무 해제'}</button></div>`;
+        const shown = groups.filter(g => g.rows.length && (!st.lgrp || st.lgrp === g.key));
+        const rows = L.rows.length ? chips + (shown.length ? shown.map(g => `<div class="em-gh">${esc(g.key)} <b>${g.rows.length}명</b></div>` + g.rows.map(one).join('')).join('') : '<p class="em-note">이 조직에는 공무자가 없어요.</p>')
           : '<p class="em-note">이 날짜에 공무자가 없어요.</p>';
         const hits = st.hits ? (st.hits.length ? st.hits.map(h => `<div class="em-p"><b>${esc(h.name)}</b> <small>${esc(exlPlaceText(h))} ${esc(h.position)}</small>
             <button type="button" class="ra-btn line" style="height:30px;font-size:12px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.addOne('${esc(h.memberId)}')">공무로 등록</button></div>`).join('') : '<p class="em-note">찾는 이름이 재적에 없어요.</p>') : '';
@@ -19352,13 +19374,14 @@ async function calAdmInit() {
       function render() {
         const r = root(); if (!r || !st.on) return;
         const a = st.access || {};
-        const tabs = [['week', '주간 출석 현황'], ['list', '공무자 관리']];   // 11/16(4차): 본인 신고로 바뀌어 부서별 사전보고·부서장 지정 대신 관리 화면
+        const tabs = [['list', '공무자 관리'], ['week', '주간 출석 현황']];   // 11/16(5차): 공무자 관리가 먼저   // 11/16(4차): 본인 신고로 바뀌어 부서별 사전보고·부서장 지정 대신 관리 화면
         r.innerHTML = `<div class="em-wrap"><div class="em-tabs">${tabs.map(([k, l]) => `<button type="button" class="${st.view === k ? 'on' : ''}" onclick="eduMgmt.pick('${k}')">${l}</button>`).join('')}</div>
           ${st.busy ? '<p class="em-note">처리하는 중…</p>' : ''}${st.msg ? `<p class="em-note em-ok">${esc(st.msg)}</p>` : ''}${st.error ? `<p class="em-note em-bad">${esc(st.error)}</p>` : ''}
           ${st.view === 'week' ? weekHtml() : listHtml()}</div>`;
       }
       return { probe, mount, pick, loadWeek, openDetail, download, loadScope, edit, review, save, saveFollow, setHead, loadList, findPeople, addOne, cancelOne,
-        setLKind(v) { st.lkind = v; st.hits = null; loadList(); },
+        setLKind(v) { st.lkind = v; st.hits = null; st.ldate = emNextDate(v, today()); loadList(); },
+        setLGrp(v) { st.lgrp = v; render(); },
         setLDate(v) { st.ldate = v; loadList(); },
         cancelConfirm() { st.confirm = null; render(); },
         setDate(v) { st.date = v; st.week = null; st.detail = null; render(); },
