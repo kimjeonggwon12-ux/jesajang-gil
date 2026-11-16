@@ -64,7 +64,7 @@ export async function submitMyExcused(body = {}) {
   if (!KINDS[kind]) fail('교육을 골라 주세요.');
   if (!validDate(date) || !(await nextDates(kind)).includes(date)) fail('다가오는 교육 날짜만 신고할 수 있어요.');
   if (reason.length > 200) fail('사유는 200자 이내로 적어 주세요.');
-  const row = { kind, date, nid: m.nid, name: m.p.name, dept: m.p.dept, region: m.p.dept === '24부서' ? (m.p.affiliation || '') : (m.p.region || ''), reason, active: true, updated_at: new Date().toISOString() };
+  const row = { kind, date, nid: m.nid, name: m.p.name, dept: m.p.dept, region: m.p.dept === '24부서' ? (m.p.affiliation || '') : (m.p.region || ''), reason, active: true, registered_by: '', canceled_by: '', updated_at: new Date().toISOString() };
   await run(db().from('edu_excused_self').upsert(row, { onConflict: 'kind,date,nid' }));
   return { ok: true, label: KINDS[kind].title + ' ' + dayLabel(date), dept: m.p.dept, region: m.p.region || '' };
 }
@@ -73,7 +73,7 @@ export async function cancelMyExcused(body = {}) {
   if (!on()) fail('교육보고 기능이 아직 꺼져 있어요.');
   const m = await me(body), kind = String(body.kind || '목사교'), date = String(body.date || '');
   if (!KINDS[kind] || !validDate(date)) fail('교육과 날짜를 확인해 주세요.');
-  await run(db().from('edu_excused_self').update({ active: false, updated_at: new Date().toISOString() }).eq('kind', kind).eq('date', date).eq('nid', m.nid));
+  await run(db().from('edu_excused_self').update({ active: false, canceled_by: '본인', updated_at: new Date().toISOString() }).eq('kind', kind).eq('date', date).eq('nid', m.nid));
   return { ok: true };
 }
 
