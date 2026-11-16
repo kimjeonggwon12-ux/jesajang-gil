@@ -2572,6 +2572,16 @@
     /* 나의 교실: 머리줄 아래 2단계 탭(내 현황·전도 대상자·활동 기록) — 고른 쪽만 보임 */
     #sec-activity .act-appbar { border-bottom:none; }
     #actTabs { position:sticky; top:56px; z-index:19; padding:6px 16px 12px; background:#fff; border-bottom:1px solid #EDEDED; }
+    /* 11/16 나의교실 '출석' 칸 — 화요 전도단·목요 사명자 교육 공무 보고 */
+    .ex-self-card { margin:14px; border-radius:16px; padding:16px; background:#EEF6FF; border:1px solid #CFE3FB; }
+    .ex-self-t { font-size:16px; font-weight:800; color:#1E3A8A; } .ex-self-sub { font-size:12.5px; color:#475569; margin-top:2px; }
+    .ex-self-card input { margin-top:10px; width:100%; height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; font-size:14px; background:#fff; }
+    .ex-self-k { margin-top:12px; padding-top:10px; border-top:1px dashed #c7d8f0; } .ex-self-kt { font-size:14px; font-weight:800; color:#1E40AF; }
+    .ex-self-row { display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; } .ex-self-row b { min-width:76px; }
+    .ex-self-row span { flex:1; min-width:120px; font-size:13.5px; color:#6b7280; } .ex-self-row span.on { color:#00875f; }
+    .ex-self-btn { height:36px; padding:0 14px; border-radius:10px; border:1px solid #2F6BEB; background:#2F6BEB; color:#fff; font-weight:700; font-size:14px; }
+    .ex-self-btn.line { background:#fff; color:#2F6BEB; } .ex-self-btn:disabled { opacity:.5; }
+    .ex-self-empty { margin:14px; padding:24px 16px; text-align:center; color:#64748b; background:#f8fafc; border-radius:14px; font-size:14px; }
     .act-pages[data-act-page="attend"] > [data-ap]:not([data-ap="attend"]),
     .act-pages[data-act-page="targets"] > [data-ap]:not([data-ap="targets"]),
     .act-pages[data-act-page="edu"] > [data-ap]:not([data-ap="edu"]),
@@ -8709,44 +8719,46 @@
     }
     // 11/16(사용자): 공무 본인 신고 — 로그인돼 있으면 바로 누르기만 해도 소속(교육 재적의 부서·지역)까지 서버가 기록.
     //   대상 = 목요 사명자 교육 재적의 교역자·장로/자문회·장년회·부녀회·청년회(24부서는 부서 공무 보고). 서버 = server/actions/edu-excused-self.js
+    // 11/16(2차, 사용자): 나의교실 '내 활동 보고 · 피드백방' 옆 '출석' 칸으로 옮김, 제목 '화요 전도단 · 목요 사명자 교육 공무 보고', 두 교육 날짜·사유.
     /* EXS-VIEW-START */
     function exsGroupText(d) { return d.group + (d.region ? ' · ' + d.region : ''); }
     function exsLine(x) { return x.mine ? '✅ 공무 신고됨' + (x.mine.reason && x.mine.reason !== '공무' ? ' · ' + x.mine.reason : '') : '아직 신고 안 함'; }
     /* EXS-VIEW-END */
-    const exsState = { at: 0, v: null, busy: '', reason: '' };
+    const exsState = { at: 0, v: null, busy: '', reason: '', loaded: false };
     function exsLoad(force) {
       if (!force && exsState.at && Date.now() - exsState.at < 60000) return;
       exsState.at = Date.now();
-      callApi({ action: 'getMyExcused', memberId }).then(r => { const had = JSON.stringify(exsState.v); exsState.v = r && !r.error ? r : null; if (had !== JSON.stringify(exsState.v)) renderHome(); }).catch(() => {});
+      callApi({ action: 'getMyExcused', memberId }).then(r => { const had = JSON.stringify(exsState.v); exsState.v = r && !r.error ? r : null; exsState.loaded = true; if (had !== JSON.stringify(exsState.v) || !had) renderHome(); }).catch(() => { exsState.loaded = true; renderHome(); });
     }
-    function excusedSelfBannerHtml() {
+    function excusedSelfPageHtml() {
       exsLoad(false);
-      const d = exsState.v; if (!d || !d.enabled || !d.eligible) return '';
-      const rows = d.dates.map(x => '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">'
-        + '<b style="min-width:76px">' + esc(x.label) + '</b><span style="flex:1;min-width:120px;font-size:13.5px;color:' + (x.mine ? '#00875f' : '#6b7280') + '">' + esc(exsLine(x)) + '</span>'
-        + (x.mine
-          ? '<button type="button" class="ex-self-btn line" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsCancel(\'' + x.date + '\')">취소</button>'
-          : '<button type="button" class="ex-self-btn" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsSubmit(\'' + x.date + '\')">' + (exsState.busy === x.date ? '신고하는 중…' : '공무로 신고') + '</button>')
-        + '</div>').join('');
-      return '<div style="padding:14px var(--dg-pad) 0"><div style="border-radius:var(--dg-radius-md);padding:14px 16px;background:#EEF6FF;border:1px solid #CFE3FB">'
-        + '<style>.ex-self-btn{height:36px;padding:0 14px;border-radius:10px;border:1px solid #2F6BEB;background:#2F6BEB;color:#fff;font-weight:700;font-size:14px}.ex-self-btn.line{background:#fff;color:#2F6BEB}.ex-self-btn:disabled{opacity:.5}</style>'
-        + '<div style="font-size:15px;font-weight:800;color:#1E3A8A">📋 ' + esc(d.title) + ' 공무 신고</div>'
-        + '<div style="font-size:12.5px;color:#475569;margin-top:2px">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
-        + '<input id="exsReason" maxlength="200" placeholder="사유(선택) — 비워 두면 \'공무\'" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value" style="margin-top:8px;width:100%;height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:0 10px;font-size:14px">'
-        + rows + '</div></div>';
+      const d = exsState.v;
+      if (!exsState.loaded) return '<div class="text-center py-10 text-sm" style="color:#94a3b8">불러오는 중…</div>';
+      if (!d || !d.enabled) return '<div class="ex-self-empty">공무 보고는 아직 준비 중이에요.</div>';
+      if (!d.eligible) return '<div class="ex-self-empty">' + esc(d.reason || '공무 보고 대상이 아니에요.') + '</div>';
+      const btn = (kind, x) => x.mine
+        ? '<button type="button" class="ex-self-btn line" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsCancel(\'' + kind + '\',\'' + x.date + '\')">취소</button>'
+        : '<button type="button" class="ex-self-btn" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsSubmit(\'' + kind + '\',\'' + x.date + '\')">' + (exsState.busy === kind + x.date ? '신고하는 중…' : '공무로 신고') + '</button>';
+      const sections = d.kinds.map(k => '<div class="ex-self-k"><div class="ex-self-kt">' + esc(k.title) + '</div>'
+        + k.dates.map(x => '<div class="ex-self-row"><b>' + esc(x.label) + '</b><span class="' + (x.mine ? 'on' : '') + '">' + esc(exsLine(x)) + '</span>' + btn(k.kind, x) + '</div>').join('') + '</div>').join('');
+      return '<div class="ex-self-card">'
+        + '<div class="ex-self-t">📋 ' + esc(d.title) + '</div>'
+        + '<div class="ex-self-sub">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
+        + '<input id="exsReason" maxlength="200" placeholder="사유(선택) — 비워 두면 \'공무\'" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value">'
+        + sections + '</div>';
     }
     window.exsState = exsState;
-    window.exsSubmit = async function (date) {
-      if (exsState.busy) return; exsState.busy = date; renderHome();
+    window.exsSubmit = async function (kind, date) {
+      if (exsState.busy) return; exsState.busy = kind + date; renderHome();
       try {
-        const r = await callApi({ action: 'submitMyExcused', memberId, date, reason: exsState.reason.trim() });
+        const r = await callApi({ action: 'submitMyExcused', memberId, kind, date, reason: exsState.reason.trim() });
         if (!r || r.error) toast((r && r.error) || '신고하지 못했어요', true); else { toast(r.label + ' 공무로 신고했어요'); exsState.reason = ''; }
       } catch (e) { toast('신고하지 못했어요', true); }
       exsState.busy = ''; exsLoad(true);
     };
-    window.exsCancel = async function (date) {
-      if (exsState.busy) return; exsState.busy = date; renderHome();
-      try { const r = await callApi({ action: 'cancelMyExcused', memberId, date }); if (!r || r.error) toast((r && r.error) || '취소하지 못했어요', true); else toast('공무 신고를 취소했어요'); } catch (e) { toast('취소하지 못했어요', true); }
+    window.exsCancel = async function (kind, date) {
+      if (exsState.busy) return; exsState.busy = kind + date; renderHome();
+      try { const r = await callApi({ action: 'cancelMyExcused', memberId, kind, date }); if (!r || r.error) toast((r && r.error) || '취소하지 못했어요', true); else toast('공무 신고를 취소했어요'); } catch (e) { toast('취소하지 못했어요', true); }
       exsState.busy = ''; exsLoad(true);
     };
     function encouragementBannerHtml() {
@@ -8860,10 +8872,10 @@
       return `
         <div class="pb-6 act-pages" data-act-page="${actPage}">
           <div data-ap="rooms" id="actRoomsBody" style="padding:12px 14px">${window.trListHtml ? trListHtml() : ''}</div>
+          <div data-ap="attend">${excusedSelfPageHtml()}</div>
           <div data-ap="targets">
             ${tierProgressBannerHtml()}
             ${centerBadgeBannerHtml()}
-            ${excusedSelfBannerHtml()}
             ${encouragementBannerHtml()}
             ${coachReplyBannerHtml()}
             ${erPageHtml()}
@@ -9539,7 +9551,7 @@
     // 10/27(사용자): '내가 이수한 교육' 탭 없앰, '내 활동 보고'가 맨 앞(메인 중 메인)·'내 교육 출석'은 그 오른쪽
     // 11/6(사용자): 피드백방 = 나의교실, 내 활동 보고 오른쪽·내 교육 출석 왼쪽
     // 11/10(사용자): '내 교육 출석' 탭 삭제 — 필요하면 나중에 다시(attCardHtml·attLoadMy 함수는 남겨 둠, QR 카메라 출석 #attend= 는 그대로)
-    const ACT_PAGES = [['targets', '내 활동 보고'], ['rooms', '피드백방']];
+    const ACT_PAGES = [['targets', '내 활동 보고'], ['rooms', '피드백방'], ['attend', '출석']];   // 11/16 출석 = 화요 전도단·목요 사명자 교육 공무 보고
     // 이수 내역은 로그인 권한을 확인한 서버 응답으로 표시한다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
@@ -9562,6 +9574,7 @@
     window.actSetPage = function (k) {
       actPage = k;
       if (k === 'rooms' && window.trListLoad) trListLoad();
+      if (k === 'attend') exsLoad(true);
       if (home.view === 'targetDetail') home.view = 'dashboard';
       renderHome();
       document.getElementById('appSections').scrollTop = 0;

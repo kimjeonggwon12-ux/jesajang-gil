@@ -131,14 +131,17 @@ test('본인 신고: 로그인한 장년회 사명자는 바로 눌러 신고되
   fake.rows.attend_series[0].weekdays = [4];
   const me = await as(n(6), () => self.getMyExcused({}));
   assert.equal(me.eligible, true); assert.equal(me.group, '장년회'); assert.equal(me.region, '03지역');
-  assert.equal(me.dates.length, 2); assert.equal(me.dates[0].date, nextThu()); assert.equal(me.dates[0].mine, undefined);
-  const r = await as(n(6), () => self.submitMyExcused({ date: nextThu() }));
+  assert.deepEqual(me.kinds.map((k) => [k.kind, k.title, k.dates.length]), [['화전단', '화요 전도단', 2], ['목사교', '목요 사명자 교육', 2]]);
+  const thu = me.kinds[1].dates; assert.equal(thu[0].date, nextThu()); assert.equal(thu[0].mine, undefined);
+  assert.ok(me.kinds[0].dates.every((x) => new Date(x.date + 'T00:00:00Z').getUTCDay() === 2), '화요전도단 = 화요일');
+  const r = await as(n(6), () => self.submitMyExcused({ kind: '목사교', date: nextThu() }));
+  assert.match((await err(as(n(6), () => self.submitMyExcused({ kind: '화전단', date: nextThu() })))).message, /다가오는/, '화요전도단에 목요일 날짜는 거절');
   assert.equal(r.ok, true);
   assert.deepEqual(fake.rows.edu_excused_self.map((x) => [x.nid, x.dept, x.region, x.reason, x.active]), [[n(6), '장년회', '03지역', '공무', true]], '사유를 비우면 공무, 소속은 서버가 채움');
-  await as(n(6), () => self.submitMyExcused({ date: nextThu(), reason: '가짜 출장', memberId: n(7) }));
+  await as(n(6), () => self.submitMyExcused({ kind: '목사교', date: nextThu(), reason: '가짜 출장', memberId: n(7) }));
   assert.equal(fake.rows.edu_excused_self.length, 1, '본문의 다른 번호는 무시하고 본인 것만 고친다');
   assert.equal(fake.rows.edu_excused_self[0].reason, '가짜 출장');
-  await as(n(6), () => self.cancelMyExcused({ date: nextThu() }));
+  await as(n(6), () => self.cancelMyExcused({ kind: '목사교', date: nextThu() }));
   assert.equal(fake.rows.edu_excused_self[0].active, false);
 });
 test('본인 신고: 24부서·재적 밖·로그인 없음·지난 날짜·기능 꺼짐은 거절', async () => {

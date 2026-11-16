@@ -99,7 +99,10 @@ test('A·B 공무 본인 신고 카드 문구와 사람 표시(본인 신고 사
   assert.equal(BX.exsLine({ date: 'd', label: 'l', mine: { reason: '병원' } }), '✅ 공무 신고됨 · 병원');
   const p = { memberId: '7', name: '가짜칠', sub: '3지역', position: '', status: '공무', sessions: [], lateMin: [], selfReason: '병원' };
   assert.equal(A.emPersonText(p), B.emPersonText(p)); assert.equal(B.emPersonText(p), '가짜칠 · 3지역 · 본인 신고: 병원');
-  assert.match(html, /\$\{excusedSelfBannerHtml\(\)\}/);
-  const att = readFileSync(new URL('../next-app/components/presentation/ClassicAttention.tsx', import.meta.url), 'utf8');
-  assert.match(att, /<ExcusedSelfCard\/>/);
+  assert.match(html, /const ACT_PAGES = \[\['targets', '내 활동 보고'\], \['rooms', '피드백방'\], \['attend', '출석'\]\];/, 'A: 내 활동 보고 · 피드백방 · 출석');
+  assert.match(html, /<div data-ap="attend">\$\{excusedSelfPageHtml\(\)\}<\/div>/);
+  const hdr = readFileSync(new URL('../next-app/components/presentation/ClassroomHeader.tsx', import.meta.url), 'utf8');
+  assert.deepEqual([...hdr.matchAll(/>([^<>{}]+)<\/button>/g)].map((m) => m[1]), ['내 활동 보고', '피드백방', '출석'], 'B: 같은 순서');
+  const act = readFileSync(new URL('../next-app/components/activities/Activities.tsx', import.meta.url), 'utf8');
+  assert.match(act, /params\.get\('view'\)==='attend'\)return <section id="sec-activity"><ClassroomHeader attend\/><ExcusedSelfCard\/>/);
 });

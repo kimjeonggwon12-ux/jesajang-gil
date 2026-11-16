@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import ClassroomHeader from '../presentation/ClassroomHeader';
+import ExcusedSelfCard from '../home/ExcusedSelfCard';
 import ClassicTierProgress from '../presentation/ClassicTierProgress';
 import ClassicPeople from '../presentation/ClassicPeople';
 import ClassicRoomPrompt from '../presentation/ClassicRoomPrompt';
@@ -37,6 +38,7 @@ export default function Activities(){
  useEffect(()=>{if(!requestedTarget||!targets.data)return;if(targets.data.rows.some(t=>t.targetId===requestedTarget))setTargetDetail(requestedTarget);else setNotice('현재 담당 범위에서 해당 대상자를 찾지 못했어요.');const rest=new URLSearchParams(params.toString());rest.delete('target');router.replace('/activities'+(rest.size?'?'+rest.toString():''),{scroll:false});},[requestedTarget,targets.data,params,router]);
  const people=activityPeople(summary.data?.overview,context.targets);
  const visiblePeople=people.filter(p=>(!filter||p.name.includes(filter))&&(!stage||p.stage===stage)),visibleTargets=context.targets.filter(t=>(!filter||t.targetName.includes(filter))&&(!stage||t.stage===stage)),peoplePages=Math.max(1,Math.ceil(visiblePeople.length/50)),current=Math.min(page,peoplePages),targetPages=Math.max(1,Math.ceil(visibleTargets.length/50)),targetPage=Math.min(page,targetPages),selected=context.targets.find(t=>t.targetId===targetDetail);
+ if(params.get('view')==='attend')return <section id="sec-activity"><ClassroomHeader attend/><ExcusedSelfCard/></section>;
  return <section id="sec-activity"><ClassroomHeader/>
   {notice?<p className="notice" role="status">{notice}</p>:null}
   <ErrorNote message={summary.error} retry={summary.reload}/><ErrorNote message={targets.error} retry={targets.reload}/><ErrorNote message={tier.error} retry={tier.reload}/>{summary.loading||targets.loading||tier.loading?<Loading/>:null}

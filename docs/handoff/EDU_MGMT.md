@@ -66,8 +66,10 @@
 ## 공무 본인 신고 (2026-11-16 사용자 지시, 운영 반영)
 
 - 이유: 부서 재적이 맞지 않고, 등록된 사람을 매번 바꿔 주기 어렵다. 그래서 교역자(교회·신학·협력), 장로·자문회, 장년회, 부녀회, 청년회는 본인이 직접 올린다(24부서는 부서 공무 보고 유지).
-- 로그인한 사람(우선 구현): 첫 화면 카드에서 다가오는 목요 사명자 교육 날짜 2개 중 하나를 골라 [공무로 신고]를 누른다. 사유는 선택(비우면 '공무'), 취소할 수 있다.
-  - A: `excusedSelfBannerHtml`. B: `ClassicAttention` 안 `ExcusedSelfCard`.
+- 위치(11/16 2차 지시): 나의 교실 '내 활동 보고 · 피드백방' 옆 **'출석'** 칸. 제목은 "화요 전도단 · 목요 사명자 교육 공무 보고"다.
+  - A: `ACT_PAGES` attend / `excusedSelfPageHtml`. B: `/activities?view=attend`(`ClassroomHeader` 세 번째 칸). B의 `/attendance`(내 출석 기록)는 그대로 둔다.
+- 교육별로 다가오는 날짜 2개(화요전도단 = 화요일, 목요 사명자 교육 = 정기 교육 요일) 옆 [공무로 신고]를 누른다. 사유는 선택(비우면 '공무'), 취소할 수 있다.
+- 화요전도단의 교육보고 집계 기준이 아직 24부서 재적이라, 교역자·자문·장년·부녀·청년의 화요전도단 본인 신고는 기록만 되고 집계에는 나오지 않는다. 화요전도단 대상 재적이 정해지면 반영한다(확인 필요).
 - 신원은 세션, 소속(부서·지역)은 교육 재적(`edu_roster` 목요사명자)에서 서버가 채운다. 화면에서 보낸 번호·소속은 쓰지 않는다.
 - 액션: `getMyExcused`, `submitMyExcused {date, reason?}`, `cancelMyExcused {date}`(`server/actions/edu-excused-self.js`). 같은 `EDU_MGMT_ENABLED` 스위치를 쓴다.
 - 저장: 별도 표 `edu_excused_self`(`supabase/proposals/20261116180000_edu_excused_self.sql`). 관리자 '#excused' 전체 교체 저장이 본인 신고를 지우지 않게 하기 위해서다. 취소는 `active=false`로 기록을 보존한다.
