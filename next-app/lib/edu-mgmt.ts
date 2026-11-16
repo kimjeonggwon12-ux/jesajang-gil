@@ -2,7 +2,7 @@
 export type EmRow={key:string;label:string;n:number;came:number;onTime:number;late:number;excused:number;absent:number;rate:string;by?:Record<string,number>};
 export type EmItem={kind:string;kindLabel:string;meetingId:string;title:string;date:string;sessions:string[];basis:string;basisLabel:string;scope:'all'|'dept';rows:EmRow[];total:EmRow};
 export type EmWeek={week:{from:string;to:string};items:EmItem[]};
-export type EmPerson={memberId:string;name:string;dept?:string;sub:string;position:string;status:string;sessions:string[];lateMin:number[]};
+export type EmPerson={memberId:string;name:string;dept?:string;sub:string;position:string;status:string;sessions:string[];lateMin:number[];selfReason?:string};
 export type EmDetail={kind:string;meetingId:string;date:string;title:string;group:{key:string;label:string};sessions:string[];hasSub:boolean;rows:EmRow[];total:EmRow;people:EmPerson[]};
 export type EmScopePerson={memberId:string;name:string;position:string;excused:boolean;source:string;reason:string;followMethod:string;followResult:string;followDone:boolean;version:number|null;updatedAt:string|null};
 export type EmHistory={id:number;memberId:string;name:string;action:'register'|'update'|'cancel'|'followup';actorName:string;actorRole:string;at:string;reason:string;cancelReason:string;followMethod:string;followResult:string;followDone:boolean};
@@ -17,7 +17,7 @@ export const EM_ACTION:Record<string,string>={register:'공무 등록',update:'�
 export const EM_SOURCE:Record<string,string>={dept:'부서 보고',list:'전체 명단 등록',released:'전체 화면에서 해제됨'};
 export function emCells(r:EmRow){return [r.label,r.n,r.came,r.onTime,r.late,r.excused,r.absent,r.rate];}
 export function emPeopleGroups(people:EmPerson[]){return EM_STATUS.map(status=>({status,people:people.filter(p=>p.status===status)})).filter(g=>g.people.length);}
-export function emPersonText(p:EmPerson){return p.name+(p.status==='지각'&&p.lateMin&&p.lateMin.length?'('+p.lateMin.join('·')+'분)':'')+(p.sub?' · '+p.sub:'');}
+export function emPersonText(p:EmPerson){return p.name+(p.status==='지각'&&p.lateMin&&p.lateMin.length?'('+p.lateMin.join('·')+'분)':'')+(p.sub?' · '+p.sub:'')+(p.selfReason?' · 본인 신고: '+p.selfReason:'');}
 export function emItemHead(it:EmItem){return it.kindLabel+' · '+it.date+' · '+it.title;}
 export function emSessionsText(it:EmItem){return it.sessions.length>1?it.sessions.join('·')+' (두 번 온 분은 한 번)':(it.sessions[0]||'');}
 export function emDraft(p:EmScopePerson):EmDraft{return {on:!!p.excused,reason:p.reason||'',followMethod:p.followMethod||'',cancelReason:''};}

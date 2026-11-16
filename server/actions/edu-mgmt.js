@@ -11,6 +11,7 @@ import { educationGrants, permits } from '../lib/education-access.js';
 import { isOwner } from './roster.js';
 import { normId } from '../lib/util.js';
 import { eduFor, eduPeople, excusedOf, roster24 } from '../lib/edu-attendance.js';
+import { selfExcusedOf } from './edu-excused-self.js';
 import { weeklySummary, weeklyDetail, groupDefs, subDefs, affiliations, weeklyCsv } from '../lib/edu-weekly.js';
 
 const fail = (message, status = 400) => { throw new AccessError(message, status); };
@@ -67,8 +68,9 @@ async function computeMeeting(kind, m) {
       edu = { series: { series_id: m.seriesId || '', title: m.title, roster_key: '목요사명자' }, roster, policy: policies[0] };
       basis = '24';
     }
-    const [P, ex] = await Promise.all([eduPeople(m, '최종', edu), excusedOf(kind, m.date)]);
-    return { P, ex, basis };
+    // 11/16: 공무 = 관리자 명단('#excused') ∪ 본인 신고(edu_excused_self). 실제 참석이 우선인 판정은 그대로.
+    const [P, ex0, self] = await Promise.all([eduPeople(m, '최종', edu), excusedOf(kind, m.date), selfExcusedOf(kind, m.date)]);
+    return { P, ex: new Set([...ex0, ...self.keys()]), self, basis };
   });
 }
 const basisLabel = (b) => (b === 'full' ? '교육 대상 재적' : '24부서 사명자 재적(대상 재적 확인 필요)');
@@ -104,13 +106,16 @@ export async function getEduWeeklyDetail(body = {}) {
   const hit = list.find((x) => x.m.meetingId === meetingId);
   if (!hit) fail('이 주의 교육이 아니에요. 다시 조회해 주세요.', 404);
   const full = managerOf(w, hit.m);
-  const { P, ex, basis } = await computeMeeting(hit.kind, hit.m);
+  const { P, ex, basis, self } = await computeMeeting(hit.kind, hit.m);
   const people = full ? P.people : P.people.filter((p) => p.dept === '24부서' && w.heads.includes(p.affiliation || '기타'));
   const defs = full ? groupDefs(people, basis) : groupDefs(people, '24');
   const group = defs.find((g) => g.key === key);
   if (!group || !people.some(group.test)) fail('볼 수 있는 조직이 아니에요.', 403);
-  return { kind: hit.kind, meetingId, date: hit.m.date, title: hit.m.title, group: { key: group.key, label: group.label }, sessions: P.sessions, hasSub: subDefs(people, group).length > 0, ...weeklyDetail(people, P.sessions, ex, group) };
+  return { kind: hit.kind, meetingId, date: hit.m.date, title: hit.m.title, group: { key: group.key, label: group.label }, sessions: P.sessions, hasSub: subDefs(people, group).length > 0, ...withSelf(weeklyDetail(people, P.sessions, ex, group), self) };
 }
+
+// 본인 신고로 공무가 된 사람은 상세에 사유를 붙인다(관리자 명단 공무와 구분).
+const withSelf = (d, self) => ({ ...d, people: d.people.map((p) => (p.status === '공무' && self.has(p.memberId) ? { ...p, selfReason: self.get(p.memberId) } : p)) });
 
 export async function exportEduWeekly(body = {}) {
   const data = await getEduWeekly(body);

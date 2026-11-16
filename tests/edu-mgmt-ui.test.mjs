@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import * as B from '../next-app/lib/edu-mgmt.ts';
+import * as BX from '../next-app/lib/edu-excused-self.ts';
 
 const html = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
 const block = html.slice(html.indexOf('/* EM-VIEW-START */'), html.indexOf('/* EM-VIEW-END */'));
@@ -88,4 +89,17 @@ test('A·B 모두 관리자 "출석" 옆 "교육보고" 탭이고, 서버가 기
 test('A 화면 쓰기 요청은 자동 재시도 대상(get/list/check/search)이 아니다', () => {
   const read = /^(get|list|check|search)/;
   for (const w of ['applyEduExcusedScope', 'saveEduExcusedFollowup', 'setEduDeptHead', 'exportEduWeekly', 'eduMgmtAccess']) assert.ok(!read.test(w), w);
+});
+
+test('A·B 공무 본인 신고 카드 문구와 사람 표시(본인 신고 사유)가 같다', () => {
+  const xb = html.slice(html.indexOf('/* EXS-VIEW-START */'), html.indexOf('/* EXS-VIEW-END */'));
+  const AX = vm.runInNewContext(xb + ';({exsGroupText,exsLine})');
+  for (const d of [{ group: '장년회', region: '03지역' }, { group: '교역자', region: '' }]) assert.equal(AX.exsGroupText(d), BX.exsGroupText(d));
+  for (const x of [{ date: 'd', label: 'l' }, { date: 'd', label: 'l', mine: { reason: '공무' } }, { date: 'd', label: 'l', mine: { reason: '병원' } }]) assert.equal(AX.exsLine(x), BX.exsLine(x));
+  assert.equal(BX.exsLine({ date: 'd', label: 'l', mine: { reason: '병원' } }), '✅ 공무 신고됨 · 병원');
+  const p = { memberId: '7', name: '가짜칠', sub: '3지역', position: '', status: '공무', sessions: [], lateMin: [], selfReason: '병원' };
+  assert.equal(A.emPersonText(p), B.emPersonText(p)); assert.equal(B.emPersonText(p), '가짜칠 · 3지역 · 본인 신고: 병원');
+  assert.match(html, /\$\{excusedSelfBannerHtml\(\)\}/);
+  const att = readFileSync(new URL('../next-app/components/presentation/ClassicAttention.tsx', import.meta.url), 'utf8');
+  assert.match(att, /<ExcusedSelfCard\/>/);
 });

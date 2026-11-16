@@ -48,6 +48,7 @@ beforeEach(() => {
     cohort_summary_log: [{ id: 1, cohort_id: '#excused', kind: '목사교', ref_id: n(3), date: '2026-11-19' }, { id: 2, cohort_id: '#excused', kind: '목사교', ref_id: n(4), date: '2026-11-19' },
       { id: 3, cohort_id: '#excused', kind: '화전단', ref_id: n(2), date: '2026-11-17' }],
     edu_dept_heads: [{ id: 1, nid: HEAD, affiliation: '가짜행서부', revoked: false }],
+    edu_excused_self: [],
   });
   Object.assign(ATT, {
     MTHU: [[n(1), '오전', '정상 출석'], [n(1), '저녁', '정상 출석'], [n(2), '오전', '12분 지각'], [n(3), '오전', '정상 출석'], [n(6), '저녁', '정상 출석'], [n(8), '오전', '정상 출석'], ['9900000000199', '오전', '정상 출석']],
@@ -120,4 +121,45 @@ test('기능이 꺼져 있으면 화면 진입도 숨기고 조회·내보내기
 test('로그인하지 않은 요청과 잘못된 날짜는 거절된다', async () => {
   assert.equal((await err(mgmt.getEduWeekly({ date: '2026-11-19' }))).status, 401);
   assert.equal((await err(as(OWNER, () => mgmt.getEduWeekly({ date: '2026-02-30' })))).status, 400);
+});
+
+// ── 공무 본인 신고(11/16) ──
+const self = (await import('../server/actions/edu-excused-self.js')).default;
+const nextThu = () => { const { kstDate } = { kstDate: () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) }; let d = kstDate(); while (new Date(d + 'T00:00:00Z').getUTCDay() !== 4) d = new Date(Date.parse(d + 'T00:00:00Z') + 864e5).toISOString().slice(0, 10); return d; };
+test('본인 신고: 로그인한 장년회 사명자는 바로 눌러 신고되고 소속이 재적에서 자동 기록되며, 취소도 기록을 남긴다', async () => {
+  fake.rows.edu_excused_self = [];
+  fake.rows.attend_series[0].weekdays = [4];
+  const me = await as(n(6), () => self.getMyExcused({}));
+  assert.equal(me.eligible, true); assert.equal(me.group, '장년회'); assert.equal(me.region, '03지역');
+  assert.equal(me.dates.length, 2); assert.equal(me.dates[0].date, nextThu()); assert.equal(me.dates[0].mine, undefined);
+  const r = await as(n(6), () => self.submitMyExcused({ date: nextThu() }));
+  assert.equal(r.ok, true);
+  assert.deepEqual(fake.rows.edu_excused_self.map((x) => [x.nid, x.dept, x.region, x.reason, x.active]), [[n(6), '장년회', '03지역', '공무', true]], '사유를 비우면 공무, 소속은 서버가 채움');
+  await as(n(6), () => self.submitMyExcused({ date: nextThu(), reason: '가짜 출장', memberId: n(7) }));
+  assert.equal(fake.rows.edu_excused_self.length, 1, '본문의 다른 번호는 무시하고 본인 것만 고친다');
+  assert.equal(fake.rows.edu_excused_self[0].reason, '가짜 출장');
+  await as(n(6), () => self.cancelMyExcused({ date: nextThu() }));
+  assert.equal(fake.rows.edu_excused_self[0].active, false);
+});
+test('본인 신고: 24부서·재적 밖·로그인 없음·지난 날짜·기능 꺼짐은 거절', async () => {
+  fake.rows.edu_excused_self = [];
+  assert.equal((await as(n(1), () => self.getMyExcused({}))).eligible, false);
+  assert.match((await err(as(n(1), () => self.submitMyExcused({ date: nextThu() })))).message, /24부서/);
+  assert.match((await err(as(NOBODY, () => self.submitMyExcused({ date: nextThu() })))).message, /재적에 없어요/);
+  assert.equal((await err(self.submitMyExcused({ date: nextThu() }))).status, 401);
+  assert.match((await err(as(n(6), () => self.submitMyExcused({ date: '2026-01-01' })))).message, /다가오는/);
+  delete process.env.EDU_MGMT_ENABLED;
+  assert.deepEqual(await as(n(6), () => self.getMyExcused({})), { enabled: false });
+  assert.equal((await err(as(n(6), () => self.submitMyExcused({ date: nextThu() })))).status, 503);
+  assert.equal(fake.rows.edu_excused_self.length, 0);
+});
+test('본인 신고는 관리자 명단과 합쳐 공무로 세고(실제 참석 우선), 상세에 사유를 붙인다', async () => {
+  fake.rows.edu_excused_self = [{ id: 1, kind: '목사교', date: '2026-11-19', nid: n(7), name: '가짜칠', dept: '장년회', region: '03지역', reason: '가짜 병원', active: true },
+    { id: 2, kind: '목사교', date: '2026-11-19', nid: n(6), name: '가짜육', dept: '장년회', region: '03지역', reason: '왔지만 신고', active: true },
+    { id: 3, kind: '목사교', date: '2026-11-19', nid: n(5), name: '가짜오', dept: '24부서', region: '', reason: '취소됨', active: false }];
+  const w = await as(OWNER, () => mgmt.getEduWeekly({ date: '2026-11-19' }));
+  const thu = w.items.find((i) => i.meetingId === 'MTHU');
+  assert.deepEqual([thu.total.came, thu.total.excused, thu.total.absent], [5, 2, 1], '장년 가짜칠 공무 추가, 참석한 가짜육은 참석, 취소된 신고는 무시');
+  const d = await as(OWNER, () => mgmt.getEduWeeklyDetail({ date: '2026-11-19', meetingId: 'MTHU', group: '장년회' }));
+  assert.deepEqual(d.people.map((p) => [p.name, p.status, p.selfReason || '']), [['가짜육', '참석', ''], ['가짜칠', '공무', '가짜 병원']]);
 });

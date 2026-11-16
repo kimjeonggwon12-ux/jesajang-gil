@@ -8707,6 +8707,48 @@
       return '<div style="padding:14px var(--dg-pad) 0"><div onclick="switchTab(\'admin\');setTimeout(()=>adminSwitchSubTab(\'' + (b.toDecide || b.toSend ? 'center' : 'centerMgmt') + '\'),50)" class="flex items-center gap-3 cursor-pointer" style="border-radius:var(--dg-radius-md);padding:14px 16px;background:#E8F1FF">'
         + '<span style="font-size:22px">📮</span><div class="flex-1 min-w-0" style="font-size:14.5px;font-weight:700;color:#1E3A8A">' + parts + '</div><span style="font-size:13px;font-weight:700;color:#1D4ED8;white-space:nowrap">처리 ›</span></div></div>';
     }
+    // 11/16(사용자): 공무 본인 신고 — 로그인돼 있으면 바로 누르기만 해도 소속(교육 재적의 부서·지역)까지 서버가 기록.
+    //   대상 = 목요 사명자 교육 재적의 교역자·장로/자문회·장년회·부녀회·청년회(24부서는 부서 공무 보고). 서버 = server/actions/edu-excused-self.js
+    /* EXS-VIEW-START */
+    function exsGroupText(d) { return d.group + (d.region ? ' · ' + d.region : ''); }
+    function exsLine(x) { return x.mine ? '✅ 공무 신고됨' + (x.mine.reason && x.mine.reason !== '공무' ? ' · ' + x.mine.reason : '') : '아직 신고 안 함'; }
+    /* EXS-VIEW-END */
+    const exsState = { at: 0, v: null, busy: '', reason: '' };
+    function exsLoad(force) {
+      if (!force && exsState.at && Date.now() - exsState.at < 60000) return;
+      exsState.at = Date.now();
+      callApi({ action: 'getMyExcused', memberId }).then(r => { const had = JSON.stringify(exsState.v); exsState.v = r && !r.error ? r : null; if (had !== JSON.stringify(exsState.v)) renderHome(); }).catch(() => {});
+    }
+    function excusedSelfBannerHtml() {
+      exsLoad(false);
+      const d = exsState.v; if (!d || !d.enabled || !d.eligible) return '';
+      const rows = d.dates.map(x => '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">'
+        + '<b style="min-width:76px">' + esc(x.label) + '</b><span style="flex:1;min-width:120px;font-size:13.5px;color:' + (x.mine ? '#00875f' : '#6b7280') + '">' + esc(exsLine(x)) + '</span>'
+        + (x.mine
+          ? '<button type="button" class="ex-self-btn line" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsCancel(\'' + x.date + '\')">취소</button>'
+          : '<button type="button" class="ex-self-btn" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsSubmit(\'' + x.date + '\')">' + (exsState.busy === x.date ? '신고하는 중…' : '공무로 신고') + '</button>')
+        + '</div>').join('');
+      return '<div style="padding:14px var(--dg-pad) 0"><div style="border-radius:var(--dg-radius-md);padding:14px 16px;background:#EEF6FF;border:1px solid #CFE3FB">'
+        + '<style>.ex-self-btn{height:36px;padding:0 14px;border-radius:10px;border:1px solid #2F6BEB;background:#2F6BEB;color:#fff;font-weight:700;font-size:14px}.ex-self-btn.line{background:#fff;color:#2F6BEB}.ex-self-btn:disabled{opacity:.5}</style>'
+        + '<div style="font-size:15px;font-weight:800;color:#1E3A8A">📋 ' + esc(d.title) + ' 공무 신고</div>'
+        + '<div style="font-size:12.5px;color:#475569;margin-top:2px">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
+        + '<input id="exsReason" maxlength="200" placeholder="사유(선택) — 비워 두면 \'공무\'" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value" style="margin-top:8px;width:100%;height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:0 10px;font-size:14px">'
+        + rows + '</div></div>';
+    }
+    window.exsState = exsState;
+    window.exsSubmit = async function (date) {
+      if (exsState.busy) return; exsState.busy = date; renderHome();
+      try {
+        const r = await callApi({ action: 'submitMyExcused', memberId, date, reason: exsState.reason.trim() });
+        if (!r || r.error) toast((r && r.error) || '신고하지 못했어요', true); else { toast(r.label + ' 공무로 신고했어요'); exsState.reason = ''; }
+      } catch (e) { toast('신고하지 못했어요', true); }
+      exsState.busy = ''; exsLoad(true);
+    };
+    window.exsCancel = async function (date) {
+      if (exsState.busy) return; exsState.busy = date; renderHome();
+      try { const r = await callApi({ action: 'cancelMyExcused', memberId, date }); if (!r || r.error) toast((r && r.error) || '취소하지 못했어요', true); else toast('공무 신고를 취소했어요'); } catch (e) { toast('취소하지 못했어요', true); }
+      exsState.busy = ''; exsLoad(true);
+    };
     function encouragementBannerHtml() {
       if (!home.encouragements.length) return '';
       const first = home.encouragements[0];
@@ -8821,6 +8863,7 @@
           <div data-ap="targets">
             ${tierProgressBannerHtml()}
             ${centerBadgeBannerHtml()}
+            ${excusedSelfBannerHtml()}
             ${encouragementBannerHtml()}
             ${coachReplyBannerHtml()}
             ${erPageHtml()}
@@ -19925,7 +19968,7 @@ async function calAdmInit() {
     const EM_SOURCE = { dept: '부서 보고', list: '전체 명단 등록', released: '전체 화면에서 해제됨' };
     function emCells(r) { return [r.label, r.n, r.came, r.onTime, r.late, r.excused, r.absent, r.rate]; }
     function emPeopleGroups(people) { return EM_STATUS.map(status => ({ status, people: people.filter(p => p.status === status) })).filter(g => g.people.length); }
-    function emPersonText(p) { return p.name + (p.status === '지각' && p.lateMin && p.lateMin.length ? '(' + p.lateMin.join('·') + '분)' : '') + (p.sub ? ' · ' + p.sub : ''); }
+    function emPersonText(p) { return p.name + (p.status === '지각' && p.lateMin && p.lateMin.length ? '(' + p.lateMin.join('·') + '분)' : '') + (p.sub ? ' · ' + p.sub : '') + (p.selfReason ? ' · 본인 신고: ' + p.selfReason : ''); }
     function emItemHead(it) { return it.kindLabel + ' · ' + it.date + ' · ' + it.title; }
     function emSessionsText(it) { return it.sessions.length > 1 ? it.sessions.join('·') + ' (두 번 온 분은 한 번)' : (it.sessions[0] || ''); }
     function emDraft(p) { return { on: !!p.excused, reason: p.reason || '', followMethod: p.followMethod || '', cancelReason: '' }; }
