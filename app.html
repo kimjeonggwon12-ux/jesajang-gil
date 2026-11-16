@@ -2577,6 +2577,7 @@
     .ex-self-k.tue { border-color:#FDBA74; background:#FFF8F1; } .ex-self-k.tue .ex-self-kt { color:#C2410C; }
     .ex-self-k.thu { border-color:#A9C4FA; background:#F5F8FF; } .ex-self-k.thu .ex-self-kt { color:#1E40AF; }
     .ex-self-k.tue .ex-self-btn { background:#F97316; border-color:#F97316; } .ex-self-k.tue .ex-self-btn.line { background:#fff; color:#C2410C; }
+    .ex-self-win { margin-top:4px; display:inline-block; padding:4px 10px; border-radius:999px; background:rgba(255,255,255,.85); font-size:13.5px; font-weight:800; color:#334155; }
     .ex-self-row { display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; } .ex-self-row b { min-width:76px; }
     .ex-self-row span { flex:1; min-width:120px; font-size:13.5px; color:#6b7280; } .ex-self-row span.on { color:#00875f; }
     .ex-self-btn { height:36px; padding:0 14px; border-radius:10px; border:1px solid #2F6BEB; background:#2F6BEB; color:#fff; font-weight:700; font-size:14px; }
@@ -8542,6 +8543,9 @@
     /* EXS-VIEW-START */
     function exsGroupText(d) { return d.group + (d.region ? ' · ' + d.region : ''); }
     function exsLine(x) { return x.mine ? '✅ 공무 결석 신고됨' + (x.mine.reason && x.mine.reason !== '공무' ? ' · ' + x.mine.reason : '') : '아직 신고 안 함'; }
+    // 11/16(사용자): '공무결석' 보고 가능시간 — 화전단 월09:00~화19:30, 목사교 수09:00~목19:30(표시만)
+    const EXS_WINDOW = { 화전단: '월 09:00 ~ 화 19:30', 목사교: '수 09:00 ~ 목 19:30' };
+    function exsWindowText(kind) { return EXS_WINDOW[kind] ? '⏰ 보고 가능시간 ' + EXS_WINDOW[kind] : ''; }
     /* EXS-VIEW-END */
     const exsState = { at: 0, v: null, busy: '', reason: '', loaded: false };
     function exsLoad(force) {
@@ -8559,7 +8563,7 @@
         ? '<button type="button" class="ex-self-btn line" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsCancel(\'' + kind + '\',\'' + x.date + '\')">취소</button>'
         : '<button type="button" class="ex-self-btn" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsSubmit(\'' + kind + '\',\'' + x.date + '\')">' + (exsState.busy === kind + x.date ? '신고하는 중…' : '공무 결석으로 신고') + '</button>';
       const TH = { 화전단: ['tue', '🔥'], 목사교: ['thu', '📖'] };
-      const sections = d.kinds.map(k => '<div class="ex-self-k ' + (TH[k.kind] || [''])[0] + '"><div class="ex-self-kt"><span>' + ((TH[k.kind] || [, ''])[1]) + '</span>' + esc(k.title) + '</div>'
+      const sections = d.kinds.map(k => '<div class="ex-self-k ' + (TH[k.kind] || [''])[0] + '"><div class="ex-self-kt"><span>' + ((TH[k.kind] || [, ''])[1]) + '</span>' + esc(k.title) + '</div>' + (exsWindowText(k.kind) ? '<div class="ex-self-win">' + esc(exsWindowText(k.kind)) + '</div>' : '')
         + k.dates.map(x => '<div class="ex-self-row"><b>' + esc(x.label) + '</b><span class="' + (x.mine ? 'on' : '') + '">' + esc(exsLine(x)) + '</span>' + btn(k.kind, x) + '</div>').join('') + '</div>').join('');
       return '<div class="ex-self-card">'
         + '<div class="ex-self-t">📋 ' + esc(d.title) + '</div>'
