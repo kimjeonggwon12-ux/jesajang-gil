@@ -9,8 +9,10 @@ import { kstDate } from '../lib/util.js';
 
 // 11/16(2차, 사용자): 화요전도단·목요 사명자 교육 둘 다 — 나의교실 '출석' 칸에서 교육·날짜를 골라 신고.
 const KINDS = { 화전단: { title: '화요 전도단', days: [2] }, 목사교: { title: '목요 사명자 교육', days: null } }, ROSTER = '목요사명자';
-export const SELF_DEPTS = ['교회교역', '신학교역', '협력교회', '장로회', '자문회', '장년회', '부녀회', '청년회'];
-const GROUP = { 교회교역: '교역자', 신학교역: '교역자', 협력교회: '교역자', 장로회: '자문회', 자문회: '자문회', 장년회: '장년회', 부녀회: '부녀회', 청년회: '청년회' };
+// 11/16(3차, 사용자): 24부서 포함 목사교 재적(교자장부청 부구역장 이상 사명자) 전원에게 카드. 원장은 집계 제외라 카드도 안 보임.
+const GROUP = { 교회교역: '교역자', 신학교역: '교역자', 협력교회: '교역자', 장로회: '장로·자문회', 자문회: '장로·자문회' };
+const groupOf = (p) => (p.dept === '24부서' ? '24부서 ' + (p.affiliation || '') : GROUP[p.dept] || p.dept);
+const excluded = (p) => String(p.position || '').trim() === '원장';
 const on = () => process.env.EDU_MGMT_ENABLED === '1';
 const fail = (m) => { throw new Error(m); };
 const validDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(d + 'T00:00:00Z').toISOString().slice(0, 10) === d;
@@ -33,8 +35,8 @@ async function nextDates(kind) {
 async function me(body) {
   const nid = String(body?._actorNid || '');
   if (!nid) fail('로그인이 필요해요.');
-  const [p] = await run(db().from('edu_roster').select('nid, name, dept, region, district, affiliation').eq('roster_key', ROSTER).eq('nid', nid).limit(1));
-  return { nid, p: p && SELF_DEPTS.includes(p.dept) ? p : null, outside: !!p && !SELF_DEPTS.includes(p.dept) };
+  const [p] = await run(db().from('edu_roster').select('nid, name, dept, region, district, affiliation, position').eq('roster_key', ROSTER).eq('nid', nid).limit(1));
+  return { nid, p: p && !excluded(p) ? p : null, outside: !!p && excluded(p) };
 }
 const view = (r) => r && { kind: r.kind, date: r.date, label: dayLabel(r.date), reason: r.reason, active: r.active, dept: r.dept, region: r.region, at: r.updated_at };
 
@@ -42,14 +44,14 @@ const view = (r) => r && { kind: r.kind, date: r.date, label: dayLabel(r.date), 
 export async function getMyExcused(body = {}) {
   if (!on()) return { enabled: false };
   const m = await me(body);
-  if (!m.p) return { enabled: true, eligible: false, reason: m.outside ? '24부서는 부서 공무 보고로 올려요.' : '목요 사명자 교육 재적에 없어요.' };
+  if (!m.p) return { enabled: true, eligible: false, reason: m.outside ? '원장님은 출석 집계 대상이 아니에요.' : '목요 사명자 교육 재적에 없어요.' };
   const kinds = [];
   for (const kind of Object.keys(KINDS)) {
     const dates = await nextDates(kind);
     const rows = await run(db().from('edu_excused_self').select('*').eq('kind', kind).eq('nid', m.nid).in('date', dates));
     kinds.push({ kind, title: KINDS[kind].title, dates: dates.map((d) => ({ date: d, label: dayLabel(d), mine: view(rows.find((r) => r.date === d && r.active)) })) });
   }
-  return { enabled: true, eligible: true, title: '화요 전도단 · 목요 사명자 교육 공무 보고', group: GROUP[m.p.dept], dept: m.p.dept, region: m.p.region || '',
+  return { enabled: true, eligible: true, title: '화요 전도단 · 목요 사명자 교육 공무 보고', group: groupOf(m.p), dept: m.p.dept, region: m.p.dept === '24부서' ? '' : (m.p.region || ''),
     name: m.p.name, kinds };
 }
 
@@ -57,12 +59,12 @@ export async function getMyExcused(body = {}) {
 export async function submitMyExcused(body = {}) {
   if (!on()) fail('교육보고 기능이 아직 꺼져 있어요.');
   const m = await me(body);
-  if (!m.p) fail(m.outside ? '24부서는 부서 공무 보고로 올려요.' : '목요 사명자 교육 재적에 없어요. 담당자에게 알려 주세요.');
+  if (!m.p) fail(m.outside ? '원장님은 출석 집계 대상이 아니에요.' : '목요 사명자 교육 재적에 없어요. 담당자에게 알려 주세요.');
   const kind = String(body.kind || '목사교'), date = String(body.date || ''), reason = String(body.reason || '').trim() || '공무';
   if (!KINDS[kind]) fail('교육을 골라 주세요.');
   if (!validDate(date) || !(await nextDates(kind)).includes(date)) fail('다가오는 교육 날짜만 신고할 수 있어요.');
   if (reason.length > 200) fail('사유는 200자 이내로 적어 주세요.');
-  const row = { kind, date, nid: m.nid, name: m.p.name, dept: m.p.dept, region: m.p.region || '', reason, active: true, updated_at: new Date().toISOString() };
+  const row = { kind, date, nid: m.nid, name: m.p.name, dept: m.p.dept, region: m.p.dept === '24부서' ? (m.p.affiliation || '') : (m.p.region || ''), reason, active: true, updated_at: new Date().toISOString() };
   await run(db().from('edu_excused_self').upsert(row, { onConflict: 'kind,date,nid' }));
   return { ok: true, label: KINDS[kind].title + ' ' + dayLabel(date), dept: m.p.dept, region: m.p.region || '' };
 }
