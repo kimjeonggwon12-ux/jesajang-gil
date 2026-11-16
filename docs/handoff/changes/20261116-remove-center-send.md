@@ -1,0 +1,26 @@
+# 기능 변경 전달 — 지역장 승인·선교센터(센터 보내기) 제거
+
+- **작업 브랜치 / 기준 커밋 / 최종 커밋**: `feature/remove-center-send` / `2978271` / (PR 마지막 커밋)
+- **요구사항과 바뀐 동작**: 사용자(저장소 소유자) 지시로 지역장 승인 → 센터·기수 전달 → 센터 서류 체계를 A·B 모두에서 제거했다.
+  - 운영(A, `vercel-supabase` 31bd1e1)에는 2026-11-16에 먼저 반영해 배포했다. 이 PR은 B 전환 뒤 기능이 되살아나지 않도록 공유 기준에도 같은 제거를 맞춘다.
+  - 같은 날 운영 DB에서 교육 과정 '도마지파특전대 교육'을 기록까지 삭제했다(백업 보관). 공유 DB를 쓰므로 이 PR에는 코드 변경이 없다.
+- **A HTML 변경**: `app.html`
+  - 관리자 '지역장 승인'·'선교센터' 탭·화면(`centerAdm`)을 뺐다.
+  - 첫 화면 처리 알림(`getCenterSendBadge`)을 뺐다.
+  - 나의 교실 '센터 보내기' 칸과 요청·취소 화면을 뺐다. 칸이 6개로 돌아와 넓은 화면은 한 줄 6칸이다.
+- **B Next.js 변경**:
+  - `/centers` 페이지, `components/centers/*`, `lib/centers.ts`를 삭제했다.
+  - 관리자 탭 2개(`ClassicAdminFrame`), 메뉴 링크, 홈 알림(`HomeUpdates`, `ClassicAttention`, `NoticeProvider` 합계), 대상자 상세의 센터 칸(`TargetDetail`, `ClassicPersonDetail`), 읽기 액션 이름(`api.ts`), 알림 형식(`home-notices.ts`)을 정리했다.
+- **공통 서버**:
+  - `server/actions/center-send.js`와 `server/lib/center-policy.js`를 삭제하고 `registry.js`에서 등록을 해제했다.
+  - `home-notices.js` 응답에서 `center` 필드를 뺐다.
+- **A/B 경로**: `shared/pilot-paths.mjs`, `next-app/lib/classic-navigation.mjs`, `tools/verify-ui-release-routing.mjs`에서 `/centers`를 뺐다. 전환 측 확인을 요청한다.
+- **DB**:
+  - 변경하지 않았다. `center_referrals`(운영 3건), `centers`, `center_approval_policy`, `center_policy_changes` 표와 기록은 그대로 남는다.
+  - 되돌리려면 이 PR을 revert하면 되고, 기록 손실은 없다.
+- **검증**:
+  - `check:handoff` 통과, `build:handoff` 통과.
+  - `test:handoff` 358/358 통과. 센터 전용 검사(`next-centers`)와 `auth-api`의 센터 항목은 삭제했다.
+  - Windows 실행 보정(`tools/test-collaboration.mjs` `--import` file URL)은 PR #1과 같은 한 줄이다.
+- **미실행**: `local-*` DB 검사. `local-next-centers`, `local-center-policy`는 삭제했고, `local-next-home-notices`, `local-next-access`, `local-workflows` 등의 센터 항목은 전환 측 고정 시험 DB에서 갱신이 필요하다.
+- **실제 외부 서비스 호출**: 없다.

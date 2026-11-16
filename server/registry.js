@@ -3,7 +3,6 @@ import directory from './actions/directory.js';
 import pilot from './lib/pilot.js';
 import deliveryReview from './actions/delivery-review.js';
 import roster from './actions/roster.js';
-import centerPolicy from './lib/center-policy.js';
 import rosterAdmin from './actions/roster-admin.js';
 import rosterImport from './actions/roster-import.js';
 import backup from './actions/backup.js';
@@ -29,7 +28,6 @@ import cohorts from './actions/cohorts.js';
 import cohortBot from './actions/cohort-bot.js';
 import cohortSchedule from './actions/cohort-schedule.js';
 import pins from './actions/pins.js';
-import centerSend from './actions/center-send.js';
 import newMarks from './actions/new-marks.js';
 import homeNotices from './actions/home-notices.js';
 import targetRoom from './actions/target-room.js';
@@ -43,7 +41,6 @@ import eduExcused from './actions/edu-excused.js';
 export const actions = {
   ...pilot,
   ...roster,
-  ...centerPolicy,
   ...directory,
   ...rosterAdmin,
   ...rosterImport,
@@ -70,7 +67,6 @@ export const actions = {
   ...cohortBot,
   ...cohortSchedule,
   ...pins,
-  ...centerSend,
   ...newMarks,
   ...homeNotices,
   ...targetRoom,

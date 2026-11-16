@@ -23,6 +23,5 @@ export default function MenuPage(){const {access}=useMember();return <><div clas
   {access.isAdmin?<Link href="/admin/education"><strong>교육 과정 운영</strong><span>교육생 · 시간표 · 출석 · 담당자</span></Link>:null}
   {access.isAdmin?<Link href="/admin/analysis"><strong>전체 현황 AI 분석</strong><span>명단 · 상담 집계 · 결산</span></Link>:null}
   {access.isAdmin?<Link href="/admin/reports"><strong>교육 재적·보고방</strong><span>명단 가져오기 · 집계 기준 · 수신 방</span></Link>:null}
-  <Link href="/centers"><strong>센터 승인·기수</strong><span>승인 · 서류 전달 · 분반</span></Link>
   {access.isAdmin?<Link href="/admin"><strong>업무 관리</strong><span>행사 · 출석 · 교육 · 센터</span></Link>:null}
 </div></>;}
