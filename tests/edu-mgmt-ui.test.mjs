@@ -69,7 +69,7 @@ test('A·B 이력 문구가 같다', () => {
 });
 
 test('A·B 모두 관리자 "출석" 옆 "교육보고" 탭이고, 서버가 기능을 켜고 볼 권한을 줄 때만 보인다', () => {
-  assert.match(html, /data-subtab="eduReport" onclick="adminSwitchSubTab\('eduReport'\)" style="display:none">교육보고<\/button>/);
+  assert.match(html, /data-subtab="eduReport" onclick="adminSwitchSubTab\('eduReport'\)" style="display:none">공무결석현황<\/button>/);
   assert.match(html, /const ok = !!\(st\.access && st\.access\.enabled && st\.access\.visible\);\s*tab\.style\.display = ok \? '' : 'none';/);
   assert.match(html, /if \(isAdmin\(\)\) eduMgmt\.probe\(\);/);
   const tabs = [...html.matchAll(/data-subtab="(\w+)" onclick/g)].map((m) => m[1]);
