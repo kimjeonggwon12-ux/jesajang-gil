@@ -276,10 +276,6 @@ test('겸직한 교관의 부서·지역 조합을 합치되 교차한 범위를
   for(const p of [people[0],people[4],fake.rows.teachers.at(-1)]) fake.rows.feedbacks.push({id:fake.rows.feedbacks.length+1,member_id:p.member_id,nid:p.nid,source:'교관요청',status:'대기'});
   const r=await request('getCoachFeedbacks',{},session(C));
   assert.deepEqual(r.body.pending.map(p=>p.name).sort(),['테스트교사','테스트장년2'].sort());
-  fake.rows.center_referrals.push(...[['청년회','1지역'],['장년회','2지역'],['장년회','1지역']].map(([dept,region],i)=>({id:i+1,dept,region,status:'요청',teacher_nid:M})));
-  const center=await request('getCenterDesk',{},session(C));assert.deepEqual(center.body.rows.map(r=>r.id).sort(),[1,2]);
-  fake.rows.admins.find(r=>r.id===8).region='';
-  const noFallback=await request('getCenterDesk',{},session(C));assert.deepEqual(noFallback.body.rows.map(r=>r.id),[1]);
 });
 test('교관의 다른 부서 답변과 지역 공란 현황 조회를 거절한다', async () => {
   fake.rows.feedbacks.push({id:1,receipt_no:'OTHER-FB',member_id:O,nid:O,source:'교관요청',status:'대기'});
@@ -343,72 +339,6 @@ test('격려 메시지는 받은 사람만 읽음으로 바꿀 수 있다',async
   assert.equal((await request('markEncouragementRead',{messageId:M+'::'+at},session(M))).body.ok,true);
   assert.equal(fake.rows.encouragements[1].is_read,true);
 });
-function centerRows(status='요청') {
-  fake.rows.centers=[{id:77,name:'가짜센터',active:true,staff:[{memberId:M,name:'테스트교사',role:'담당'},{memberId:C,name:'테스트교관',role:'전도사'}]}];
-  fake.rows.center_referrals=[['청년회','1지역'],['장년회','1지역'],['청년회','2지역'],['장년회','2지역']].map(([dept,region],i)=>({id:i+1,target_id:'LOCAL-TARGET-'+i,target_name:'가짜대상'+i,teacher_id:O,teacher_nid:O,teacher_name:'테스트대상',dept,region,status,stage:'복음방',snapshot:{},center_id:status==='전달'?77:null,assignee_id:'',assignee_name:''}));
-}
-test('센터 승인은 일반 교사에게 거절하고 겸직 부서·지역 조합 안에서만 합산한다',async()=>{
-  centerRows();
-  assert.ok((await request('decideCenterReferral',{ids:[1,2,3,4],decision:'승인'},session(M))).body.error);
-  let r=await request('decideCenterReferral',{ids:[1,2,3,4],decision:'승인'},session(C));
-  assert.equal(r.body.done,1);assert.equal(r.body.skipped,3);assert.equal(fake.rows.center_referrals[0].status,'승인');
-  centerRows();fake.rows.admins.push({...people[3],id:9,dept:'장년회',region:'2지역',position:'지역장'});
-  r=await request('decideCenterReferral',{ids:[1,2,3,4],decision:'승인'},session(C));
-  assert.equal(r.body.done,2);assert.deepEqual(fake.rows.center_referrals.map(r=>r.status),['승인','요청','요청','승인']);
-});
-test('회장·총무·총교관·서기는 자기 부서 전체를 처리하고 다른 부서를 섞지 않는다',async()=>{
-  for(const position of ['회장','총무','총교관','서기']) {
-    centerRows();Object.assign(fake.rows.admins.find(r=>r.nid===C),{position,region:''});
-    const r=await request('decideCenterReferral',{ids:[1,2,3,4],decision:'반려',note:'검증용'},session(C));
-    assert.equal(r.body.done,2,position);assert.deepEqual(fake.rows.center_referrals.map(r=>r.status),['반려','요청','반려','요청']);
-  }
-});
-test('교관 지역 공란은 다른 보직의 지역으로 채우지 않으며 회수된 권한도 즉시 거절한다',async()=>{
-  centerRows();fake.rows.admins.find(r=>r.nid===C).region='';
-  assert.ok((await request('decideCenterReferral',{ids:[1],decision:'승인'},session(C))).body.error);
-  fake.rows.admins.find(r=>r.nid===C).region='1지역';const token=session(C);
-  fake.rows.admins=fake.rows.admins.filter(r=>r.nid!==C);
-  assert.ok((await request('decideCenterReferral',{ids:[1],decision:'승인'},token)).body.error);
-  assert.ok(fake.rows.center_referrals.every(r=>r.status==='요청'));
-});
-test('센터 전달은 동의 확인·담당 범위를 검사하고 담당 기수만 배정한다',async()=>{
-  centerRows('승인');
-  assert.ok((await request('sendToCenter',{ids:[1],centerId:77},session(C))).body.error);
-  const r=await request('sendToCenter',{ids:[1,2],centerId:77,cardDone:true},session(C));
-  assert.equal(r.body.done,1);assert.equal(r.body.skipped,1);
-  assert.equal((await request('assignCenterReferral',{id:1,assignee:C},session(M))).body.ok,true);
-  fake.rows.center_referrals[1].status='전달';fake.rows.center_referrals[1].center_id=88;
-  assert.ok((await request('assignCenterReferral',{id:2,assignee:C},session(M))).body.error);
-});
-test('센터 처리 중 상태가 바뀌면 덮어쓰지 않고 실제 성공 건수만 반환한다',async()=>{
-  const cases=[
-    ['cancelCenterRequest','요청','승인',O,{id:1}],
-    ['decideCenterReferral','요청','반려',C,{ids:[1],decision:'승인'}],
-    ['sendToCenter','승인','요청',C,{ids:[1],centerId:77,cardDone:true}],
-    ['approveAndSend','요청','승인',C,{ids:[1],centerId:77,cardDone:true}],
-    ['reopenCenterReferral','전달','취소',C,{id:1}],
-    ['assignCenterReferral','전달','승인',M,{id:1,assignee:C}],
-  ];
-  for(const [action,previous,next,actor,body] of cases) {
-    centerRows(previous);fake.beforeQuery.length=0;let changed=false;
-    fake.beforeQuery.push(q=>{if(!changed && q.table==='center_referrals' && q.operation==='update'){changed=true;fake.rows.center_referrals[0].status=next;}});
-    const r=await request(action,body,session(actor));
-    assert.ok(changed,action);assert.equal(fake.rows.center_referrals[0].status,next,action);
-    assert.equal(fake.rows.center_referrals[0].assignee_id,'',action);
-    if('done' in r.body){assert.equal(r.body.done,0,action);assert.equal(r.body.skipped,1,action);}else assert.ok(r.body.error,action);
-  }
-});
-test('센터 처리 중 부서·지역이나 담당 기수가 바뀌면 이전 권한으로 수정하지 않는다',async()=>{
-  centerRows();let changed=false;
-  fake.beforeQuery.push(q=>{if(!changed && q.table==='center_referrals' && q.operation==='update'){changed=true;fake.rows.center_referrals[0].dept='장년회';}});
-  const r=await request('decideCenterReferral',{ids:[1],decision:'승인'},session(C));
-  assert.equal(r.body.done,0);assert.equal(fake.rows.center_referrals[0].status,'요청');
-  centerRows('전달');fake.beforeQuery.length=0;changed=false;
-  fake.beforeQuery.push(q=>{if(!changed && q.table==='center_referrals' && q.operation==='update'){changed=true;fake.rows.center_referrals[0].center_id=88;}});
-  assert.ok((await request('assignCenterReferral',{id:1,assignee:C},session(M))).body.error);
-  assert.equal(fake.rows.center_referrals[0].assignee_id,'');
-});
-
 test('다운로드 생성 중 권한/PIN 변경 또는 감사 실패 시 파일을 반환하지 않는다',async()=>{
   for(const kind of ['role','pin','audit']){
     const savedAdmins=structuredClone(fake.rows.admins),savedTeachers=structuredClone(fake.rows.teachers),savedPins=structuredClone(fake.rows.member_pins);

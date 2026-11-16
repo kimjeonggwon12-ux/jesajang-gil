@@ -10,6 +10,6 @@ assert.ok(suite.tests.every(f=>/^[a-z0-9-]+\.test\.mjs$/.test(f)&&!f.startsWith(
 const env={...process.env};
 for(const key of Object.keys(env))if(/SUPABASE|TEACHERSQUARE|TEACHER_EXPORT|TELEGRAM|GEMINI|R2_|ATTEND_|ATT_BOT|BOT_TOKEN|AUTH_SIGNING|PILOT_|NEXT_PUBLIC_|BACKUP_WATCH/.test(key))delete env[key];
 env.NEXT_TELEMETRY_DISABLED='1';
-const result=spawnSync(process.execPath,['--experimental-test-module-mocks','--import',fileURLToPath(new URL('../tests/helpers/collaboration-network-guard.mjs',import.meta.url)),'--test','--test-concurrency=1',...suite.tests.map(f=>'tests/'+f)],{cwd:repo,env,stdio:'inherit'});
+const result=spawnSync(process.execPath,['--experimental-test-module-mocks','--import',new URL('../tests/helpers/collaboration-network-guard.mjs',import.meta.url).href,'--test','--test-concurrency=1',...suite.tests.map(f=>'tests/'+f)],{cwd:repo,env,stdio:'inherit'});
 if(result.error)throw result.error;
 process.exit(result.status??1);

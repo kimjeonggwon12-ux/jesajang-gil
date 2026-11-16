@@ -12,7 +12,7 @@ test('기존 하단 메뉴 순서와 관리자 숨김을 유지하고 같은 업
  assert.deepEqual(classicNav(false).map(x=>x.id),order.filter(x=>x!=='admin'));
  for(const item of classicNav(true)){const url=new URL(item.href,'https://local.invalid');assert.equal(classicSection(url.pathname,url.search),item.id);}
  for(const path of ['/','/rooms','/account'])assert.equal(classicSection(path),'activity');
- for(const path of ['/admin/pilot','/admin/roster','/members','/status','/centers'])assert.equal(classicSection(path),'admin');
+ for(const path of ['/admin/pilot','/admin/roster','/members','/status'])assert.equal(classicSection(path),'admin');
 });
 test('누적 활동의 시각과 센터 과정 게이지가 원본 표시 결과와 같다',()=>{
  const time=html.slice(html.indexOf('    function actFeedTimeText('),html.indexOf('    // 누적 수치는 DB 요약',html.indexOf('    function actFeedTimeText(')));

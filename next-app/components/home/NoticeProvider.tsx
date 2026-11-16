@@ -26,4 +26,4 @@ export function NoticeProvider({children}:{children:ReactNode}){
  const value:Context={data:valid?.data||null,counts:valid?noticeCounts(valid.data,valid.seen):null,error,loading:!!owner&&(!valid&&!error||busy),refresh:()=>refreshRef.current(true),open,isNew:(page,at)=>!!valid&&!!at&&at>(opened.current[page]||valid.seen[page])};
  return <Notices.Provider value={value}>{children}</Notices.Provider>;
 }
-export function NoticeLink(){const {data,counts}=useNotices(),total=data&&counts?data.encouragements+data.connect.total+data.marks.room+data.center.toDecide+data.center.toSend+data.center.unread+counts.coach+counts.board+counts.story+counts.etc+Number(counts.library)+Number(counts.find)+Number(counts.helps):0;return <Link href="/?view=notices#notices">알림{total?' '+total:''}</Link>;}
+export function NoticeLink(){const {data,counts}=useNotices(),total=data&&counts?data.encouragements+data.connect.total+data.marks.room+counts.coach+counts.board+counts.story+counts.etc+Number(counts.library)+Number(counts.find)+Number(counts.helps):0;return <Link href="/?view=notices#notices">알림{total?' '+total:''}</Link>;}

@@ -20,7 +20,6 @@
     "next-attendance-sessions.test.mjs",
     "next-attendance.test.mjs",
     "next-calendar.test.mjs",
-    "next-centers.test.mjs",
     "next-client.test.mjs",
     "next-coach-conversation.test.mjs",
     "next-coaching.test.mjs",

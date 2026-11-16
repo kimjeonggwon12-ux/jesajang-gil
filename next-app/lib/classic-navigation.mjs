@@ -11,7 +11,7 @@ export const CLASSIC_NAV=[
 ];
 export function classicSection(path,search=''){
  if(path.startsWith('/community')){const section=new URLSearchParams(search).get('section');return ['yard','questions','bugs','contest','all'].includes(section)?'join':section==='evangelism'?'calendar':'story';}
- if(path.startsWith('/admin')||path==='/members'||path==='/status'||path==='/centers')return 'admin';
+ if(path.startsWith('/admin')||path==='/members'||path==='/status')return 'admin';
  if(path.startsWith('/calendar'))return 'calendar';
  if(path.startsWith('/connect'))return 'connect';
  if(path.startsWith('/coaching'))return 'ai';

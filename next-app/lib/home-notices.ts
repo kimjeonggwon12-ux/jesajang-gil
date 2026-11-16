@@ -1,6 +1,6 @@
 import {dateObject,repeats,shiftDate,type CalendarEvent} from './calendar.ts';
 export type NoticePage='board'|'story'|'etc'|'library'|'find'|'helps'|'coach';
-export type NoticeIndex={at:string;marks:{course:number;card:number;help:number;video:string[];room:number};connect:{unread:number;pendingCoop:number;total:number};center:{toDecide:number;toSend:number;unread:number};encouragements:number;posts:{category:string;createdAt:string;isMine:boolean}[];ads:{updatedAt:string}[];official:string[];replies:string[]};
+export type NoticeIndex={at:string;marks:{course:number;card:number;help:number;video:string[];room:number};connect:{unread:number;pendingCoop:number;total:number};encouragements:number;posts:{category:string;createdAt:string;isMine:boolean}[];ads:{updatedAt:string}[];official:string[];replies:string[]};
 export type Seen={board:string;story:string;etc:string;events:string[];course:number;video:string[];card:number;help:number;replies:string[]};
 export const noticeKey=(id:string)=>'ts_notice_seen_v1:'+id;
 export const pageOfPost=(category:string)=>['사례','성공사례','실패사례'].includes(category)?'story':category==='전도부'?'board':'etc';
