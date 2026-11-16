@@ -29,8 +29,10 @@ import pins from './actions/pins.js';
 import newMarks from './actions/new-marks.js';
 import targetRoom from './actions/target-room.js';
 import auth from './actions/auth.js';
+import eduMgmt from './actions/edu-mgmt.js';   // 2026-11-16 교육보고(화전단·목사교 주간 현황·부서 공무 사전보고) — EDU_MGMT_ENABLED
 
 export const actions = {
+  ...eduMgmt,
   ...roster,
   ...rosterAdmin,
   ...rosterImport,

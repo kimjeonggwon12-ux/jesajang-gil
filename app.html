@@ -3205,6 +3205,7 @@
           <button type="button" class="kko-tab" data-subtab="connectAdmin" onclick="adminSwitchSubTab('connectAdmin')" style="display:none">연결</button>   <!-- 11/2(사용자): 탭은 숨김, 연결 관리 기능·서버는 그대로 -->
           <button type="button" class="kko-tab" data-subtab="calAdmin" onclick="adminSwitchSubTab('calAdmin')">행사</button>
           <button type="button" class="kko-tab" data-subtab="attend" onclick="adminSwitchSubTab('attend')">출석</button>
+          <button type="button" class="kko-tab" data-subtab="eduReport" onclick="adminSwitchSubTab('eduReport')" style="display:none">교육보고</button>   <!-- 2026-11-16 화전단·목사교 주간 출석·부서 공무 사전보고(서버가 권한 확인 후 보임) -->
           <button type="button" class="kko-tab" data-subtab="openfb" onclick="adminSwitchSubTab('openfb')">개강피드백</button>   <!-- 2026-11-10 상담 이상 섭외자 피드백방 -->
           <!-- 11/2(사용자): 명단은 '교사' 탭 맨 위 '교사명단'으로 옮김 -->
           <button type="button" class="kko-tab" data-subtab="rooms" onclick="adminSwitchSubTab('rooms')">도우미연결</button>   <!-- 2026-10-25 부서·지역 텔레그램 보고방 연결 -->
@@ -3221,6 +3222,7 @@
         <div id="admin-pane-connectAdmin" class="admin-pane">
           <div id="cnAdmRoot"><div class="text-center py-16"><span class="loading loading-spinner"></span></div></div>
         </div>
+        <div id="admin-pane-eduReport" class="admin-pane"><div id="eduMgmtRoot" class="ra"></div></div>
         <div id="admin-pane-attend" class="admin-pane"><div id="attAdmRoot" class="att-adm"></div></div>   <!-- 2026-10-05 QR 출석 관리 -->
         <div id="admin-pane-calAdmin" class="admin-pane">
           <div class="calAdm-tabs2">
@@ -17199,11 +17201,13 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
         else if (tab === 'connectAdmin') cnAdmLoad();
         else if (tab === 'calAdmin') calAdmInit();
         else if (tab === 'attend') attAdmLoad();
+        else if (tab === 'eduReport') eduMgmt.mount();
         else if (tab === 'roster') rosterAdm.mount();
         else if (tab === 'rooms') roomsAdm.mount();
         else if (tab === 'cohort') cohortAdm.mount();
       }
       else if (tab === 'attend') attAdmLoad();   // 다시 들어올 때마다 최신 출석 인원
+      else if (tab === 'eduReport') eduMgmt.mount();   // 다시 들어올 때마다 최신
       else if (tab === 'cohort') cohortAdm.mount();   // 다시 들어올 때마다 최신(보던 과정이면 그 과정)
     }
     // ════════════════════════════════════════════════════════════════
@@ -19063,6 +19067,199 @@ async function calAdmInit() {
     })();
     window.roomsAdm = roomsAdm;
 
+    // ════════════════════════════════════════════════════════════════
+    // [ADMIN] 2026-11-16 관리자 > 교육보고(출석 옆 탭) — 화전단·목사교 주간 출석 현황 + 부서 공무 사전보고(서버 eduMgmtAccess 가 켜짐·권한일 때만 탭 보임).
+    // 숫자·권한·저장은 서버(edu-mgmt.js)가 한다. 아래 EM-VIEW 표시 함수는 B(next-app/lib/edu-mgmt.ts)와 같아야 한다(tests/edu-mgmt-ui.test.mjs).
+    // ════════════════════════════════════════════════════════════════
+    /* EM-VIEW-START */
+    const EM_HEAD = ['조직', '재적', '참석', '정시', '지각', '공무', '불참', '참석률'];
+    const EM_STATUS = ['참석', '지각', '공무', '불참'];
+    const EM_ACTION = { register: '공무 등록', update: '사유 수정', cancel: '공무 취소', followup: '교육 결과' };
+    const EM_SOURCE = { dept: '부서 보고', list: '전체 명단 등록', released: '전체 화면에서 해제됨' };
+    function emCells(r) { return [r.label, r.n, r.came, r.onTime, r.late, r.excused, r.absent, r.rate]; }
+    function emPeopleGroups(people) { return EM_STATUS.map(status => ({ status, people: people.filter(p => p.status === status) })).filter(g => g.people.length); }
+    function emPersonText(p) { return p.name + (p.status === '지각' && p.lateMin && p.lateMin.length ? '(' + p.lateMin.join('·') + '분)' : '') + (p.sub ? ' · ' + p.sub : ''); }
+    function emItemHead(it) { return it.kindLabel + ' · ' + it.date + ' · ' + it.title; }
+    function emSessionsText(it) { return it.sessions.length > 1 ? it.sessions.join('·') + ' (두 번 온 분은 한 번)' : (it.sessions[0] || ''); }
+    function emDraft(p) { return { on: !!p.excused, reason: p.reason || '', followMethod: p.followMethod || '', cancelReason: '' }; }
+    function emChanges(people, drafts) {
+      const out = [];
+      for (const p of people) {
+        const d = drafts[p.memberId]; if (!d) continue;
+        const reason = String(d.reason || '').trim(), followMethod = String(d.followMethod || '').trim();
+        if (d.on && (!p.excused || reason !== (p.reason || '') || followMethod !== (p.followMethod || ''))) out.push({ memberId: p.memberId, op: 'register', reason, followMethod });
+        else if (!d.on && p.excused) out.push({ memberId: p.memberId, op: 'cancel', reason: String(d.cancelReason || '').trim() });
+      }
+      return out;
+    }
+    function emChangeProblem(changes) {
+      if (!changes.length) return '바뀐 내용이 없어요.';
+      if (changes.some(c => c.op === 'register' && !c.reason)) return '공무로 고른 사람마다 사유를 적어 주세요.';
+      if (changes.some(c => c.reason.length > 300 || (c.followMethod || '').length > 300)) return '사유와 교육 방법은 300자 이내로 적어 주세요.';
+      return '';
+    }
+    function emHistoryText(h) {
+      const who = h.actorName + '(' + (h.actorRole === 'head' ? '부서장' : '교육 담당') + ')';
+      const what = h.action === 'cancel' ? (h.cancelReason ? ' — ' + h.cancelReason : '') : h.action === 'followup' ? ' — ' + (h.followMethod || '') + (h.followResult ? ' / ' + h.followResult : '') + (h.followDone ? ' (완료)' : '') : ' — ' + h.reason;
+      return String(h.at || '').slice(0, 16).replace('T', ' ') + ' · ' + who + ' · ' + h.name + ' ' + EM_ACTION[h.action] + what;
+    }
+    /* EM-VIEW-END */
+    const eduMgmt = (() => {
+      const st = { access: null, on: false, view: 'week', week: null, detail: null, date: '', scope: null, drafts: {}, kind: '목사교', exDate: '', aff: '', confirm: null, heads: null, busy: false, msg: '', error: '' };
+      const call = payload => callApi({ ...payload, memberId: App.memberId, name: App.name });
+      const today = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+      const root = () => document.getElementById('eduMgmtRoot');
+      function css() {
+        if (document.getElementById('emCss')) return;
+        const el = document.createElement('style'); el.id = 'emCss';
+        el.textContent = `.em-switch{display:flex;gap:6px;padding:10px 14px 0}.em-switch button{flex:1;height:40px;border-radius:10px;border:1px solid #00AE82;background:#fff;color:#00875f;font-weight:700}
+          .em-switch button.on{background:#00AE82;color:#fff}.em-wrap{padding:12px 14px 90px}.em-tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+          .em-tabs button{height:36px;padding:0 12px;border-radius:18px;border:1px solid #cfd8d4;background:#fff;font-weight:700}.em-tabs button.on{border-color:#00AE82;color:#00875f;background:#e8f7f2}
+          .em-row{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:8px 0}.em-row label{display:flex;flex-direction:column;font-size:13px;font-weight:700;gap:4px}
+          .em-row input,.em-row select,.em-p input,.em-p textarea{height:38px;border:1px solid #d6dbd8;border-radius:8px;padding:0 8px;font-size:14px}
+          .em-card{border:1px solid #e3e8e6;border-radius:12px;padding:12px;margin:10px 0;background:#fff}.em-card h4{font-size:16px;font-weight:800;margin:0 0 4px}
+          .em-note{font-size:13px;color:#5b6661;margin:4px 0}.em-bad{color:#c0392b}.em-ok{color:#00875f}
+          .em-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}.em-tbl th,.em-tbl td{border-bottom:1px solid #eef1f0;padding:6px 4px;text-align:right;white-space:nowrap}
+          .em-tbl th:first-child,.em-tbl td:first-child{text-align:left}.em-tbl tr.sum td{font-weight:800;background:#f6faf8}.em-tbl button{border:0;background:none;color:#00875f;font-weight:700;text-decoration:underline;padding:0}
+          .em-scroll{overflow-x:auto}.em-p{border-top:1px solid #eef1f0;padding:8px 0}.em-p .em-name{font-weight:800}.em-p .em-two{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+          .em-p .em-two input,.em-p textarea{width:100%}.em-hist{font-size:12px;color:#5b6661;border-top:1px dashed #e3e8e6;padding:4px 0}
+          #eduMgmtRoot .ra-btn{height:44px;padding:0 16px;border-radius:10px;border:1px solid #00AE82;background:#00AE82;color:#fff;font-weight:700;font-size:15px;white-space:nowrap}
+          #eduMgmtRoot .ra-btn.line{background:#fff;color:#00875f}#eduMgmtRoot .ra-btn.warn{background:#fff;color:#c0392b;border-color:#e3b5ae}#eduMgmtRoot .ra-btn:disabled{opacity:.5}
+          @media (max-width:520px){.em-p .em-two{grid-template-columns:1fr}}`;
+        document.head.appendChild(el);
+      }
+      /** 관리자 화면을 열 때 한 번: 기능이 켜져 있고 볼 권한이 있으면 '교육보고' 탭을 보인다. */
+      async function probe() {
+        const tab = document.querySelector('#admin-subtabs [data-subtab="eduReport"]'); if (!tab) return;
+        try { st.access = await call({ action: 'eduMgmtAccess' }); } catch (e) { st.access = null; }
+        const ok = !!(st.access && st.access.enabled && st.access.visible);
+        tab.style.display = ok ? '' : 'none';
+        if (!ok && adminSubTab === 'eduReport') adminSwitchSubTab('dist');
+      }
+      /** 교육보고 탭을 열 때(들어올 때마다 최신 주간 현황). */
+      async function mount() {
+        st.on = true; css();
+        if (!st.access) { try { st.access = await call({ action: 'eduMgmtAccess' }); } catch (e) { st.access = null; } }
+        if (!st.date) st.date = today(); if (!st.exDate) st.exDate = today();
+        render(); if (st.view === 'week') loadWeek(); else if (st.view === 'excused' && st.scope) loadScope();
+      }
+      function pick(view) { st.view = view; st.msg = st.error = ''; st.confirm = null; render(); if (view === 'week' && !st.week) loadWeek(); if (view === 'excused' && !st.scope) loadScope(); if (view === 'heads') loadHeads(); }
+      async function busy(fn) { st.busy = true; st.msg = st.error = ''; render(); try { await fn(); } catch (e) { st.error = e.message || '서버에 연결하지 못했어요.'; } st.busy = false; render(); }
+      const need = res => { if (!res || res.error) throw new Error((res && res.error) || '서버에 연결하지 못했어요.'); return res; };
+      function loadWeek() { st.detail = null; return busy(async () => { st.week = need(await call({ action: 'getEduWeekly', date: st.date })); }); }
+      function openDetail(meetingId, group) { return busy(async () => { st.detail = need(await call({ action: 'getEduWeeklyDetail', date: st.date, meetingId, group })); }); }
+      function download() {
+        return busy(async () => {
+          const r = need(await call({ action: 'exportEduWeekly', date: st.date }));
+          const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([r.text], { type: r.mime })); a.download = r.filename; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        });
+      }
+      function loadScope(aff) {
+        st.confirm = null;
+        return busy(async () => {
+          const s = need(await call({ action: 'getEduExcusedScope', kind: st.kind, date: st.exDate, affiliation: aff === undefined ? st.aff : aff }));
+          st.scope = s; st.aff = s.affiliation; st.drafts = Object.fromEntries(s.people.map(p => [p.memberId, emDraft(p)]));
+        });
+      }
+      function edit(id, key, value) { const d = st.drafts[id]; if (!d) return; d[key] = key === 'on' ? !!value : value; if (key === 'on') render(); }
+      function review() {
+        const changes = emChanges(st.scope.people, st.drafts), bad = emChangeProblem(changes);
+        if (bad) { st.error = bad; st.confirm = null; render(); return; }
+        st.error = ''; st.confirm = changes; render();
+      }
+      function save() {
+        const changes = st.confirm; if (!changes) return;
+        return busy(async () => {
+          const r = need(await call({ action: 'applyEduExcusedScope', kind: st.kind, date: st.exDate, affiliation: st.aff, revision: st.scope.revision, changes }));
+          st.confirm = null;
+          await loadScopeQuiet();
+          st.msg = `저장했어요. 추가 ${r.added}명 · 해제 ${r.removed}명 · 사유 수정 ${r.updated}명. 이미 보낸 보고는 바뀌지 않아요.`;
+        });
+      }
+      async function loadScopeQuiet() { const s = need(await call({ action: 'getEduExcusedScope', kind: st.kind, date: st.exDate, affiliation: st.aff })); st.scope = s; st.drafts = Object.fromEntries(s.people.map(p => [p.memberId, emDraft(p)])); }
+      function saveFollow(id) {
+        const p = st.scope.people.find(x => x.memberId === id); if (!p) return;
+        const g = k => { const el = document.getElementById('emF' + k + id); return el ? (el.type === 'checkbox' ? el.checked : el.value.trim()) : ''; };
+        return busy(async () => {
+          need(await call({ action: 'saveEduExcusedFollowup', kind: st.kind, date: st.exDate, affiliation: st.aff, memberId: id, version: p.version, followMethod: g('m'), followResult: g('r'), followDone: !!g('d') }));
+          await loadScopeQuiet(); st.msg = `${p.name} 교육 결과를 저장했어요. 출석 기록과 보낸 보고는 그대로예요.`;
+        });
+      }
+      function loadHeads() { return busy(async () => { st.heads = need(await call({ action: 'listEduDeptHeads' })); }); }
+      function setHead(op, memberId, affiliation) {
+        if (op === 'grant') { memberId = (document.getElementById('emHeadId') || {}).value || ''; affiliation = (document.getElementById('emHeadAff') || {}).value || ''; }
+        return busy(async () => { need(await call({ action: 'setEduDeptHead', op, memberId: memberId.trim(), affiliation })); st.heads = need(await call({ action: 'listEduDeptHeads' })); st.msg = op === 'grant' ? '부서장을 지정했어요.' : '부서장 지정을 거두었어요.'; });
+      }
+      const table = (rows, total, clickable) => `<div class="em-scroll"><table class="em-tbl"><thead><tr>${EM_HEAD.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>
+        ${rows.map(r => `<tr>${emCells(r).map((c, i) => `<td>${i === 0 && clickable ? `<button type="button" onclick="${clickable(r)}">${esc(c)}</button>` : esc(c)}</td>`).join('')}</tr>`).join('')}
+        <tr class="sum">${emCells(total).map(c => `<td>${esc(c)}</td>`).join('')}</tr></tbody></table></div>`;
+      function weekHtml() {
+        const w = st.week;
+        const head = `<div class="em-row"><label>주(그 주 아무 날짜)<input type="date" value="${esc(st.date)}" onchange="eduMgmt.setDate(this.value)"></label>
+          <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.loadWeek()">조회</button>
+          <button type="button" class="ra-btn line" ${st.busy || !w || !w.items.length ? 'disabled' : ''} onclick="eduMgmt.download()">요약 CSV 내려받기</button></div>
+          <p class="em-note">참석 = 정시 + 지각. 공무(사전보고)는 불참에서 빼고 참석률 분모(재적)에는 넣어요. 실제로 온 공무자는 참석으로 세요.</p>`;
+        if (!w) return head;
+        if (!w.items.length) return head + `<p class="em-note">${esc(w.week.from)} ~ ${esc(w.week.to)} 에 볼 수 있는 화요전도단·목요사명자교육이 없어요.</p>`;
+        const cards = w.items.map(it => `<div class="em-card"><h4>${esc(emItemHead(it))}</h4>
+          <p class="em-note">${esc(it.basisLabel)} · ${esc(emSessionsText(it))}${it.scope === 'dept' ? ' · 맡은 부서만' : ''} · 조직 이름을 누르면 상세</p>
+          ${table(it.rows, it.total, r => `eduMgmt.openDetail('${esc(it.meetingId)}','${esc(r.key)}')`)}</div>`).join('');
+        const d = st.detail;
+        const det = d ? `<div class="em-card"><h4>${esc(d.group.label)} 상세 · ${esc(d.date)} ${esc(d.title)}</h4>
+          ${d.rows.length ? table(d.rows, d.total, null) : table([], d.total, null)}
+          ${emPeopleGroups(d.people).map(g => `<p class="em-note"><b>${g.status} ${g.people.length}명</b> — ${g.people.map(p => esc(emPersonText(p))).join(', ')}</p>`).join('')}</div>` : '';
+        return head + `<p class="em-note">${esc(w.week.from)} ~ ${esc(w.week.to)}</p>` + cards + det;
+      }
+      function excusedHtml() {
+        const s = st.scope;
+        const head = `<div class="em-row"><label>교육<select onchange="eduMgmt.setKind(this.value)"><option value="목사교" ${st.kind === '목사교' ? 'selected' : ''}>목요사명자교육</option><option value="화전단" ${st.kind === '화전단' ? 'selected' : ''}>화요전도단</option></select></label>
+          <label>날짜<input type="date" value="${esc(st.exDate)}" onchange="eduMgmt.setExDate(this.value)"></label>
+          ${s && s.options.length > 1 ? `<label>소속<select onchange="eduMgmt.loadScope(this.value)">${s.options.map(o => `<option ${o === st.aff ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label>` : ''}
+          <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.loadScope()">조회</button></div>
+          <p class="em-note">고른 소속의 사명자만 저장돼요(다른 부서 기록은 그대로). 저장해도 Telegram 보고는 다시 보내지 않아요.</p>`;
+        if (!s) return head;
+        const people = s.people.map(p => {
+          const d = st.drafts[p.memberId] || emDraft(p), id = esc(p.memberId);
+          return `<div class="em-p"><label><input type="checkbox" ${d.on ? 'checked' : ''} ${st.busy || st.confirm ? 'disabled' : ''} onchange="eduMgmt.edit('${id}','on',this.checked)"> <span class="em-name">${esc(p.name)}</span> <small>${esc(p.position)}</small></label>
+            ${p.source ? ` <small class="em-note">${esc(EM_SOURCE[p.source] || '')}</small>` : ''}
+            ${d.on ? `<div class="em-two"><input placeholder="공무 사유(필수)" maxlength="300" value="${esc(d.reason)}" oninput="eduMgmt.edit('${id}','reason',this.value)" ${st.confirm ? 'disabled' : ''}>
+              <input placeholder="추후 교육 방법" maxlength="300" value="${esc(d.followMethod)}" oninput="eduMgmt.edit('${id}','followMethod',this.value)" ${st.confirm ? 'disabled' : ''}></div>` : p.excused ? `<div class="em-two"><input placeholder="취소 이유" maxlength="300" value="${esc(d.cancelReason)}" oninput="eduMgmt.edit('${id}','cancelReason',this.value)" ${st.confirm ? 'disabled' : ''}></div>` : ''}
+            ${p.excused && p.version != null ? `<div class="em-two"><input id="emFm${id}" placeholder="교육 방법" maxlength="300" value="${esc(p.followMethod)}"><input id="emFr${id}" placeholder="교육 결과" maxlength="500" value="${esc(p.followResult)}"></div>
+              <label class="em-note"><input type="checkbox" id="emFd${id}" ${p.followDone ? 'checked' : ''}> 추후 교육 완료</label> <button type="button" class="ra-btn line" style="height:32px;font-size:13px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.saveFollow('${id}')">교육 결과 저장</button>` : ''}
+          </div>`;
+        }).join('');
+        const nameOf = id => (s.people.find(p => p.memberId === id) || {}).name || '';
+        const confirm = st.confirm ? `<div class="em-card"><h4>변경 내용 확인 · ${esc(s.affiliation)} · ${st.kind === '화전단' ? '화요전도단' : '목요사명자교육'} ${esc(s.date)}</h4>
+          ${st.confirm.map(c => `<p class="em-note">${c.op === 'register' ? '공무 등록·수정' : '공무 취소'} — ${esc(nameOf(c.memberId))}${c.reason ? ' : ' + esc(c.reason) : ''}</p>`).join('')}
+          <button type="button" class="ra-btn" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.save()">확인하고 저장</button> <button type="button" class="ra-btn line" onclick="eduMgmt.cancelConfirm()">다시 고치기</button></div>` : '';
+        return head + `<div class="em-card"><h4>${esc(s.affiliation)} · ${esc(s.date)} <small>(${s.role === 'head' ? '부서장' : '교육 담당'})</small></h4>
+          <p class="em-note">재적 ${s.people.length}명 · 공무 ${s.people.filter(p => p.excused).length}명</p>${people}
+          ${st.confirm ? '' : `<button type="button" class="ra-btn" style="margin-top:8px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.review()">변경 내용 확인</button>`}</div>` + confirm +
+          `<div class="em-card"><h4>변경 이력</h4>${s.history.length ? s.history.map(h => `<div class="em-hist">${esc(emHistoryText(h))}</div>`).join('') : '<p class="em-note">아직 없어요.</p>'}</div>`;
+      }
+      function headsHtml() {
+        const h = st.heads; if (!h) return '<p class="em-note">불러오는 중…</p>';
+        return `<p class="em-note">24부서 소속별 부서장을 지정하면 그 사람은 자기 소속 사명자의 공무만 등록·수정·취소할 수 있어요.</p>
+          <div class="em-row"><label>고유번호<input id="emHeadId" autocomplete="off"></label><label>소속<select id="emHeadAff">${h.affiliations.map(a => `<option>${esc(a)}</option>`).join('')}</select></label>
+          <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.setHead('grant')">지정</button></div>
+          ${h.heads.map(x => `<div class="em-p">${esc(x.affiliation)} · <b>${esc(x.name)}</b> <button type="button" class="ra-btn warn" style="height:30px;font-size:12px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.setHead('revoke','${esc(x.memberId)}','${esc(x.affiliation)}')">거두기</button></div>`).join('') || '<p class="em-note">지정된 부서장이 없어요.</p>'}`;
+      }
+      function render() {
+        const r = root(); if (!r || !st.on) return;
+        const a = st.access || {};
+        const tabs = [['week', '주간 출석 현황'], ['excused', '공무 사전보고'], ...(a.owner ? [['heads', '부서장 지정']] : [])];
+        r.innerHTML = `<div class="em-wrap"><div class="em-tabs">${tabs.map(([k, l]) => `<button type="button" class="${st.view === k ? 'on' : ''}" onclick="eduMgmt.pick('${k}')">${l}</button>`).join('')}</div>
+          ${st.busy ? '<p class="em-note">처리하는 중…</p>' : ''}${st.msg ? `<p class="em-note em-ok">${esc(st.msg)}</p>` : ''}${st.error ? `<p class="em-note em-bad">${esc(st.error)}</p>` : ''}
+          ${st.view === 'week' ? weekHtml() : st.view === 'excused' ? excusedHtml() : headsHtml()}</div>`;
+      }
+      return { probe, mount, pick, loadWeek, openDetail, download, loadScope, edit, review, save, saveFollow, setHead,
+        cancelConfirm() { st.confirm = null; render(); },
+        setDate(v) { st.date = v; st.week = null; st.detail = null; render(); },
+        setKind(v) { st.kind = v; st.scope = null; st.aff = ''; render(); },
+        setExDate(v) { st.exDate = v; st.scope = null; render(); } };
+    })();
+    window.eduMgmt = eduMgmt;
+
     window.Sections.admin = { mount() {
       const t = document.querySelector('#admin-subtabs [data-subtab="cohort"]');
       if (t) t.style.display = isOwnerSession() ? '' : 'none';   // 교육 관리는 7777(앱 관리자)만
@@ -19071,6 +19268,7 @@ async function calAdmInit() {
       try { sub = sessionStorage.getItem('adm_sub') || 'dist'; } catch (e) {}
       if ((sub === 'cohort' && !isOwnerSession()) || !document.getElementById('admin-pane-' + sub)) sub = 'dist';
       adminSwitchSubTab(sub);
+      if (isAdmin()) eduMgmt.probe();   // 11/16 교육보고 탭(기능 꺼짐·권한 없음이면 숨김)
     } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
 
   </script>

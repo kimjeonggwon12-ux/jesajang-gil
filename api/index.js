@@ -52,6 +52,9 @@ export default async function handler(req, res) {
       if (!GUEST_ACTIONS.has(action)) return res.status(isBackup(action) ? 403 : 200).json({ error: '손님은 초대받은 대화방과 출석만 쓸 수 있어요.', guestOnly: true });
       if (normId(body.memberId) !== who.nid) return res.status(200).json({ error: '로그인이 필요해요.', auth: false });
     }
+    // 2026-11-16: 입장 표로 확인한 본인 번호(요청 본문 값은 믿지 않음) — 교육보고(edu-mgmt.js)가 신원으로 쓴다
+    delete body._actorNid;
+    if (who && !who.guest) body._actorNid = who.nid;
     const fn = actions[action];
     const result = fn ? await fn(body) : await forwardToLegacy({ ...body, action });
     // 2026-11-06(사용자): 고유번호는 입장할 때만 — 응답의 남의 번호는 가린다(본인 번호·예약 작업 응답은 그대로)
