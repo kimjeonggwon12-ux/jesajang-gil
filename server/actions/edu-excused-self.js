@@ -51,7 +51,7 @@ export async function getMyExcused(body = {}) {
     const rows = await run(db().from('edu_excused_self').select('*').eq('kind', kind).eq('nid', m.nid).in('date', dates));
     kinds.push({ kind, title: KINDS[kind].title, dates: dates.map((d) => ({ date: d, label: dayLabel(d), mine: view(rows.find((r) => r.date === d && r.active)) })) });
   }
-  return { enabled: true, eligible: true, title: '화요 전도단 · 목요 사명자 교육 공무 보고', group: groupOf(m.p), dept: m.p.dept, region: m.p.dept === '24부서' ? '' : (m.p.region || ''),
+  return { enabled: true, eligible: true, title: '화요 전도단 · 목요 사명자 교육 공무로 인한 결석자 보고', group: groupOf(m.p), dept: m.p.dept, region: m.p.dept === '24부서' ? '' : (m.p.region || ''),
     name: m.p.name, kinds };
 }
 

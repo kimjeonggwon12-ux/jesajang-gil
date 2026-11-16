@@ -8541,7 +8541,7 @@
     // 11/16(2차, 사용자): 나의교실 '내 활동 보고 · 피드백방' 옆 '출석' 칸으로 옮김, 제목 '화요 전도단 · 목요 사명자 교육 공무 보고', 두 교육 날짜·사유.
     /* EXS-VIEW-START */
     function exsGroupText(d) { return d.group + (d.region ? ' · ' + d.region : ''); }
-    function exsLine(x) { return x.mine ? '✅ 공무 신고됨' + (x.mine.reason && x.mine.reason !== '공무' ? ' · ' + x.mine.reason : '') : '아직 신고 안 함'; }
+    function exsLine(x) { return x.mine ? '✅ 공무 결석 신고됨' + (x.mine.reason && x.mine.reason !== '공무' ? ' · ' + x.mine.reason : '') : '아직 신고 안 함'; }
     /* EXS-VIEW-END */
     const exsState = { at: 0, v: null, busy: '', reason: '', loaded: false };
     function exsLoad(force) {
@@ -8557,14 +8557,14 @@
       if (!d.eligible) return '<div class="ex-self-empty">' + esc(d.reason || '공무 보고 대상이 아니에요.') + '</div>';
       const btn = (kind, x) => x.mine
         ? '<button type="button" class="ex-self-btn line" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsCancel(\'' + kind + '\',\'' + x.date + '\')">취소</button>'
-        : '<button type="button" class="ex-self-btn" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsSubmit(\'' + kind + '\',\'' + x.date + '\')">' + (exsState.busy === kind + x.date ? '신고하는 중…' : '공무로 신고') + '</button>';
+        : '<button type="button" class="ex-self-btn" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsSubmit(\'' + kind + '\',\'' + x.date + '\')">' + (exsState.busy === kind + x.date ? '신고하는 중…' : '공무 결석으로 신고') + '</button>';
       const TH = { 화전단: ['tue', '🔥'], 목사교: ['thu', '📖'] };
       const sections = d.kinds.map(k => '<div class="ex-self-k ' + (TH[k.kind] || [''])[0] + '"><div class="ex-self-kt"><span>' + ((TH[k.kind] || [, ''])[1]) + '</span>' + esc(k.title) + '</div>'
         + k.dates.map(x => '<div class="ex-self-row"><b>' + esc(x.label) + '</b><span class="' + (x.mine ? 'on' : '') + '">' + esc(exsLine(x)) + '</span>' + btn(k.kind, x) + '</div>').join('') + '</div>').join('');
       return '<div class="ex-self-card">'
         + '<div class="ex-self-t">📋 ' + esc(d.title) + '</div>'
         + '<div class="ex-self-sub">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
-        + '<input id="exsReason" maxlength="200" placeholder="사유 기록" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value">'
+        + '<input id="exsReason" maxlength="200" placeholder="결석 사유 기록" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value">'
         + sections + '</div>';
     }
     window.exsState = exsState;
@@ -8572,13 +8572,13 @@
       if (exsState.busy) return; exsState.busy = kind + date; renderHome();
       try {
         const r = await callApi({ action: 'submitMyExcused', memberId, kind, date, reason: exsState.reason.trim() });
-        if (!r || r.error) toast((r && r.error) || '신고하지 못했어요', true); else { toast(r.label + ' 공무로 신고했어요'); exsState.reason = ''; }
+        if (!r || r.error) toast((r && r.error) || '신고하지 못했어요', true); else { toast(r.label + ' 공무 결석으로 신고했어요'); exsState.reason = ''; }
       } catch (e) { toast('신고하지 못했어요', true); }
       exsState.busy = ''; exsLoad(true);
     };
     window.exsCancel = async function (kind, date) {
       if (exsState.busy) return; exsState.busy = kind + date; renderHome();
-      try { const r = await callApi({ action: 'cancelMyExcused', memberId, kind, date }); if (!r || r.error) toast((r && r.error) || '취소하지 못했어요', true); else toast('공무 신고를 취소했어요'); } catch (e) { toast('취소하지 못했어요', true); }
+      try { const r = await callApi({ action: 'cancelMyExcused', memberId, kind, date }); if (!r || r.error) toast((r && r.error) || '취소하지 못했어요', true); else toast('공무 결석 신고를 취소했어요'); } catch (e) { toast('취소하지 못했어요', true); }
       exsState.busy = ''; exsLoad(true);
     };
     function encouragementBannerHtml() {
@@ -9290,7 +9290,7 @@
     // 10/27(사용자): '내가 이수한 교육' 탭 없앰, '내 활동 보고'가 맨 앞(메인 중 메인)·'내 교육 출석'은 그 오른쪽
     // 11/6(사용자): 피드백방 = 나의교실, 내 활동 보고 오른쪽·내 교육 출석 왼쪽
     // 11/10(사용자): '내 교육 출석' 탭 삭제 — 필요하면 나중에 다시(attCardHtml·attLoadMy 함수는 남겨 둠, QR 카메라 출석 #attend= 는 그대로)
-    const ACT_PAGES = [['targets', '내 활동 보고'], ['rooms', '피드백방'], ['attend', '출석']];   // 11/16 출석 = 화요 전도단·목요 사명자 교육 공무 보고
+    const ACT_PAGES = [['targets', '내 활동 보고'], ['rooms', '피드백방'], ['attend', '공무 결석 보고']];   // 11/16 공무 결석 보고 = 화요 전도단·목요 사명자 교육 공무로 인한 결석자 보고
     // 이수 내역은 apiSWR로 이 기기에 남겨 두어, 다음에 열 때 바로 보이고 서버 값으로 갱신된다.
     const actEduSt = { done: false, busy: false };
     function actEduRender() {
@@ -19368,7 +19368,7 @@ async function calAdmInit() {
             <button type="button" class="ra-btn line" style="height:30px;font-size:12px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.addOne('${esc(h.memberId)}')">공무로 등록</button></div>`).join('') : '<p class="em-note">찾는 이름이 재적에 없어요.</p>') : '';
         return head + `<div class="em-card em-kcard ${th.cls}"><h4>${th.icon} ${th.title} · ${esc(L.date)}</h4><p class="em-note">${esc(exlCountsText(L))}${L.meeting ? '' : ' · 아직 출석 모임 없음'}</p>${rows}</div>
           <div class="em-card"><h4>대신 등록</h4><p class="em-note">전화로 알려 온 분 등을 관리자가 대신 공무로 등록해요(등록한 사람이 기록돼요).</p>
-          <div class="em-row"><label>이름<input id="emAddQ" value="${esc(st.q)}" autocomplete="off"></label><label>사유 기록<input id="emAddReason" maxlength="200" value="${esc(st.addReason)}"></label>
+          <div class="em-row"><label>이름<input id="emAddQ" value="${esc(st.q)}" autocomplete="off"></label><label>결석 사유 기록<input id="emAddReason" maxlength="200" value="${esc(st.addReason)}"></label>
           <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.findPeople()">찾기</button></div>${hits}</div>`;
       }
       function render() {
