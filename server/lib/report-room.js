@@ -760,7 +760,7 @@ export async function reportRoomsAdmin(body) {
       if (want.size) await run(db().from('cohort_summary_log').insert([...want].map((nid) => ({ cohort_id: '#excused', kind, ref_id: nid, date, sent_at: kstDateTime() }))));
     }
     const ex = await excusedOf(kind, date);
-    return { people: (await roster24()).map((p) => ({ nid: p.nid, name: p.name, aff: p.affiliation, no: Number(p.district) || 99, pos: p.position, on: ex.has(p.nid) })) };
+    return { people: (await roster24(kind)).map((p) => ({ nid: p.nid, name: p.name, aff: p.affiliation, no: Number(p.district) || 99, pos: p.position, on: ex.has(p.nid) })) };
   }
   if (op === 'set') {
     const dept = String(body.dept || '').trim(), region = String(body.region || '').trim();

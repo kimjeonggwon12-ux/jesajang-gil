@@ -64,7 +64,7 @@ async function computeMeeting(kind, m) {
   // closingData 는 사람 요청이면 자료 위임을 다시 묻는다 — 이미 위에서 범위를 확인했으므로 내부 계산으로 실행하고 범위만 잘라 돌려준다.
   let edu = await eduFor(m), basis = 'full';
   if (!edu) {
-    const roster = await roster24();
+    const roster = await roster24(kind);
     if (!roster.length) fail('24부서 재적이 비어 있어요.', 409);
     edu = { series: { series_id: m.seriesId || '', title: m.title, roster_key: '목요사명자' }, roster };
     basis = '24';

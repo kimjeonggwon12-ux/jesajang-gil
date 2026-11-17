@@ -652,7 +652,15 @@ export default { tsEduAttTest, tsEduAttSend };
 export const JUNGJIN_KEY = '#중진';
 export const JUNGJIN_ROOM_KEYS = [JUNGJIN_KEY, '#24부서'];
 export const jungjinKind = (m) => (/화요전도단|화전단/.test(String(m.title || '')) ? '화전단' : null);
-export async function roster24() {
+// 11/17(사용자): 화요 전도단 출석 집계에서 이경옥 님은 명단에서 아예 제외, 휴직자도 안 뜨게(직책·소속·구역·지역·이름에 '휴직')
+export const HWA_EXCLUDED_NAMES = ['이경옥'];
+export const isOnLeave = (p) => /휴직/.test([p.position, p.affiliation, p.district, p.region, p.name].join(' '));
+export const hwaExcluded = (p) => HWA_EXCLUDED_NAMES.includes(String(p.name || '').trim()) || isOnLeave(p);
+export async function roster24(kind) {
+  const list = await roster24All();
+  return kind === '화전단' ? list.filter((p) => !hwaExcluded(p)) : list;
+}
+async function roster24All() {
   return selectAll(() => db().from('edu_roster').select('nid, member_id, name, dept, region, district, affiliation, position, sort_order').eq('roster_key', '목요사명자').eq('dept', '24부서').order('sort_order'));
 }
 export async function excusedOf(kind, date) {
@@ -661,7 +669,7 @@ export async function excusedOf(kind, date) {
 /** 중진 방 묶음: 카드(공무 칸) + 참석·지각·공무·불참 명단 */
 // 11/17: o = { roster, title, place, basisWord } — 24부서 월요모임(명단 따로)도 같은 틀로
 export async function jungjinParts(m, phase, kind, o = {}) {
-  const roster = o.roster || await roster24();
+  const roster = o.roster || await roster24(kind);
   if (!roster.length) return [];
   const edu = { series: { series_id: m.seriesId || '', title: m.title }, roster, noOverride: !!o.roster };
   const P = { ...(await prepare(m, phase, edu)), phase };
