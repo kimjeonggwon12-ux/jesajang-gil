@@ -648,6 +648,7 @@ export default { tsEduAttTest, tsEduAttSend };
 //   공무(사전보고자) = cohort_summary_log cohort_id '#excused', kind '화전단'|'목사교', ref_id = nid, date = 교육 날짜(도우미연결 화면에서 체크).
 //   화전단 = 제목에 '화요전도단'·'화전단'이 든 출석 모임, 목사교 = roster_key '목요사명자' 정기 교육.
 export const JUNGJIN_KEY = '#중진';
+export const JUNGJIN_ROOM_KEYS = [JUNGJIN_KEY, '#24부서'];
 export const jungjinKind = (m) => (/화요전도단|화전단/.test(String(m.title || '')) ? '화전단' : null);
 export async function roster24() {
   return selectAll(() => db().from('edu_roster').select('nid, member_id, name, dept, region, district, affiliation, position, sort_order').eq('roster_key', '목요사명자').eq('dept', '24부서').order('sort_order'));
@@ -714,17 +715,22 @@ export async function postJungjin(m, phase, { to = null, force = false } = {}) {
   let kind = jungjinKind(m);
   if (!kind) { const e = await eduFor(m); if (e && e.series.roster_key === '목요사명자') kind = '목사교'; }
   if (!kind) return [];
-  const [room] = to ? [to] : await run(db().from('report_rooms').select('*').eq('dept', JUNGJIN_KEY).eq('active', true)).catch(() => []);
-  if (!room) return [];
-  if (!force) {
-    const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#jungjin', kind: phase, ref_id: m.meetingId, date: m.date, sent_at: kstDateTime() });
-    if (error) return [];   // 이미 보냄
-  }
+  // 11/17(사용자): '24부서 사랑(전도)하자!' 방 General(-1001973166667, 방 열쇠 '#24부서')에도 같은 24부서 장부청 소속 출석 — 화·목 오전 마감·최종마다
+  const rooms = to ? [to] : await run(db().from('report_rooms').select('*').in('dept', JUNGJIN_ROOM_KEYS).eq('active', true)).catch(() => []);
+  if (!rooms.length) return [];
+  let parts = null;
   const sent = [];
-  for (const p of await jungjinParts(m, phase, kind)) {
-    try { if (p.png) await sendRoomBoard(room, p.png, p.caption, p.text); else await sendRoomText(room.chat_id, p.text); sent.push('중진'); }
-    catch (e) { console.log('중진 방 전송 실패: ' + e.message); }
-    await new Promise((r) => setTimeout(r, 1500));
+  for (const room of rooms) {
+    if (!force) {
+      const { error } = await db().from('cohort_summary_log').insert({ cohort_id: room.dept === JUNGJIN_KEY ? '#jungjin' : '#jungjin:' + room.dept, kind: phase, ref_id: m.meetingId, date: m.date, sent_at: kstDateTime() });
+      if (error) continue;   // 이 방엔 이미 보냄
+    }
+    parts ||= await jungjinParts(m, phase, kind);
+    for (const p of parts) {
+      try { if (p.png) await sendRoomBoard(room, p.png, p.caption, p.text); else await sendRoomText(room.chat_id, p.text); sent.push(room.dept); }
+      catch (e) { console.log(room.dept + ' 방 전송 실패: ' + e.message); }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
   }
   return sent;
 }
