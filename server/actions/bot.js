@@ -755,12 +755,13 @@ async function tsTestRoom(body) {
     if (!m) return { error: '모임 없음' };
     const phase = String(body.phase || '최종');
     const { png, caption, texts } = await kyoPreview(m, phase);
-    out.push(['kyo:intro', await testText('🧪 <b>[견본] 교역자 방 새 서식</b> — 교회 교역자(부서별)·신학부 한 통, 참석·지각(분)·공무·미참석' + String.fromCharCode(10) + '이 방(목사교 행정 방)에만 올린 견본이에요. 실제 교역자 방은 확인 뒤 바꿔요.')]);
-    out.push(['kyo:card', await testPhoto(png, caption, caption)]);
+    if (body.intro !== false) out.push(['kyo:intro', await testText('🧪 <b>[견본] 교역자 방 새 서식</b> — 교회 교역자(부서별)·신학부 한 통, 참석·지각(분)·공무·미참석' + String.fromCharCode(10) + '이 방(목사교 행정 방)에만 올린 견본이에요. 실제 교역자 방은 확인 뒤 바꿔요.')]);
+    // 11/17 4차(사용자): 카드 아래 요약 글은 두지 않음 — 카드 사진 → 바로 실명 명단
+    out.push(['kyo:card', await testPhoto(png, '', caption)]);
     for (const t of texts) out.push(['kyo', await testText(t)]);
     if (body.jungjin) {   // 24부서 장부청 소속 카드 + 명단도 같이
       const ea = await import('../lib/edu-attendance.js');
-      for (const q of await ea.jungjinParts(m, phase, ea.jungjinKind(m) || '목사교')) out.push(['kyo:24', q.png ? await testPhoto(q.png, q.caption, q.text) : await testText(q.text)]);
+      for (const q of await ea.jungjinParts(m, phase, ea.jungjinKind(m) || '목사교')) out.push(['kyo:24', q.png ? await testPhoto(q.png, '', q.caption) : await testText(q.text)]);
     }
   }
   // 11/4: 출석 서머리 시험 — { only:['att'], meetingId, phase:'최종'|'오전'… } 지역 글 몇 개 + 부서 민트 표 + 교자장부청 보라 표

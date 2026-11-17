@@ -68,7 +68,9 @@ async function prepare(m, phase, edu) {
   }
   for (const nid of ALWAYS_PRESENT) {
     const att = byNid.get(nid) || {};
-    for (const s of sessions) att[s] = { ...(att[s] || {}), late: '정상 출석' };
+    // 11/17(사용자): 지파장·지파총무는 '항상 오전 교육 참석자'로(저녁까지 채우지 않음). 오전 타임이 없는 모임이면 첫 타임에
+    const s0 = sessions.includes('오전') ? '오전' : order.includes('오전') ? null : sessions[0];
+    if (s0) att[s0] = { ...(att[s0] || {}), late: '정상 출석' };
     byNid.set(nid, att);
   }
   // 11/12(사용자): 원장님들은 계수·참석·불참 명단에서 계속 뺀다(재적 밖 참석에도 안 나오게)

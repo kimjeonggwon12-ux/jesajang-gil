@@ -57,6 +57,7 @@ const headOf = (phase) => (phase === '최종' ? '교육 마감 · 총 참석' : 
 const dayOf = (m) => { const [y, mo, d] = m.date.split('-').map(Number); return `${mo}/${d}(${WD[new Date(Date.UTC(y, mo - 1, d)).getUTCDay()]})`; };
 const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
 const LINE = '━━━━━━━━━━━━';
+const ALWAYS_AM = [['00060830-00001', '이용우'], ['00200202-00001', '김양주']];   // 지파장·지파총무 — 항상 오전 참석
 
 /** 한 묶음(지역·부서)의 숫자. phase '최종' = 하루(타임 합, 같은 사람 한 번), 아니면 그 타임만. */
 function statOf(sess, phase, order) {
@@ -176,6 +177,13 @@ async function prepare(m, phase) {
   // 같은 날 다른 모임 출석은 섞지 않는다(이 모임 것만)
   const rows = data.rows.filter((r) => r.meetingId === m.meetingId && (phase === '최종' || r.session === phase));
   const order = [...new Set([...slotsOf(m).map((s) => s.name), '오전', '오후', '저녁', ...rows.map((r) => r.session)])];
+  // 11/17(사용자): 이용우 지파장님·김양주 지파총무님은 화요 전도단도 항상 오전 참석(정상)으로 — 목사교는 edu-attendance.js ALWAYS_PRESENT
+  if (/화요전도단|화전단/.test(String(m.title || '')) && (phase === '오전' || phase === '최종') && slotsOf(m).some((s) => s.name === '오전')) {
+    for (const [id, name] of ALWAYS_AM) {
+      if (rows.some((r) => r.session === '오전' && normId(r.id) === normId(id))) continue;
+      rows.push({ session: '오전', name, id, dept: '교역자', teacherDept: '교역자', region: '교회', late: '정상 출석', guest: false, dup: false, meetingId: m.meetingId });
+    }
+  }
   return { by: groupRows(rows), counts: await rosterCounts(), order };
 }
 
@@ -299,10 +307,10 @@ export async function kyoRoomText(m, phase, sess, order) {
     const keys = [...by.keys()].sort((a, b) => (ordered ? rank(a) - rank(b) : 0) || a.localeCompare(b, 'ko'));
     return keys.length ? keys.map((a) => ` ▸ ${esc(a)}(${by.get(a).length}): ${by.get(a).map(fmt).join(', ')}`) : ['   없음'];
   };
-  const part = (icon, title, list, ordered) => {
+  const part = (icon, title, list, ordered, noRoster) => {   // noRoster: 신학부 — 재적 명단이 다 안 맞아 재적 수·참석률은 안 씀(11/17 사용자)
     const c = list.filter(came), lt = list.filter((p) => late(p).length), e = list.filter(isEx), a = list.filter((p) => !came(p) && !isEx(p));
-    return [HEAVY, `${icon} <b>【 ${title} 】</b> 재적 ${list.length}명`, HEAVY,
-      `👥 참석 <b>${c.length}명</b> (${pct(c.length, list.length)}%) · ⏰ 지각 ${lt.length} · 📋 공무 ${e.length} · ❌ ${word} ${a.length}`, '',
+    return [HEAVY, `${icon} <b>【 ${title} 】</b>${noRoster ? '' : ` 재적 ${list.length}명`}`, HEAVY,
+      `👥 참석 <b>${c.length}명</b>${noRoster ? '' : ` (${pct(c.length, list.length)}%)`} · ⏰ 지각 ${lt.length} · 📋 공무 ${e.length} · ❌ ${word} ${a.length}`, '',
       `✅ <b>참석자 ${c.length}명</b>`, ...byAff(c, (p) => esc(p.name), ordered), '',
       `⏰ <b>지각자 ${lt.length}명</b>`, ...(lt.length ? byAff(lt, fmtLate, ordered) : ['   없음']), '',
       `📋 <b>공무(사전보고자) ${e.length}명</b>`, ...(e.length ? byAff(e, (p) => esc(p.name), ordered) : ['   없음']), '',
@@ -310,11 +318,11 @@ export async function kyoRoomText(m, phase, sess, order) {
   };
   const churchList = people.filter(church), semList = people.filter((p) => !church(p));
   const L = [`📋 <b>${esc(m.title)}</b> (교사 재적 기준)`, `🗓 ${dayOf(m)} · ${head}`,
-    `📍 <b>교역자회</b> · 재적 ${people.length}명 (⛪ 교회 교역자 ${churchList.length} · 🎓 신학부 ${semList.length})`, LINE];
-  if (sessions.length > 1) L.push(sessions.map((s) => `${SESSION_ICON[s] || '🙋'} ${s} ${people.filter((p) => p.att[s]).length}명`).join(' · '), `👥 합계 <b>${nCame}명</b> / ${people.length}명 (${pct(nCame, people.length)}%)`);
-  else L.push(`${SESSION_ICON[sessions[0]] || '👥'} ${sessions[0]} 참석 <b>${nCame}명</b> / ${people.length}명 (${pct(nCame, people.length)}%)`);
+    `📍 <b>교역자회</b> · ⛪ 교회 교역자 재적 ${churchList.length}명`, LINE];
+  if (sessions.length > 1) L.push(sessions.map((s) => `${SESSION_ICON[s] || '🙋'} ${s} ${people.filter((p) => p.att[s]).length}명`).join(' · '), `👥 합계 <b>${nCame}명</b> (⛪ 교회 ${people.filter((p) => church(p) && came(p)).length} · 🎓 신학부 ${people.filter((p) => !church(p) && came(p)).length})`);
+  else L.push(`${SESSION_ICON[sessions[0]] || '👥'} ${sessions[0]} 참석 <b>${nCame}명</b> (⛪ 교회 ${people.filter((p) => church(p) && came(p)).length} · 🎓 신학부 ${people.filter((p) => !church(p) && came(p)).length})`);
   L.push(`⏰ 지각 ${nLate}명 · 📋 공무 ${nEx}명 · ❌ ${word} ${nAbs}명`, '');
-  L.push(...part('⛪', '교회 교역자', churchList, true), ...part('🎓', '신학부 사명자', semList, false));
+  L.push(...part('⛪', '교회 교역자', churchList, true), ...part('🎓', '신학부 사명자', semList, false, true));
   const g = [...guests.values()];
   if (g.length) L.push(LINE, `🙋 비교사 ${g.length}명: ${g.map((x) => esc(x.name)).join(', ')}`, '※ 비교사는 재적·출석률에 넣지 않았어요');
   while (L[L.length - 1] === '') L.pop();
@@ -328,7 +336,8 @@ export async function kyoRoomText(m, phase, sess, order) {
   const [mo, dd] = m.date.slice(5).split('-').map(Number);
   const title = `${mo}/${dd} 교역자회 ${String(m.title || '').replace(/\s*출석$/, '')} ${phase === '최종' ? '' : phase + ' '}출석현황`;
   const total = stat('종합', people);
-  const C = { title, rows: [stat('교회 교역자', churchList), stat('신학부 사명자', semList)], total, reasonTotal: total.absent, firstHead: '구분', excusedCol: true };
+  const noN = (r) => ({ ...r, n: '-', rate: '-', absentRate: '-' });   // 신학부·종합은 재적 수·비율 표시 안 함
+  const C = { title, rows: [stat('교회 교역자', churchList), noN(stat('신학부 사명자', semList))], total: noN(total), reasonTotal: total.absent, firstHead: '구분', excusedCol: true };
   let png = null;
   try { const { eduCardPng } = await import('./edu-card.js'); png = eduCardPng(C); } catch (e) { console.log('교역자 카드 오류: ' + e.message); }
   const caption = [`📊 <b>${esc(title)}</b> (교사 재적 기준, 원장 제외)`, '',
