@@ -9058,6 +9058,9 @@
         // 10/30(사용자): 순서 = 보고 · 단계향상 피드백 · SWOT · HEARTS · 개강 계획 · 사례
         t && ['hearts', file.loading ? 'busy' : (file.hearts || []).length ? 'done' : 'off', file.loading ? spin : erSvg('heart'), 'HEARTS',
           file.loading ? '확인 중…' : (file.hearts || []).length ? `상세피드백 · ${file.hearts.length}건` : '상세피드백'],
+        // 11/17(사용자): HEARTS 옆 '수업 계획표' — 날짜마다 수업 제목·예정 과목·주요 계획(피드백방 위 탭에서도 보임)
+        t && (s => ['lesson', s && s.items && s.items.length ? 'done' : 'ready', '📅', '수업 계획표',
+          s && s.busy && !s.items ? '확인 중…' : s && s.items && s.items.length ? `${s.items.length}일 계획` : '캘린더로 적기'])(window.lpGet ? window.lpGet(t.targetId) : null),
         // 11/2(사용자): 센터 보내기 다음에 개강·수강 중 칸, 그 오른쪽에 사례로 남기기
         // 10/30(사용자): 센터 수강생은 개강 칸에 "○월 개강 ○○센터 수강 중"(목표 정하기 대신)
         t && (p.stage === '센터수강'
@@ -9074,6 +9077,7 @@
     function erCellBodyHtml(p, k) {
       const t = p.t, room = home.monthlyActRes && home.monthlyActRes.reportRoom;
       const item = a => erItems(a).join(', ');
+      if (k === 'lesson') return t ? window.lpHtml(t.targetId) + '<div class="er-o-note" style="margin-top:8px">여기 적은 계획은 이 섭외자 <b>💬 피드백방</b> 위 <b>📅 수업 계획표</b> 탭에서 함께하는 분들도 볼 수 있어요.</div>' : '';
       if (k === 'report') return `<div class="er-o-h">보고방 보고 <span>${room ? esc(room.title) : '보고방 연결 전'}</span></div>
         ${p.list.slice().reverse().map(a => { const post = (a.tgPosts || []).find(y => y.kind === 'post'), ed = (a.tgPosts || []).filter(y => y.kind === 'edit').length;
           return `<div class="er-o-row"><span>${esc(String(a.submittedAt).slice(5, 10).replace('-', '/'))} · ${esc(item(a))}</span>${post
@@ -9135,6 +9139,7 @@
     window.erCellOpen = function (k) {
       if (k === 'room') { const p = erPeople().find(x => x.name === erSel); if (p && p.t) trOpen(p.t.targetId); return; }   // 11/6 대화방은 새 화면으로
       erCell = erCell === k ? '' : k;
+      if (erCell === 'lesson') { const p = erPeople().find(x => x.name === erSel); if (p && p.t) window.lpLoad(p.t.targetId, () => { if (erCell === 'lesson') { const sc = document.getElementById('appSections'), y = sc && sc.scrollTop; renderHome(); if (sc && y != null) sc.scrollTop = y; } }, true); }
       renderHome();
     };
     window.erPlan = async function (id) { await glPlan(id, true); erLoadFile(id); };
@@ -11068,6 +11073,102 @@
       document.head.appendChild(st);
     }
     const trApi = p => callApi({ memberId: MEMBER_ID, name: MY_NAME, targetId: trSt.id, ...p });
+    // ── 수업 계획표 (11/17) ── 사용자: "각 피드백방에 수업 계획표를 캘린더 식으로 — 날짜마다 수업 제목·예정 과목·주요 계획.
+    //   쓰는 곳 = 섭외자 화면 HEARTS 옆 칸, 피드백방 = 위 탭." 서버 getLessonPlan/saveLessonPlan(target_ai_notes '수업 계획표').
+    //   담당 교사만 적고, 방에 있는 분은 보기만. 같은 화면을 두 곳에서 쓴다(rerender = 그 화면 다시 그리기).
+    const lpSt = {};   // targetId → { items, canEdit, month, sel, busy, saving, err, rerender }
+    const lpToday = () => { const d = new Date(Date.now() + 9 * 36e5); return d.toISOString().slice(0, 10); };
+    function lpCss() {
+      if (document.getElementById('lpCss')) return;
+      const st = document.createElement('style'); st.id = 'lpCss';
+      st.textContent = `
+      .lp { background:#fff; border:1px solid #EDEDED; border-radius:14px; padding:12px; }
+      .lp-hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+      .lp-hd b { font-size:16px; font-weight:900; }
+      .lp-hd button { width:34px; height:34px; border-radius:50%; border:none; background:#E6F7F1; color:#00875F; font-size:18px; font-weight:900; cursor:pointer; }
+      .lp-grid { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:3px; }
+      .lp-wd { text-align:center; font-size:11.5px; font-weight:800; color:#6B7280; padding:2px 0; }
+      .lp-wd.sun, .lp-d.sun .n { color:#E5484D; } .lp-wd.sat, .lp-d.sat .n { color:#2F6FEB; }
+      .lp-d { min-height:58px; padding:3px; border-radius:8px; border:1px solid #F0F0F0; background:#FAFAFA; text-align:left; cursor:pointer; font-family:inherit; overflow:hidden; display:flex; flex-direction:column; gap:2px; }
+      .lp-d.out { visibility:hidden; }
+      .lp-d .n { font-size:12px; font-weight:800; color:#374151; }
+      .lp-d.today { border-color:#00AE82; } .lp-d.today .n { color:#00AE82; }
+      .lp-d.has { background:#E6F7F1; border-color:#B8EAD7; }
+      .lp-d.sel { outline:2px solid #FF8A00; outline-offset:-1px; }
+      .lp-d i { font-style:normal; font-size:10.5px; line-height:1.25; color:#0B4D3A; font-weight:700; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-all; }
+      .lp-day { margin-top:10px; padding:12px; border-radius:12px; background:#FFF8EC; border:1px solid #FFE1B3; }
+      .lp-day h4 { margin:0 0 8px; font-size:14.5px; font-weight:900; }
+      .lp-day label { display:block; font-size:12.5px; font-weight:800; color:#4B5563; margin-top:8px; }
+      .lp-day input, .lp-day textarea { width:100%; box-sizing:border-box; margin-top:4px; padding:9px 10px; border-radius:10px; border:1px solid #E5E7EB; font-size:14px; font-family:inherit; background:#fff; }
+      .lp-day textarea { min-height:90px; resize:vertical; line-height:1.5; }
+      .lp-btns { display:flex; gap:6px; margin-top:10px; }
+      .lp-btns button { flex:1; height:42px; border-radius:10px; border:none; font-weight:900; font-size:14px; cursor:pointer; font-family:inherit; }
+      .lp-btns .save { background:#00AE82; color:#fff; } .lp-btns .del { flex:0 0 auto; padding:0 14px; background:#fff; color:#E5484D; border:1px solid #F3C4C6; }
+      .lp-kv { font-size:14px; line-height:1.6; margin-top:4px; } .lp-kv span { display:inline-block; min-width:64px; font-size:12px; font-weight:800; color:#6B7280; }
+      .lp-list { margin-top:12px; } .lp-list h5 { margin:0 0 6px; font-size:13.5px; font-weight:900; }
+      .lp-row { display:block; width:100%; text-align:left; padding:9px 10px; margin-bottom:6px; border-radius:10px; border:1px solid #EDEDED; background:#fff; cursor:pointer; font-family:inherit; font-size:13.5px; line-height:1.45; }
+      .lp-row b { color:#00875F; margin-right:6px; } .lp-row small { display:block; color:#6B7280; font-size:12px; white-space:pre-wrap; }
+      .lp-note { font-size:12.5px; color:#6B7280; line-height:1.55; margin-top:8px; }
+      `;
+      document.head.appendChild(st);
+    }
+    async function lpLoad(tid, rerender, force) {
+      const s = lpSt[tid] = lpSt[tid] || { month: lpToday().slice(0, 7), sel: '' };
+      s.rerender = rerender || s.rerender;
+      if ((s.items && !force) || s.busy) return;
+      s.busy = true; s.err = ''; s.rerender && s.rerender();
+      const r = await callApi({ action: 'getLessonPlan', memberId: MEMBER_ID, name: MY_NAME, targetId: tid }).catch(() => null);
+      s.busy = false;
+      if (!r || r.error) s.err = (r && r.error) || '불러오지 못했어요.'; else { s.items = r.items || []; s.canEdit = !!r.canEdit; }
+      s.rerender && s.rerender();
+    }
+    function lpHtml(tid) {
+      lpCss();
+      const s = lpSt[tid];
+      if (!s || (s.busy && !s.items)) return '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 수업 계획표 불러오는 중…</div>';
+      if (s.err && !s.items) return `<div class="tr-note">⚠️ ${esc(s.err)}</div>`;
+      const by = new Map((s.items || []).map(x => [x.date, x]));
+      const [y, m] = s.month.split('-').map(Number), first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(), last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      const today = lpToday(), q = `'${esc(tid)}'`;
+      let cells = '';
+      for (let i = 0; i < first; i++) cells += '<div class="lp-d out"></div>';
+      for (let d = 1; d <= last; d++) {
+        const ds = `${s.month}-${String(d).padStart(2, '0')}`, it = by.get(ds), wd = (first + d - 1) % 7;
+        cells += `<button type="button" class="lp-d${wd === 0 ? ' sun' : wd === 6 ? ' sat' : ''}${ds === today ? ' today' : ''}${it ? ' has' : ''}${s.sel === ds ? ' sel' : ''}" onclick="lpPick(${q},'${ds}')"><span class="n">${d}</span>${it ? `<i>${esc(it.title || it.subject || '계획')}</i>` : ''}</button>`;
+      }
+      const wds = ['일', '월', '화', '수', '목', '금', '토'].map((w, i) => `<div class="lp-wd${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}">${w}</div>`).join('');
+      const sel = s.sel, it = sel ? by.get(sel) : null, [, sm, sd] = sel ? sel.split('-').map(Number) : [];
+      const dv = k => (s.draft && s.draft.date === sel && s.draft[k] != null ? s.draft[k] : it ? it[k] : '');   // 쓰던 글은 다시 그려도 그대로
+      const dayLbl = sel ? `${sm}/${sd}(${['일', '월', '화', '수', '목', '금', '토'][new Date(sel + 'T00:00:00Z').getUTCDay()]})` : '';
+      const day = !sel ? `<div class="lp-note">${s.canEdit ? '📌 날짜를 누르면 그날 <b>수업 제목 · 예정 과목 · 주요 계획</b>을 적을 수 있어요.' : '📌 날짜를 누르면 그날 계획을 볼 수 있어요. 적고 고치는 것은 담당 교사만 해요.'}</div>`
+        : s.canEdit ? `<div class="lp-day"><h4>📅 ${dayLbl} 수업 계획</h4>
+            <label>수업 제목<input id="lpTitle" maxlength="100" value="${esc(dv('title'))}" oninput="lpDraft(${q},'title',this.value)" placeholder="예: 3과 하나님의 사랑"></label>
+            <label>예정 과목<input id="lpSubject" maxlength="100" value="${esc(dv('subject'))}" oninput="lpDraft(${q},'subject',this.value)" placeholder="예: 복음방 3과"></label>
+            <label>주요 계획<textarea id="lpPlan" maxlength="1500" placeholder="준비할 것, 나눌 이야기, 함께할 분 등" oninput="lpDraft(${q},'plan',this.value)">${esc(dv('plan'))}</textarea></label>
+            <div class="lp-btns"><button type="button" class="save" ${s.saving ? 'disabled' : ''} onclick="lpSave(${q})">${s.saving ? '저장하는 중…' : '저장'}</button>${it ? `<button type="button" class="del" ${s.saving ? 'disabled' : ''} onclick="lpSave(${q}, true)">지우기</button>` : ''}</div>
+            ${s.err ? `<div class="lp-note" style="color:#E5484D">⚠️ ${esc(s.err)}</div>` : ''}</div>`
+        : `<div class="lp-day"><h4>📅 ${dayLbl} 수업 계획</h4>${it ? `<div class="lp-kv"><span>수업 제목</span> ${esc(it.title || '-')}</div><div class="lp-kv"><span>예정 과목</span> ${esc(it.subject || '-')}</div><div class="lp-kv"><span>주요 계획</span><br>${esc(it.plan || '-').replace(/\n/g, '<br>')}</div><div class="lp-note">${esc(it.by || '')} · ${esc(it.at)}</div>` : '<div class="lp-note">이날은 아직 계획이 없어요.</div>'}</div>`;
+      const mine = (s.items || []).filter(x => x.date.startsWith(s.month));
+      const list = mine.length ? `<div class="lp-list"><h5>🗂 ${m}월 계획 ${mine.length}건</h5>${mine.map(x => `<button type="button" class="lp-row" onclick="lpPick(${q},'${x.date}')"><b>${Number(x.date.slice(5, 7))}/${Number(x.date.slice(8))}</b>${esc(x.title || '(제목 없음)')}${x.subject ? ` · ${esc(x.subject)}` : ''}${x.plan ? `<small>${esc(x.plan)}</small>` : ''}</button>`).join('')}</div>` : '';
+      return `<div class="lp"><div class="lp-hd"><button type="button" onclick="lpMove(${q},-1)" aria-label="이전 달">‹</button><b>${y}년 ${m}월 수업 계획표</b><button type="button" onclick="lpMove(${q},1)" aria-label="다음 달">›</button></div>
+        <div class="lp-grid">${wds}${cells}</div>${day}${list}</div>`;
+    }
+    window.lpPick = (tid, ds) => { const s = lpSt[tid]; if (!s) return; s.sel = s.sel === ds ? '' : ds; s.err = ''; if (ds.slice(0, 7) !== s.month) s.month = ds.slice(0, 7); s.rerender && s.rerender(); };
+    window.lpDraft = (tid, k, v) => { const s = lpSt[tid]; if (!s || !s.sel) return; if (!s.draft || s.draft.date !== s.sel) s.draft = { date: s.sel }; s.draft[k] = v; };
+    window.lpMove = (tid, n) => { const s = lpSt[tid]; if (!s) return; const [y, m] = s.month.split('-').map(Number), d = new Date(Date.UTC(y, m - 1 + n, 1)); s.month = d.toISOString().slice(0, 7); s.sel = ''; s.rerender && s.rerender(); };
+    window.lpSave = async (tid, del) => {
+      const s = lpSt[tid]; if (!s || !s.sel || s.saving) return;
+      const v = id => (document.getElementById(id) || {}).value || '';
+      const body = del ? { title: '', subject: '', plan: '' } : { title: v('lpTitle').trim(), subject: v('lpSubject').trim(), plan: v('lpPlan').trim() };
+      if (!del && !body.title && !body.subject && !body.plan) { s.err = '수업 제목·예정 과목·주요 계획 중 하나는 적어 주세요.'; return s.rerender && s.rerender(); }
+      s.saving = true; s.err = ''; s.rerender && s.rerender();
+      const r = await callApi({ action: 'saveLessonPlan', memberId: MEMBER_ID, name: MY_NAME, targetId: tid, date: s.sel, ...body }).catch(() => null);
+      s.saving = false;
+      if (!r || r.error) s.err = (r && r.error) || '저장하지 못했어요.';
+      else { s.items = r.items || []; s.draft = null; toast(del ? '이날 계획을 지웠어요.' : '수업 계획을 저장했어요.'); }
+      s.rerender && s.rerender();
+    };
+    window.lpLoad = lpLoad; window.lpHtml = lpHtml; window.lpGet = tid => lpSt[tid];
     const trLast = () => trSt.msgs.length ? trSt.msgs[trSt.msgs.length - 1].id : 0;
 
     window.trOpen = async function (targetId) {
@@ -11188,7 +11289,8 @@
       // 11/6(사용자): 정보 기록 옆에 받아 둔 피드백 — 단계향상 · ○월 센터 인도 계획 · HEARTS 상세피드백 · 종합
       const gm = (r && r.goalMonth) || (trSt.rec && trSt.rec.goalMonth) || 0;
       // 11/10(사용자): 초대하는 탭을 맨 앞으로
-      const tabs = [['members', `👥 초대${trSt.members.length ? ' ' + trSt.members.length : ''}`], ['chat', '💬 대화'], ['info', '🗂 정보 기록'], ['acts', '📝 활동 이력'],
+      // 11/17(사용자): 위 탭에 '📅 수업 계획표'
+      const tabs = [['members', `👥 초대${trSt.members.length ? ' ' + trSt.members.length : ''}`], ['chat', '💬 대화'], ['lesson', '📅 수업 계획표'], ['info', '🗂 정보 기록'], ['acts', '📝 활동 이력'],
         ['stagefb', '📈 단계향상 피드백'], ['moving', '💝 감동주기 방법'], ['plan', `🧭 ${gm ? gm + '월 ' : ''}센터 인도 계획`], ['hearts', '❤️ HEARTS 상세피드백'], ['master', '🧠 종합 피드백']];
       let body;
       if (trSt.busy) body = '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 방을 여는 중…</div>';
@@ -11198,6 +11300,7 @@
       else if (trSt.tab === 'pins') body = trSt.pins.length ? trSt.pins.map(m => `<div class="tr-card"><div class="h"><b>${esc(m.from || '')}</b><span>${esc(String(m.at).slice(0, 16))}</span></div>${m.photo ? `<img class="zoomable" src="${esc(m.photo)}" alt="사진" style="max-width:100%;border-radius:10px">` : ''}${trFileHtml(m.file)}${esc(m.text).replace(/\n/g, '<br>')}<div class="tr-acts"><button type="button" data-tr-pin="${m.id}">📌 고정 풀기</button></div></div>`).join('')
         : '<div class="tr-note">고정한 글이 없어요. 대화에서 중요한 글을 누르고 <b>📌 고정</b>을 누르세요.</div>';
       else if (trSt.tab === 'members') body = trMembersHtml();
+      else if (trSt.tab === 'lesson') body = lpHtml(trSt.id);
       else body = trRecHtml();
       const input = trSt.tab === 'chat' && !trSt.busy && !trSt.err;
       layer.innerHTML = `<div class="tr-bar"><button type="button" data-tr-close aria-label="닫기">‹</button><div class="tr-t"><b>💬 ${esc(r ? r.name : '피드백방')}</b><small>${r ? esc([r.stage, r.gender, r.ageGroup].filter(Boolean).join(' · ')) + ` · ${trSt.members.length}명` : ''}</small></div></div>
@@ -11220,6 +11323,7 @@
         if (g('[data-tr-close]')) return trClose();
         if ((el = g('[data-tr-tab]'))) {
           trSt.tab = el.dataset.trTab; trSt.sel = 0;
+          if (trSt.tab === 'lesson') { const tid = trSt.id; lpLoad(tid, () => { if (trSt.id === tid && trSt.tab === 'lesson') { const b = document.getElementById('trBody'), k = b && b.scrollTop; trRender(); const b2 = document.getElementById('trBody'); if (b2 && k != null) b2.scrollTop = k; } }, true); return trRender(); }
           if (TR_REC_TABS.includes(trSt.tab) && !trSt.rec && !trSt.recBusy) {
             trSt.recBusy = true; trRender();
             const res = await trApi({ action: 'getRoomRecords' });

@@ -522,7 +522,7 @@ export async function targetDossier(target, mid, budget = {}) {
   ]);
   // 10/30: 교사가 파악한 정보(INFO_KIND)는 AI 기록과 따로 — 모든 AI 프롬프트에 '■ 교사가 파악한 정보'로 들어간다
   const info = allNotes.filter((n) => n.kind === INFO_KIND);
-  const notes = allNotes.filter((n) => n.kind !== INFO_KIND && n.kind !== MASTER_KIND);
+  const notes = allNotes.filter((n) => n.kind !== INFO_KIND && n.kind !== MASTER_KIND && n.kind !== '수업 계획표');   // 11/17: 수업 계획표는 AI 묶음에 안 넣음
   const infoLines = info.map((n) => `- ${day(n.created_at)} [${n.input || '기타'}] ${cut(n.text, 1500)}`);
 
   const actLines = acts.sort((a, b) => (String(a.submitted_at) < String(b.submitted_at) ? -1 : 1)).map((a) => '- ' + [
