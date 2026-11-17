@@ -11090,6 +11090,17 @@
     //   담당 교사만 적고, 방에 있는 분은 보기만. 같은 화면을 두 곳에서 쓴다(rerender = 그 화면 다시 그리기).
     const lpSt = {};   // targetId → { items, canEdit, month, sel, busy, saving, err, rerender }
     const lpToday = () => { const d = new Date(Date.now() + 9 * 36e5); return d.toISOString().slice(0, 10); };
+    // 11/17(3차, 사용자): 칸 구성 = 수업 제목 · 교육 목표 · 감동 주기 · 입막음 · 피드백 내용 실행 · 수업 진행 방식 · 협력자 · 기타 상세 계획(예시는 흐린 글씨)
+    const LP_FIELDS = [
+      ['title', '수업 제목', 100, '예: 3과 하나님의 사랑', 0],
+      ['goal', '🎯 교육 목표', 300, '예: 하나님이 나를 사랑하신다는 것을 마음으로 느끼고, 다음 시간도 꼭 오고 싶게 하기', 58],
+      ['moving', '💝 감동 주기', 1000, '예: 지난번에 말한 시험 결과를 먼저 물어보기, 좋아하는 커피 미리 준비, 수업 끝나고 응원 문자', 70],
+      ['hush', '🤐 입막음', 1000, '예: 가족·지인·인터넷에 아직 말하거나 찾아보지 않도록 당부, 궁금한 건 교사에게 먼저 묻게 하기', 70],
+      ['fbDo', '✅ 피드백 내용 실행', 1000, "예: 단계향상 피드백의 '질문으로 마음 열기' 적용 — 수업 전에 요즘 고민 한 가지 듣기", 70],
+      ['method', '📖 수업 진행 방식', 1000, '예: 핵심 말씀 2구절 → 그림 자료로 설명 → 질문 받기 → 끝나고 소감 한 줄 나누기', 70],
+      ['helpers', '🤝 협력자', 500, '예: 섬김이 ○○○ 님 동석, 인도자 ○○○ 님 수업 시간 기도 지원', 58],
+      ['plan', '📝 기타 상세 계획', 2000, '예: 다음 수업 날짜 미리 잡기, 준비물(교재·필기구), 끝나고 함께 식사', 70],
+    ];
     function lpCss() {
       if (document.getElementById('lpCss')) return;
       const st = document.createElement('style'); st.id = 'lpCss';
@@ -11112,7 +11123,8 @@
       .lp-day h4 { margin:0 0 8px; font-size:14.5px; font-weight:900; }
       .lp-day label { display:block; font-size:12.5px; font-weight:800; color:#4B5563; margin-top:8px; }
       .lp-day input, .lp-day textarea { width:100%; box-sizing:border-box; margin-top:4px; padding:9px 10px; border-radius:10px; border:1px solid #E5E7EB; font-size:14px; font-family:inherit; background:#fff; }
-      .lp-day textarea { min-height:90px; resize:vertical; line-height:1.5; }
+      .lp-day textarea { min-height:70px; resize:vertical; line-height:1.5; }
+      .lp-day input::placeholder, .lp-day textarea::placeholder { color:#B0B7C3; }
       .lp-btns { display:flex; gap:6px; margin-top:10px; }
       .lp-btns button { flex:1; height:42px; border-radius:10px; border:none; font-weight:900; font-size:14px; cursor:pointer; font-family:inherit; }
       .lp-btns .save { background:#00AE82; color:#fff; } .lp-btns .del { flex:0 0 auto; padding:0 14px; background:#fff; color:#E5484D; border:1px solid #F3C4C6; }
@@ -11152,16 +11164,15 @@
       const sel = s.sel, it = sel ? by.get(sel) : null, [, sm, sd] = sel ? sel.split('-').map(Number) : [];
       const dv = k => (s.draft && s.draft.date === sel && s.draft[k] != null ? s.draft[k] : it ? it[k] : '');   // 쓰던 글은 다시 그려도 그대로
       const dayLbl = sel ? `${sm}/${sd}(${['일', '월', '화', '수', '목', '금', '토'][new Date(sel + 'T00:00:00Z').getUTCDay()]})` : '';
-      const day = !sel ? `<div class="lp-note">${s.canEdit ? '📌 날짜를 누르면 그날 <b>수업 제목 · 교육 목표 · 상세 계획</b>을 적을 수 있어요.' : '📌 날짜를 누르면 그날 계획을 볼 수 있어요. 적고 고치는 것은 담당 교사만 해요.'}</div>`
+      const day = !sel ? `<div class="lp-note">${s.canEdit ? '📌 날짜를 누르면 그날 <b>수업 제목 · 교육 목표</b>와 <b>감동 주기 · 입막음 · 피드백 내용 실행 · 수업 진행 방식 · 협력자 · 기타 상세 계획</b>을 칸마다 적을 수 있어요.' : '📌 날짜를 누르면 그날 계획을 볼 수 있어요. 적고 고치는 것은 담당 교사만 해요.'}</div>`
         : s.canEdit ? `<div class="lp-day"><h4>📅 ${dayLbl} 수업 계획</h4>
-            <label>수업 제목<input id="lpTitle" maxlength="100" value="${esc(dv('title'))}" oninput="lpDraft(${q},'title',this.value)" placeholder="예: 3과 하나님의 사랑"></label>
-            <label>교육 목표<textarea id="lpGoal" maxlength="300" style="min-height:58px" placeholder="예: 하나님이 나를 사랑하신다는 것을 마음으로 느끼고, 다음 시간도 꼭 오고 싶게 하기" oninput="lpDraft(${q},'goal',this.value)">${esc(dv('goal'))}</textarea></label>
-            <label>상세 계획<textarea id="lpPlan" maxlength="2000" style="min-height:150px" placeholder="예)&#10;💝 감동 주기: 지난번에 말한 시험 결과 먼저 물어보기, 좋아하는 커피 준비&#10;🤐 입막음: 가족·지인에게 아직 말하지 않도록, 궁금한 건 교사에게 먼저 묻게&#10;✅ 피드백 내용 실행: 단계향상 피드백 '질문으로 마음 열기' 적용 — 수업 전 고민 한 가지 듣기&#10;📖 수업 진행: 핵심 말씀 2구절, 끝나고 소감 한 줄 나누기&#10;🤝 함께할 분: 섬김이 ○○○ 님 동석" oninput="lpDraft(${q},'plan',this.value)">${esc(dv('plan'))}</textarea></label>
+            ${LP_FIELDS.map(([k, label, max, ph, h]) => k === 'title' ? `<label>${label}<input id="lp_${k}" maxlength="${max}" value="${esc(dv(k))}" oninput="lpDraft(${q},'${k}',this.value)" placeholder="${esc(ph)}"></label>`
+              : `<label>${label}<textarea id="lp_${k}" maxlength="${max}" style="min-height:${h}px" placeholder="${esc(ph)}" oninput="lpDraft(${q},'${k}',this.value)">${esc(dv(k))}</textarea></label>`).join('')}
             <div class="lp-btns"><button type="button" class="save" ${s.saving ? 'disabled' : ''} onclick="lpSave(${q})">${s.saving ? '저장하는 중…' : '저장'}</button>${it ? `<button type="button" class="del" ${s.saving ? 'disabled' : ''} onclick="lpSave(${q}, true)">지우기</button>` : ''}</div>
             ${s.err ? `<div class="lp-note" style="color:#E5484D">⚠️ ${esc(s.err)}</div>` : ''}</div>`
-        : `<div class="lp-day"><h4>📅 ${dayLbl} 수업 계획</h4>${it ? `<div class="lp-kv"><span>수업 제목</span> ${esc(it.title || '-')}</div><div class="lp-kv"><span>교육 목표</span> ${esc(it.goal || '-').replace(/\n/g, '<br>')}</div><div class="lp-kv"><span>상세 계획</span><br>${esc(it.plan || '-').replace(/\n/g, '<br>')}</div><div class="lp-note">${esc(it.by || '')} · ${esc(it.at)}</div>` : '<div class="lp-note">이날은 아직 계획이 없어요.</div>'}</div>`;
+        : `<div class="lp-day"><h4>📅 ${dayLbl} 수업 계획</h4>${it ? LP_FIELDS.filter(([k]) => it[k]).map(([k, label]) => `<div class="lp-kv"><span>${label}</span><br>${esc(it[k]).replace(/\n/g, '<br>')}</div>`).join('') + `<div class="lp-note">${esc(it.by || '')} · ${esc(it.at)}</div>` : '<div class="lp-note">이날은 아직 계획이 없어요.</div>'}</div>`;
       const mine = (s.items || []).filter(x => x.date.startsWith(s.month));
-      const list = mine.length ? `<div class="lp-list"><h5>🗂 ${m}월 계획 ${mine.length}건</h5>${mine.map(x => `<button type="button" class="lp-row" onclick="lpPick(${q},'${x.date}')"><b>${Number(x.date.slice(5, 7))}/${Number(x.date.slice(8))}</b>${esc(x.title || '(제목 없음)')}${x.goal ? `<small>🎯 ${esc(x.goal)}</small>` : ''}${x.plan ? `<small>${esc(x.plan)}</small>` : ''}</button>`).join('')}</div>` : '';
+      const list = mine.length ? `<div class="lp-list"><h5>🗂 ${m}월 계획 ${mine.length}건</h5>${mine.map(x => `<button type="button" class="lp-row" onclick="lpPick(${q},'${x.date}')"><b>${Number(x.date.slice(5, 7))}/${Number(x.date.slice(8))}</b>${esc(x.title || '(제목 없음)')}${x.goal ? `<small>🎯 ${esc(x.goal)}</small>` : ''}</button>`).join('')}</div>` : '';
       return `<div class="lp"><div class="lp-hd"><button type="button" onclick="lpMove(${q},-1)" aria-label="이전 달">‹</button><b>${y}년 ${m}월 수업 계획표</b><button type="button" onclick="lpMove(${q},1)" aria-label="다음 달">›</button></div>
         <div class="lp-grid">${wds}${cells}</div>${day}${list}</div>`;
     }
@@ -11171,8 +11182,8 @@
     window.lpSave = async (tid, del) => {
       const s = lpSt[tid]; if (!s || !s.sel || s.saving) return;
       const v = id => (document.getElementById(id) || {}).value || '';
-      const body = del ? { title: '', goal: '', plan: '' } : { title: v('lpTitle').trim(), goal: v('lpGoal').trim(), plan: v('lpPlan').trim() };
-      if (!del && !body.title && !body.goal && !body.plan) { s.err = '수업 제목·교육 목표·상세 계획 중 하나는 적어 주세요.'; return s.rerender && s.rerender(); }
+      const body = Object.fromEntries(LP_FIELDS.map(([k]) => [k, del ? '' : v('lp_' + k).trim()]));
+      if (!del && !Object.values(body).some(Boolean)) { s.err = '한 칸 이상 적어 주세요.'; return s.rerender && s.rerender(); }
       s.saving = true; s.err = ''; s.rerender && s.rerender();
       const r = await callApi({ action: 'saveLessonPlan', memberId: MEMBER_ID, name: MY_NAME, targetId: tid, date: s.sel, ...body }).catch(() => null);
       s.saving = false;

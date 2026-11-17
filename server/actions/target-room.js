@@ -509,7 +509,9 @@ export default { listOpeningRooms, deleteRoom, createRoomInvite, revokeRoomInvit
 //   target_ai_notes kind '수업 계획표'(input = 날짜 YYYY-MM-DD, text = JSON { title, goal, plan }) — 날짜마다 한 줄(저장 = 그 날짜 줄 바꿈).
 //   쓰기·고치기 = 담당 교사만, 방에 있는 분은 보기만. AI 기록 묶음(targetDossier)에는 넣지 않는다.
 export const LESSON_KIND = '수업 계획표';
-const LESSON_MAX = { title: 100, goal: 300, plan: 2000 };
+// 11/17(3차, 사용자): 상세 계획을 칸마다 — 감동 주기·입막음·피드백 내용 실행·수업 진행 방식·협력자·기타 상세 계획(plan = 기타, 옛 '상세 계획' 그대로 보임)
+const LESSON_FIELDS = [['title', '수업 제목', 100], ['goal', '교육 목표', 300], ['moving', '감동 주기', 1000], ['hush', '입막음', 1000],
+  ['fbDo', '피드백 내용 실행', 1000], ['method', '수업 진행 방식', 1000], ['helpers', '협력자', 500], ['plan', '기타 상세 계획', 2000]];
 const validDay = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(d + 'T00:00:00Z').toISOString().slice(0, 10) === d;
 /** 담당 교사는 방을 만들지 않고 바로(섭외자 화면에서 열어도 피드백방이 생기지 않게), 그 밖엔 방 입장 기준 그대로 */
 async function lessonAccess(body) {
@@ -526,7 +528,7 @@ async function lessonItems(a) {
   for (const r of rows) {
     let v = {};
     try { v = JSON.parse(r.text || '{}'); } catch { v = { plan: r.text || '' }; }
-    byDay.set(r.input, { date: r.input, title: str(v.title), goal: str(v.goal), plan: str(v.plan), by: str(v.by), at: fmtTs(r.created_at).slice(0, 16) });
+    byDay.set(r.input, { date: r.input, ...Object.fromEntries(LESSON_FIELDS.map(([k]) => [k, str(v[k])])), by: str(v.by), at: fmtTs(r.created_at).slice(0, 16) });
   }
   return [...byDay.values()].sort((x, y) => (x.date < y.date ? -1 : 1));
 }
@@ -542,12 +544,12 @@ async function saveLessonPlan(body) {
   const date = str(body.date);
   if (!validDay(date)) return { error: '날짜를 확인해 주세요.' };
   const v = {};
-  for (const k of Object.keys(LESSON_MAX)) {
+  for (const [k, label, max] of LESSON_FIELDS) {
     v[k] = str(body[k]).trim();
-    if (v[k].length > LESSON_MAX[k]) return { error: `${k === 'plan' ? '상세 계획' : k === 'title' ? '수업 제목' : '교육 목표'}은 ${LESSON_MAX[k]}자 이내로 적어 주세요.` };
+    if (v[k].length > max) return { error: `${label}은(는) ${max}자 이내로 적어 주세요.` };
   }
   await run(db().from('target_ai_notes').delete().eq('target_id', a.target.target_id).eq('kind', LESSON_KIND).eq('input', date));
-  if (v.title || v.goal || v.plan) {
+  if (Object.values(v).some(Boolean)) {
     const by = (await findTeacherLoose(body.memberId, body.name).catch(() => null))?.name || str(body.name);
     await run(db().from('target_ai_notes').insert({ target_id: a.target.target_id, member_id: str(body.memberId), kind: LESSON_KIND, input: date, text: JSON.stringify({ ...v, by }), created_at: kstDateTime() }));
   }
