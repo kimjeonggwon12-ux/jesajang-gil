@@ -656,6 +656,7 @@ async function tsTest(body) {
 //   실제 방에는 보내지 않고 이 방에만 하루 서머리 세트를 순서대로(설명 붙여) 올린다. 중복 표시(alert_log)도 남기지 않는다.
 //   { action:'tsTestRoom', key, date?, only?:['morning','noon','dept','evening','status'], intro?:false }
 const MY_TEST_CHAT = '-1004460094453';
+const slotsOfEnd = (m, phase) => { const s = (m.slots || []).find((x) => (x.start < '12:00' ? '오전' : x.start < '17:00' ? '오후' : '저녁') === phase); return s ? s.end : ''; };
 // 11/17(사용자): "화전단 오전 집계 샘플은 목사교 행정 방에만, 나머지 방은 절대 아님" — tsTestRoom{room:'edu'} 이면 시험 방 대신 목사교 교육 방('#교육:…') 하나로만.
 let testChat = MY_TEST_CHAT;
 
@@ -749,7 +750,21 @@ async function tsTestRoom(body) {
     if (!m) return { error: '모임 없음' };
     const phase = String(body.phase || '최종');
     const p = await attendancePreview(m, phase, Number(body.regions || 2));
-    if (body.intro !== false) {
+    if (body.room === 'edu') {   // 11/17: 목사교 방 견본 — 실제로 어디에 무엇이 가는지(교자장부청 파랑 표는 실제로 안 가서 뺌)
+      const { buildRoomAttendance } = await import('../lib/room-attendance.js');
+      const real = await buildRoomAttendance(m, phase);
+      const nReg = real.filter((x) => !x.caption).length, nBoard = real.filter((x) => x.caption).length;
+      out.push(['att:intro', await testText([
+        '🧪 <b>[견본] ' + esc(m.title) + ' — ' + (phase === '최종' ? '교육 마감' : phase + ' 교육 끝') + ' 때 나가는 텔레그램</b>',
+        '이 방(목사교 행정 방)에만 올린 견본이에요. 다른 방에는 보내지 않았어요.',
+        '자료 = ' + m.date + ' ' + kstDateTime().slice(11, 16) + ' 현재까지 찍힌 출석', '',
+        '실제 ' + (phase === '최종' ? '마감' : phase + ' 타임 끝(' + (slotsOfEnd(m, phase) || '') + ')') + '에 자동으로:',
+        '① 📍 지역 방·교역자 방 ' + nReg + '곳 — 그 방 사람 출석 글(아래 2곳만 견본)',
+        '② 📊 장년·부녀·청년 전체(총합) 방 ' + nBoard + '곳 — 지역별 노랑 표 + 요약',
+        '③ ⭐ 중진 대화방 — 24부서 카드 + 참석·지각·공무·미참석 명단', '',
+        '※ 실제 발송 때는 숫자가 그 시각 기준으로 다시 계산돼요.',
+      ].join(String.fromCharCode(10)))]);
+    } else if (body.intro !== false) {
       out.push(['att:intro', await testText([
         '🧪 <b>출석 서머리 새 모양 — 시험</b>', `📌 ${esc(m.title)} (${m.date}) · ${phase === '최종' ? '교육 마감 · 총 참석' : phase + ' 교육 마감'}`, '',
         '① 📍 <b>지역 방·교역자 방</b> — 숫자 요약(한 줄에 하나) + 타임별 정상/지각으로 나눈 이름(한 줄에 4명)',
@@ -760,7 +775,7 @@ async function tsTestRoom(body) {
     }
     for (const t of p.texts) out.push(['att:region', await testText(tag('①', '지역 방') + t)]);
     for (const d of p.depts) out.push(['att:' + d.dept, await testPhoto(d.png, tag('②', `${d.dept} 총합 방`) + d.caption, tag('②', d.dept) + d.text)]);
-    if (p.org) out.push(['att:org', await testPhoto(p.org.png, tag('③', '교자장부청') + p.org.caption, tag('③', '교자장부청') + p.org.text)]);
+    if (p.org && body.room !== 'edu') out.push(['att:org', await testPhoto(p.org.png, tag('③', '교자장부청') + p.org.caption, tag('③', '교자장부청') + p.org.text)]);
     if (body.jungjin) {   // 11/17: 화전단·목사교면 중진 방 24부서 카드·명단도 견본으로
       const ea = await import('../lib/edu-attendance.js');
       const kind = ea.jungjinKind(m) || '목사교';
