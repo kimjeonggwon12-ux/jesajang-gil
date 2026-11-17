@@ -8,7 +8,7 @@
 import { db, run, selectAll } from '../lib/db.js';
 import { isOwner, isApprover } from './roster.js';
 import { normId } from '../lib/util.js';
-import { eduFor, eduPeople, excusedOf, roster24 } from '../lib/edu-attendance.js';
+import { eduFor, eduPeople, excusedOf, roster24, hwaExcluded } from '../lib/edu-attendance.js';
 import { selfExcusedOf } from './edu-excused-self.js';
 import { weeklySummary, weeklyDetail, groupDefs, subDefs, affiliations, weeklyCsv } from '../lib/edu-weekly.js';
 
@@ -250,6 +250,7 @@ export async function getExcusedList(body = {}) {
   const of = new Map(roster.map((p) => [p.nid, p])), rows = [], seen = new Set();
   const add = (nid, extra) => {
     if (seen.has(nid)) return; seen.add(nid);
+    if (kind === '화전단' && of.has(nid) && hwaExcluded(of.get(nid))) return;   // 11/17: 화요 전도단 — 이경옥 님·휴직자 제외
     const p = of.get(nid) || { name: extra.name || '(재적 밖)', dept: extra.dept || '', region: extra.region || '' };
     const { name: _n, dept: _d, region: _r, ...rest } = extra;
     rows.push({ memberId: nid, name: p.name, group: xGroup(p), place: xPlace(p), attended: came ? came.has(nid) : null, ...rest });

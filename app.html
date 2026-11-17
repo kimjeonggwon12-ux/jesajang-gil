@@ -19384,6 +19384,24 @@ async function calAdmInit() {
           ${h.heads.map(x => `<div class="em-p">${esc(x.affiliation)} · <b>${esc(x.name)}</b> <button type="button" class="ra-btn warn" style="height:30px;font-size:12px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.setHead('revoke','${esc(x.memberId)}','${esc(x.affiliation)}')">거두기</button></div>`).join('') || '<p class="em-note">지정된 부서장이 없어요.</p>'}`;
       }
       function loadList() { st.sure = ''; return busy(async () => { st.list = need(await call({ action: 'getExcusedList', kind: st.lkind, date: st.ldate })); }); }
+      // 11/17(사용자): 공무 결석자 명단 엑셀 내려받기(김논 서무님·개발자만 — canDownload)
+      function downloadList() {
+        const L = st.list;
+        if (!L || !L.rows.length) return;
+        return busy(async () => {
+          if (!window.XLSX) await new Promise((ok, fail) => { const el = document.createElement('script'); el.src = 'vendor/xlsx.full.min.js'; el.onload = ok; el.onerror = () => fail(new Error('엑셀 도구를 못 불러왔어요.')); document.head.appendChild(el); });
+          const title = `${L.date} ${L.kindLabel} 공무 결석자`;
+          const rows = [];
+          exlGroups(L.rows).forEach(g => g.rows.forEach(r => rows.push([rows.length + 1, r.group, r.place || '', r.name, r.reason || '', exlSourceText(r), r.attended === true ? '출석함(참석으로 셈)' : r.attended === false ? '미출석' : '-'])));
+          const aoa = [[title + (L.meeting ? ' · ' + L.meeting.title : '')], [`총 ${rows.length}명 · 그날 출석 ${rows.filter(r => r[6].startsWith('출석')).length}명`], [],
+            ['번호', '조직', '소속·지역', '이름', '사유', '등록 방식', '그날 출석'], ...rows];
+          const ws = XLSX.utils.aoa_to_sheet(aoa);
+          ws['!cols'] = [6, 10, 14, 10, 30, 22, 18].map(w => ({ wch: w }));
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, '공무 결석자');
+          XLSX.writeFile(wb, `${L.kindLabel}_공무결석자_${L.date}.xlsx`);
+        });
+      }
       function findPeople() {
         const el = document.getElementById('emAddQ'); st.q = el ? el.value.trim() : '';
         return busy(async () => { st.hits = need(await call({ action: 'searchEduRosterForExcused', q: st.q })).rows; });
@@ -19403,7 +19421,8 @@ async function calAdmInit() {
         const kinds = Object.keys(EM_THEME).map(k => `<button type="button" class="em-theme ${EM_THEME[k].cls} ${st.lkind === k ? 'on' : ''}" onclick="eduMgmt.setLKind('${k}')"><span>${EM_THEME[k].icon}</span>${EM_THEME[k].title}</button>`).join('');
         const head = `<div class="em-themes">${kinds}</div>
           <div class="em-row"><label>날짜<input type="date" value="${esc(st.ldate)}" onchange="eduMgmt.setLDate(this.value)"></label>
-          <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.loadList()">조회</button></div>
+          <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.loadList()">조회</button>
+          ${st.access && st.access.canDownload ? `<button type="button" class="ra-btn line" ${st.busy || !st.list || !st.list.rows.length ? 'disabled' : ''} onclick="eduMgmt.downloadList()">공무 결석자 엑셀</button>` : ''}</div>
           <p class="em-note">본인 신고 · 관리자 대신 등록 · 도우미연결 명단을 함께 보여요. 그날 실제로 출석한 분은 공무가 아니라 참석으로 셉니다.</p>`;
         if (!L) return head;
         const groups = exlGroups(L.rows);
@@ -19430,7 +19449,7 @@ async function calAdmInit() {
           ${st.busy ? '<p class="em-note">처리하는 중…</p>' : ''}${st.msg ? `<p class="em-note em-ok">${esc(st.msg)}</p>` : ''}${st.error ? `<p class="em-note em-bad">${esc(st.error)}</p>` : ''}
           ${st.view === 'week' ? weekHtml() : listHtml()}</div>`;
       }
-      return { probe, mount, pick, loadWeek, openDetail, download, loadScope, edit, review, save, saveFollow, setHead, loadList, findPeople, addOne, cancelOne,
+      return { probe, mount, pick, loadWeek, openDetail, download, downloadList, loadScope, edit, review, save, saveFollow, setHead, loadList, findPeople, addOne, cancelOne,
         setLKind(v) { st.lkind = v; st.hits = null; st.ldate = emNextDate(v, today()); loadList(); },
         setLGrp(v) { st.lgrp = v; render(); },
         setLDate(v) { st.ldate = v; loadList(); },
