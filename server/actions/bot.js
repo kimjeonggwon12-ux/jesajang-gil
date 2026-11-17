@@ -835,7 +835,21 @@ async function sendNewsOneline(body) {
   const roomsSent = await sendToRooms(rooms, '데이터뉴스', day, (room) => (r.png ? sendRoomBoard(room, r.png, r.text, r.text) : sendRoomText(room.chat_id, r.text)));
   return { ok, date: day, ai: r.ai, photo: !!r.png, text: r.text, rooms: roomsSent };
 }
+// 11/17(사용자): 교역자 방(기본 교사 앱 방)에만 새 서식(카드+명단 한 통)으로 다시 올리기 — { action:'tsKyoResend', key, meetingId, phase }
+const tsKyoResend = async (body) => {
+  if (!authorized(body)) return { error: 'unauthorized' };
+  const { findMeeting } = await import('./attendance.js');
+  const { kyoPreview } = await import('../lib/room-attendance.js');
+  const { sendRoomCardText } = await import('../lib/report-room.js');
+  const m = await findMeeting(String(body.meetingId || ''));
+  if (!m) return { error: '모임 없음' };
+  const k = await kyoPreview(m, String(body.phase || '최종'));
+  const rooms = await run(db().from('report_rooms').select('*').eq('dept', body.to === 'edu' ? '#교육:RS261112175202426' : '교역자').eq('active', true));   // to:'edu' = 목사교 행정 방에서 먼저 확인
+  const sent = [];
+  for (const room of rooms) { await sendRoomCardText(room, k.png, k.texts[0]); for (const t of k.texts.slice(1)) await sendRoomText(room.chat_id, t); sent.push(room.chat_id); }
+  return { ok: true, sent };
+};
 // 11/5: 전체 텔레그램 방 연결 점검(보내지 않음)
 const tsRoomHealth = async (body) => (authorized(body) ? (await import('../lib/room-health.js')).roomHealth() : { error: 'unauthorized' });
 
-export default { tsJungjinTest, tsNewsSend, tsRoomHealth, tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };
+export default { tsKyoResend, tsJungjinTest, tsNewsSend, tsRoomHealth, tsDailySummary, tsActivitySummary, tsEveningSummary, tsNoonSummary, tsStatusSummary, tsStatus, tsTest, tsTestRoom };

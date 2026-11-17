@@ -7,7 +7,7 @@
 //   summary_to='test' 면 실제 방 대신 나만의 교사광장 시험 방으로(어느 방에 갈 글인지 머리에 적어서).
 import { db, run, selectAll } from './db.js';
 import { kstDateTime, normId } from './util.js';
-import { sendRoomText, sendRoomBoard, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
+import { sendRoomText, sendRoomBoard, sendRoomCardText, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
 import { tablePng } from './table-image.js';
 import { workbookFiles } from './xlsx-multi.js';
 import { zip } from './zip.js';
@@ -728,8 +728,10 @@ export async function postJungjin(m, phase, { to = null, force = false } = {}) {
       if (error) continue;   // 이 방엔 이미 보냄
     }
     parts ||= await jungjinParts(m, phase, kind);
-    for (const p of parts) {
-      try { if (p.png) await sendRoomBoard(room, p.png, p.caption, p.text); else await sendRoomText(room.chat_id, p.text); sent.push(room.dept); }
+    // 11/17(사용자): 카드 + 첫 명단 글을 한 통으로(카드 아래 요약 글은 없음)
+    const list = parts[0]?.png && parts[1] ? [{ png: parts[0].png, text: parts[1].text, merged: true }, ...parts.slice(2)] : parts;
+    for (const p of list) {
+      try { if (p.merged) await sendRoomCardText(room, p.png, p.text); else if (p.png) await sendRoomBoard(room, p.png, p.caption, p.text); else await sendRoomText(room.chat_id, p.text); sent.push(room.dept); }
       catch (e) { console.log(room.dept + ' 방 전송 실패: ' + e.message); }
       await new Promise((r) => setTimeout(r, 1500));
     }

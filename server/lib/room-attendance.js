@@ -7,7 +7,7 @@
 //   교자장부청 = 같은 칸의 파랑 표(11/4 보라→파랑)(ATT_TOTAL_ROOM — 사용자 확인 전까지는 시험 방에만).
 import { db, run, selectAll } from './db.js';
 import { kstDate, kstDateTime, normId } from './util.js';
-import { sendRoomText, sendRoomBoard, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
+import { sendRoomText, sendRoomBoard, sendRoomCardText, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
 import { tablePng } from './table-image.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -203,6 +203,8 @@ export async function buildRoomAttendance(m, phase) {
       out.push({ room, ...deptBoard(m, dept, by, counts, phase, order) });
     } else {
       if (!by.has(room.dept)) continue;   // 아무도 안 온 지역 방엔 글을 안 올림
+      // 11/17(사용자 OK): 교역자 방 = 교역자회 카드 + 교회 교역자·신학부 사명자 실명 명단(한 통)
+      if (room.dept === '교역자') { const k = await kyoRoomText(m, phase, by.get('교역자'), order); out.push({ room, kyo: k, text: k.texts[0] }); continue; }
       out.push({ room, text: roomText(m, room.dept, by.get(room.dept), counts.get(room.dept) || 0, phase, order) });
     }
   }
@@ -237,7 +239,8 @@ export async function postRoomAttendance(m, phase, prefix = '') {
       if (error) continue;   // 이미 보냄
     }
     try {
-      if (p.caption) await sendRoomBoard(room, p.png, prefix + p.caption, prefix + p.text);
+      if (p.kyo) { await sendRoomCardText(room, p.kyo.png, prefix + p.kyo.texts[0]); for (const t of p.kyo.texts.slice(1)) await sendRoomText(room.chat_id, prefix + t); }
+      else if (p.caption) await sendRoomBoard(room, p.png, prefix + p.caption, prefix + p.text);
       else await sendRoomText(room.chat_id, prefix + p.text);
       sent.push(room.dept);
     } catch (e) { console.log(`방 출석 서머리 실패 ${room.dept}: ${e.message}`); }
@@ -318,11 +321,11 @@ export async function kyoRoomText(m, phase, sess, order) {
   };
   const churchList = people.filter(church), semList = people.filter((p) => !church(p));
   const L = [`📋 <b>${esc(m.title)}</b> (교사 재적 기준)`, `🗓 ${dayOf(m)} · ${head}`,
-    `📍 <b>교역자회</b> · ⛪ 교회 교역자 재적 ${churchList.length}명`, LINE];
-  if (sessions.length > 1) L.push(sessions.map((s) => `${SESSION_ICON[s] || '🙋'} ${s} ${people.filter((p) => p.att[s]).length}명`).join(' · '), `👥 합계 <b>${nCame}명</b> (⛪ 교회 ${people.filter((p) => church(p) && came(p)).length} · 🎓 신학부 ${people.filter((p) => !church(p) && came(p)).length})`);
-  else L.push(`${SESSION_ICON[sessions[0]] || '👥'} ${sessions[0]} 참석 <b>${nCame}명</b> (⛪ 교회 ${people.filter((p) => church(p) && came(p)).length} · 🎓 신학부 ${people.filter((p) => !church(p) && came(p)).length})`);
+    `📍 <b>교역자회</b> · 재적 ${people.length}명 (⛪ 교회 교역자 ${churchList.length} · 🎓 신학부 ${semList.length})`, LINE];
+  if (sessions.length > 1) L.push(sessions.map((s) => `${SESSION_ICON[s] || '🙋'} ${s} ${people.filter((p) => p.att[s]).length}명`).join(' · '), `👥 합계 <b>${nCame}명</b> / ${people.length}명 (${pct(nCame, people.length)}%) (⛪ 교회 ${people.filter((p) => church(p) && came(p)).length} · 🎓 신학부 ${people.filter((p) => !church(p) && came(p)).length})`);
+  else L.push(`${SESSION_ICON[sessions[0]] || '👥'} ${sessions[0]} 참석 <b>${nCame}명</b> / ${people.length}명 (${pct(nCame, people.length)}%)`);
   L.push(`⏰ 지각 ${nLate}명 · 📋 공무 ${nEx}명 · ❌ ${word} ${nAbs}명`, '');
-  L.push(...part('⛪', '교회 교역자', churchList, true), ...part('🎓', '신학부 사명자', semList, false, true));
+  L.push(...part('⛪', '교회 교역자', churchList, true), ...part('🎓', '신학부 사명자', semList, false));
   const g = [...guests.values()];
   if (g.length) L.push(LINE, `🙋 비교사 ${g.length}명: ${g.map((x) => esc(x.name)).join(', ')}`, '※ 비교사는 재적·출석률에 넣지 않았어요');
   while (L[L.length - 1] === '') L.pop();
@@ -336,8 +339,8 @@ export async function kyoRoomText(m, phase, sess, order) {
   const [mo, dd] = m.date.slice(5).split('-').map(Number);
   const title = `${mo}/${dd} 교역자회 ${String(m.title || '').replace(/\s*출석$/, '')} ${phase === '최종' ? '' : phase + ' '}출석현황`;
   const total = stat('종합', people);
-  const noN = (r) => ({ ...r, n: '-', rate: '-', absentRate: '-' });   // 신학부·종합은 재적 수·비율 표시 안 함
-  const C = { title, rows: [stat('교회 교역자', churchList), noN(stat('신학부 사명자', semList))], total: noN(total), reasonTotal: total.absent, firstHead: '구분', excusedCol: true };
+
+  const C = { title, rows: [stat('교회 교역자', churchList), stat('신학부 사명자', semList)], total, reasonTotal: total.absent, firstHead: '구분', excusedCol: true };
   let png = null;
   try { const { eduCardPng } = await import('./edu-card.js'); png = eduCardPng(C); } catch (e) { console.log('교역자 카드 오류: ' + e.message); }
   const caption = [`📊 <b>${esc(title)}</b> (교사 재적 기준, 원장 제외)`, '',
