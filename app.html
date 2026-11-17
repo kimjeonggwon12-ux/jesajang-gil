@@ -1089,6 +1089,15 @@
     .er-cells { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; padding:2px 0 6px; }
     /* 11/16: 센터 보내기 칸을 빼서 다시 6칸 — 폰 3×2, 넓은 화면 한 줄 6칸 */
     @media (min-width:600px) { .er-cells { grid-template-columns:repeat(6, minmax(0, 1fr)); } }
+    /* 11/17(사용자): 정보 기록 ~ ○월 개강 계획을 폰에서도 한 줄에 — 칸 수만큼 같은 폭, 작게 */
+    .er-cells { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(0, 1fr); gap:4px; }
+    @media (max-width:599px) {
+      .er-cells .er-act { padding:8px 1px 7px; border-radius:11px; gap:2px; }
+      .er-cells .er-act-i { width:28px; height:28px; font-size:14px; }
+      .er-cells .er-act .pf-svg { width:17px; height:17px; }
+      .er-cells .er-act b { font-size:11px; line-height:1.2; word-break:keep-all; letter-spacing:-0.05em; }
+      .er-cells .er-act > span:last-child { font-size:9.5px; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-0.04em; }
+    }
     .er-cells::-webkit-scrollbar { display:none; }
     .er-cells .er-act { min-width:0; }
     .er-act.open { box-shadow:0 0 0 3px #BFEBDD; transform:translateY(-1px); }
