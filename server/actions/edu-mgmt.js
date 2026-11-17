@@ -275,7 +275,9 @@ export async function searchEduRosterForExcused(body = {}) {
 
 export async function adminSetExcused(body = {}) {
   requireOn(); const w = await requireManager(body);
-  const { kind, date } = kindDate(body), nid = String(body.memberId || ''), reason = String(body.reason || '').trim() || '공무';
+  const { kind, date } = kindDate(body), nid = String(body.memberId || ''), reason = String(body.reason || '').trim();
+  // 11/17(사용자): 공무 내용을 반드시 적어야 등록
+  if (!reason || /^공무\.?$/.test(reason)) fail('공무 내용(결석 사유)을 꼭 적어 주세요. 적어야 등록돼요.');
   if (reason.length > 200) fail('사유는 200자 이내로 적어 주세요.');
   const [p] = await run(db().from('edu_roster').select('nid, name, dept, region, affiliation, position').eq('roster_key', '목요사명자').eq('nid', nid).limit(1));
   if (!p) fail('목요 사명자 교육 재적에 없는 분이에요.', 404);

@@ -8584,12 +8584,16 @@
         + '<div class="ex-self-t">📋 ' + esc(d.title) + '</div>'
         + '<div class="ex-self-sub">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
         + (d.note ? '<div class="ex-self-sub">ℹ️ ' + esc(d.note) + '</div>' : '')
-        + '<input id="exsReason" maxlength="200" placeholder="결석 사유 기록" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value">'
+        + '<input id="exsReason" maxlength="200" placeholder="공무 내용(결석 사유) — 꼭 적어야 제출돼요" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value">'
         + sections + '</div>';
     }
     window.exsState = exsState;
     window.exsSubmit = async function (kind, date) {
-      if (exsState.busy) return; exsState.busy = kind + date; renderHome();
+      if (exsState.busy) return;
+      // 11/17(사용자): 공무 내용을 꼭 적어야 제출
+      const why = String(exsState.reason || '').trim();
+      if (!why || /^공무\.?$/.test(why)) { toast('공무 내용(결석 사유)을 꼭 적어 주세요. 적어야 제출돼요.', true); const el = document.getElementById('exsReason'); if (el) el.focus(); return; }
+      exsState.busy = kind + date; renderHome();
       try {
         const r = await callApi({ action: 'submitMyExcused', memberId, kind, date, reason: exsState.reason.trim() });
         if (!r || r.error) toast((r && r.error) || '신고하지 못했어요', true); else { toast(r.label + ' 공무 결석으로 신고했어요'); exsState.reason = ''; }
@@ -19408,6 +19412,7 @@ async function calAdmInit() {
       }
       function addOne(id) {
         const el = document.getElementById('emAddReason'); st.addReason = el ? el.value.trim() : '';
+        if (!st.addReason || /^공무\.?$/.test(st.addReason)) { st.error = '공무 내용(결석 사유)을 꼭 적어 주세요. 적어야 등록돼요.'; render(); return; }
         return busy(async () => { const r = need(await call({ action: 'adminSetExcused', kind: st.lkind, date: st.ldate, memberId: id, reason: st.addReason }));
           st.hits = null; st.q = ''; st.addReason = ''; st.list = need(await call({ action: 'getExcusedList', kind: st.lkind, date: st.ldate })); st.msg = r.name + ' 님을 공무로 등록했어요.'; });
       }
@@ -19439,7 +19444,7 @@ async function calAdmInit() {
             <button type="button" class="ra-btn line" style="height:30px;font-size:12px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.addOne('${esc(h.memberId)}')">공무로 등록</button></div>`).join('') : '<p class="em-note">찾는 이름이 재적에 없어요.</p>') : '';
         return head + `<div class="em-card em-kcard ${th.cls}"><h4>${th.icon} ${th.title} · ${esc(L.date)}</h4><p class="em-note">${esc(exlCountsText(L))}${L.meeting ? '' : ' · 아직 출석 모임 없음'}</p>${rows}</div>
           <div class="em-card"><h4>대신 등록</h4><p class="em-note">전화로 알려 온 분 등을 관리자가 대신 공무로 등록해요(등록한 사람이 기록돼요).</p>
-          <div class="em-row"><label>이름<input id="emAddQ" value="${esc(st.q)}" autocomplete="off"></label><label>결석 사유 기록<input id="emAddReason" maxlength="200" value="${esc(st.addReason)}"></label>
+          <div class="em-row"><label>이름<input id="emAddQ" value="${esc(st.q)}" autocomplete="off"></label><label>공무 내용(필수)<input id="emAddReason" maxlength="200" placeholder="꼭 적어야 등록돼요" value="${esc(st.addReason)}"></label>
           <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.findPeople()">찾기</button></div>${hits}</div>`;
       }
       function render() {

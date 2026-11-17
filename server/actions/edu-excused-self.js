@@ -67,7 +67,9 @@ export async function submitMyExcused(body = {}) {
   if (!on()) fail('교육보고 기능이 아직 꺼져 있어요.');
   const m = await me(body);
   if (!m.p) fail(m.outside ? '원장님은 출석 집계 대상이 아니에요.' : '목요 사명자 교육 재적에 없어요. 담당자에게 알려 주세요.');
-  const kind = String(body.kind || '목사교'), date = String(body.date || ''), reason = String(body.reason || '').trim() || '공무';
+  const kind = String(body.kind || '목사교'), date = String(body.date || ''), reason = String(body.reason || '').trim();
+  // 11/17(사용자): 공무 내용을 반드시 적어야 제출 — 빈칸·'공무'만은 안 됨
+  if (!reason || /^공무\.?$/.test(reason)) fail('공무 내용(결석 사유)을 꼭 적어 주세요. 적어야 제출돼요.');
   if (!KINDS[kind]) fail('교육을 골라 주세요.');
   if (!m.kinds.includes(kind)) fail('목요 사명자 교육은 사명자 재적에 있는 분만 신고할 수 있어요.');
   if (!validDate(date) || !(await nextDates(kind)).includes(date)) fail('다가오는 교육 날짜만 신고할 수 있어요.');
