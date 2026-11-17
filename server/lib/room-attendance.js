@@ -288,38 +288,36 @@ export async function kyoRoomText(m, phase, sess, order) {
   const nCame = people.filter(came).length, nEx = people.filter(isEx).length, nLate = people.filter((p) => late(p).length).length;
   const nAbs = people.length - nCame - nEx;
   const church = (p) => p.region !== '신학';
-  const grp = (list, fmt) => {
-    const out = [];
-    for (const [title, fn] of [['⛪ 교회 교역자', church], ['🎓 신학부', (p) => !church(p)]]) {
-      const sub = list.filter(fn);
-      if (!sub.length) continue;
-      out.push(` ${title} ${sub.length}명`);
-      const by = new Map();
-      for (const p of sub) { const a = String(p.affiliation || '').trim() || '기타'; (by.get(a) || by.set(a, []).get(a)).push(p); }
-      const keys = [...by.keys()].sort((a, b) => (church(sub[0]) ? rank(a) - rank(b) : 0) || a.localeCompare(b, 'ko'));
-      for (const a of keys) out.push(`   ▸ ${esc(a)}(${by.get(a).length}): ${by.get(a).map(fmt).join(', ')}`);
-    }
-    return out.length ? out : ['   없음'];
-  };
+  // 11/17 2차(사용자): "교회 교역자 파트 / 신학부 파트를 크게 딱 구분 — 줄 쫙 긋고, 각 파트 안에서 참·지·공·미 네 부류"
   const word = phase === '최종' ? '불참' : '미참석';
   const head = phase === '최종' ? (sessions.length > 1 ? `${sessions.map((s) => (SESSION_ICON[s] || '') + ' ' + s).join(' · ')} 교육 마감 · 하루 통합` : '교육 마감') : `${SESSION_ICON[phase] || '🙋'} ${phase} 교육 마감`;
-  const nChurch = people.filter(church).length;
+  const HEAVY = '▬▬▬▬▬▬▬▬▬▬▬▬';
+  const fmtLate = (p) => esc(p.name) + '(' + late(p).map((s) => (sessions.length > 1 ? s : '') + lateMinOf(p.att[s]) + '분').join('·') + ')';
+  const byAff = (list, fmt, ordered) => {
+    const by = new Map();
+    for (const p of list) { const a = String(p.affiliation || '').trim() || '기타'; (by.get(a) || by.set(a, []).get(a)).push(p); }
+    const keys = [...by.keys()].sort((a, b) => (ordered ? rank(a) - rank(b) : 0) || a.localeCompare(b, 'ko'));
+    return keys.length ? keys.map((a) => ` ▸ ${esc(a)}(${by.get(a).length}): ${by.get(a).map(fmt).join(', ')}`) : ['   없음'];
+  };
+  const part = (icon, title, list, ordered) => {
+    const c = list.filter(came), lt = list.filter((p) => late(p).length), e = list.filter(isEx), a = list.filter((p) => !came(p) && !isEx(p));
+    return [HEAVY, `${icon} <b>【 ${title} 】</b> 재적 ${list.length}명`, HEAVY,
+      `👥 참석 <b>${c.length}명</b> (${pct(c.length, list.length)}%) · ⏰ 지각 ${lt.length} · 📋 공무 ${e.length} · ❌ ${word} ${a.length}`, '',
+      `✅ <b>참석자 ${c.length}명</b>`, ...byAff(c, (p) => esc(p.name), ordered), '',
+      `⏰ <b>지각자 ${lt.length}명</b>`, ...(lt.length ? byAff(lt, fmtLate, ordered) : ['   없음']), '',
+      `📋 <b>공무(사전보고자) ${e.length}명</b>`, ...(e.length ? byAff(e, (p) => esc(p.name), ordered) : ['   없음']), '',
+      `❌ <b>${word}자 ${a.length}명</b>`, ...(a.length ? byAff(a, (p) => esc(p.name), ordered) : ['   없음 🎉']), ''];
+  };
+  const churchList = people.filter(church), semList = people.filter((p) => !church(p));
   const L = [`📋 <b>${esc(m.title)}</b> (교사 재적 기준)`, `🗓 ${dayOf(m)} · ${head}`,
-    `📍 <b>【 교역자회 】</b> · 재적 ${people.length}명 (교회 ${nChurch} · 신학부 ${people.length - nChurch})`, LINE];
+    `📍 <b>교역자회</b> · 재적 ${people.length}명 (⛪ 교회 교역자 ${churchList.length} · 🎓 신학부 ${semList.length})`, LINE];
   if (sessions.length > 1) L.push(sessions.map((s) => `${SESSION_ICON[s] || '🙋'} ${s} ${people.filter((p) => p.att[s]).length}명`).join(' · '), `👥 합계 <b>${nCame}명</b> / ${people.length}명 (${pct(nCame, people.length)}%)`);
   else L.push(`${SESSION_ICON[sessions[0]] || '👥'} ${sessions[0]} 참석 <b>${nCame}명</b> / ${people.length}명 (${pct(nCame, people.length)}%)`);
-  L.push(`⏰ 지각 ${nLate}명 · 📋 공무 ${nEx}명 · ❌ ${word} ${nAbs}명`, LINE);
-  const c = people.filter(came);
-  L.push(`${sessions.length > 1 ? '👥' : SESSION_ICON[sessions[0]] || '🙋'} <b>${sessions.length > 1 ? '' : sessions[0] + ' '}참석자 ${c.length}명</b>`, ...grp(c, (p) => esc(p.name)));
+  L.push(`⏰ 지각 ${nLate}명 · 📋 공무 ${nEx}명 · ❌ ${word} ${nAbs}명`, '');
+  L.push(...part('⛪', '교회 교역자', churchList, true), ...part('🎓', '신학부 사명자', semList, false));
   const g = [...guests.values()];
-  if (g.length) L.push(`   🙋 비교사(${g.length}): ${g.map((x) => esc(x.name)).join(', ')}`);
-  const lt = people.filter((p) => late(p).length);
-  L.push(`⏰ <b>지각자 ${lt.length}명</b>`, ...(lt.length ? grp(lt, (p) => esc(p.name) + '(' + late(p).map((s) => (sessions.length > 1 ? s : '') + lateMinOf(p.att[s]) + '분').join('·') + ')') : ['   없음']));
-  const e = people.filter(isEx);
-  L.push(`📋 <b>공무(사전보고자) ${e.length}명</b>`, ...(e.length ? grp(e, (p) => esc(p.name)) : ['   없음']));
-  const a = people.filter((p) => !came(p) && !isEx(p));
-  L.push(`❌ <b>${word}자 ${a.length}명</b>`, ...(a.length ? grp(a, (p) => esc(p.name)) : ['   없음 🎉']));
-  if (g.length) L.push('', '※ 비교사는 재적·출석률에 넣지 않았어요');
+  if (g.length) L.push(LINE, `🙋 비교사 ${g.length}명: ${g.map((x) => esc(x.name)).join(', ')}`, '※ 비교사는 재적·출석률에 넣지 않았어요');
+  while (L[L.length - 1] === '') L.pop();
   const texts = []; let cur = '';
   for (const l of L) { if (cur && cur.length + l.length + 1 > 3900) { texts.push(cur); cur = ''; } cur += (cur ? '\n' : '') + l; }
   if (cur) texts.push(cur);
