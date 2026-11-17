@@ -5,7 +5,7 @@
 //   집계(교육보고 탭)는 '#excused' ∪ 본인 신고(유효)를 공무로 센다. 실제 참석이 공무보다 우선.
 // - EDU_MGMT_ENABLED=1 일 때만 동작. Telegram 발송 없음.
 import { db, run } from '../lib/db.js';
-import { kstDate } from '../lib/util.js';
+import { kstDate, kstDateTime } from '../lib/util.js';
 
 // 11/16(2차, 사용자): 화요전도단·목요 사명자 교육 둘 다 — 나의교실 '출석' 칸에서 교육·날짜를 골라 신고.
 const KINDS = { 화전단: { title: '화요 전도단', days: [2] }, 목사교: { title: '목요 사명자 교육', days: null } }, ROSTER = '목요사명자';
@@ -32,6 +32,25 @@ async function nextDates(kind) {
   return out;
 }
 
+// 11/17(사용자): "교육 시간이 지나간 교육은 '종료', 다음날이 되면 그 다음 회차가 뜨게".
+//   끝 시각 = 그날 그 교육 출석 모임의 마지막 타임 끝(화전단 = 제목 '화요전도단', 목사교 = 목요사명자 정기 교육). 모임이 없으면 정기 교육 타임 끝, 그것도 없으면 22:00.
+//   지난 교육은 신고·취소를 막는다. 다가오는 2회차(오늘 포함)는 그대로라, 다음날이 되면 오늘 것이 빠지고 다음 회차가 뜬다.
+const hm = (t) => String(t || '').slice(0, 5);
+const lastEnd = (rows) => rows.flatMap((r) => [hm(r.end_time), ...(Array.isArray(r.slots) ? r.slots : []).map((x) => hm(x && x.end))]).filter((t) => /^\d\d:\d\d$/.test(t)).sort().pop() || '';
+async function endTimeOf(kind, date) {
+  const ms = (await run(db().from('attend_meetings').select('title, end_time, slots, series_id').eq('date', date).neq('status', '삭제')).catch(() => [])).filter((m) => !String(m.title || '').startsWith('[TEST]'));
+  if (kind === '화전단') return lastEnd(ms.filter((m) => /화요전도단|화전단/.test(m.title || ''))) || '22:00';
+  const ss = await run(db().from('attend_series').select('series_id, slots').eq('roster_key', ROSTER).neq('status', '삭제')).catch(() => []);
+  const ids = new Set(ss.map((x) => x.series_id));
+  return lastEnd(ms.filter((m) => ids.has(m.series_id))) || lastEnd(ss.map((x) => ({ slots: x.slots }))) || '22:00';
+}
+async function isEnded(kind, date) {
+  const now = kstDateTime(), today = now.slice(0, 10);
+  if (date < today) return true;
+  if (date > today) return false;
+  return now.slice(11, 16) >= await endTimeOf(kind, date);
+}
+
 // 11/17(사용자 "어떤 사람은 되고 어떤 사람은 안 된다"): 목사교 재적(부구역장 이상 1,203명)에 없는 교사(예: 장년회 13지역 김성재)는
 //   '재적에 없어요'만 보고 버튼이 없었다 → 화요 전도단은 교사 전체가 오므로, 재적 밖이라도 교사·관리자 명단에 있으면 화요 전도단은 신고 가능.
 //   (목요 사명자 교육은 재적 기준 집계라 재적에 있는 분만)
@@ -56,7 +75,8 @@ export async function getMyExcused(body = {}) {
   for (const kind of m.kinds) {
     const dates = await nextDates(kind);
     const rows = await run(db().from('edu_excused_self').select('*').eq('kind', kind).eq('nid', m.nid).in('date', dates));
-    kinds.push({ kind, title: KINDS[kind].title, dates: dates.map((d) => ({ date: d, label: dayLabel(d), mine: view(rows.find((r) => r.date === d && r.active)) })) });
+    const ended = await Promise.all(dates.map((d) => isEnded(kind, d)));
+    kinds.push({ kind, title: KINDS[kind].title, dates: dates.map((d, i) => ({ date: d, label: dayLabel(d), ended: ended[i], mine: view(rows.find((r) => r.date === d && r.active)) })) });
   }
   return { enabled: true, eligible: true, title: '화요 전도단 · 목요 사명자 교육 공무로 인한 결석자 보고', group: groupOf(m.p), dept: m.p.dept, region: m.p.dept === '24부서' ? '' : (m.p.region || ''),
     name: m.p.name, kinds, note: m.p.outsideRoster ? '목요 사명자 교육은 사명자 재적(부구역장 이상)에 있는 분만 신고해요.' : '' };
@@ -78,6 +98,7 @@ export async function submitMyExcused(body = {}) {
   if (!KINDS[kind]) fail('교육을 골라 주세요.');
   if (!m.kinds.includes(kind)) fail('목요 사명자 교육은 사명자 재적에 있는 분만 신고할 수 있어요.');
   if (!validDate(date) || !(await nextDates(kind)).includes(date)) fail('다가오는 교육 날짜만 신고할 수 있어요.');
+  if (await isEnded(kind, date)) fail('이미 끝난(종료된) 교육이에요. 다음 회차를 골라 주세요.');
   if (reason.length > 200) fail('사유는 200자 이내로 적어 주세요.');
   const row = { kind, date, nid: m.nid, name: m.p.name, dept: m.p.dept, region: m.p.dept === '24부서' ? (m.p.affiliation || '') : (m.p.region || ''), reason, active: true, registered_by: '', canceled_by: '', updated_at: new Date().toISOString() };
   await run(db().from('edu_excused_self').upsert(row, { onConflict: 'kind,date,nid' }));
@@ -88,6 +109,7 @@ export async function cancelMyExcused(body = {}) {
   if (!on()) fail('교육보고 기능이 아직 꺼져 있어요.');
   const m = await me(body), kind = String(body.kind || '목사교'), date = String(body.date || '');
   if (!KINDS[kind] || !validDate(date)) fail('교육과 날짜를 확인해 주세요.');
+  if (await isEnded(kind, date)) fail('이미 끝난(종료된) 교육이라 취소할 수 없어요.');
   await run(db().from('edu_excused_self').update({ active: false, canceled_by: '본인', updated_at: new Date().toISOString() }).eq('kind', kind).eq('date', date).eq('nid', m.nid));
   return { ok: true };
 }
