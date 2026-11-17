@@ -230,6 +230,8 @@ export async function postRoomAttendance(m, phase, prefix = '') {
   // 11/13(사용자): 중진 대화방 — 화전단·목사교 24부서 출석(오전 후 = 오전, 저녁 후 = 하루 총). 시험 접두(prefix)일 땐 안 보냄
   const jj = prefix ? [] : await ea.postJungjin(m, phase).catch((e) => (console.log('중진 방 오류: ' + e.message), []));
   const edu = await ea.eduFor(m);
+  // 11/17: 24부서 월요모임 — 카드+실명 명단만(#24부서, 확인 전엔 목사교 행정 방)
+  if (edu && edu.series.roster_key === ea.MONDAY_KEY) return prefix ? [] : [...jj, ...await ea.postMonday(m, phase, edu)];
   if (edu) return [...jj, ...await ea.postEduAttendance(m, phase, edu, prefix)];
   const sent = [...jj];
   for (const p of await buildRoomAttendance(m, phase)) {

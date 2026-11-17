@@ -75,7 +75,7 @@ async function prepare(m, phase, edu) {
   }
   // 11/12(사용자): 원장님들은 계수·참석·불참 명단에서 계속 뺀다(재적 밖 참석에도 안 나오게)
   const EXCLUDED = (p) => String(p.position || '').trim() === '원장';
-  const people = edu.roster.filter((p) => !EXCLUDED(p)).map((p) => ({ ...p, dept: DEPT_OVERRIDE[p.nid] || p.dept })).map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
+  const people = edu.roster.filter((p) => !EXCLUDED(p)).map((p) => ({ ...p, dept: (!edu.noOverride && DEPT_OVERRIDE[p.nid]) || p.dept })).map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
   const inRoster = new Set(edu.roster.map((p) => p.nid));
   // 재적 밖 참석(교사·일반) — 교사면 등록 지역 방, 아니면 적은 부서
   const outside = [];
@@ -659,10 +659,11 @@ export async function excusedOf(kind, date) {
   return new Set((await run(db().from('cohort_summary_log').select('ref_id').eq('cohort_id', '#excused').eq('kind', kind).eq('date', date)).catch(() => [])).map((x) => x.ref_id));
 }
 /** 중진 방 묶음: 카드(공무 칸) + 참석·지각·공무·불참 명단 */
-export async function jungjinParts(m, phase, kind) {
-  const roster = await roster24();
+// 11/17: o = { roster, title, place, basisWord } — 24부서 월요모임(명단 따로)도 같은 틀로
+export async function jungjinParts(m, phase, kind, o = {}) {
+  const roster = o.roster || await roster24();
   if (!roster.length) return [];
-  const edu = { series: { series_id: m.seriesId || '', title: m.title }, roster };
+  const edu = { series: { series_id: m.seriesId || '', title: m.title }, roster, noOverride: !!o.roster };
   const P = { ...(await prepare(m, phase, edu)), phase };
   // 11/17: 본인 신고(나의 교실 '공무 결석 보고')도 공무로
   const ex = await excusedOf(kind, m.date);
@@ -678,14 +679,14 @@ export async function jungjinParts(m, phase, kind) {
   const rows = defs.map(([l, fn]) => one(l, all.filter(fn))).filter((r) => r.n);
   const total = one('종합', all);
   const [mo, d] = m.date.slice(5).split('-').map(Number);
-  const absentWord = phase === '최종' ? '불참' : '미참석';
-  const title = `${mo}/${d} 24부서 ${kind === '화전단' ? '화요전도단' : '목요 사명자 교육'} ${phase === '최종' ? '' : phase + ' '}출석현황`;
+  const absentWord = o.absentWord || (phase === '최종' ? '불참' : '미참석');
+  const title = o.title ? `${mo}/${d} ${o.title}` : `${mo}/${d} 24부서 ${kind === '화전단' ? '화요전도단' : '목요 사명자 교육'} ${phase === '최종' ? '' : phase + ' '}출석현황`;
   const C = { title, rows, total, reasonTotal: total.absent, firstHead: '부서', excusedCol: true };
   let png = null;
   try { png = eduCardPng(C); } catch (e) { console.log('중진 카드 오류: ' + e.message); }
   const sorted = [...rows].sort((a, b) => b.r - a.r);
   const NL = String.fromCharCode(10);
-  const sum = [`📊 <b>${esc(title)}</b> (24부서 사명자 기준)`, '',
+  const sum = [`📊 <b>${esc(title)}</b> (${o.title ? '명단 기준' : '24부서 사명자 기준'})`, '',
     `▸ 전체 참석률 ${total.rate} (대상 ${total.n}명 중 ${total.came}명 참석)`,
     ...(P.sessions.length > 1 ? [`▸ ${P.sessions.map((x) => `${x} ${total.by[x]}명`).join(' · ')} (두 번 온 분은 한 번)`] : []),
     ...(sorted.length > 1 ? [`▸ 가장 높은 곳 ${esc(sorted[0].label)} ${sorted[0].rate} · 가장 낮은 곳 ${esc(sorted.at(-1).label)} ${sorted.at(-1).rate}`] : []),
@@ -695,7 +696,7 @@ export async function jungjinParts(m, phase, kind) {
   const g = (p) => labelOf.get(defs.keyOf(p)) || p.affiliation;
   const groups = [...new Set(all.map(g))];
   const byGroup = (arr, fmt) => groups.map((x) => [x, arr.filter((p) => g(p) === x)]).filter(([, a]) => a.length).map(([x, a]) => ` ▸ ${esc(x)}(${a.length}): ${a.map(fmt).join(', ')}`);
-  const L = [...top(m, phase, P.sessions), `📍 <b>【 24부서 장부청 소속 】</b> · 사명자 재적 ${total.n}명`, LINE];
+  const L = [...(o.title ? [`📋 <b>${esc(o.title)}</b> (월요모임 명단 기준)`, `🗓 ${dayOf(m)} · ${headLine(phase, P.sessions)}`] : top(m, phase, P.sessions)), `📍 <b>${esc(o.place || '【 24부서 장부청 소속 】')}</b> · ${esc(o.basisWord || '사명자 재적')} ${total.n}명`, LINE];
   if (P.sessions.length > 1) L.push(P.sessions.map((x) => `${ICON[x] || '🙋'} ${x} ${total.by[x]}명`).join(' · '), `👥 합계 <b>${total.came}명</b> / ${total.n}명 (${total.rate})`);
   else L.push(`${ICON[P.sessions[0]] || '👥'} ${P.sessions[0]} 참석 <b>${total.came}명</b> / ${total.n}명 (${total.rate})`);
   L.push(`⏰ 지각 ${total.late}명 · 📋 공무 ${total.excused}명 · ❌ ${absentWord} ${total.absent}명`, LINE);
@@ -705,7 +706,7 @@ export async function jungjinParts(m, phase, kind) {
   const exs = all.filter(isEx);
   L.push(`📋 <b>공무(사전보고자) ${exs.length}명</b>`, ...(exs.length ? byGroup(exs, (p) => esc(p.name)) : ['   없음']));
   const absent = all.filter((p) => !came(p) && !isEx(p));
-  L.push(`❌ <b>${phase === '최종' ? '불참자' : '미참석자'} ${absent.length}명</b>`, ...(absent.length ? byGroup(absent, (p) => esc(p.name)) : ['   없음 🎉']));
+  L.push(`❌ <b>${o.absentWord ? o.absentWord + '자' : phase === '최종' ? '불참자' : '미참석자'} ${absent.length}명</b>`, ...(absent.length ? byGroup(absent, (p) => esc(p.name)) : ['   없음 🎉']));
   const texts = [];
   let cur = '';
   for (const l of L) { if (cur && cur.length + l.length + 1 > 3900) { texts.push(cur); cur = ''; } cur += (cur ? NL : '') + l; }
@@ -749,6 +750,31 @@ export async function postJungjin(m, phase, { to = null, force = false } = {}) {
       for (const t of k.texts.slice(1)) { await new Promise((r) => setTimeout(r, 1500)); await sendRoomText(room.chat_id, t); }
       sent.push(room.dept + ':교역자');
     } catch (e) { console.log('중진 방 교역자 전송 실패: ' + e.message); }
+  }
+  return sent;
+}
+// ── 24부서 월요모임 (2026-11-17) ── 사용자: "월요 모임 사명자 명단(엑셀) 대상, '24부서 월요모임 참석자 현황' 타이틀로 화·목과 같은 형식 —
+//   출석·지각·공무·결석 카드 + 실명 명단. 매주 월 09:00~10:00 교육(QR 08:30~10:20). 올리는 방 = 24부서 General('#24부서'), 샘플은 목사교 행정 방."
+//   재적 = edu_roster roster_key '월요모임'(dept 24부서, affiliation 부서, district 부번, region 소속 회). 정기 교육 roster_key '월요모임'.
+//   summary_to 'live' = '#24부서' 방, 그 밖(test) = 목사교 행정 방('#교육:…')에만. 한 번만(cohort_summary_log '#monday').
+export const MONDAY_KEY = '월요모임';
+export const mondayParts = (m, phase, edu) => jungjinParts(m, phase, '월요모임', { roster: edu.roster, title: '24부서 월요모임 참석자 현황', place: '【 24부서 월요모임 】', basisWord: '대상', absentWord: '결석' });
+export async function postMonday(m, phase, edu, { to = null, force = false } = {}) {
+  const live = edu.series.summary_to === 'live';
+  const rooms = to ? [to] : live ? await run(db().from('report_rooms').select('*').eq('dept', '#24부서').eq('active', true)).catch(() => [])
+    : await run(db().from('report_rooms').select('*').like('dept', '#교육:%').eq('active', true).limit(1)).catch(() => []);
+  if (!rooms.length) return [];
+  if (!force) {
+    const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#monday', kind: phase, ref_id: m.meetingId, date: m.date, sent_at: kstDateTime() });
+    if (error) return [];   // 이미 보냄
+  }
+  const parts = await mondayParts(m, phase, edu);
+  const list = parts[0]?.png && parts[1] ? [{ png: parts[0].png, text: parts[1].text, merged: true }, ...parts.slice(2)] : parts;
+  const sent = [];
+  for (const room of rooms) for (const p of list) {
+    try { if (p.merged) await sendRoomCardText(room, p.png, p.text); else if (p.png) await sendRoomBoard(room, p.png, p.caption, p.text); else await sendRoomText(room.chat_id, p.text); sent.push(room.dept); }
+    catch (e) { console.log('월요모임 전송 실패: ' + e.message); }
+    await new Promise((r) => setTimeout(r, 1500));
   }
   return sent;
 }

@@ -747,6 +747,21 @@ async function tsTestRoom(body) {
     out.push(['news' + (r.ai ? '' : ':plain') + (r.png ? ':card' : ''), await testPhoto(r.png, tag() + r.text, tag() + r.text)]);
     if (body.echo) newsEcho = r.text;
   }
+  // 11/17: 24부서 월요모임 견본 — 다른 모임(meetingId)의 출석 기록을 월요모임 명단에 대 보여 줌. 카드+명단 한 통(목사교 행정 방)
+  if (only.includes('monday')) {
+    const { findMeeting } = await import('./attendance.js');
+    const ea = await import('../lib/edu-attendance.js');
+    const { sendRoomCardText } = await import('../lib/report-room.js');
+    const src = await findMeeting(String(body.meetingId || ''));
+    if (!src) return { error: '모임 없음' };
+    const roster = await selectAll(() => db().from('edu_roster').select('nid, member_id, name, dept, region, district, affiliation, position, sort_order').eq('roster_key', ea.MONDAY_KEY).order('sort_order'));
+    const m = { ...src, title: '24부서 월요모임', slots: [{ start: '09:00', end: '10:20' }] };
+    const parts = await ea.mondayParts(m, String(body.phase || '최종'), { series: { roster_key: ea.MONDAY_KEY }, roster });
+    const room = { dept: '#test', chat_id: testChat };
+    if (body.intro !== false) out.push(['monday:intro', await testText('🧪 <b>[견본] 24부서 월요모임 참석자 현황</b> — 매주 월 09:00~10:00(QR 08:30~10:20), 대상 ' + roster.length + '명(월요모임 명단)' + String.fromCharCode(10) + '※ 모양 견본이라 ' + esc(src.date) + ' ' + esc(src.title) + ' 출석 기록을 월요모임 명단에 대어 만들었어요. 실제는 월요일 QR 출석으로.')]);
+    if (parts[0]?.png && parts[1]) { await sendRoomCardText(room, parts[0].png, parts[1].text); out.push(['monday:card+list', { ok: true }]); for (const q of parts.slice(2)) out.push(['monday', await testText(q.text)]); }
+    else for (const q of parts) out.push(['monday', q.png ? await testPhoto(q.png, '', q.caption) : await testText(q.text)]);
+  }
   // 11/17: 새 교역자 방 글 견본 — { only:['kyo'], meetingId, phase, room:'edu' } (실제 교역자 방엔 아직 안 씀)
   if (only.includes('kyo')) {
     const { findMeeting } = await import('./attendance.js');
