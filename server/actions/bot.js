@@ -702,7 +702,7 @@ async function tsTestRoom(body) {
   const out = [];
   let newsEcho;
   const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
-  if (body.intro !== false && !only.every((x) => x === 'att')) {
+  if (body.intro !== false && !only.every((x) => ['att', 'kyo', 'monday'].includes(x))) {   // 11/17: 견본 전용 묶음엔 하루 세트 안내 안 붙임
     out.push(['intro', await testText([
       '🧪 <b>나만의 교사광장 — 하루 서머리 세트 시험</b>',
       `${md(day)} 기록으로 만든 하루 세트예요. 실제 방에는 보내지 않았어요.`, '',
