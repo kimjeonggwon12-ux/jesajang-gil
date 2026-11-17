@@ -663,17 +663,24 @@ export async function jungjinPreview(m,phase,roomOverride=null){
  report.edu.series.summary_to=await jungjinMode(m);
  return{...report,parts:room&&!topicPending(room)?report.parts.map(p=>({...p,room})):[]};
 }
+// 11/17(사용자): '24부서 사랑(전도)하자!' 방 General(방 열쇠 '#24부서')에도 같은 24부서 장부청 소속 출석 — 화·목 오전 마감·최종마다
+export const JUNGJIN_ROOM_KEYS=[JUNGJIN_KEY,'#24부서'];
 export async function postJungjin(m,phase,{to=null,force=false,failures=[]}={}){
  phase=validEduPhase(phase);
  if(!await jungjinKindFor(m))return [];
- const [room]=to?[to]:await run(db().from('report_rooms').select('*').eq('dept',JUNGJIN_KEY).eq('active',true));
- if(!room||topicPending(room))return [];
- const mode=await jungjinMode(m),target=to||{...room,chat_id:mode==='test'?testChat():room.chat_id};
- const result=await deliverReportBatch({namespace:mode==='test'&&!to?'#jungjin-test':'#jungjin',kind:phase,ref:m.meetingId,date:m.date,room:target},async report=>{
-  for(const [i,p] of report.parts.entries()){if(i)await new Promise(r=>setTimeout(r,3200));await sendEduPart(p,target);}
- },{manual:force||!!to,prepare:()=>jungjinReport(m,phase)});
- if(!result.ok){failures.push({scope:'#jungjin',ref:m.meetingId,phase,state:result.state});console.log('중진 보고 수신 확인 필요: 자동 재전송하지 않습니다.');}
- return result.state==='delivered'?['중진']:[];
+ const rooms=to?[to]:await run(db().from('report_rooms').select('*').in('dept',JUNGJIN_ROOM_KEYS).eq('active',true));
+ const mode=await jungjinMode(m),sent=[];
+ for(const room of rooms){
+  if(!room||topicPending(room))continue;
+  const base=room.dept===JUNGJIN_KEY||to?'#jungjin':'#jungjin:'+room.dept;
+  const target=to||{...room,chat_id:mode==='test'?testChat():room.chat_id};
+  const result=await deliverReportBatch({namespace:mode==='test'&&!to?base+'-test':base,kind:phase,ref:m.meetingId,date:m.date,room:target},async report=>{
+   for(const [i,p] of report.parts.entries()){if(i)await new Promise(r=>setTimeout(r,3200));await sendEduPart(p,target);}
+  },{manual:force||!!to,prepare:()=>jungjinReport(m,phase)});
+  if(!result.ok){failures.push({scope:base,ref:m.meetingId,phase,state:result.state});console.log(room.dept+' 보고 수신 확인 필요: 자동 재전송하지 않습니다.');}
+  if(result.state==='delivered')sent.push(room.dept===JUNGJIN_KEY?'중진':room.dept);
+ }
+ return sent;
 }
 // 2026-11-16 교육 관리 탭(edu-mgmt.js)이 같은 재적·출석 판정(오전·저녁 중복 제거, 항상 출석·제외 직책)을 그대로 쓰도록 공개한다.
 export const eduPeople = (m, phase, edu) => prepare(m, validEduPhase(phase), edu);
