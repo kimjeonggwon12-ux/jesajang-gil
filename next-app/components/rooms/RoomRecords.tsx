@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import {useRoomQuery} from './RoomArea';
 import {ErrorNote,Loading} from '../Ui';
 import type {RoomRecords as Records,RoomRecord} from '../../lib/rooms';
-const tabs:[keyof Omit<Records,'goalMonth'>,string][]=[['info','파악 정보'],['acts','활동 기록'],['history','단계 이력'],['stageFb','단계 향상 피드백'],['plans','개강 계획'],['hearts','HEARTS·교관 답변'],['infoFeedback','파악 정보 피드백'],['master','종합 피드백']];
+const tabs:[keyof Omit<Records,'goalMonth'>,string][]=[['info','파악 정보'],['acts','활동 기록'],['history','단계 이력'],['stageFb','단계 향상 피드백'],['moving','감동주기 방법'],['plans','개강 계획'],['hearts','HEARTS·교관 답변'],['infoFeedback','파악 정보 피드백'],['master','종합 피드백']];
 function RecordBody({row}:{row:RoomRecord}){return <>{row.basis?<p className="muted">{row.basis}</p>:null}{row.roles?.length?<p>{row.roles.join(' · ')} · {row.items?.join(', ')} · {row.stage}</p>:null}{row.from||row.to?<p>{row.from||'처음'} → {row.to}</p>:null}{[['내용',row.text],['상황',row.situation],['AI 피드백',row.ai],['교관 답변',row.answer],['상담·교육',[row.consult,row.subject].filter(Boolean).join(' · ')],['오늘 한 일',row.today],['다음 계획',row.next],['반응',[row.reaction,row.reactionNote].filter(Boolean).join(' · ')],['요청사항',row.special],['메모',row.memo]].map(([label,value])=>value?<div key={label}><h4>{label}{label==='교관 답변'&&row.handler?` · ${row.handler}`:''}</h4><p className="pre-wrap">{value}</p></div>:null)}</>;}
 export default function RoomRecords({targetId,view}:{targetId:string;view?:keyof Omit<Records,'goalMonth'>}){
   const result=useRoomQuery<Records>('getRoomRecords',{targetId}),[tab,setTab]=useState<keyof Omit<Records,'goalMonth'>>(view||'info'),[page,setPage]=useState(1),rows=result.data?.[tab]||[],current=Math.min(page,Math.max(1,Math.ceil(rows.length/20)));

@@ -25,9 +25,9 @@ test('명단은 동일 요청을 합치고 이전 검색의 늦은 응답이 새
  h.c.state.tlQuery='새검색';const b=h.evaluate('loadRosterAll(false)');h.c.calls[1].resolve(result([{memberId:'B'}]));await b;
  h.c.calls[0].resolve(result([{memberId:'A'}]));await a;assert.equal(h.c.rosterAll[0].memberId,'B');assert.equal(h.c.rosterLoading,false);
 });
-test('명단 검색은 한글 조합 중 요청하지 않고 300ms 뒤 한 번 조회한다',async()=>{
+test('명단 검색은 한글 조합 중 요청하지 않고 400ms 뒤(조합이 끝난 뒤) 한 번 조회한다',async()=>{
  const h=rosterHarness(),q=h.input('tl-q');h.evaluate('wireTeacherSearch()');q.events.compositionstart();q.value='가';q.events.input();assert.equal(h.timers.size,0);
- q.value='가짜';q.events.compositionend();q.events.input();assert.equal(h.timers.size,1);const timer=[...h.timers.values()][0];assert.equal(timer.ms,300);timer.fn();assert.equal(h.c.calls.length,1);assert.equal(h.c.calls[0].body.query,'가짜');h.c.calls[0].resolve(result([]));
+ q.value='가짜';q.events.compositionend();q.events.input();assert.equal(h.timers.size,1);const timer=[...h.timers.values()][0];assert.equal(timer.ms,400);timer.fn();assert.equal(h.c.calls.length,1);assert.equal(h.c.calls[0].body.query,'가짜');h.c.calls[0].resolve(result([]));
 });
 test('명단 전체 선택은 다른 페이지의 대상까지 기억하고 이후 페이지 변경에도 선택을 보존한다',async()=>{
  const h=rosterHarness();h.c.rosterAll=[{memberId:'1'}];const select=h.evaluate('tlSelectAll(true)');assert.equal(h.c.calls[0].body.all,true);

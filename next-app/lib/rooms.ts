@@ -18,7 +18,7 @@ export function filterOpeningRooms(rows:OpeningRoom[],filter:OpeningFilter){
     .sort((a,b)=>String(b.lastReport||'').localeCompare(String(a.lastReport||''))||[...ROOM_DEPTS,'그 밖'].indexOf(roomDept(a))-[...ROOM_DEPTS,'그 밖'].indexOf(roomDept(b))||roomRegionNo(a.region)-roomRegionNo(b.region)||String(a.teacher).localeCompare(String(b.teacher)));
 }
 export type RoomRecord={at:string;basis?:string;text?:string;about?:string;source?:string;situation?:string;ai?:string;handler?:string;answer?:string;cat?:string;by?:string;roles?:string[];items?:string[];stage?:string;consult?:string;subject?:string;reaction?:string;reactionNote?:string;today?:string;next?:string;special?:string;from?:string;to?:string;memo?:string};
-export type RoomRecords={goalMonth:number;info:RoomRecord[];infoFeedback:RoomRecord[];master:RoomRecord[];plans:RoomRecord[];stageFb:RoomRecord[];hearts:RoomRecord[];acts:RoomRecord[];history:RoomRecord[]};
+export type RoomRecords={goalMonth:number;info:RoomRecord[];infoFeedback:RoomRecord[];master:RoomRecord[];moving:RoomRecord[];plans:RoomRecord[];stageFb:RoomRecord[];hearts:RoomRecord[];acts:RoomRecord[];history:RoomRecord[]};
 export const cleanRoomCode=(value:string)=>value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8);
 export function roomUnread(message:RoomMessage,reads:[number,number][]){return message.deleted||(!message.from&&!message.mine)?0:reads.filter(([key,last])=>key!==message.fk&&Number(last)<message.id).length;}
 export function mergeRoomMessages(current:RoomMessage[],incoming:RoomMessage[]){const rows=new Map(current.map(row=>[row.id,row]));for(const row of incoming)rows.set(row.id,row);return [...rows.values()].sort((a,b)=>a.id-b.id);}

@@ -676,7 +676,8 @@ async function getKeyStageCount() {
 //   target_ai_notes 에 kind '파악정보'(input = 분류, text = 내용)로 한 줄씩 — 개수 제한 없음. 모든 AI(단계향상·개강 계획·SWOT·사례)가 읽는다.
 const INFO_KIND = '파악정보';
 const INFO_FB_KIND = 'AI 파악정보 피드백';
-const INFO_CATS = ['가족', '직장·학업', '관심사·취미', '고민·필요', '신앙 배경', '성격·성향', '일정·연락', '기타'];
+// 11/17(사용자): 정보 기록에 '수업 반응' 소항목
+const INFO_CATS = ['가족', '직장·학업', '관심사·취미', '고민·필요', '신앙 배경', '성격·성향', '수업 반응', '일정·연락', '기타'];
 const infoRow = (n) => ({ id: n.id, cat: n.input || '기타', cats: String(n.input || '기타').split(',').map((c) => c.trim()).filter(Boolean), text: n.text, at: fmtTs(n.created_at), mine: true });
 
 async function getTargetInfo(body) {
@@ -685,7 +686,8 @@ async function getTargetInfo(body) {
   const rows = await run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).in('kind', [INFO_KIND, INFO_FB_KIND, MASTER_KIND]).order('id'));
   const fb = rows.filter((n) => n.kind === INFO_FB_KIND).pop();
   const ms = rows.filter((n) => n.kind === MASTER_KIND).pop();
-  return { ok: true, cats: INFO_CATS, items: rows.filter((n) => n.kind === INFO_KIND).map(infoRow).reverse(), feedback: fb ? { text: fb.text, at: fmtTs(fb.created_at), basis: fb.input } : null, master: ms ? { text: ms.text, at: fmtTs(ms.created_at), basis: ms.input } : null };
+  const mv = await run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).eq('kind', MOVING_KIND).order('id', { ascending: false })).catch(() => []);
+  return { ok: true, moving: mv.map((n) => ({ text: n.text, at: fmtTs(n.created_at), basis: n.input })), cats: INFO_CATS, items: rows.filter((n) => n.kind === INFO_KIND).map(infoRow).reverse(), feedback: fb ? { text: fb.text, at: fmtTs(fb.created_at), basis: fb.input } : null, master: ms ? { text: ms.text, at: fmtTs(ms.created_at), basis: ms.input } : null };
 }
 async function addTargetInfo(body) {
   const target = await ownedTarget(body.memberId, body.targetId);
@@ -739,6 +741,36 @@ async function targetMasterFeedback(body) {
   const basis = `활동 ${d.actN || 0}건 · 정보 기록 ${src.info}건 · 단계향상 ${src.stage}회 · HEARTS·교관 ${src.hearts}건 · 개강 계획 ${src.plan}회 취합`;
   await addTargetAiNote(target.target_id, mid, MASTER_KIND, basis, text);
   return { ok: true, text, at: fmtTs(kstDateTime()), basis, src };
+}
+// ── 감동주기 방법 (2026-11-17) ── 사용자: "감동주기 방법도 하나 — 단계향상 피드백 옆 탭, 지금까지의 기록을 총합하는 것은 그대로".
+//   부를 때마다 그 사람에 대해 쌓인 것 전부(정보 기록·수업 반응·활동·단계·HEARTS·교관·이전 AI)를 읽어 '마음을 움직이는 방법'을 정리. kind 'AI 감동주기 방법'.
+const MOVING_KIND = 'AI 감동주기 방법';
+async function targetMovingFeedback(body) {
+  const mid = str(body.memberId);
+  const target = await ownedTarget(mid, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  const d = await targetDossier(target, mid);
+  if (!d.acts.length && !d.info.length) return { error: '아직 모을 기록이 없어요. 활동 기록이나 정보 기록을 먼저 남겨 주세요.' };
+  const goal = target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '아직 정하지 않음';
+  const prompt = [
+    '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 한 섭외자에 대해 지금까지 쌓인 모든 기록을 읽고, 교사가 이 사람에게 진심으로 "감동"을 줄 수 있는 구체적인 방법을 알려 주세요.',
+    '감동 = 그 사람이 "나를 이렇게까지 알아주고 챙겨 주는구나" 하고 마음이 열리는 순간. 말 한마디·기억해 주기·작은 배려·때 맞춘 연락 등, 기록에 근거한 맞춤 방법이어야 합니다.',
+    `- 섭외자: ${target.gender || ''} ${target.age_group || ''} / 지금 단계: ${target.stage || '섭외'} / 목표: ${goal}`,
+    '',
+    '■ 교사가 파악한 정보(수업 반응 포함 — 가장 중요)', ...(d.info.length ? d.info : ['(없음)']),
+    '■ 활동 기록', ...d.acts,
+    '■ 단계 변경 이력', ...d.history,
+    '■ HEARTS(AI상담)·교관 답변', ...d.coaching,
+    '■ 이전에 받은 AI 피드백', ...d.notes,
+    '',
+    '규칙: 기록에 있는 사실(가족·고민·관심사·일정·수업 반응 등)을 콕 집어 근거로 대고, 이 사람에게만 맞는 말로 짧고 구체적으로. 일반론·지어낸 사실·과한 선물 금지. 실명 대신 "그분".',
+    '반드시 아래 5개 마크다운 제목을 그대로 쓰고 다른 제목은 추가하지 마세요:',
+    '## 💝 이분이 감동받는 포인트', '## 🎁 감동주기 방법 (3가지, 근거와 함께)', '## 💬 건넬 한마디 (문자·대면 예시)', '## 🗓 언제 하면 좋을까', '## ⚠️ 오히려 부담 주는 것',
+  ].join(String.fromCharCode(10));
+  const text = await askAiModels(prompt, PLAN_MODELS);
+  if (text.startsWith('⚠️')) return { error: text.replace(/^⚠️\s*/, '') };
+  await addTargetAiNote(target.target_id, mid, MOVING_KIND, d.basis, text);
+  return { ok: true, text, at: fmtTs(kstDateTime()), basis: d.basis };
 }
 // ── HEARTS 섭외자 불러오기 (2026-11-05) ── 사용자: "하츠에서 섭외자·수강생 이름을 불러오면 지금까지의 모든 데이터를 총합해
 //   하츠를 자동으로 돌려주게 — 단타성 한 번의 사실·사건으로만 하는 구조가 아쉽다". AI는 부르지 않고 쌓인 기록만 묶어 준다.
@@ -813,5 +845,5 @@ export default {
   getTargetStageDistribution, getActivityItemDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
   getTargetJournal, deleteTarget, planCohortLead, writeCaseDraft, getTargetFile,
-  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons, targetMasterFeedback, heartsDossier,
+  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons, targetMasterFeedback, targetMovingFeedback, heartsDossier,
 };
