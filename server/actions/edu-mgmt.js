@@ -32,7 +32,8 @@ async function who(body) {
 }
 const managerOf = (w) => w.manager;
 // 11/17(사용자): 공무 결석자 내려받기는 김논 서무님 + 김정권(개발자)만 — 나머지 관리자는 불가
-const DOWNLOAD_NIDS = new Set(['13050200001', '20113000010']);
+// 11/17(사용자, 2차): 김논 서무님 1명만 — 다른 사람은 단추가 눌리지 않게(화면은 회색)
+const DOWNLOAD_NIDS = new Set(['13050200001']);
 const canDownload = (w) => DOWNLOAD_NIDS.has(w.actor.nid);
 
 /** 그 주(월~일)의 두 교육 모임. 분류는 기존 edu_excused_state 와 같다. */
@@ -234,11 +235,11 @@ const xPlace = (p) => (p.dept === '24부서' ? p.affiliation || '' : p.region ||
 const XORDER = ['교역자', '장로·자문회', '24부서', '장년회', '부녀회', '청년회'];
 const xRank = (g) => { const i = XORDER.indexOf(g); return i < 0 ? 99 : i; };
 async function requireManager(body) { const w = await who(body); if (!isManager(w)) fail('교육·전도 담당 관리자만 쓸 수 있어요.', 403); return w; }
-const eduRoster = () => selectAll(() => db().from('edu_roster').select('nid, name, dept, region, affiliation, position, sort_order').eq('roster_key', '목요사명자').order('sort_order').order('id'));
+const eduRoster = () => selectAll(() => db().from('edu_roster').select('nid, member_id, name, dept, region, affiliation, position, sort_order').eq('roster_key', '목요사명자').order('sort_order').order('id'));
 function kindDate(body) { const kind = String(body.kind || ''), date = String(body.date || ''); if (!KINDS[kind] || !validDate(date)) fail('교육과 날짜를 확인해 주세요.'); return { kind, date }; }
 
 export async function getExcusedList(body = {}) {
-  requireOn(); await requireManager(body);
+  requireOn(); const w = await requireManager(body), showNo = canDownload(w);
   const { kind, date } = kindDate(body);
   const [selfRows, listIds, roster, wk] = await Promise.all([
     run(db().from('edu_excused_self').select('*').eq('kind', kind).eq('date', date).eq('active', true).order('id')),
@@ -253,7 +254,8 @@ export async function getExcusedList(body = {}) {
     if (kind === '화전단' && of.has(nid) && hwaExcluded(of.get(nid))) return;   // 11/17: 화요 전도단 — 이경옥 님·휴직자 제외
     const p = of.get(nid) || { name: extra.name || '(재적 밖)', dept: extra.dept || '', region: extra.region || '' };
     const { name: _n, dept: _d, region: _r, ...rest } = extra;
-    rows.push({ memberId: nid, name: p.name, group: xGroup(p), place: xPlace(p), attended: came ? came.has(nid) : null, ...rest });
+    // 11/17(사용자): 엑셀에 고유번호 — 내려받기 권한자(김논 서무님)에게만, 가림 대상이 아닌 idNo 로
+    rows.push({ memberId: nid, ...(showNo ? { idNo: p.member_id || nid } : {}), name: p.name, group: xGroup(p), place: xPlace(p), attended: came ? came.has(nid) : null, ...rest });
   };
   for (const r of selfRows) add(r.nid, { source: r.registered_by ? '관리자 등록' : '본인 신고', registeredBy: r.registered_by || '', reason: r.reason || '', at: r.updated_at, name: r.name, dept: r.dept, region: r.region });
   for (const nid of listIds) add(nid, { source: '도우미연결 명단', registeredBy: '', reason: '', at: '' });
