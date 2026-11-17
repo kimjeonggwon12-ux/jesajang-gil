@@ -6,7 +6,7 @@
 //   부서 총합·전체 방 = 지역 × (재적·타임·총 참석·출석률·정상·지각·비교사) 노랑 표(11/4 민트→노랑) 사진 + 요약 글.
 //   교자장부청 = 같은 칸의 파랑 표(11/4 보라→파랑)(ATT_TOTAL_ROOM — 사용자 확인 전까지는 시험 방에만).
 import { db, run, selectAll } from './db.js';
-import { kstDate, kstDateTime } from './util.js';
+import { kstDate, kstDateTime, normId } from './util.js';
 import { sendRoomText, sendRoomBoard, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
 import { tablePng } from './table-image.js';
 
@@ -251,4 +251,82 @@ export async function roomAttendanceSlotTick(meetings) {
     }
   }
   return done;
+}
+
+// ── 교역자 방(교사 재적) 11/17(사용자) ── "교회 교역자(부서별) / 신학부 따로 — 참석자·지각자·공무·미참석자 네 부류, 24부서 장부청 소속 글과 같은 서식,
+//   지각 분 수, 두 통 말고 한 통으로, 신학부는 아래로." 재적 = 교사 명단 부서 '교역자'(region 교회/신학, affiliation = 소속 부서).
+//   원장(직책·소속 '원장')은 목사교와 같이 계수·명단에서 뺀다. 공무 = 화전단·목사교 사전보고('#excused') ∪ 본인 신고.
+const KYO_HEAD = ['지파장', '지파총무'];
+const nidOf = (id) => normId(id);
+const lateMinOf = (r) => (String(r?.late || '').match(/(\d+)분/) || [])[1] || '';
+async function kyoRoster() {
+  const t = await selectAll(() => db().from('teachers').select('nid, name, region, affiliation, position, sort_order').eq('dept', '교역자').order('sort_order').order('member_id'), 3);
+  return t.filter((p) => String(p.position || '').trim() !== '원장' && String(p.affiliation || '').trim() !== '원장');
+}
+async function kyoOrder() {   // 24부서 번호 순(행서·기획·재정…) — 교사 명단 소속은 '부' 없이 적혀 있음
+  const r = await selectAll(() => db().from('edu_roster').select('affiliation, district').eq('roster_key', '목요사명자').eq('dept', '24부서'), 3).catch(() => []);
+  const m = new Map();
+  for (const x of r) { const k = String(x.affiliation || '').replace(/부$/, ''); const d = Number(String(x.district || '').replace(/\D/g, '')) || 99; if (!m.has(k) || m.get(k) > d) m.set(k, d); }
+  return (a) => { const k = String(a || '').split(',')[0].trim(); const i = KYO_HEAD.indexOf(k); return i >= 0 ? i - 10 : m.has(k) ? m.get(k) : 100; };
+}
+export async function kyoRoomText(m, phase, sess, order) {
+  const used = phase === '최종' ? order.filter((s) => sess[s]?.length) : [phase];
+  const sessions = used.length ? used : [phase === '최종' ? '오전' : phase];
+  const roster = await kyoRoster(), rank = await kyoOrder();
+  const ea = await import('./edu-attendance.js');
+  const kind = ea.jungjinKind(m) || ((await ea.eduFor(m).catch(() => null))?.series?.roster_key === '목요사명자' ? '목사교' : null);
+  const ex = kind ? await ea.excusedOf(kind, m.date).catch(() => new Set()) : new Set();
+  if (kind) { try { const { selfExcusedOf } = await import('../actions/edu-excused-self.js'); for (const n of (await selfExcusedOf(kind, m.date)).keys()) ex.add(n); } catch (e) { console.log('본인 공무 신고 읽기 실패: ' + e.message); } }
+  const att = new Map(), guests = new Map();   // nid → { 오전: row, … }
+  for (const s of sessions) for (const r of sess[s] || []) {
+    const map = r.guest ? guests : att, k = r.guest ? 'g' + nidOf(r.id) + r.name : nidOf(r.id);
+    if (!map.has(k)) map.set(k, { name: r.name, att: {} });
+    map.get(k).att[s] ||= r;
+  }
+  const people = roster.map((p) => ({ ...p, att: att.get(p.nid)?.att || {} }));
+  const came = (p) => sessions.some((s) => p.att[s]), isEx = (p) => !came(p) && ex.has(p.nid), late = (p) => sessions.filter((s) => isLate(p.att[s] || {}));
+  const nCame = people.filter(came).length, nEx = people.filter(isEx).length, nLate = people.filter((p) => late(p).length).length;
+  const nAbs = people.length - nCame - nEx;
+  const church = (p) => p.region !== '신학';
+  const grp = (list, fmt) => {
+    const out = [];
+    for (const [title, fn] of [['⛪ 교회 교역자', church], ['🎓 신학부', (p) => !church(p)]]) {
+      const sub = list.filter(fn);
+      if (!sub.length) continue;
+      out.push(` ${title} ${sub.length}명`);
+      const by = new Map();
+      for (const p of sub) { const a = String(p.affiliation || '').trim() || '기타'; (by.get(a) || by.set(a, []).get(a)).push(p); }
+      const keys = [...by.keys()].sort((a, b) => (church(sub[0]) ? rank(a) - rank(b) : 0) || a.localeCompare(b, 'ko'));
+      for (const a of keys) out.push(`   ▸ ${esc(a)}(${by.get(a).length}): ${by.get(a).map(fmt).join(', ')}`);
+    }
+    return out.length ? out : ['   없음'];
+  };
+  const word = phase === '최종' ? '불참' : '미참석';
+  const head = phase === '최종' ? (sessions.length > 1 ? `${sessions.map((s) => (SESSION_ICON[s] || '') + ' ' + s).join(' · ')} 교육 마감 · 하루 통합` : '교육 마감') : `${SESSION_ICON[phase] || '🙋'} ${phase} 교육 마감`;
+  const nChurch = people.filter(church).length;
+  const L = [`📋 <b>${esc(m.title)}</b> (교사 재적 기준)`, `🗓 ${dayOf(m)} · ${head}`,
+    `📍 <b>【 교역자회 】</b> · 재적 ${people.length}명 (교회 ${nChurch} · 신학부 ${people.length - nChurch})`, LINE];
+  if (sessions.length > 1) L.push(sessions.map((s) => `${SESSION_ICON[s] || '🙋'} ${s} ${people.filter((p) => p.att[s]).length}명`).join(' · '), `👥 합계 <b>${nCame}명</b> / ${people.length}명 (${pct(nCame, people.length)}%)`);
+  else L.push(`${SESSION_ICON[sessions[0]] || '👥'} ${sessions[0]} 참석 <b>${nCame}명</b> / ${people.length}명 (${pct(nCame, people.length)}%)`);
+  L.push(`⏰ 지각 ${nLate}명 · 📋 공무 ${nEx}명 · ❌ ${word} ${nAbs}명`, LINE);
+  const c = people.filter(came);
+  L.push(`${sessions.length > 1 ? '👥' : SESSION_ICON[sessions[0]] || '🙋'} <b>${sessions.length > 1 ? '' : sessions[0] + ' '}참석자 ${c.length}명</b>`, ...grp(c, (p) => esc(p.name)));
+  const g = [...guests.values()];
+  if (g.length) L.push(`   🙋 비교사(${g.length}): ${g.map((x) => esc(x.name)).join(', ')}`);
+  const lt = people.filter((p) => late(p).length);
+  L.push(`⏰ <b>지각자 ${lt.length}명</b>`, ...(lt.length ? grp(lt, (p) => esc(p.name) + '(' + late(p).map((s) => (sessions.length > 1 ? s : '') + lateMinOf(p.att[s]) + '분').join('·') + ')') : ['   없음']));
+  const e = people.filter(isEx);
+  L.push(`📋 <b>공무(사전보고자) ${e.length}명</b>`, ...(e.length ? grp(e, (p) => esc(p.name)) : ['   없음']));
+  const a = people.filter((p) => !came(p) && !isEx(p));
+  L.push(`❌ <b>${word}자 ${a.length}명</b>`, ...(a.length ? grp(a, (p) => esc(p.name)) : ['   없음 🎉']));
+  if (g.length) L.push('', '※ 비교사는 재적·출석률에 넣지 않았어요');
+  const texts = []; let cur = '';
+  for (const l of L) { if (cur && cur.length + l.length + 1 > 3900) { texts.push(cur); cur = ''; } cur += (cur ? '\n' : '') + l; }
+  if (cur) texts.push(cur);
+  return texts;
+}
+/** 11/17: 새 교역자 글 견본(아직 실제 교역자 방엔 안 씀 — 사용자 확인 뒤 연결) */
+export async function kyoPreview(m, phase) {
+  const { by, order } = await prepare(m, phase);
+  return kyoRoomText(m, phase, by.get('교역자') || {}, order);
 }
