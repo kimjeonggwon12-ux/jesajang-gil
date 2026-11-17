@@ -321,7 +321,21 @@ export async function kyoRoomText(m, phase, sess, order) {
   const texts = []; let cur = '';
   for (const l of L) { if (cur && cur.length + l.length + 1 > 3900) { texts.push(cur); cur = ''; } cur += (cur ? '\n' : '') + l; }
   if (cur) texts.push(cur);
-  return texts;
+  // 11/17 3차(사용자): "교역자회 카드 뉴스(이미지) 먼저, 그 아래 지금처럼 실명 나열" — 24부서 카드와 같은 출석현황 카드(공무 칸)
+  const r1 = (a, n) => (n ? (Math.round((a / n) * 1000) / 10).toFixed(1) : '0.0') + '%';
+  const stat = (label, list) => { const n = list.length, c = list.filter(came).length, e = list.filter(isEx).length, a = n - c - e;
+    return { label, n, came: c, rate: r1(c, n), excused: e, absent: a, absentRate: r1(a, n) }; };
+  const [mo, dd] = m.date.slice(5).split('-').map(Number);
+  const title = `${mo}/${dd} 교역자회 ${String(m.title || '').replace(/\s*출석$/, '')} ${phase === '최종' ? '' : phase + ' '}출석현황`;
+  const total = stat('종합', people);
+  const C = { title, rows: [stat('교회 교역자', churchList), stat('신학부 사명자', semList)], total, reasonTotal: total.absent, firstHead: '구분', excusedCol: true };
+  let png = null;
+  try { const { eduCardPng } = await import('./edu-card.js'); png = eduCardPng(C); } catch (e) { console.log('교역자 카드 오류: ' + e.message); }
+  const caption = [`📊 <b>${esc(title)}</b> (교사 재적 기준, 원장 제외)`, '',
+    `▸ 전체 참석률 ${total.rate} (대상 ${total.n}명 중 ${total.came}명 참석)`,
+    ...C.rows.map((r) => `▸ ${r.label} ${r.rate} (${r.came}/${r.n}) · 공무 ${r.excused} · ${word} ${r.absent}`),
+    `▸ 지각 ${nLate}명 · 공무(사전보고) ${nEx}명 · ${word} ${nAbs}명`].join(String.fromCharCode(10));
+  return { png, caption, texts };
 }
 /** 11/17: 새 교역자 글 견본(아직 실제 교역자 방엔 안 씀 — 사용자 확인 뒤 연결) */
 export async function kyoPreview(m, phase) {
