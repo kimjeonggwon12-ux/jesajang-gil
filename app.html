@@ -19428,7 +19428,7 @@ async function calAdmInit() {
           <div class="em-row"><label>날짜<input type="date" value="${esc(st.ldate)}" onchange="eduMgmt.setLDate(this.value)"></label>
           <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.loadList()">조회</button>
           ${st.access && st.access.canDownload ? `<button type="button" class="ra-btn line" ${st.busy || !st.list || !st.list.rows.length ? 'disabled' : ''} onclick="eduMgmt.downloadList()">공무 결석자 엑셀</button>`
-            : `<button type="button" class="ra-btn line" disabled title="김논 서무님만 내려받을 수 있어요">공무 결석자 엑셀 (김논 서무님만)</button>`}</div>
+            : `<button type="button" class="ra-btn line" disabled>공무 결석자 엑셀</button>`}</div>
           <p class="em-note">본인 신고 · 관리자 대신 등록 · 도우미연결 명단을 함께 보여요. 그날 실제로 출석한 분은 공무가 아니라 참석으로 셉니다.</p>`;
         if (!L) return head;
         const groups = exlGroups(L.rows);

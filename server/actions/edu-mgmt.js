@@ -32,8 +32,8 @@ async function who(body) {
 }
 const managerOf = (w) => w.manager;
 // 11/17(사용자): 공무 결석자 내려받기는 김논 서무님 + 김정권(개발자)만 — 나머지 관리자는 불가
-// 11/17(사용자, 2차): 김논 서무님 1명만 — 다른 사람은 단추가 눌리지 않게(화면은 회색)
-const DOWNLOAD_NIDS = new Set(['13050200001']);
+// 11/17(사용자, 3차): 김논 서무님 + 김정권 로그인만 — 다른 사람은 단추가 눌리지 않게(화면은 회색, 안내 문구 없음)
+const DOWNLOAD_NIDS = new Set(['13050200001', '20113000010']);
 const canDownload = (w) => DOWNLOAD_NIDS.has(w.actor.nid);
 
 /** 그 주(월~일)의 두 교육 모임. 분류는 기존 edu_excused_state 와 같다. */
@@ -119,7 +119,7 @@ const withSelf = (d, self) => ({ ...d, people: d.people.map((p) => (p.status ===
 
 export async function exportEduWeekly(body = {}) {
   requireOn();
-  if (!canDownload(await who(body))) fail('내려받기는 김논 서무님만 할 수 있어요.', 403);
+  if (!canDownload(await who(body))) fail('내려받기 권한이 없어요.', 403);
   const data = await getEduWeekly(body);
   return { filename: `주간교육출석_${data.week.from}.csv`, mime: 'text/csv;charset=utf-8', text: weeklyCsv(data.week, data.items) };
 }
