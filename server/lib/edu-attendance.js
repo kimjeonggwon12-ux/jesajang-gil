@@ -78,7 +78,9 @@ async function prepareRaw(m, phase, edu) {
   }
   for (const nid of edu.policy.always_present_nids.map(normId)) {
     const att = byNid.get(nid) || {};
-    for (const s of sessions) att[s] = { ...(att[s] || {}), late: '정상 출석' };
+    // 11/17(사용자): 지파장·지파총무는 '항상 오전 교육 참석자'로(저녁까지 채우지 않음). 오전 타임이 없는 모임이면 첫 타임에
+    const s0 = sessions.includes('오전') ? '오전' : order.includes('오전') ? null : sessions[0];
+    if (s0) att[s0] = { ...(att[s0] || {}), late: '정상 출석' };
     byNid.set(nid, att);
   }
   // 11/12(사용자): 원장님들은 계수·참석·불참 명단에서 계속 뺀다(재적 밖 참석에도 안 나오게)
@@ -675,7 +677,9 @@ export async function postJungjin(m,phase,{to=null,force=false,failures=[]}={}){
   const base=room.dept===JUNGJIN_KEY||to?'#jungjin':'#jungjin:'+room.dept;
   const target=to||{...room,chat_id:mode==='test'?testChat():room.chat_id};
   const result=await deliverReportBatch({namespace:mode==='test'&&!to?base+'-test':base,kind:phase,ref:m.meetingId,date:m.date,room:target},async report=>{
-   for(const [i,p] of report.parts.entries()){if(i)await new Promise(r=>setTimeout(r,3200));await sendEduPart(p,target);}
+   // 11/17(사용자): 카드 + 첫 명단 글을 한 통으로(카드 아래 요약 글은 없음)
+   const ps=report.parts,list=ps[0]?.png&&ps[1]?.text&&!ps[1].png?[{merged:true,png:ps[0].png,text:ps[1].text},...ps.slice(2)]:ps;
+   for(const [i,p] of list.entries()){if(i)await new Promise(r=>setTimeout(r,3200));if(p.merged){const {sendRoomCardText}=await import('./report-room.js');await sendRoomCardText(target,p.png,p.text);}else await sendEduPart(p,target);}
   },{manual:force||!!to,prepare:()=>jungjinReport(m,phase)});
   if(!result.ok){failures.push({scope:base,ref:m.meetingId,phase,state:result.state});console.log(room.dept+' 보고 수신 확인 필요: 자동 재전송하지 않습니다.');}
   if(result.state==='delivered')sent.push(room.dept===JUNGJIN_KEY?'중진':room.dept);

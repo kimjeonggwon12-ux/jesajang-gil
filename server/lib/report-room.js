@@ -804,3 +804,27 @@ export async function reportRoomsAdmin(body) {
     depts: Object.values(slots).map((s) => ({ dept: s.dept, n: s.n, regions: Object.entries(s.regions).map(([region, n]) => ({ region, n })).sort((a, b) => a.region.localeCompare(b.region, 'ko', { numeric: true })) })),
   };
 }
+
+/**
+ * 11/17(사용자 "카드와 텍스트를 합체"): 출석 카드 + 실명 명단을 한 통으로.
+ * 사진 설명은 1024자까지라 명단이 안 들어감 → 카드를 R2 공개 주소에 올리고, 글(4096자) 위에 큰 미리보기로 붙인다.
+ * R2 가 안 되거나 실패하면 예전처럼 카드 사진 → 명단 글 두 통.
+ */
+export async function sendRoomCardText(room, png, text) {
+  if (png) {
+    try {
+      const { putImage, r2Configured } = await import('./images.js');
+      if (r2Configured()) {
+        const url = await putImage(png, 'image/png', 'card');
+        const body = `<a href="${url}">&#8205;</a>` + text;
+        const res = await healed(room.chat_id, (c) => tg('sendMessage', { ...target(c), text: body.slice(0, 4096), parse_mode: 'HTML',
+          link_preview_options: { url, show_above_text: true, prefer_large_media: true } }, tokenFor(c)));
+        return res.message_id;
+      }
+    } catch (e) { console.log('카드+명단 한 통 실패, 나눠 보냄: ' + e.message); }
+    const r = { room, png, caption: '', text, html: true };
+    const id = await sendDaily(r);
+    if (r.via !== '사진') return id;   // 사진이 안 돼 이미 글로 보냄
+  }
+  return sendText(room.chat_id, text);
+}
