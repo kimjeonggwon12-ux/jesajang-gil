@@ -9033,6 +9033,9 @@
           inf.loading && !inf.items ? '확인 중…' : inf.items && inf.items.length ? `${inf.items.length}건${inf.feedback ? ' · AI 받음' : ''}` : '기록하기'])(erInfo[t.targetId] || {}),
         ['fb', fbNow.loading ? 'busy' : fbs.length ? 'done' : 'ready', fbNow.loading ? spin : pfSvg('up'), '단계향상 피드백',
           fbNow.loading ? '읽는 중…' : fbs.length ? `${fbs.length}회 · ${pfMD(fbs[fbs.length - 1].aiFeedbackAt) || '받음'}` : '받기'],
+        // 11/17(사용자): 단계향상 피드백 옆에 '감동주기 방법' — 쌓인 기록 전부를 모아 그분 맞춤 감동 방법
+        t && (s => ['moving', s.mvBusy ? 'busy' : (s.moving || []).length ? 'done' : 'ready', s.mvBusy ? spin : '💝', '감동주기 방법',
+          s.mvBusy ? '읽는 중…' : (s.moving || []).length ? `${s.moving.length}회 · ${pfMD(s.moving[0].at) || '받음'}` : '받기'])(erInfo[t.targetId] || {}),
         // 10/30(사용자): 순서 = 보고 · 단계향상 피드백 · SWOT · HEARTS · 개강 계획 · 사례
         t && ['hearts', file.loading ? 'busy' : (file.hearts || []).length ? 'done' : 'off', file.loading ? spin : erSvg('heart'), 'HEARTS',
           file.loading ? '확인 중…' : (file.hearts || []).length ? `상세피드백 · ${file.hearts.length}건` : '상세피드백'],
@@ -9068,6 +9071,12 @@
       }
       if (!t) return '';
       if (k === 'info') return erInfoBodyHtml(t);
+      if (k === 'moving') {
+        const s = erInfo[t.targetId] || {}, list = s.moving || [];
+        return `<button type="button" class="er-o-main" onclick="erMovingRun('${esc(t.targetId)}')" ${s.mvBusy ? 'disabled' : ''}>${s.mvBusy ? '<span class="loading loading-spinner loading-xs"></span> 기록 전부 모아 읽는 중… (30초쯤)' : list.length ? '🔄 지금까지 쌓인 기록으로 다시 받기' : '💝 감동주기 방법 받기'}</button>
+          ${list.length ? `<div class="er-o-h">받은 감동주기 방법 <span>${list.length}회 · 새것부터</span></div>` + list.map((x, i) => `<details class="er-o-card" ${i === 0 ? 'open' : ''}><summary>${esc(String(x.at || '').slice(5, 16).replace('-', '/'))}${x.basis ? ` <i>${esc(x.basis)}</i>` : ''}</summary>${glMd(x.text)}</details>`).join('')
+            : '<div class="er-o-note">정보 기록(수업 반응 포함)·활동 기록·HEARTS·교관 답을 전부 모아, 이분이 "나를 알아주는구나" 하고 마음이 열리는 맞춤 방법을 알려 드려요.</div>'}`;
+      }
       if (k === 'plan' && p.stage === '센터수강') {   // 10/30: 수강생 — 개강·센터·기수·과정을 보여 주고 고치기는 최근 기록에서
         const prof = erProf(t), last = p.list[p.list.length - 1];
         const cur = ER_COURSE_FLOW.indexOf(prof.course || '개강');
@@ -9120,7 +9129,7 @@
     // ── 파악한 정보 (10/30) ── 사용자: "파악한 정보를 기록하게, 무제한으로, 페이지를 잘 만들고, 그게 모여서 AI 피드백이 나오게".
     //   서버 getTargetInfo/addTargetInfo/deleteTargetInfo/targetInfoFeedback(target_ai_notes '파악정보'). 모든 AI 피드백·계획이 이 정보를 같이 읽는다.
     const erInfo = {};   // targetId → { loading, items, cats, feedback, cat, filter, busy, fbBusy, error }
-    const ER_INFO_IC = { '가족': '👨‍👩‍👧', '직장·학업': '💼', '관심사·취미': '🎯', '고민·필요': '💭', '신앙 배경': '⛪', '성격·성향': '🙂', '일정·연락': '📅', '기타': '📝' };
+    const ER_INFO_IC = { '가족': '👨‍👩‍👧', '직장·학업': '💼', '관심사·취미': '🎯', '고민·필요': '💭', '신앙 배경': '⛪', '성격·성향': '🙂', '수업 반응': '📖', '일정·연락': '📅', '기타': '📝' };   // 11/17 수업 반응
     async function erInfoLoad(tid) {
       if (!tid) return;
       const cur = erInfo[tid] || {};
@@ -9128,7 +9137,7 @@
       try {
         const res = await callApi({ action: 'getTargetInfo', memberId, targetId: tid });
         if (res && res.error) throw new Error(res.error);
-        Object.assign(erInfo[tid], { items: res.items || [], cats: res.cats || Object.keys(ER_INFO_IC), feedback: res.feedback, master: res.master || erInfo[tid].master, error: '' });
+        Object.assign(erInfo[tid], { items: res.items || [], cats: res.cats || Object.keys(ER_INFO_IC), feedback: res.feedback, master: res.master || erInfo[tid].master, moving: res.moving || erInfo[tid].moving || [], error: '' });
       } catch (e) { erInfo[tid].error = e.message; }
       erInfo[tid].loading = false;
       renderHome();
@@ -9189,6 +9198,17 @@
       </div>`;
     }
     window.erMasterFold = function (tid, open) { if (erInfo[tid]) erInfo[tid].msOpen = open; };
+    // 11/17: 감동주기 방법 받기(서버 targetMovingFeedback — 쌓인 기록 전부)
+    window.erMovingRun = async function (tid) {
+      const s = erInfo[tid] || (erInfo[tid] = {}); if (s.mvBusy) return;
+      s.mvBusy = true; renderHome();
+      try {
+        const res = await callApi({ action: 'targetMovingFeedback', memberId, targetId: tid });
+        if (res && res.error) throw new Error(res.error);
+        s.moving = [{ text: res.text, at: res.at, basis: res.basis }].concat(s.moving || []);
+      } catch (e) { toast(e.message, true); }
+      s.mvBusy = false; renderHome();
+    };
     window.erMasterRun = async function (tid) {
       const s = erInfo[tid] || (erInfo[tid] = {}); if (s.msBusy) return;
       s.msBusy = true; renderHome();
@@ -11092,7 +11112,7 @@
         ${trSt.sel === m.id && !m.deleted ? `<div class="tr-acts">${m.text ? `<button type="button" data-tr-copy="${m.id}">복사</button>` : ''}${canDel ? `<button type="button" class="red" data-tr-del="${m.id}">지우기</button>` : ''}</div>` : ''}
       </div>`;
     }
-    const TR_REC_TABS = ['info', 'acts', 'stagefb', 'plan', 'hearts', 'master'];
+    const TR_REC_TABS = ['info', 'acts', 'stagefb', 'moving', 'plan', 'hearts', 'master'];
     const trMd = x => typeof glMd === 'function' ? glMd(x || '') : esc(x || '').replace(/\n/g, '<br>');
     // 받아 둔 AI 피드백 목록(새것부터, 맨 위만 펼침)
     function trFbList(list, empty, title) {
@@ -11103,6 +11123,7 @@
       if (trSt.recBusy || !trSt.rec) return trSt.rec && trSt.rec.error ? `<div class="tr-note">⚠️ ${esc(trSt.rec.error)}</div>` : '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>';
       const r = trSt.rec, ro = trSt.isOwner ? '' : '<div class="tr-note" style="margin-bottom:10px">👀 담당 교사가 남긴 기록이에요. <b>보기만</b> 할 수 있어요.</div>';
       if (trSt.tab === 'stagefb') return ro + trFbList(r.stageFb, '아직 받은 단계향상 피드백이 없어요.', f => f.about + ' 기록에 대한 피드백');
+      if (trSt.tab === 'moving') return ro + trFbList(r.moving, '아직 받은 감동주기 방법이 없어요.', f => (f.basis || '감동주기 방법').slice(0, 60));
       if (trSt.tab === 'plan') return ro + trFbList(r.plans, '아직 받은 센터 인도(개강) 계획이 없어요.', f => (f.basis || '센터 인도 계획').slice(0, 60));
       if (trSt.tab === 'master') return ro + trFbList(r.master, '아직 받은 종합 피드백이 없어요.', f => (f.basis || '종합 피드백').slice(0, 60));
       if (trSt.tab === 'hearts') return ro + trFbList((r.hearts || []).map(h => ({ at: h.at, source: h.source, answer: h.answer,
@@ -11148,7 +11169,7 @@
       const gm = (r && r.goalMonth) || (trSt.rec && trSt.rec.goalMonth) || 0;
       // 11/10(사용자): 초대하는 탭을 맨 앞으로
       const tabs = [['members', `👥 초대${trSt.members.length ? ' ' + trSt.members.length : ''}`], ['chat', '💬 대화'], ['info', '🗂 정보 기록'], ['acts', '📝 활동 이력'],
-        ['stagefb', '📈 단계향상 피드백'], ['plan', `🧭 ${gm ? gm + '월 ' : ''}센터 인도 계획`], ['hearts', '❤️ HEARTS 상세피드백'], ['master', '🧠 종합 피드백']];
+        ['stagefb', '📈 단계향상 피드백'], ['moving', '💝 감동주기 방법'], ['plan', `🧭 ${gm ? gm + '월 ' : ''}센터 인도 계획`], ['hearts', '❤️ HEARTS 상세피드백'], ['master', '🧠 종합 피드백']];
       let body;
       if (trSt.busy) body = '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 방을 여는 중…</div>';
       else if (trSt.err) body = `<div class="tr-note">⚠️ ${esc(trSt.err)}</div>`;
