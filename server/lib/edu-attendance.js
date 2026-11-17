@@ -692,7 +692,7 @@ export async function jungjinParts(m, phase, kind) {
   const g = (p) => labelOf.get(defs.keyOf(p)) || p.affiliation;
   const groups = [...new Set(all.map(g))];
   const byGroup = (arr, fmt) => groups.map((x) => [x, arr.filter((p) => g(p) === x)]).filter(([, a]) => a.length).map(([x, a]) => ` ▸ ${esc(x)}(${a.length}): ${a.map(fmt).join(', ')}`);
-  const L = [...top(m, phase, P.sessions), `📍 <b>24부서 전체</b> · 사명자 재적 ${total.n}명`, LINE];
+  const L = [...top(m, phase, P.sessions), `📍 <b>【 24부서 장부청 소속 】</b> · 사명자 재적 ${total.n}명`, LINE];
   if (P.sessions.length > 1) L.push(P.sessions.map((x) => `${ICON[x] || '🙋'} ${x} ${total.by[x]}명`).join(' · '), `👥 합계 <b>${total.came}명</b> / ${total.n}명 (${total.rate})`);
   else L.push(`${ICON[P.sessions[0]] || '👥'} ${P.sessions[0]} 참석 <b>${total.came}명</b> / ${total.n}명 (${total.rate})`);
   L.push(`⏰ 지각 ${total.late}명 · 📋 공무 ${total.excused}명 · ❌ ${absentWord} ${total.absent}명`, LINE);
