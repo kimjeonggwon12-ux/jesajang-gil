@@ -8563,6 +8563,24 @@
     const EXS_WINDOW = { 화전단: '월 09:00 ~ 화 19:30', 목사교: '수 09:00 ~ 목 19:30' };
     function exsWindowText(kind) { return EXS_WINDOW[kind] ? '⏰ 보고 가능시간 ' + EXS_WINDOW[kind] : ''; }
     /* EXS-VIEW-END */
+    // 11/17(사용자): 공무 항목은 이것만 — 화전단·목사교 둘 다, 드롭다운. 기타는 사유 직접 입력('기타: …'로 저장). 서버 normReason 과 같은 목록
+    window.exR = {
+      cats: ['총회업무', '지파업무', '부서업무', '센터관련', '전도활동', '성도관리', '기타'],
+      split(v) { v = String(v || '').trim(); if (!v) return { cat: '', etc: '' }; if (this.cats.slice(0, -1).includes(v)) return { cat: v, etc: '' };
+        return { cat: '기타', etc: v.replace(/^기타\s*[:：]?\s*/, '') }; },
+      join(cat, etc) { etc = String(etc || '').trim(); return cat === '기타' ? (etc ? '기타: ' + etc : '기타') : String(cat || ''); },
+      valid(v) { v = String(v || '').trim(); return this.cats.slice(0, -1).includes(v) || /^기타: .+/.test(v); },
+      problem(v) { return this.valid(v) ? '' : this.split(v).cat === '기타' ? "'기타'를 골랐으면 사유를 직접 적어 주세요." : '공무 항목을 골라 주세요.'; },
+      /** 드롭다운 + (기타면) 직접 입력 칸. onCat·onEtc = 이벤트 JS(this.value 사용) */
+      html(v, onCat, onEtc, dis) {
+        const s = this.split(v), d = dis ? ' disabled' : '';
+        return '<span class="exr"><select class="exr-sel" onchange="' + onCat + '"' + d + '><option value="">공무 항목 고르기</option>' + this.cats.map(c => '<option' + (s.cat === c ? ' selected' : '') + '>' + c + '</option>').join('') + '</select>'
+          + (s.cat === '기타' ? '<input class="exr-etc" maxlength="200" placeholder="기타 사유 직접 입력(필수)" value="' + esc(s.etc) + '" oninput="' + onEtc + '"' + d + '>' : '') + '</span>';
+      },
+    };
+    (function () { if (document.getElementById('exrCss')) return; const st = document.createElement('style'); st.id = 'exrCss';
+      st.textContent = '.exr{display:flex;flex-wrap:wrap;gap:6px;width:100%}.exr-sel{flex:1 1 140px;min-width:0;height:40px;padding:0 10px;border-radius:10px;border:1.5px solid #00AE82;background:#fff;font-size:14px;font-weight:700;font-family:inherit}.exr-etc{flex:2 1 180px;min-width:0;height:40px;padding:0 10px;border-radius:10px;border:1px solid #E5E7EB;font-size:14px;font-family:inherit}';
+      document.head.appendChild(st); })();
     const exsState = { at: 0, v: null, busy: '', reason: '', loaded: false };
     function exsLoad(force) {
       if (!force && exsState.at && Date.now() - exsState.at < 60000) return;
@@ -8597,15 +8615,17 @@
         + '<div class="ex-self-t">📋 ' + esc(d.title) + '</div>'
         + '<div class="ex-self-sub">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
         + (d.note ? '<div class="ex-self-sub">ℹ️ ' + esc(d.note) + '</div>' : '')
-        + '<input id="exsReason" maxlength="200" placeholder="공무 내용(결석 사유) — 꼭 적어야 제출돼요" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value">'
+        + '<div class="ex-self-sub" style="margin-top:6px">공무 항목을 고르고 날짜를 누르세요</div>' + exR.html(exsState.reason, 'exsCat(this.value)', 'exsEtc(this.value)')
         + sections + '</div>';
     }
     window.exsState = exsState;
+    window.exsCat = v => { exsState.reason = exR.join(v, exR.split(exsState.reason).etc); renderHome(); };
+    window.exsEtc = v => { exsState.reason = exR.join('기타', v); };
     window.exsSubmit = async function (kind, date) {
       if (exsState.busy) return;
       // 11/17(사용자): 공무 내용을 꼭 적어야 제출
-      const why = String(exsState.reason || '').trim();
-      if (!why || /^공무\.?$/.test(why)) { toast('공무 내용(결석 사유)을 꼭 적어 주세요. 적어야 제출돼요.', true); const el = document.getElementById('exsReason'); if (el) el.focus(); return; }
+      const bad = exR.problem(exsState.reason);
+      if (bad) { toast(bad, true); const el = document.querySelector('.ex-self-card .exr-etc') || document.querySelector('.ex-self-card .exr-sel'); if (el) el.focus(); return; }
       exsState.busy = kind + date; renderHome();
       try {
         const r = await callApi({ action: 'submitMyExcused', memberId, kind, date, reason: exsState.reason.trim() });
@@ -19336,7 +19356,7 @@ async function calAdmInit() {
     }
     function emChangeProblem(changes) {
       if (!changes.length) return '바뀐 내용이 없어요.';
-      if (changes.some(c => c.op === 'register' && !c.reason)) return '공무로 고른 사람마다 사유를 적어 주세요.';
+      if (changes.some(c => c.op === 'register' && !exR.valid(c.reason))) return "공무로 고른 사람마다 공무 항목을 골라 주세요('기타'는 사유 직접 입력).";
       if (changes.some(c => c.reason.length > 300 || (c.followMethod || '').length > 300)) return '사유와 교육 방법은 300자 이내로 적어 주세요.';
       return '';
     }
@@ -19432,6 +19452,9 @@ async function calAdmInit() {
         });
       }
       function edit(id, key, value) { const d = st.drafts[id]; if (!d) return; d[key] = key === 'on' ? !!value : value; if (key === 'on') render(); }
+      function editCat(id, v) { const d = st.drafts[id]; if (!d) return; d.reason = exR.join(v, exR.split(d.reason).etc); render(); }
+      function setAddCat(v) { st.addReason = exR.join(v, exR.split(st.addReason).etc); render(); }
+      function setAddEtc(v) { st.addReason = exR.join('기타', v); }
       function review() {
         const changes = emChanges(st.scope.people, st.drafts), bad = emChangeProblem(changes);
         if (bad) { st.error = bad; st.confirm = null; render(); return; }
@@ -19492,7 +19515,7 @@ async function calAdmInit() {
           const d = st.drafts[p.memberId] || emDraft(p), id = esc(p.memberId);
           return `<div class="em-p"><label><input type="checkbox" ${d.on ? 'checked' : ''} ${st.busy || st.confirm ? 'disabled' : ''} onchange="eduMgmt.edit('${id}','on',this.checked)"> <span class="em-name">${esc(p.name)}</span> <small>${esc(p.position)}</small></label>
             ${p.source ? ` <small class="em-note">${esc(EM_SOURCE[p.source] || '')}</small>` : ''}
-            ${d.on ? `<div class="em-two"><input placeholder="공무 사유(필수)" maxlength="300" value="${esc(d.reason)}" oninput="eduMgmt.edit('${id}','reason',this.value)" ${st.confirm ? 'disabled' : ''}>
+            ${d.on ? `<div class="em-two">${exR.html(d.reason, `eduMgmt.editCat('${id}',this.value)`, `eduMgmt.edit('${id}','reason',exR.join('기타',this.value))`, !!st.confirm)}
               <input placeholder="추후 교육 방법" maxlength="300" value="${esc(d.followMethod)}" oninput="eduMgmt.edit('${id}','followMethod',this.value)" ${st.confirm ? 'disabled' : ''}></div>` : p.excused ? `<div class="em-two"><input placeholder="취소 이유" maxlength="300" value="${esc(d.cancelReason)}" oninput="eduMgmt.edit('${id}','cancelReason',this.value)" ${st.confirm ? 'disabled' : ''}></div>` : ''}
             ${p.excused && p.version != null ? `<div class="em-two"><input id="emFm${id}" placeholder="교육 방법" maxlength="300" value="${esc(p.followMethod)}"><input id="emFr${id}" placeholder="교육 결과" maxlength="500" value="${esc(p.followResult)}"></div>
               <label class="em-note"><input type="checkbox" id="emFd${id}" ${p.followDone ? 'checked' : ''}> 추후 교육 완료</label> <button type="button" class="ra-btn line" style="height:32px;font-size:13px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.saveFollow('${id}')">교육 결과 저장</button>` : ''}
@@ -19538,8 +19561,8 @@ async function calAdmInit() {
         return busy(async () => { st.hits = need(await call({ action: 'searchEduRosterForExcused', q: st.q })).rows; });
       }
       function addOne(id) {
-        const el = document.getElementById('emAddReason'); st.addReason = el ? el.value.trim() : '';
-        if (!st.addReason || /^공무\.?$/.test(st.addReason)) { st.error = '공무 내용(결석 사유)을 꼭 적어 주세요. 적어야 등록돼요.'; render(); return; }
+        const bad = exR.problem(st.addReason);
+        if (bad) { st.error = bad; render(); return; }
         return busy(async () => { const r = need(await call({ action: 'adminSetExcused', kind: st.lkind, date: st.ldate, memberId: id, reason: st.addReason }));
           st.hits = null; st.q = ''; st.addReason = ''; st.list = need(await call({ action: 'getExcusedList', kind: st.lkind, date: st.ldate })); st.msg = r.name + ' 님을 공무로 등록했어요.'; });
       }
@@ -19571,7 +19594,7 @@ async function calAdmInit() {
             <button type="button" class="ra-btn line" style="height:30px;font-size:12px" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.addOne('${esc(h.memberId)}')">공무로 등록</button></div>`).join('') : '<p class="em-note">찾는 이름이 재적에 없어요.</p>') : '';
         return head + `<div class="em-card em-kcard ${th.cls}"><h4>${th.icon} ${th.title} · ${esc(L.date)}</h4><p class="em-note">${esc(exlCountsText(L))}${L.meeting ? '' : ' · 아직 출석 모임 없음'}</p>${rows}</div>
           <div class="em-card"><h4>대신 등록</h4><p class="em-note">전화로 알려 온 분 등을 관리자가 대신 공무로 등록해요(등록한 사람이 기록돼요).</p>
-          <div class="em-row"><label>이름<input id="emAddQ" value="${esc(st.q)}" autocomplete="off"></label><label>공무 내용(필수)<input id="emAddReason" maxlength="200" placeholder="꼭 적어야 등록돼요" value="${esc(st.addReason)}"></label>
+          <div class="em-row"><label>이름<input id="emAddQ" value="${esc(st.q)}" autocomplete="off"></label><label>공무 항목(필수)${exR.html(st.addReason, 'eduMgmt.setAddCat(this.value)', 'eduMgmt.setAddEtc(this.value)')}</label>
           <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.findPeople()">찾기</button></div>${hits}</div>`;
       }
       function render() {
@@ -19582,7 +19605,7 @@ async function calAdmInit() {
           ${st.busy ? '<p class="em-note">처리하는 중…</p>' : ''}${st.msg ? `<p class="em-note em-ok">${esc(st.msg)}</p>` : ''}${st.error ? `<p class="em-note em-bad">${esc(st.error)}</p>` : ''}
           ${st.view === 'week' ? weekHtml() : listHtml()}</div>`;
       }
-      return { probe, mount, pick, loadWeek, openDetail, download, downloadList, loadScope, edit, review, save, saveFollow, setHead, loadList, findPeople, addOne, cancelOne,
+      return { probe, mount, pick, loadWeek, openDetail, download, downloadList, loadScope, edit, editCat, setAddCat, setAddEtc, review, save, saveFollow, setHead, loadList, findPeople, addOne, cancelOne,
         setLKind(v) { st.lkind = v; st.hits = null; st.ldate = emNextDate(v, today()); loadList(); },
         setLGrp(v) { st.lgrp = v; render(); },
         setLDate(v) { st.ldate = v; loadList(); },

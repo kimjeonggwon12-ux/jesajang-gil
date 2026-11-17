@@ -9,7 +9,7 @@ import { db, run, selectAll } from '../lib/db.js';
 import { isOwner, isApprover } from './roster.js';
 import { normId } from '../lib/util.js';
 import { eduFor, eduPeople, excusedOf, roster24, hwaExcluded } from '../lib/edu-attendance.js';
-import { selfExcusedOf } from './edu-excused-self.js';
+import { selfExcusedOf, validReason, reasonProblem } from './edu-excused-self.js';
 import { weeklySummary, weeklyDetail, groupDefs, subDefs, affiliations, weeklyCsv } from '../lib/edu-weekly.js';
 
 class AccessError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
@@ -176,6 +176,9 @@ export async function applyEduExcusedScope(body = {}) {
   if (!Array.isArray(body.changes) || !body.changes.length || body.changes.length > 300) fail('바꿀 사람을 골라 주세요.');
   const changes = body.changes.map((c) => ({ nid: String(c?.memberId || ''), op: c?.op === 'cancel' ? 'cancel' : c?.op === 'register' ? 'register' : '', reason: String(c?.reason || '').trim(), followMethod: String(c?.followMethod || '').trim() }));
   if (changes.some((c) => !c.nid || !c.op || c.reason.length > 300 || c.followMethod.length > 300 || (c.op === 'register' && !c.reason))) fail('사람마다 공무 사유(300자 이내)를 적어 주세요.');
+  // 11/17(사용자): 새로 등록·고치는 공무는 정해진 항목만
+  const badR = changes.find((c) => c.op === 'register' && !validReason(c.reason));
+  if (badR) fail(reasonProblem(badR.reason));
   if (new Set(changes.map((c) => c.nid)).size !== changes.length) fail('같은 사람이 두 번 들어 있어요.');
   let result;
   try {
@@ -278,8 +281,8 @@ export async function searchEduRosterForExcused(body = {}) {
 export async function adminSetExcused(body = {}) {
   requireOn(); const w = await requireManager(body);
   const { kind, date } = kindDate(body), nid = String(body.memberId || ''), reason = String(body.reason || '').trim();
-  // 11/17(사용자): 공무 내용을 반드시 적어야 등록
-  if (!reason || /^공무\.?$/.test(reason)) fail('공무 내용(결석 사유)을 꼭 적어 주세요. 적어야 등록돼요.');
+  // 11/17(사용자): 공무 항목은 정해진 것만(드롭다운), 기타는 사유 직접 입력
+  if (!validReason(reason)) fail(reasonProblem(reason));
   if (reason.length > 200) fail('사유는 200자 이내로 적어 주세요.');
   const [p] = await run(db().from('edu_roster').select('nid, name, dept, region, affiliation, position').eq('roster_key', '목요사명자').eq('nid', nid).limit(1));
   if (!p) fail('목요 사명자 교육 재적에 없는 분이에요.', 404);

@@ -63,13 +63,18 @@ export async function getMyExcused(body = {}) {
 }
 
 /** 공무 신고(바로 누르기: 사유 없으면 '공무'). 같은 날 다시 누르면 사유만 고친다. */
+// 11/17(사용자): 공무 항목 = 총회업무·지파업무·부서업무·센터관련·전도활동·성도관리·기타(사유 직접 입력) — 화전단·목사교 둘 다.
+//   저장 값 = 항목 이름 그대로, 기타는 '기타: <사유>'. 앱 window.exR 과 같은 목록.
+export const EX_REASON_CATS = ['총회업무', '지파업무', '부서업무', '센터관련', '전도활동', '성도관리'];
+export const validReason = (v) => { const s = String(v || '').trim(); return EX_REASON_CATS.includes(s) || /^기타: \S/.test(s); };
+export const reasonProblem = (v) => (/^기타/.test(String(v || '').trim()) ? "'기타'를 골랐으면 사유를 직접 적어 주세요." : `공무 항목(${EX_REASON_CATS.join('·')}·기타)을 골라 주세요.`);
 export async function submitMyExcused(body = {}) {
   if (!on()) fail('교육보고 기능이 아직 꺼져 있어요.');
   const m = await me(body);
   if (!m.p) fail(m.outside ? '원장님은 출석 집계 대상이 아니에요.' : '목요 사명자 교육 재적에 없어요. 담당자에게 알려 주세요.');
   const kind = String(body.kind || '목사교'), date = String(body.date || ''), reason = String(body.reason || '').trim();
-  // 11/17(사용자): 공무 내용을 반드시 적어야 제출 — 빈칸·'공무'만은 안 됨
-  if (!reason || /^공무\.?$/.test(reason)) fail('공무 내용(결석 사유)을 꼭 적어 주세요. 적어야 제출돼요.');
+  // 11/17(사용자): 공무 항목은 정해진 것만(드롭다운), 기타는 사유 직접 입력
+  if (!validReason(reason)) fail(reasonProblem(reason));
   if (!KINDS[kind]) fail('교육을 골라 주세요.');
   if (!m.kinds.includes(kind)) fail('목요 사명자 교육은 사명자 재적에 있는 분만 신고할 수 있어요.');
   if (!validDate(date) || !(await nextDates(kind)).includes(date)) fail('다가오는 교육 날짜만 신고할 수 있어요.');
