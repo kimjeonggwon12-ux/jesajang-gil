@@ -8568,6 +8568,7 @@
       return '<div class="ex-self-card">'
         + '<div class="ex-self-t">📋 ' + esc(d.title) + '</div>'
         + '<div class="ex-self-sub">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
+        + (d.note ? '<div class="ex-self-sub">ℹ️ ' + esc(d.note) + '</div>' : '')
         + '<input id="exsReason" maxlength="200" placeholder="결석 사유 기록" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value">'
         + sections + '</div>';
     }

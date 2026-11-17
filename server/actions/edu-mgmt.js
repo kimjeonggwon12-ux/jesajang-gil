@@ -250,11 +250,11 @@ export async function getExcusedList(body = {}) {
   const of = new Map(roster.map((p) => [p.nid, p])), rows = [], seen = new Set();
   const add = (nid, extra) => {
     if (seen.has(nid)) return; seen.add(nid);
-    const p = of.get(nid) || { name: extra.name || '(재적 밖)', dept: extra.dept || '' };
-    const { name: _n, dept: _d, ...rest } = extra;
+    const p = of.get(nid) || { name: extra.name || '(재적 밖)', dept: extra.dept || '', region: extra.region || '' };
+    const { name: _n, dept: _d, region: _r, ...rest } = extra;
     rows.push({ memberId: nid, name: p.name, group: xGroup(p), place: xPlace(p), attended: came ? came.has(nid) : null, ...rest });
   };
-  for (const r of selfRows) add(r.nid, { source: r.registered_by ? '관리자 등록' : '본인 신고', registeredBy: r.registered_by || '', reason: r.reason || '', at: r.updated_at, name: r.name, dept: r.dept });
+  for (const r of selfRows) add(r.nid, { source: r.registered_by ? '관리자 등록' : '본인 신고', registeredBy: r.registered_by || '', reason: r.reason || '', at: r.updated_at, name: r.name, dept: r.dept, region: r.region });
   for (const nid of listIds) add(nid, { source: '도우미연결 명단', registeredBy: '', reason: '', at: '' });
   rows.sort((a, b) => xRank(a.group) - xRank(b.group) || a.group.localeCompare(b.group, 'ko') || a.place.localeCompare(b.place, 'ko') || a.name.localeCompare(b.name, 'ko'));
   const counts = { total: rows.length, self: rows.filter((r) => r.source === '본인 신고').length, admin: rows.filter((r) => r.source === '관리자 등록').length,
