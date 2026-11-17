@@ -684,6 +684,17 @@ export async function postJungjin(m,phase,{to=null,force=false,failures=[]}={}){
   if(!result.ok){failures.push({scope:base,ref:m.meetingId,phase,state:result.state});console.log(room.dept+' 보고 수신 확인 필요: 자동 재전송하지 않습니다.');}
   if(result.state==='delivered')sent.push(room.dept===JUNGJIN_KEY?'중진':room.dept);
  }
+ // 11/17(사용자): 중진 대화방('#중진')에는 교역자 출석 현황도 — 교역자 방(교사 앱 기본)과 같은 카드+실명 명단. 오전 마감·최종마다 한 번
+ for(const room of rooms.filter(r=>r&&r.dept===JUNGJIN_KEY&&!topicPending(r))){
+  const target=to||{...room,chat_id:mode==='test'?testChat():room.chat_id};
+  const result=await deliverReportBatch({namespace:mode==='test'&&!to?'#jungjin:kyo-test':'#jungjin:kyo',kind:phase,ref:m.meetingId,date:m.date,room:target},async k=>{
+   const {sendRoomCardText,sendRoomText}=await import('./report-room.js');
+   await sendRoomCardText(target,k.png,k.texts[0]);
+   for(const t of k.texts.slice(1)){await new Promise(r=>setTimeout(r,3200));await sendRoomText(target.chat_id,t);}
+  },{manual:force||!!to,prepare:async()=>(await import('./room-attendance.js')).kyoPreview(m,phase)});
+  if(!result.ok)failures.push({scope:'#jungjin:kyo',ref:m.meetingId,phase,state:result.state});
+  if(result.state==='delivered')sent.push('중진:교역자');
+ }
  return sent;
 }
 // 2026-11-16 교육 관리 탭(edu-mgmt.js)이 같은 재적·출석 판정(오전·저녁 중복 제거, 항상 출석·제외 직책)을 그대로 쓰도록 공개한다.
