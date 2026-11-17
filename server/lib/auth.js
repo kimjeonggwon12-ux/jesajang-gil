@@ -10,7 +10,7 @@ const AUTH_VERSION = 'v2';   // v2(11/6 저녁): 부서까지 맞추기 — v1 �
 const secret = () => process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const sign = (kind, nid) => createHmac('sha256', secret()).update(`login:${AUTH_VERSION}:${kind}:${nid}`).digest('base64url').slice(0, 32);
 
-/** kind: 'm' = 명단에 있는 교사·관리자, 'g' = 손님 */
+/** kind: 'm' = 명단에 있는 교사·관리자, 'g' = 손님, 'e' = 교육 재적(목사교)에만 있는 분 — 공무 결석 보고만(11/17) */
 export const tokenFor = (memberId, kind = 'm') => {
   const nid = normId(memberId);
   return `${kind}${nid}.${sign(kind, nid)}`;
@@ -18,16 +18,18 @@ export const tokenFor = (memberId, kind = 'm') => {
 
 /** 표가 맞으면 { nid, guest }, 아니면 null. */
 export function tokenInfo(tk) {
-  const m = String(tk || '').match(/^([mg])(\d+)\.([A-Za-z0-9_-]{32})$/);
+  const m = String(tk || '').match(/^([mge])(\d+)\.([A-Za-z0-9_-]{32})$/);
   if (!m || !secret()) return null;
   const want = Buffer.from(sign(m[1], m[2])), got = Buffer.from(m[3]);
-  return want.length === got.length && timingSafeEqual(want, got) ? { nid: m[2], guest: m[1] === 'g' } : null;
+  return want.length === got.length && timingSafeEqual(want, got) ? { nid: m[2], guest: m[1] === 'g', edu: m[1] === 'e' } : null;
 }
 
 // 표 없이 부를 수 있는 것: 입장 확인 / 손님 입장 / QR 출석(명단에 없는 분도 출석은 됨) / 접속 기록 / 핀 상태
 export const PUBLIC_ACTIONS = new Set([
   'verifyLogin', 'guestLogin', 'getAttendMeeting', 'submitAttendance', 'getMyAttendance', 'getAttendCount', 'logVisit', 'pinStatus',
 ]);
+// 11/17(사용자 선택지 2): 교사가 아닌 목사교 재적(비교사) — 입장해서 공무 결석 보고만
+export const EDU_ACTIONS = new Set(['getMyExcused', 'submitMyExcused', 'cancelMyExcused']);
 // 손님 표로 부를 수 있는 것: 초대받은 섭외자 대화방만
 export const GUEST_ACTIONS = new Set([
   'getTargetRoom', 'sendRoomMessage', 'roomFileUpload', 'pinRoomMessage', 'deleteRoomMessage', 'leaveRoom', 'getRoomRecords', 'listMyRooms', 'joinRoomByCode',

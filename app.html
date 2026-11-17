@@ -3366,7 +3366,8 @@
     const idShow = v => /^r_/.test(String(v || '')) ? '' : String(v || '');   // 11/6: 남의 고유번호는 서버가 가려서 보냄 — 화면엔 안 보임
     const pdNid = id => String(id || '').replace(/\D/g, '').replace(/^0+/, '') || '0';
     function pdTokenNow() { try { return localStorage.getItem(PD_TK) || ''; } catch (e) { return ''; } }
-    function pdTokenFor(id) { const t = pdTokenNow(); return /^[mg]\d+\./.test(t) && t.slice(1).split('.')[0] === pdNid(id) ? t : ''; }
+    function pdTokenFor(id) { const t = pdTokenNow(); return /^[mge]\d+\./.test(t) && t.slice(1).split('.')[0] === pdNid(id) ? t : ''; }
+    const pdIsEduTok = () => /^e\d+\./.test(pdTokenNow());   // 11/17: 교사가 아닌 목사교 사명자 — 공무 결석 보고만
     const pdIsGuestTok = () => /^g\d+\./.test(pdTokenNow());
     function pdSetToken(t) { try { if (t) localStorage.setItem(PD_TK, t); else localStorage.removeItem(PD_TK); } catch (e) {} }
     let pdAuthLostOnce = false;
@@ -3656,6 +3657,7 @@
       try { sessionStorage.setItem('pd_in', '1'); } catch (e) {}   // 이 창에서 이미 들어와 있음 → 새로 고침하면 표지 없이 보던 탭으로
       Back.enter();
       if (App.guest && pdIsGuestTok()) { trGuestHome(); return; }   // 11/6: 손님 = 초대받은 대화방만
+      if (pdIsEduTok()) { App.eduOnly = true; if (/^#attend=/.test(location.hash || '')) { App.qrOnly = true; logVisitOnce(id, nm); enterFromHash(); return; } logVisitOnce(id, nm); eduOnlyHome(); return; }
       updateAdminTabVisibility();
       renderMeChips();     // 우선 이름만 — 명단을 받으면 부서·직책까지 다시 그림
       // 2026-10-08: 출석 QR(#attend=)로 들어온 첫 화면 = '출석 전용' — 서버 요청을 출석 2번(모임 정보·제출)만.
@@ -3677,6 +3679,7 @@
     }
     function attLeaveQrOnly() {
       if (!App.qrOnly) return;
+      if (App.eduOnly) { App.qrOnly = false; history.replaceState(history.state, '', location.pathname + location.search); eduOnlyHome(); return; }   // 11/17: 비교사 사명자 → 공무 결석 보고 화면
       if (App.guest) {   // 11/6: 명단에 없는 분은 출석까지만
         try { sessionStorage.setItem('pd_err', '출석이 끝났어요. 교사광장은 교사명단에 등록된 분만 들어올 수 있어요.'); sessionStorage.removeItem('pd_in'); } catch (e) {}
         location.replace(location.pathname); return;
@@ -8553,6 +8556,18 @@
       exsState.at = Date.now();
       callApi({ action: 'getMyExcused', memberId }).then(r => { const had = JSON.stringify(exsState.v); exsState.v = r && !r.error ? r : null; exsState.loaded = true; if (had !== JSON.stringify(exsState.v) || !had) renderHome(); }).catch(() => { exsState.loaded = true; renderHome(); });
     }
+    // 11/17(사용자 선택지 2): 교사명단에 없는 목사교 사명자 — 입장하면 '공무 결석 보고' 한 화면만(나머지 메뉴 없음)
+    function eduOnlyHome() {
+      let g = document.getElementById('eduOnly');
+      if (!g) { g = document.createElement('div'); g.id = 'eduOnly'; g.style.cssText = 'position:fixed;inset:0;z-index:10005;background:#F7F8FA;overflow:auto'; document.body.appendChild(g); }
+      exsLoad(true); eduOnlyDraw();
+    }
+    function eduOnlyDraw() {
+      const g = document.getElementById('eduOnly'); if (!g) return;
+      g.innerHTML = '<div style="position:sticky;top:0;background:#fff;border-bottom:1px solid #E5E7EB;padding:12px 16px;display:flex;align-items:center;gap:8px"><div style="flex:1"><b style="font-size:17px">📋 공무 결석 보고</b><div style="font-size:12.5px;color:#6B7280">' + esc(MY_NAME) + ' 님 · 사명자</div></div><button type="button" onclick="eduOnlyOut()" style="height:34px;padding:0 12px;border-radius:10px;border:1px solid #D1D5DB;background:#fff;font-weight:700">나가기</button></div>'
+        + '<div style="padding:14px 16px 40px;max-width:640px;margin:0 auto"><div style="font-size:13px;color:#6B7280;margin-bottom:10px">교사명단에 없는 사명자는 <b>공무 결석 보고</b>와 <b>QR 출석</b>만 쓸 수 있어요. 출석은 교육 때 QR을 휴대폰 카메라로 찍어 주세요.</div>' + excusedSelfPageHtml() + '</div>';
+    }
+    window.eduOnlyOut = function () { pdClearSaved(); try { sessionStorage.removeItem('pd_in'); } catch (e) {} location.replace(location.pathname); };
     function excusedSelfPageHtml() {
       exsLoad(false);
       const d = exsState.v;
@@ -9344,6 +9359,7 @@
       document.getElementById('appSections').scrollTop = 0;
     };
     function renderHome() {
+      if (App.eduOnly) { eduOnlyDraw(); return; }   // 11/17: 비교사 사명자 화면
       const root = document.getElementById('homeContent');
       renderActTabs();
       ctcSet('actCtc', { attend: 'attend', goal: 'roster', targets: 'roster', rooms: 'roster', report: 'roster', edu: 'edu' }[actPage]);   // 11/17(사용자): 교사 개인 관련 문의(나의 교실) = 김논

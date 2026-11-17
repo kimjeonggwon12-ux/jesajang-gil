@@ -21,6 +21,13 @@ async function verifyLogin(body) {
   if (id.replace(/\D/g, '').length < 8 || !name) return { error: '고유번호와 이름을 확인해 주세요.', notListed: true };
   if (!dept) return { error: '부서를 골라 주세요.', needDept: true, depts: LOGIN_DEPTS };
   const rows = await rosterRows(normId(id));
+  // 11/17(사용자 선택지 2): 교사명단에 없어도 목요 사명자 교육 재적(비교사 사명자)이면 이름이 맞을 때 '공무 결석 보고만' 입장(부서는 보지 않음)
+  if (!rows.length) {
+    const ed = await run(db().from('edu_roster').select('member_id, name').eq('roster_key', '목요사명자').eq('nid', normId(id)).limit(3)).catch(() => []);
+    const e = ed.find((r) => bare(r.name) === name);
+    if (e) return { ok: true, token: tokenFor(e.member_id, 'e'), name: str(e.name), eduOnly: true };
+    if (ed.length) return { error: '고유번호와 이름이 사명자 명단과 맞지 않아요. 이름을 확인해 주세요.', mismatch: 'name' };
+  }
   if (!rows.length) return { error: '교사명단에 등록된 고유번호가 아니에요. 고유번호를 확인해 주세요.\n(출석 QR이나 대화방 초대 링크로 오신 분은 손님으로 들어올 수 있어요.)', notListed: true };
   const named = rows.filter((r) => bare(r.name) === name);
   if (!named.length) return { error: '고유번호와 이름이 명단과 맞지 않아요. 이름을 확인해 주세요.', mismatch: 'name' };

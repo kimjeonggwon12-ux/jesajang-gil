@@ -2,7 +2,7 @@
 // 아직 옮기지 않은 action 은 LEGACY_URL(Apps Script)로 그대로 넘긴다.
 import { actions } from '../server/registry.js';
 import { fixMemberIds } from '../server/lib/id-alias.js';
-import { tokenInfo, PUBLIC_ACTIONS, GUEST_ACTIONS } from '../server/lib/auth.js';
+import { tokenInfo, PUBLIC_ACTIONS, GUEST_ACTIONS, EDU_ACTIONS } from '../server/lib/auth.js';
 import { maskOut, unmaskIn } from '../server/lib/idref.js';
 import { normId } from '../server/lib/util.js';
 import { backupHttpStatus, backupErrorBody } from '../server/lib/backup-storage.js';
@@ -50,6 +50,11 @@ export default async function handler(req, res) {
     // 손님(명단에 없는 분): 초대받은 대화방만, 그리고 자기 번호로만
     if (who && who.guest && !PUBLIC_ACTIONS.has(action)) {
       if (!GUEST_ACTIONS.has(action)) return res.status(isBackup(action) ? 403 : 200).json({ error: '손님은 초대받은 대화방과 출석만 쓸 수 있어요.', guestOnly: true });
+      if (normId(body.memberId) !== who.nid) return res.status(200).json({ error: '로그인이 필요해요.', auth: false });
+    }
+    // 11/17: 교육 재적 표(비교사 사명자) = 공무 결석 보고만, 자기 번호로만
+    if (who && who.edu && !PUBLIC_ACTIONS.has(action)) {
+      if (!EDU_ACTIONS.has(action)) return res.status(isBackup(action) ? 403 : 200).json({ error: '교사명단에 없는 사명자는 공무 결석 보고와 출석만 쓸 수 있어요.', eduOnly: true });
       if (normId(body.memberId) !== who.nid) return res.status(200).json({ error: '로그인이 필요해요.', auth: false });
     }
     // 2026-11-16: 입장 표로 확인한 본인 번호(요청 본문 값은 믿지 않음) — 교육보고(edu-mgmt.js)가 신원으로 쓴다
