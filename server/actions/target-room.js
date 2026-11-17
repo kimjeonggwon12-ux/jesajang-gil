@@ -504,12 +504,12 @@ export async function roomUnread(nid) {
 
 export default { listOpeningRooms, deleteRoom, createRoomInvite, revokeRoomInvite, joinRoomByCode, getTargetRoom, sendRoomMessage, roomFileUpload, pinRoomMessage, deleteRoomMessage, searchRoomInvitees, inviteToRoom, leaveRoom, getRoomRecords, listMyRooms, getLessonPlan, saveLessonPlan };
 
-// ── 수업 계획표 (2026-11-17) ── 사용자: "각 피드백방에 수업 계획표를 캘린더 식으로 — 그 날짜에 수업 제목·예정 과목·주요 계획을 적고,
+// ── 수업 계획표 (2026-11-17) ── 사용자: "각 피드백방에 수업 계획표를 캘린더 식으로 — 그 날짜에 수업 제목·예정 과목·주요 계획을 적고, (2차: 예정 과목 → 교육 목표, 주요 계획 → 상세 계획)
 //   피드백방에서도 열어 보게. 쓰는 곳은 섭외자 화면 HEARTS 옆, 피드백방은 위 탭."
-//   target_ai_notes kind '수업 계획표'(input = 날짜 YYYY-MM-DD, text = JSON { title, subject, plan }) — 날짜마다 한 줄(저장 = 그 날짜 줄 바꿈).
+//   target_ai_notes kind '수업 계획표'(input = 날짜 YYYY-MM-DD, text = JSON { title, goal, plan }) — 날짜마다 한 줄(저장 = 그 날짜 줄 바꿈).
 //   쓰기·고치기 = 담당 교사만, 방에 있는 분은 보기만. AI 기록 묶음(targetDossier)에는 넣지 않는다.
 export const LESSON_KIND = '수업 계획표';
-const LESSON_MAX = { title: 100, subject: 100, plan: 1500 };
+const LESSON_MAX = { title: 100, goal: 300, plan: 2000 };
 const validDay = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(d + 'T00:00:00Z').toISOString().slice(0, 10) === d;
 /** 담당 교사는 방을 만들지 않고 바로(섭외자 화면에서 열어도 피드백방이 생기지 않게), 그 밖엔 방 입장 기준 그대로 */
 async function lessonAccess(body) {
@@ -526,7 +526,7 @@ async function lessonItems(a) {
   for (const r of rows) {
     let v = {};
     try { v = JSON.parse(r.text || '{}'); } catch { v = { plan: r.text || '' }; }
-    byDay.set(r.input, { date: r.input, title: str(v.title), subject: str(v.subject), plan: str(v.plan), by: str(v.by), at: fmtTs(r.created_at).slice(0, 16) });
+    byDay.set(r.input, { date: r.input, title: str(v.title), goal: str(v.goal), plan: str(v.plan), by: str(v.by), at: fmtTs(r.created_at).slice(0, 16) });
   }
   return [...byDay.values()].sort((x, y) => (x.date < y.date ? -1 : 1));
 }
@@ -544,10 +544,10 @@ async function saveLessonPlan(body) {
   const v = {};
   for (const k of Object.keys(LESSON_MAX)) {
     v[k] = str(body[k]).trim();
-    if (v[k].length > LESSON_MAX[k]) return { error: `${k === 'plan' ? '주요 계획' : k === 'title' ? '수업 제목' : '예정 과목'}은 ${LESSON_MAX[k]}자 이내로 적어 주세요.` };
+    if (v[k].length > LESSON_MAX[k]) return { error: `${k === 'plan' ? '상세 계획' : k === 'title' ? '수업 제목' : '교육 목표'}은 ${LESSON_MAX[k]}자 이내로 적어 주세요.` };
   }
   await run(db().from('target_ai_notes').delete().eq('target_id', a.target.target_id).eq('kind', LESSON_KIND).eq('input', date));
-  if (v.title || v.subject || v.plan) {
+  if (v.title || v.goal || v.plan) {
     const by = (await findTeacherLoose(body.memberId, body.name).catch(() => null))?.name || str(body.name);
     await run(db().from('target_ai_notes').insert({ target_id: a.target.target_id, member_id: str(body.memberId), kind: LESSON_KIND, input: date, text: JSON.stringify({ ...v, by }), created_at: kstDateTime() }));
   }
