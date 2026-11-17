@@ -624,7 +624,7 @@ export function buildJungjinReport(m,phase,kind,P,ex){
   const g = (p) => labelOf.get(defs.keyOf(p)) || p.affiliation;
   const groups = [...new Set(all.map(g))];
   const byGroup = (arr, fmt) => groups.map((x) => [x, arr.filter((p) => g(p) === x)]).filter(([, a]) => a.length).flatMap(([x,a])=>{const head=` ▸ ${esc(x)}(${a.length}): `,out=[];let line=head;for(const p of a){const name=fmt(p);if(line.length+name.length+2>3800){out.push(line);line=head;}line+=(line===head?'':', ')+name;}out.push(line);return out;});
-  const L = [...top(m, phase, P.sessions), `📍 <b>24부서 전체</b> · 사명자 재적 ${total.n}명`, LINE];
+  const L = [...top(m, phase, P.sessions), `📍 <b>【 24부서 장부청 소속 】</b> · 사명자 재적 ${total.n}명`, LINE];
   if (P.sessions.length > 1) L.push(P.sessions.map((x) => `${ICON[x] || '🙋'} ${x} ${total.by[x]}명`).join(' · '), `👥 합계 <b>${total.came}명</b> / ${total.n}명 (${total.rate})`);
   else L.push(`${ICON[P.sessions[0]] || '👥'} ${P.sessions[0]} 참석 <b>${total.came}명</b> / ${total.n}명 (${total.rate})`);
   L.push(`⏰ 지각 ${total.late}명 · 📋 공무 ${total.excused}명 · ❌ ${absentWord} ${total.absent}명`, LINE);
