@@ -2595,6 +2595,7 @@
     .ex-self-row span { flex:1; min-width:120px; font-size:13.5px; color:#6b7280; } .ex-self-row span.on { color:#00875f; }
     .ex-self-btn { height:36px; padding:0 14px; border-radius:10px; border:1px solid #2F6BEB; background:#2F6BEB; color:#fff; font-weight:700; font-size:14px; }
     .ex-self-btn.line { background:#fff; color:#2F6BEB; } .ex-self-btn:disabled { opacity:.5; }
+    .ex-self-ctc { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:6px; font-size:12.5px; font-weight:700; color:#475569; }
     .ex-self-end { flex:0 0 auto !important; min-width:0 !important; height:36px; line-height:36px; padding:0 14px; border-radius:10px; background:#E5E7EB; color:#6B7280 !important; font-weight:800; font-size:14px; }   /* 11/17 지난 교육 = 종료 */
     .ex-self-empty { margin:14px; padding:24px 16px; text-align:center; color:#64748b; background:#f8fafc; border-radius:14px; font-size:14px; }
     .act-pages[data-act-page="attend"] > [data-ap]:not([data-ap="attend"]),
@@ -4518,6 +4519,7 @@
       story:   { name: '모현아', phone: '010-3393-0348' },   // ⑦ 사례 모집
       edu:     { name: '모현아', phone: '010-3393-0348' },   // ⑧ 교육 자료
       dev:     { name: '김정권', phone: '010-8212-0329' },   // ① 개발·시스템
+      excused: { name: '김논',   phone: '010-8935-6728' },   // 11/17(사용자): 공무 결석 보고(화요 전도단·목요 사명자 교육) 문의 담당
     };
     const CTC_PHONE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
     const ctcAttr = (s) => esc(s).replace(/'/g, '&#39;');
@@ -8614,6 +8616,7 @@
         + k.dates.map(x => '<div class="ex-self-row"><b>' + esc(x.label) + '</b><span class="' + (x.mine ? 'on' : '') + '">' + esc(exsLine(x)) + '</span>' + btn(k.kind, x) + '</div>').join('') + '</div>').join('');
       return '<div class="ex-self-card">'
         + '<div class="ex-self-t">📋 ' + esc(d.title) + '</div>'
+        + '<div class="ex-self-ctc">공무 결석 보고 담당 ' + ctcChip('excused') + '</div>'   // 11/17(사용자): 문의 = 김논
         + '<div class="ex-self-sub">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
         + (d.note ? '<div class="ex-self-sub">ℹ️ ' + esc(d.note) + '</div>' : '')
         + '<div class="ex-self-sub" style="margin-top:6px">공무 항목을 고르고 날짜를 누르세요</div>' + exR.html(exsState.reason, 'exsCat(this.value)', 'exsEtc(this.value)')
@@ -9404,7 +9407,7 @@
       if (App.eduOnly) { eduOnlyDraw(); return; }   // 11/17: 비교사 사명자 화면
       const root = document.getElementById('homeContent');
       renderActTabs();
-      ctcSet('actCtc', { attend: 'attend', goal: 'roster', targets: 'roster', rooms: 'roster', report: 'roster', edu: 'edu' }[actPage]);   // 11/17(사용자): 교사 개인 관련 문의(나의 교실) = 김논
+      ctcSet('actCtc', { attend: 'excused', goal: 'roster', targets: 'roster', rooms: 'roster', report: 'roster', edu: 'edu' }[actPage]);   // 11/17(사용자): 교사 개인 관련 문의(나의 교실) = 김논
       if (home.view === 'targetDetail') {
         if (targetsChartInstance) { targetsChartInstance.destroy(); targetsChartInstance = null; }
         root.innerHTML = targetDetailViewHtml();
