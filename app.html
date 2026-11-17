@@ -16067,20 +16067,27 @@ function wireTeacherList() {
 function wireTeacherSearch() {
   const q = document.getElementById('tl-q');
   if (q) {
-    q.addEventListener('compositionstart', () => { q.dataset.composing = '1'; });
-    q.addEventListener('compositionend', e => {
-      q.dataset.composing = '';
-      state.tlQuery = e.target.value; state.tlLimit = state.tlLimit || 20; eduRender();
-      const n = document.getElementById('tl-q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
-    });
-    q.addEventListener('input', e => {
-      if (q.dataset.composing) return;
-      state.tlQuery = e.target.value; eduRender();
-      const n = document.getElementById('tl-q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
-    });
+    // 11/17(사용자 "이름을 다다닥 쓰면 자음·모음이 깨진다"): 빠르게 칠 때 음절 사이 compositionend 마다 화면을 다시 그려
+    //   다음 글자 조합이 끊겼다 → 치는 동안엔 다시 그리지 않고, 손을 멈춘 뒤(0.4초, 조합 중이 아닐 때)만 한 번 그린다.
+    const apply = () => {
+      clearTimeout(window._tlQTimer);
+      window._tlQTimer = setTimeout(() => {
+        const cur = document.getElementById('tl-q');
+        if (!cur) return;
+        if (cur.dataset.composing) { apply(); return; }
+        if ((state.tlQuery || '') === (state._tlQShown || '')) return;
+        state._tlQShown = state.tlQuery; state.tlLimit = state.tlLimit || 20;
+        const had = document.activeElement === cur;
+        eduRender();
+        const n = document.getElementById('tl-q'); if (n && had) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+      }, 400);
+    };
+    q.addEventListener('compositionstart', () => { q.dataset.composing = '1'; clearTimeout(window._tlQTimer); });
+    q.addEventListener('compositionend', e => { q.dataset.composing = ''; state.tlQuery = e.target.value; apply(); });
+    q.addEventListener('input', e => { state.tlQuery = e.target.value; if (!e.isComposing && !q.dataset.composing) apply(); });
   }
   const clr = document.getElementById('tl-q-clear');
-  if (clr) clr.onclick = () => { state.tlQuery = ''; eduRender(); };
+  if (clr) clr.onclick = () => { state.tlQuery = ''; state._tlQShown = ''; eduRender(); };
 }
 
 // ============ Phase 2(2026-09-15): 리더 격려 메시지 ============
