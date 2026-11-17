@@ -736,6 +736,20 @@ export async function postJungjin(m, phase, { to = null, force = false } = {}) {
       await new Promise((r) => setTimeout(r, 1500));
     }
   }
+  // 11/17(사용자): 중진 대화방('#중진')에는 교역자 출석 현황도 — 교역자 방(교사 앱 기본)과 같은 카드+실명 명단. 오전 마감·최종마다 한 번
+  for (const room of rooms.filter((r) => r.dept === JUNGJIN_KEY)) {
+    if (!force) {
+      const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#jungjin:kyo', kind: phase, ref_id: m.meetingId, date: m.date, sent_at: kstDateTime() });
+      if (error) continue;
+    }
+    try {
+      const { kyoPreview } = await import('./room-attendance.js');
+      const k = await kyoPreview(m, phase);
+      await sendRoomCardText(room, k.png, k.texts[0]);
+      for (const t of k.texts.slice(1)) { await new Promise((r) => setTimeout(r, 1500)); await sendRoomText(room.chat_id, t); }
+      sent.push(room.dept + ':교역자');
+    } catch (e) { console.log('중진 방 교역자 전송 실패: ' + e.message); }
+  }
   return sent;
 }
 // 2026-11-16 교육보고 탭(edu-mgmt.js)이 같은 재적·출석 판정(오전·저녁 중복 제거, 항상 출석·원장 제외)을 그대로 쓰도록 공개한다.
