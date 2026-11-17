@@ -532,8 +532,26 @@ async function kyoWhole(m, phase, P, edu) {
   return [{ ...eduCard(m, P, C) }, ...kyoTexts(m, phase, P).map((text) => ({ text }))];
 }
 
+// 11/18(사용자): 목사교 행정 방도 화전단과 같은 서식으로 — 24부서 = '24부서 장부청 소속' 카드+실명 명단(중진 방과 같은 것),
+//   교역자 = 교역자회 카드+실명 명단(교회 교역자/신학부 사명자, 교역자 방 서식)인데 대상은 목사교 재적(원장·이경옥 님·휴직자 제외).
+//   견본 확인 뒤 MOK_V2_LIVE=true 로 실제 목사교 방에 적용.
+export const MOK_V2_LIVE = false;
+export async function kyoEduParts(m, phase, P) {
+  const { kyoRoomText, onLeaveNids } = await import('./room-attendance.js');
+  const leave = await onLeaveNids();
+  const people = P.people.filter((p) => ['교회교역', '신학교역', '협력교회'].includes(p.dept) && !hwaExcluded(p) && !leave.has(p.nid))
+    .map((p) => ({ nid: p.nid, name: p.name, region: p.dept === '신학교역' ? '신학' : '교회', affiliation: p.dept === '협력교회' ? '협력 교회' : p.affiliation, position: p.position, att: p.att }));
+  const guests = P.outside.filter((x) => x.key === '교역자').map((x) => ({ name: x.name, att: x.att }));
+  const k = await kyoRoomText(m, phase, {}, P.order, { people, guests, sessions: P.sessions, basis: '목사교 사명자 재적 기준', exclude: true });
+  return [{ png: k.png, text: k.texts[0], cardText: true }, ...k.texts.slice(1).map((text) => ({ text }))];
+}
+export async function jungjin24Merged(m, phase, kind) {
+  const parts = await jungjinParts(m, phase, kind);
+  return parts[0]?.png && parts[1] ? [{ png: parts[0].png, text: parts[1].text, cardText: true }, ...parts.slice(2).map((p) => ({ text: p.text }))] : parts;
+}
+
 /** 보낼 것 목록 [{ room, text } | { room, png, caption, text }] */
-export async function buildEduAttendance(m, phase, edu, { test = false, allRegions = false, eduOnly = false } = {}) {
+export async function buildEduAttendance(m, phase, edu, { test = false, allRegions = false, eduOnly = false, v2 = MOK_V2_LIVE } = {}) {
   const P = { ...(await prepare(m, phase, edu)), phase };
   const rooms = await run(db().from('report_rooms').select('*').eq('active', true));
   const out = [], seen = new Set();
@@ -551,8 +569,8 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
     if (room.dept === eduKey) {
       if (!once('edu|' + chat)) continue;
       const C = cardData(m, P, await prevRates(m, edu).catch(() => null));
-      for (const d of WHOLE_DEPTS) if (P.people.some((p) => p.dept === d)) for (const x of await deptWhole(m, phase, P, edu, d)) out.push({ room, ...x });
-      for (const x of await kyoWhole(m, phase, P, edu)) out.push({ room, ...x });
+      for (const d of WHOLE_DEPTS) if (P.people.some((p) => p.dept === d)) for (const x of (v2 && d === '24부서' ? await jungjin24Merged(m, phase, '목사교') : await deptWhole(m, phase, P, edu, d))) out.push({ room, ...x });
+      for (const x of (v2 ? await kyoEduParts(m, phase, P) : await kyoWhole(m, phase, P, edu))) out.push({ room, ...x });
       out.push({ room, ...eduExcel(m, P, C, await deptSheetsOf(m, P, edu)) });
       out.push({ room, ...eduCard(m, P, C) });
       continue;
@@ -603,6 +621,7 @@ export async function postEduAttendance(m, phase, edu, prefix = '') {
       await pace(String(to.chat_id));
       await withRetry(async () => {
         if (p.doc) await sendRoomDoc(to.chat_id, p.doc, p.fileName, pre + p.docCaption);
+        else if (p.cardText) await sendRoomCardText(to, p.png, pre + p.text);
         else if (p.caption) await sendRoomBoard(to, p.png, pre + p.caption, pre + p.text);
         else await sendRoomText(to.chat_id, pre + p.text);
       });
@@ -636,6 +655,7 @@ async function tsEduAttTest(body) {
     const to = { ...p.room, chat_id: MY_TEST_CHAT };
     try {
       if (p.doc) await sendRoomDoc(to.chat_id, p.doc, p.fileName, pre + p.docCaption);
+      else if (p.cardText) await sendRoomCardText(to, p.png, pre + p.text);
       else if (p.caption) await sendRoomBoard(to, p.png, pre + p.caption, pre + p.text);
       else await sendRoomText(MY_TEST_CHAT, pre + p.text);
       sent.push([p.room.dept, '성공']);

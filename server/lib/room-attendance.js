@@ -272,9 +272,18 @@ export async function roomAttendanceSlotTick(meetings) {
 const KYO_HEAD = ['지파장', '지파총무'];
 const nidOf = (id) => normId(id);
 const lateMinOf = (r) => (String(r?.late || '').match(/(\d+)분/) || [])[1] || '';
-async function kyoRoster() {
+// 11/18(사용자): 교역자 취합 글에서 이경옥 님·휴직자(교사 명단 소속 '휴직') 제외 — 목사교 행정 방 견본 확인 뒤 KYO_EXCLUDE_LIVE=true 로 실제 적용(다음 화요일 예정)
+export const KYO_EXCLUDE_LIVE = false;
+async function kyoRoster(exclude = KYO_EXCLUDE_LIVE) {
   const t = await selectAll(() => db().from('teachers').select('nid, name, region, affiliation, position, sort_order').eq('dept', '교역자').order('sort_order').order('member_id'), 3);
-  return t.filter((p) => String(p.position || '').trim() !== '원장' && String(p.affiliation || '').trim() !== '원장');
+  const { hwaExcluded } = await import('./edu-attendance.js');
+  return t.filter((p) => String(p.position || '').trim() !== '원장' && String(p.affiliation || '').trim() !== '원장' && !(exclude && hwaExcluded(p)));
+}
+/** 교사 명단에서 휴직(소속 '휴직')인 사람 nid — 목사교 재적(edu_roster)엔 휴직 표시가 없어 교사 명단으로 대조 */
+export async function onLeaveNids() {
+  const t = await selectAll(() => db().from('teachers').select('nid, name, region, affiliation, position').eq('dept', '교역자'), 3);
+  const { isOnLeave } = await import('./edu-attendance.js');
+  return new Set(t.filter(isOnLeave).map((p) => p.nid));
 }
 async function kyoOrder() {   // 24부서 번호 순(행서·기획·재정…) — 교사 명단 소속은 '부' 없이 적혀 있음
   const r = await selectAll(() => db().from('edu_roster').select('affiliation, district').eq('roster_key', '목요사명자').eq('dept', '24부서'), 3).catch(() => []);
@@ -282,21 +291,24 @@ async function kyoOrder() {   // 24부서 번호 순(행서·기획·재정…) 
   for (const x of r) { const k = String(x.affiliation || '').replace(/부$/, ''); const d = Number(String(x.district || '').replace(/\D/g, '')) || 99; if (!m.has(k) || m.get(k) > d) m.set(k, d); }
   return (a) => { const k = String(a || '').split(',')[0].trim(); const i = KYO_HEAD.indexOf(k); return i >= 0 ? i - 10 : m.has(k) ? m.get(k) : 100; };
 }
-export async function kyoRoomText(m, phase, sess, order) {
-  const used = phase === '최종' ? order.filter((s) => sess[s]?.length) : [phase];
+// o(11/18) = { exclude, people, guests, sessions, basis } — 목사교는 사명자 재적(edu_roster)·그 출석(att)을 그대로 넣어 같은 서식으로
+export async function kyoRoomText(m, phase, sess, order, o = {}) {
+  const used = o.sessions || (phase === '최종' ? order.filter((s) => sess[s]?.length) : [phase]);
   const sessions = used.length ? used : [phase === '최종' ? '오전' : phase];
-  const roster = await kyoRoster(), rank = await kyoOrder();
+  const roster = o.people || await kyoRoster(o.exclude ?? KYO_EXCLUDE_LIVE), rank = await kyoOrder();
+  const basis = o.basis || '교사 재적 기준';
   const ea = await import('./edu-attendance.js');
   const kind = ea.jungjinKind(m) || ((await ea.eduFor(m).catch(() => null))?.series?.roster_key === '목요사명자' ? '목사교' : null);
   const ex = kind ? await ea.excusedOf(kind, m.date).catch(() => new Set()) : new Set();
   if (kind) { try { const { selfExcusedOf } = await import('../actions/edu-excused-self.js'); for (const n of (await selfExcusedOf(kind, m.date)).keys()) ex.add(n); } catch (e) { console.log('본인 공무 신고 읽기 실패: ' + e.message); } }
   const att = new Map(), guests = new Map();   // nid → { 오전: row, … }
-  for (const s of sessions) for (const r of sess[s] || []) {
+  if (!o.people) for (const s of sessions) for (const r of sess[s] || []) {
     const map = r.guest ? guests : att, k = r.guest ? 'g' + nidOf(r.id) + r.name : nidOf(r.id);
     if (!map.has(k)) map.set(k, { name: r.name, att: {} });
     map.get(k).att[s] ||= r;
   }
-  const people = roster.map((p) => ({ ...p, att: att.get(p.nid)?.att || {} }));
+  for (const g of o.guests || []) guests.set('g' + g.name, g);
+  const people = o.people ? roster : roster.map((p) => ({ ...p, att: att.get(p.nid)?.att || {} }));
   const came = (p) => sessions.some((s) => p.att[s]), isEx = (p) => !came(p) && ex.has(p.nid), late = (p) => sessions.filter((s) => isLate(p.att[s] || {}));
   const nCame = people.filter(came).length, nEx = people.filter(isEx).length, nLate = people.filter((p) => late(p).length).length;
   const nAbs = people.length - nCame - nEx;
@@ -322,14 +334,14 @@ export async function kyoRoomText(m, phase, sess, order) {
       `❌ <b>${word}자 ${a.length}명</b>`, ...(a.length ? byAff(a, (p) => esc(p.name), ordered) : ['   없음 🎉']), ''];
   };
   const churchList = people.filter(church), semList = people.filter((p) => !church(p));
-  const L = [`📋 <b>${esc(m.title)}</b> (교사 재적 기준)`, `🗓 ${dayOf(m)} · ${head}`,
+  const L = [`📋 <b>${esc(m.title)}</b> (${basis})`, `🗓 ${dayOf(m)} · ${head}`,
     `📍 <b>교역자회</b> · 재적 ${people.length}명 (⛪ 교회 교역자 ${churchList.length} · 🎓 신학부 ${semList.length})`, LINE];
   if (sessions.length > 1) L.push(sessions.map((s) => `${SESSION_ICON[s] || '🙋'} ${s} ${people.filter((p) => p.att[s]).length}명`).join(' · '), `👥 합계 <b>${nCame}명</b> / ${people.length}명 (${pct(nCame, people.length)}%) (⛪ 교회 ${people.filter((p) => church(p) && came(p)).length} · 🎓 신학부 ${people.filter((p) => !church(p) && came(p)).length})`);
   else L.push(`${SESSION_ICON[sessions[0]] || '👥'} ${sessions[0]} 참석 <b>${nCame}명</b> / ${people.length}명 (${pct(nCame, people.length)}%)`);
   L.push(`⏰ 지각 ${nLate}명 · 📋 공무 ${nEx}명 · ❌ ${word} ${nAbs}명`, '');
   L.push(...part('⛪', '교회 교역자', churchList, true), ...part('🎓', '신학부 사명자', semList, false));
   const g = [...guests.values()];
-  if (g.length) L.push(LINE, `🙋 비교사 ${g.length}명: ${g.map((x) => esc(x.name)).join(', ')}`, '※ 비교사는 재적·출석률에 넣지 않았어요');
+  if (g.length) L.push(LINE, `🙋 ${o.people ? '재적 밖' : '비교사'} ${g.length}명: ${g.map((x) => esc(x.name)).join(', ')}`, `※ ${o.people ? '재적 밖 참석자' : '비교사'}는 재적·출석률에 넣지 않았어요`);
   while (L[L.length - 1] === '') L.pop();
   const texts = []; let cur = '';
   for (const l of L) { if (cur && cur.length + l.length + 1 > 3900) { texts.push(cur); cur = ''; } cur += (cur ? '\n' : '') + l; }
@@ -345,14 +357,14 @@ export async function kyoRoomText(m, phase, sess, order) {
   const C = { title, rows: [stat('교회 교역자', churchList), stat('신학부 사명자', semList)], total, reasonTotal: total.absent, firstHead: '구분', excusedCol: true };
   let png = null;
   try { const { eduCardPng } = await import('./edu-card.js'); png = eduCardPng(C); } catch (e) { console.log('교역자 카드 오류: ' + e.message); }
-  const caption = [`📊 <b>${esc(title)}</b> (교사 재적 기준, 원장 제외)`, '',
+  const caption = [`📊 <b>${esc(title)}</b> (${basis}, 원장${(o.exclude ?? KYO_EXCLUDE_LIVE) ? '·휴직' : ''} 제외)`, '',
     `▸ 전체 참석률 ${total.rate} (대상 ${total.n}명 중 ${total.came}명 참석)`,
     ...C.rows.map((r) => `▸ ${r.label} ${r.rate} (${r.came}/${r.n}) · 공무 ${r.excused} · ${word} ${r.absent}`),
     `▸ 지각 ${nLate}명 · 공무(사전보고) ${nEx}명 · ${word} ${nAbs}명`].join(String.fromCharCode(10));
   return { png, caption, texts };
 }
 /** 11/17: 새 교역자 글 견본(아직 실제 교역자 방엔 안 씀 — 사용자 확인 뒤 연결) */
-export async function kyoPreview(m, phase) {
+export async function kyoPreview(m, phase, o = {}) {
   const { by, order } = await prepare(m, phase);
-  return kyoRoomText(m, phase, by.get('교역자') || {}, order);
+  return kyoRoomText(m, phase, by.get('교역자') || {}, order, o);
 }

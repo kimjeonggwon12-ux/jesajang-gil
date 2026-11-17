@@ -779,6 +779,41 @@ async function tsTestRoom(body) {
       for (const q of await ea.jungjinParts(m, phase, ea.jungjinKind(m) || '목사교')) out.push(['kyo:24', q.png ? await testPhoto(q.png, '', q.caption) : await testText(q.text)]);
     }
   }
+  // 11/18(사용자): 교역자 취합 새 견본 — 목사교 행정 방(room:'edu')에만.
+  //   only:['kyo2'] + meetingId(화전단) = 교역자 방 글에서 이경옥 님·휴직자 뺀 것 / only:['mokv2'] + mokMeetingId(목사교) = 24부서 장부청 소속 + 교역자(목사교 재적, 원장·휴직 제외)
+  if (only.includes('kyo2') || only.includes('mokv2')) {
+    const { findMeeting } = await import('./attendance.js');
+    const { sendRoomCardText } = await import('../lib/report-room.js');
+    const room = { dept: '#test', chat_id: testChat };
+    const phase = String(body.phase || '최종');
+    const NL = String.fromCharCode(10);
+    const sendParts = async (tagName, parts) => {
+      for (const p of parts) {
+        if (p.cardText) { try { await sendRoomCardText(room, p.png, p.text); out.push([tagName + ':card+list', { ok: true }]); } catch (e) { out.push([tagName + ':card+list', { ok: false, error: e.message }]); } }
+        else out.push([tagName, await testText(p.text)]);
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    };
+    if (only.includes('kyo2')) {
+      const m = await findMeeting(String(body.meetingId || ''));
+      if (!m) return { error: '모임 없음' };
+      const { kyoPreview } = await import('../lib/room-attendance.js');
+      const k = await kyoPreview(m, phase, { exclude: true });
+      out.push(['kyo2:intro', await testText('🧪 <b>[견본] 화요 전도단 교역자 취합 — 이경옥 님·휴직자 제외</b>' + NL + esc(m.date) + ' ' + esc(m.title) + ' ' + (phase === '최종' ? '최종' : phase) + ' 자료로 만들었어요. 교역자 방에는 안 올렸어요(확인 뒤 다음 화요일부터).')]);
+      await sendParts('kyo2', [{ png: k.png, text: k.texts[0], cardText: true }, ...k.texts.slice(1).map((text) => ({ text }))]);
+    }
+    if (only.includes('mokv2')) {
+      const m = await findMeeting(String(body.mokMeetingId || body.meetingId || ''));
+      if (!m) return { error: '목사교 모임 없음' };
+      const ea = await import('../lib/edu-attendance.js');
+      const edu = await ea.eduFor(m);
+      if (!edu) return { error: '목사교 정기 교육 아님' };
+      const P = { ...(await ea.eduPeople(m, phase, edu)), phase };
+      out.push(['mokv2:intro', await testText('🧪 <b>[견본] 목요 사명자 교육 — 화전단과 같은 서식</b>' + NL + '① 24부서 참석 현황(장부청 소속) ② 교역자회(목사교 재적 기준 · 원장·이경옥 님·휴직자 제외)' + NL + esc(m.date) + ' ' + esc(m.title) + ' 자료로 만들었어요. 이 방에만 올렸어요.')]);
+      await sendParts('mokv2:24', await ea.jungjin24Merged(m, phase, '목사교'));
+      await sendParts('mokv2:kyo', await ea.kyoEduParts(m, phase, P));
+    }
+  }
   // 11/4: 출석 서머리 시험 — { only:['att'], meetingId, phase:'최종'|'오전'… } 지역 글 몇 개 + 부서 민트 표 + 교자장부청 보라 표
   if (only.includes('att')) {
     const { findMeeting } = await import('./attendance.js');
