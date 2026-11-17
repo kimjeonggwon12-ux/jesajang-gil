@@ -16446,7 +16446,9 @@ function wireTeacherSearch() {
     state.tlQuery = q.value; clearTimeout(tlSearchTimer);
     // 입력 중 이전 응답이 화면/검색어를 덮지 않도록 즉시 무효화한다.
     ++tlPage.seq; rosterLoading = false;
-    tlSearchTimer = setTimeout(tlReload, 300);
+    // 11/17(사용자 "다다닥 치면 자음·모음이 깨진다"): 조합 중이면 다시 그리지 않고 손 멈춘 뒤에만
+    const go = () => { const cur = document.getElementById('tl-q'); if (cur && cur.dataset.composing) { tlSearchTimer = setTimeout(go, 300); return; } tlReload(); };
+    tlSearchTimer = setTimeout(go, 400);
   };
   if (q) {
     q.addEventListener('compositionstart', () => { q.dataset.composing = '1'; clearTimeout(tlSearchTimer); ++tlPage.seq; rosterLoading = false; });
