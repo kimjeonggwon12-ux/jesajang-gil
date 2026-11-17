@@ -19,16 +19,19 @@ import {testChat} from '../lib/edu-attendance.js';
 
 // 11/5(사용자): "서머리 다섯 개에 번호를 매기고 머릿말에 어떤 서머리인지 설명" — 하루 순서대로 ①~⑤
 const SUMMARY_HEAD = {
-  status: ['①', '☀️', '아침 7시 · 교사 활동 현황', '교자장부청별 명함 등록·활동 기록 참여·앱 입장(누적)과 교사 등급(휴·활·정·우)을 한눈에 보는 아침 점검표예요.'],
-  noon: ['②', '🕛', '정오 · 오전 활동 총합', '오늘 0시~12시에 올라온 보고를 교자장부청 × 활동 항목 표로 합쳤어요. 오전에 어디가 먼저 움직였는지 봐요.'],
+  status: ['①', '☀️', '아침 7시 · 교사 활동 현황', '교장부청별 명함 등록·활동 기록 참여·앱 입장(누적)과 교사 등급(휴·활·정·우, 자문회 포함)을 한눈에 보는 아침 점검표예요.'],
+  noon: ['②', '🕛', '정오 · 오전 활동 총합', '오늘 0시~12시에 올라온 보고를 교장부청 × 활동 항목 표로 합쳤어요. 오전에 어디가 먼저 움직였는지 봐요.'],
   dept: ['③', '📊', '밤 10시 · 부서 지역별 총합', '우리 부서 지역마다 오늘 보고를 활동 항목별로 합친 표예요. 지역끼리 나란히 비교해요.'],
-  evening: ['④', '🌙', '밤 10시 · 하루 활동 총합', '오늘 하루 전체 보고를 교자장부청 × 활동 항목 표로 합쳤어요. 5개 조직의 하루를 비교해요.'],
+  evening: ['④', '🌙', '밤 10시 · 하루 활동 총합', '오늘 하루 전체 보고를 교장부청 × 활동 항목 표로 합쳤어요. 4개 조직의 하루를 비교해요.'],
   daily: ['⑤', '🌃', '밤 11시 · 오늘 활동한 교사', '오늘 활동을 기록한 교사 이름과 활동 내용을 부서별로 모았어요. 서로 칭찬하고 응원해요.'],
 };
 export const summaryHead = (k) => { const [n, icon, title, desc] = SUMMARY_HEAD[k]; return [`${icon} <b>서머리 ${n} ${title}</b>`, `📖 ${desc}`]; };
 
 // [명단의 부서 이름, 알림에 쓰는 이름]
 const DEPTS = [['교역자', '교역자회'], ['자문회', '자문회'], ['장년회', '장년회'], ['부녀회', '부녀회'], ['청년회', '청년회']];
+// 11/17(사용자): "자문회는 아직 교사광장 앱 활용이 어려워 수치에서 제외" — 사용 데이터(기록·명함·입장·참여율·보라 표·계 카드·뉴스·밤 11시 활동) 텔레그램 언급에서 자문회를 뺀다.
+//   교사 등급(휴·활·정·우) 비율은 자문회 그대로 유지(DEPTS).
+const USAGE_DEPTS = DEPTS.filter(([d]) => d !== '자문회');
 const TIER_ICONS = [['휴교사', '🔴'], ['기타', '⚪'], ['활동교사', '🟡'], ['정교사', '🟢'], ['우수교사', '🏆']];
 // 등급 채움 막대(왼쪽부터): 휴 = 붉은색 → 우수 = 금색('gold' = progress-image.js 의 금빛 그라데이션)
 const TIER_STACK = [['휴교사', '휴', '#e5484d'], ['기타', '기타', '#a3a9b8'], ['활동교사', '활', '#f59e42'], ['정교사', '정', '#2f9e6e'], ['우수교사', '우수', 'gold']];
@@ -83,12 +86,13 @@ function personLine(x) {
 
 /** 그날 활동을 부서별·사람별로 묶은 글. 길면 여러 통으로 나눈다. */
 async function composeDaily(day) {
-  const [activities, center, cards] = await Promise.all([
+  const [activities0, center, cards] = await Promise.all([
     activitiesBetween(day, day), centerLeadCount(day, day),
     db().from('connect_cards').select('*', { count: 'exact', head: true }).neq('member_id', ''),
   ]);
-  const byNid = await teachersByNid(activities.map((a) => a.nid));   // 그날 활동한 사람의 명단만
-  const byDept = Object.fromEntries([...DEPTS.map(([dept]) => dept), '기타'].map((d) => [d, new Map()]));
+  const byNid = await teachersByNid(activities0.map((a) => a.nid));   // 그날 활동한 사람의 명단만
+  const activities = activities0.filter((a) => String(byNid.get(a.nid)?.dept || '').trim() !== '자문회');   // 11/17 자문회 제외
+  const byDept = Object.fromEntries([...USAGE_DEPTS.map(([dept]) => dept), '기타'].map((d) => [d, new Map()]));
   const people = new Set();
   const keyOf = (a) => a.nid || (byNid.get(a.nid)?.name || a.name || '이름미상');
 
@@ -113,7 +117,7 @@ async function composeDaily(day) {
   }
 
   const lines = [...summaryHead('daily'), `📅 ${day} (${weekdayOf(day)}) 오늘 활동`, ''];
-  const sections = byDept['기타'].size ? [...DEPTS, ['기타', '기타']] : DEPTS;
+  const sections = byDept['기타'].size ? [...USAGE_DEPTS, ['기타', '기타']] : USAGE_DEPTS;
   for (const [dept, label] of sections) {
     const list = [...byDept[dept].values()].sort((a, b) => b.n - a.n || (a.name < b.name ? -1 : 1));
     lines.push(`🏢 <b>${label}</b>`);
@@ -156,8 +160,8 @@ async function sendDailySummary({ date, force }) {
 //   총합 글은 부서별로 나열하지 말고 항목만 5개 조직 합해서(예: 새찾기 00건)."
 //   셈은 부서 지역별 총합(report-room.js boardTable)과 같다: 섭외자-인도자 한 쌍 = 1건, 섭외자 없는 기록은 한 건씩.
 const BOARD_KIND = {
-  noon: { head: summaryHead('noon').join('\n'), title: '교자장부청 오전 보고 총합', when: ' · 12시까지' },
-  evening: { head: summaryHead('evening').join('\n'), title: '교자장부청 일일 보고 총합', when: '' },
+  noon: { head: summaryHead('noon').join('\n'), title: '교장부청 오전 보고 총합', when: ' · 12시까지' },
+  evening: { head: summaryHead('evening').join('\n'), title: '교장부청 일일 보고 총합', when: '' },
 };
 
 /** 그날(지금까지) 기록 → 교자장부청 × 활동 항목 보라 표 사진 + 설명 글(항목별 5개 조직 총합, 한 줄에 하나). */
@@ -169,20 +173,20 @@ async function composeBoard(day, kind = 'evening') {
   const byNid = await teachersByNid(acts.map((a) => a.nid));
   const missing = [...new Set(acts.map((a) => a.nid).filter((n) => n && !byNid.has(n)))];
   for (const t of await adminsAsTeachers(missing)) byNid.set(t.nid, t);   // 관리자 명단에만 있는 분(회장 등)
-  const byDept = new Map(DEPTS.map(([d]) => [d, []]));
+  const byDept = new Map(USAGE_DEPTS.map(([d]) => [d, []]));
   for (const a of acts) { const list = byDept.get(String(byNid.get(a.nid)?.dept || '').trim()); if (list) list.push(a); }
   const counted = [...byDept.values()].flat();
   const people = new Set(counted.map((a) => a.nid)).size;
   const [y, m, d] = day.split('-').map(Number);
   const { per, total, sum, png } = boardTable({
-    title: K.title, theme: 'purple', firstHead: '부서', sumLabel: '5개 조직 총합',
+    title: K.title, theme: 'purple', firstHead: '부서', sumLabel: '4개 조직 총합',
     sub: `${y - 1983}.${m}.${d}.${weekdayOf(day)}요일${K.when} · 섭외자-인도자 한 쌍 = 1건 (섭외자 없는 기록은 한 건씩)`,
-    groups: DEPTS.map(([dept, label]) => [label, byDept.get(dept)]),
+    groups: USAGE_DEPTS.map(([dept, label]) => [label, byDept.get(dept)]),
   });
   const lines = boardTotalLines(total);
   const caption = [K.head, `📅 ${day} (${weekdayOf(day)})`, '',
     `👥 참여 ${comma(people)}명 · 기록 ${comma(counted.length)}건 · 합계 <b>${comma(sum)}건</b>`, '',
-    '🧭 <b>항목별 총합</b> (교자장부청 5개 조직)',
+    '🧭 <b>항목별 총합</b> (교장부청 4개 조직)',
     ...(lines.length ? lines : ['아직 기록 없음'])].join('\n');
   return { caption, text: caption, png, total: counted.length, per, sum };
 }
@@ -192,9 +196,9 @@ async function composeTotalCard(day, board) {
   const r = board || await composeBoard(day, 'evening');
   const [, m, d] = day.split('-').map(Number);
   const date = `${m}월 ${d}일(${weekdayOf(day)}) · 밤 10시`;   // 11/10(사용자): '10시 뉴스'처럼 10시 = 이 카드
-  const png = totalCardPng({ date, title: '교자장부청 오늘 활동 기록', sum: r.sum, rows: r.per.map((p) => ({ label: p.label, n: p.sum })) });
+  const png = totalCardPng({ date, title: '교장부청 오늘 활동 기록', sum: r.sum, rows: r.per.map((p) => ({ label: p.label, n: p.sum })) });
   // 11/10(사용자): 카드에 나온 숫자를 아래 글로 또 적지 않는다 — 제목 한 줄만(데이터 뉴스가 바로 아래 이어짐)
-  const caption = `📊 <b>교자장부청 오늘 활동 기록</b> · ${date}`;
+  const caption = `📊 <b>교장부청 오늘 활동 기록</b> · ${date}`;
   return { png, caption, text: caption, total: r.total };
 }
 
@@ -228,6 +232,7 @@ async function composeStatus(day, { picture = true } = {}) {
   const all = blank();
   for (const t of roster) {
     const nid = normId(t.memberId);
+    if (String(t.dept || '').trim() === '자문회') continue;   // 11/17 사용 수치에서 자문회 제외(등급은 tierOf 로 따로 유지)
     for (const s of [stat[String(t.dept || '').trim()], all].filter(Boolean)) {
       s.total++;
       if (card.has(nid)) s.card++;
@@ -239,11 +244,12 @@ async function composeStatus(day, { picture = true } = {}) {
   const block = (label, s) => [`🏢 <b>${label}</b> (교사 ${comma(s.total)}명)`,
     `   🪪 명함 등록 ${cell(s.card, s.total)}`, `   📝 활동 기록 참여 ${cell(s.act, s.total)}`, `   📲 앱 입장 1회 이상 ${cell(s.seen, s.total)}`];
   const lines = [...summaryHead('status'), `📅 ${day} (${weekdayOf(day)}) 아침 7시 기준 · 누적`, ''];
-  for (const [dept, label] of DEPTS) lines.push(...block(label, stat[dept]), '');
+  for (const [dept, label] of USAGE_DEPTS) lines.push(...block(label, stat[dept]), '');
   lines.push(...block('⛪ 전주교회 전체', all).map((l, i) => (i ? l : l.replace('🏢 ', ''))));
   // 10/30(사용자): 옆으로 뻗는 채움 막대 사진(조직마다 막대 = 전체 인원, 채운 만큼 = 해당 인원) + 짧은 설명
   // 11/4(사용자): 등급(휴·활·정·우)을 4번째로 묶어 '교사 활동 현황 서머리' 4종 — 막대 전체 = 100%, 왼쪽부터 휴→활→정→우 채움
-  const orgs = [...DEPTS.map(([d, label]) => [label, stat[d]]), ['전주교회 전체', all]];
+  const orgs = [...USAGE_DEPTS.map(([d, label]) => [label, stat[d]]), ['전주교회 전체', all]];
+  const tierLabels = [...DEPTS.map(([, label]) => label), '전주교회 전체'];   // 등급 막대만 자문회 포함
   const tierOf = Object.fromEntries([...DEPTS.map(([d]) => d), '*'].map((d) => [d, {}]));
   for (const c of tierCounts) for (const k of [String(c.dept || '').trim(), '*']) if (tierOf[k]) tierOf[k][c.tier] = (tierOf[k][c.tier] || 0) + c.n;
   const tierRows = [...DEPTS.map(([d]) => tierOf[d]), tierOf['*']];
@@ -256,7 +262,7 @@ async function composeStatus(day, { picture = true } = {}) {
         { title: '명함 등록', color: '#00AE82', values: orgs.map(([, s]) => s.card) },
         { title: '활동 기록 참여', color: '#2F6BFF', values: orgs.map(([, s]) => s.act) },
         { title: '앱 입장 1회 이상', color: '#F08A00', values: orgs.map(([, s]) => s.seen) },
-        { title: '교사 등급 (휴·활·정·우)', stack: TIER_STACK.map(([tier, short, color]) => ({ label: short, name: tier, color, values: tierRows.map((t) => t[tier] || 0) })) },
+        { title: '교사 등급 (휴·활·정·우)', labels: tierLabels, stack: TIER_STACK.map(([tier, short, color]) => ({ label: short, name: tier, color, values: tierRows.map((t) => t[tier] || 0) })) },
       ],
     });
   } catch (e) { console.log('[교사광장 봇] 참여 현황 그림 오류 ' + e); }
@@ -317,7 +323,7 @@ async function composeEvening(day) {
     `📅 ${Number(day.slice(0, 4))}년 ${month}월 ${Number(day.slice(8, 10))}일 (${weekdayOf(day)}) 기준`, '',
     `📊 <b>부서별 참여율</b> (${month}월, 참여 / 전체)`];
   const labels = [], totals = [], joined = [];
-  for (const [dept, label] of DEPTS) {
+  for (const [dept, label] of USAGE_DEPTS) {
     const n = stat[dept].people.size;
     labels.push(label); totals.push(stat[dept].total); joined.push(n);
     caption.push(`🏢 <b>${label}</b>  ${comma(n)} / ${comma(stat[dept].total)}명 (${percent(n, stat[dept].total)})`);
@@ -334,7 +340,7 @@ async function composeEvening(day) {
   };
   tierBlock('전주교회 교사', teacherCount, allTiers);
   for (const [dept, label] of DEPTS) tierBlock(label, stat[dept].total, stat[dept].tiers);
-  const best = DEPTS.map(([dept, label]) => ({ name: label, n: stat[dept].acts })).reduce((b, d) => (d.n > 0 && (!b || d.n > b.n) ? d : b), null);
+  const best = USAGE_DEPTS.map(([dept, label]) => ({ name: label, n: stat[dept].acts })).reduce((b, d) => (d.n > 0 && (!b || d.n > b.n) ? d : b), null);
   lines.push(`🎯 <b>이번 달 복음방 진행</b>: ${gospelPairs(activities, (a) => a.nid).size}명`);
   lines.push(`🏅 <b>이번 달 센터 인도</b>: ${center}명`);
   lines.push(`🏆 <b>가장 활발한 부서</b>: ${best ? `${best.name} (${comma(best.n)}건)` : '없음'}`);
@@ -457,7 +463,7 @@ async function newsFacts(day) {
   const before = new Set(earlier.map((a) => a.nid));
   const deptOf = (a) => String(byNid.get(a.nid)?.dept || '').trim();
   const itemsOf = (list) => BOARD_COLS.map((c) => [boardLabel(c), countPairs(list, c[2])]).filter(([, n]) => n).sort((a, b) => b[1] - a[1]);
-  const depts = DEPTS.map(([dept, label]) => {
+  const depts = USAGE_DEPTS.map(([dept, label]) => {
     const list = acts.filter((a) => deptOf(a) === dept);
     const morning = list.filter((a) => String(a.submitted_at).slice(11, 13) < '12');
     const regions = new Map(), people = new Map();
@@ -493,7 +499,7 @@ async function newsFacts(day) {
   rankBy('seen', (d) => (d.status.total ? d.status.seen / d.status.total : 0));
   rankBy('act', (d) => (d.status.total ? d.status.act / d.status.total : 0));
   const sum = (k) => depts.reduce((n, d) => n + d[k], 0);
-  return { day, prev, depts, total: { records: sum('records'), prevRecords: sum('prevRecords'), teachers: sum('teachers'), morning: sum('morningRecords'), gospel: sum('gospel'), center: sum('center') }, items: itemsOf(acts.filter((a) => DEPTS.some(([d]) => d === deptOf(a)))).slice(0, 5) };
+  return { day, prev, depts, total: { records: sum('records'), prevRecords: sum('prevRecords'), teachers: sum('teachers'), morning: sum('morningRecords'), gospel: sum('gospel'), center: sum('center') }, items: itemsOf(acts.filter((a) => USAGE_DEPTS.some(([d]) => d === deptOf(a)))).slice(0, 5) };
 }
 
 const pct = (a, b) => (b ? Math.round((a / b) * 100) + '%' : '-');
@@ -505,14 +511,14 @@ function factsText(F) {
     `날짜: ${F.day} (${weekdayOf(F.day)}) / 비교: 그 전날 ${F.prev}`,
     `전체: 기록 ${F.total.records}건(전날 ${F.total.prevRecords}건), 활동 교사 ${F.total.teachers}명, 오전(12시 전) 기록 ${F.total.morning}건, 복음방 ${F.total.gospel}건, 센터 소개·수강 ${F.total.center}건`,
     `전체 많은 활동 항목: ${kv(F.items)}`,
-    `5개 부서 어제 참여율(활동 교사/전체 교사): ${F.depts.map((d) => `${d.label} ${pct(d.teachers, d.status.total)}`).join(', ')}`,
+    `4개 부서 어제 참여율(활동 교사/전체 교사): ${F.depts.map((d) => `${d.label} ${pct(d.teachers, d.status.total)}`).join(', ')}`,
     ...F.depts.map((d) => [
       `[${d.label}] 기록 ${d.records}건(전날 ${d.prevRecords}건) · 활동 교사 ${d.teachers}명 · 보고한 지역 ${d.regionsActive}곳`,
       `  ② 정오까지(오전): ${d.morningRecords}건 — ${kv(d.morningItems)}`,
       `  ④ 하루 항목: ${kv(d.items)} / 복음방 ${d.gospel}건 · 센터 ${d.center}건`,
       `  ③ 지역: ${kv(d.topRegions)}`,
       `  ⑤ 많이 기록한 교사: ${kv(d.topTeachers)}${d.firstTimers.length ? ` / 처음 기록한 교사: ${d.firstTimers.join(', ')}` : ''}`,
-      `  ★ 부족·차이 지표: 어제 참여율 ${d.teachers}/${d.status.total}명(${pct(d.teachers, d.status.total)}, 5개 부서 중 ${d.rank.day}위) · 보고 없는 지역 ${d.silentRegions.length}/${d.allRegions}곳${d.silentRegions.length ? `(${d.silentRegions.slice(0, 6).join(', ')}${d.silentRegions.length > 6 ? ' 외' : ''})` : ''} · 0건인 핵심 단계: ${d.zeroCore.join(', ') || '없음'} · 오전 비중 ${pct(d.morningRecords, d.records)} · 명함 등록률 ${d.rank.card}위 · 기록 참여(누적) ${d.rank.act}위 · 앱 입장률 ${d.rank.seen}위 · 휴교사 비율 ${pct(d.status.tiers['휴교사'] || 0, d.status.total)}`,
+      `  ★ 부족·차이 지표: 어제 참여율 ${d.teachers}/${d.status.total}명(${pct(d.teachers, d.status.total)}, 4개 부서 중 ${d.rank.day}위) · 보고 없는 지역 ${d.silentRegions.length}/${d.allRegions}곳${d.silentRegions.length ? `(${d.silentRegions.slice(0, 6).join(', ')}${d.silentRegions.length > 6 ? ' 외' : ''})` : ''} · 0건인 핵심 단계: ${d.zeroCore.join(', ') || '없음'} · 오전 비중 ${pct(d.morningRecords, d.records)} · 명함 등록률 ${d.rank.card}위 · 기록 참여(누적) ${d.rank.act}위 · 앱 입장률 ${d.rank.seen}위 · 휴교사 비율 ${pct(d.status.tiers['휴교사'] || 0, d.status.total)}`,
       `  ① 누적 현황: 교사 ${d.status.total}명 중 명함 ${d.status.card}(${pct(d.status.card, d.status.total)}) · 기록 참여 ${d.status.act}(${pct(d.status.act, d.status.total)}) · 앱 입장 ${d.status.seen}(${pct(d.status.seen, d.status.total)}) · 등급 ${TIER_STACK.map(([t, sh]) => `${sh} ${d.status.tiers[t] || 0}`).join(' ')}`,
     ].join('\n')),
   ].join('\n');
@@ -555,16 +561,15 @@ export async function composeNews(day, opts = {}) {
     // 11/5 3차(사용자): "부서마다 간단한 특징을 읽어 주도록 — 숫자만은 의미가 없다. 건조한 뉴스체, 다정한 것 말고, 간단하게, 팩트만"
     // 11/5 5차(사용자): "부서별 특징이 아직 부족한 부분에 포커스를 맞춰서, 부서별로 차이를 잘 짚어 주고"
     '- 부서 줄 = 그 부서가 지금 가장 부족한 점 하나 + 다른 부서와의 차이. ★ 부족·차이 지표(어제 참여율과 순위, 보고 없는 지역, 0건인 핵심 단계, 오전 비중, 누적 순위, 휴교사 비율)에서 그 부서에 가장 큰 빈 곳을 골라 근거 숫자 1~2개로.',
-    '- 다섯 부서가 같은 말(예: 모두 "감소")이 되지 않게, 부서마다 서로 다른 부족한 점을 고르고 순위·다른 부서 수치와 나란히 비교하세요(예: "5개 부서 중 최저", "부녀회 13% 대비 2%").',
+    '- 네 부서가 같은 말(예: 모두 "감소")이 되지 않게, 부서마다 서로 다른 부족한 점을 고르고 순위·다른 부서 수치와 나란히 비교하세요(예: "5개 부서 중 최저", "부녀회 13% 대비 2%").',
     '- 잘한 점만 쓰지 말 것. 기록이 많은 부서도 빈 지역·빈 단계·낮은 참여율 같은 부족한 점을 짚으세요.',
-    '  예: "부녀회 · 기록 최다지만 참여율 13%, 보고 없는 지역 5곳" / "청년회 · 복음방·상담2 0건, 피드백에 기록 편중" / "자문회 · 이틀째 0건, 명함 등록률 5개 부서 중 최하위" / "장년회 · 참여율 2%로 5개 부서 중 최저"',
+    '  예: "부녀회 · 기록 최다지만 참여율 13%, 보고 없는 지역 5곳" / "청년회 · 복음방·상담2 0건, 피드백에 기록 편중" / "장년회 · 참여율 2%로 4개 부서 중 최저"',
     '- 건조한 뉴스 자막체. 한 줄 20~45자, 명사형으로 끝내기. "~했습니다/~했어요"·인사·감탄 금지.',
     '- 팩트만: 해석은 데이터로 바로 확인되는 것까지만(원인 추측·평가·칭찬·응원·당부 금지). 꾸밈말(활기차게, 힘을 보탰다, 뜨거운, 빛났다, 돋보였다, 눈부신) 금지.',
     '- 데이터에 있는 숫자·이름만. 전날 비교는 ▲/▼. 섭외자 이야기 금지. 교사 이름은 쓰지 않음(첫 기록 인원 수는 가능).',
     '- 아래 형식 그대로, 다른 줄·제목 없이. 전체 500자 안쪽. 굵게(**두 별표**)는 🔴 줄에만.',
     '🔴 (어제 부서 간 가장 큰 차이 또는 전체의 가장 큰 빈 곳 한 줄)',
     '⛪ 교역자회 · (부족한 점 + 차이 한 줄)',
-    '🌿 자문회 · (부족한 점 + 차이 한 줄)',
     '🌳 장년회 · (부족한 점 + 차이 한 줄)',
     '🌸 부녀회 · (부족한 점 + 차이 한 줄)',
     '🔥 청년회 · (부족한 점 + 차이 한 줄)',
@@ -593,7 +598,7 @@ export async function composeNews(day, opts = {}) {
   });
   if (opts.oneline) {
     // 11/10(사용자): 빨간 점·"오늘 하루에 ~ 있습니다" 안내 문구는 지움
-    text = ['🕙📰 <b>10시 한 줄 데이터 뉴스</b>', `🗞 ${md} 밤 10시 · 교자장부청`, '',
+    text = ['🕙📰 <b>10시 한 줄 데이터 뉴스</b>', `🗞 ${md} 밤 10시 · 교장부청`, '',
       ...depts.map((d) => `● <b>${esc(d.label)}</b> · ${esc(d.line)}`), '',
       '🚨 <b>교사 할 일</b>', ...cheerLines(rawLines).map((l, i) => `${'①②③'[i]} ${esc(l)}`), '',   // 11/10: 우선순위처럼 동그라미 번호
       // 11/10(사용자): 위 카드의 숫자(항목별 건수 합)와 다르게 보이지 않게 — 건수는 빼고 활동 교사 수만

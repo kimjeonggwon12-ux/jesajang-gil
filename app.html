@@ -4581,11 +4581,11 @@
     const CTC_PARTS = {
       roster:  { name: '김논',   phone: '010-8935-6728' },   // ② 명단·등급 (불편신고·질문·가입/로그인)
       cal:     { name: '김소연', phone: '010-7999-2863' },   // ③ 일정·광고
-      attend:  { name: '모현아', phone: '010-9229-2035' },   // ④ 출석
+      attend:  { name: '모현아', phone: '010-3393-0348' },   // ④ 출석
       apply:   { name: '지미숙', phone: '010-7425-7569' },   // ⑤ 활동신청
       connect: { name: '지미숙', phone: '010-7425-7569' },   // ⑥ 연결·도움
-      story:   { name: '모현아', phone: '010-9229-2035' },   // ⑦ 사례 모집
-      edu:     { name: '모현아', phone: '010-9229-2035' },   // ⑧ 교육 자료
+      story:   { name: '모현아', phone: '010-3393-0348' },   // ⑦ 사례 모집
+      edu:     { name: '모현아', phone: '010-3393-0348' },   // ⑧ 교육 자료
       dev:     { name: '김정권', phone: '010-8212-0329' },   // ① 개발·시스템
     };
     const CTC_PHONE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
@@ -8754,6 +8754,7 @@
       return '<div class="ex-self-card">'
         + '<div class="ex-self-t">📋 ' + esc(d.title) + '</div>'
         + '<div class="ex-self-sub">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
+        + (d.note ? '<div class="ex-self-sub">ℹ️ ' + esc(d.note) + '</div>' : '')
         + '<input id="exsReason" maxlength="200" placeholder="결석 사유 기록" value="' + esc(exsState.reason) + '" oninput="exsState.reason=this.value">'
         + sections + '</div>';
     }
@@ -9592,7 +9593,7 @@
     function renderHome() {
       const root = document.getElementById('homeContent');
       renderActTabs();
-      ctcSet('actCtc', { attend: 'attend', goal: 'apply', targets: 'apply', report: 'apply', edu: 'edu' }[actPage]);
+      ctcSet('actCtc', { attend: 'attend', goal: 'roster', targets: 'roster', rooms: 'roster', report: 'roster', edu: 'edu' }[actPage]);   // 11/17(사용자): 교사 개인 관련 문의(나의 교실) = 김논
       if (home.view === 'targetDetail') {
         if (targetsChartInstance) { targetsChartInstance.destroy(); targetsChartInstance = null; }
         root.innerHTML = targetDetailViewHtml();
@@ -20138,7 +20139,7 @@ async function calAdmInit() {
         const w = st.week;
         const head = `<div class="em-row"><label>주(그 주 아무 날짜)<input type="date" value="${esc(st.date)}" onchange="eduMgmt.setDate(this.value)"></label>
           <button type="button" class="ra-btn line" ${st.busy ? 'disabled' : ''} onclick="eduMgmt.loadWeek()">조회</button>
-          <button type="button" class="ra-btn line" ${st.busy || !w || !w.items.length ? 'disabled' : ''} onclick="eduMgmt.download()">요약 CSV 내려받기</button></div>
+          ${st.access && st.access.canDownload ? `<button type="button" class="ra-btn line" ${st.busy || !w || !w.items.length ? 'disabled' : ''} onclick="eduMgmt.download()">요약 CSV 내려받기</button>` : ''}</div>
           <p class="em-note">참석 = 정시 + 지각. 공무(사전보고)는 불참에서 빼고 참석률 분모(재적)에는 넣어요. 실제로 온 공무자는 참석으로 세요.</p>`;
         if (!w) return head;
         if (!w.items.length) return head + `<p class="em-note">${esc(w.week.from)} ~ ${esc(w.week.to)} 에 볼 수 있는 화요전도단·목요사명자교육이 없어요.</p>`;

@@ -19,10 +19,10 @@ export default function EduMgmt({access}:{access:EmAccess}){
  // 11/16(4차): 본인 신고로 바뀌어 부서별 공무 사전보고·부서장 지정 대신 '공무자 관리'(A 와 같음)
  const tabs:[typeof view,string][]=[['list','공무자 관리'],['week','주간 출석 현황']];
  return <section className="em-wrap"><div className="att-actions" role="tablist">{tabs.map(([k,l])=><button key={k} role="tab" aria-selected={view===k} className={view===k?'primary':'secondary'} onClick={()=>setView(k)}>{l}</button>)}</div>
-  {view==='week'?<Weekly/>:<ExcusedList/>}</section>;
+  {view==='week'?<Weekly canDownload={!!access.canDownload}/>:<ExcusedList/>}</section>;
 }
 
-function Weekly(){
+function Weekly({canDownload}:{canDownload:boolean}){
  const {request}=useMember(),task=useAttendanceTask(),[date,setDate]=useState(emToday),[week,setWeek]=useState<EmWeek|null>(null),[detail,setDetail]=useState<EmDetail|null>(null);
  const load=()=>task.run(async()=>{setDetail(null);const w=await request<EmWeek>('getEduWeekly',{date});if(task.active())setWeek(w);});
  const open=(meetingId:string,group:string)=>task.run(async()=>{const d=await request<EmDetail>('getEduWeeklyDetail',{date,meetingId,group});if(task.active())setDetail(d);});
@@ -31,7 +31,7 @@ function Weekly(){
  const download=()=>task.run(async()=>{const r=await request<{filename:string;mime:string;text:string}>('exportEduWeekly',{date});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r.text],{type:r.mime}));a.download=r.filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);});
  return <>
   <fieldset disabled={task.busy} className="att-form-row"><label>주(그 주 아무 날짜)<input type="date" value={date} onChange={e=>{setDate(e.target.value);setWeek(null);setDetail(null);}}/></label>
-   <button className="secondary" onClick={()=>{void load();}}>조회</button><button className="secondary" disabled={!week||!week.items.length} onClick={()=>{void download();}}>요약 CSV 내려받기</button></fieldset>
+   <button className="secondary" onClick={()=>{void load();}}>조회</button>{canDownload?<button className="secondary" disabled={!week||!week.items.length} onClick={()=>{void download();}}>요약 CSV 내려받기</button>:null}</fieldset>
   <p className="muted">참석 = 정시 + 지각. 공무(사전보고)는 불참에서 빼고 참석률 분모(재적)에는 넣어요. 실제로 온 공무자는 참석으로 세요.</p>
   {task.busy?<p role="status">처리하는 중…</p>:null}<ErrorNote message={task.error}/>
   {week?(week.items.length?<><p className="muted">{week.week.from} ~ {week.week.to}</p>{week.items.map(it=><div className="card em-card" key={it.meetingId}><h3>{emItemHead(it)}</h3>

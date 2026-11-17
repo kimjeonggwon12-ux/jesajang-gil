@@ -2,7 +2,7 @@
 export type ExsMine={kind:string;date:string;label:string;reason:string;active:boolean;dept:string;region:string;at:string};
 export type ExsDate={date:string;label:string;mine?:ExsMine|null};
 export type ExsKind={kind:string;title:string;dates:ExsDate[]};
-export type ExsData={enabled:boolean;eligible?:boolean;reason?:string;title?:string;group?:string;dept?:string;region?:string;name?:string;kinds?:ExsKind[]};
+export type ExsData={enabled:boolean;eligible?:boolean;reason?:string;title?:string;group?:string;dept?:string;region?:string;name?:string;kinds?:ExsKind[];note?:string};
 export function exsGroupText(d:{group?:string;region?:string}){return (d.group||'')+(d.region?' · '+d.region:'');}
 // 11/16(사용자): '공무결석' 보고 가능시간(표시만, A EXS-VIEW 와 같음)
 export const EXS_WINDOW:Record<string,string>={화전단:'월 09:00 ~ 화 19:30',목사교:'수 09:00 ~ 목 19:30'};

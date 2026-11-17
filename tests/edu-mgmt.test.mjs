@@ -107,6 +107,10 @@ test('요약 CSV는 화면과 같은 숫자를 담고 개인 이름은 넣지 �
   assert.equal(lines.length, w.items.reduce((s, i) => s + i.rows.length + 1, 0));
   assert.ok(lines.includes('목요사명자교육,2026-11-19,가짜 목요 교육,교육 대상 재적,종합,8,5,4,1,1,2,62.5%'));
   assert.ok(!/가짜일|가짜이/.test(csv.text));
+  // 11/17(사용자): 내려받기는 김논 서무님·책임자만 — 다른 관리자는 거절, 화면 단추도 숨김
+  await assert.rejects(as(MANAGER, () => mgmt.exportEduWeekly({ date: '2026-11-19' })), /김논/);
+  assert.equal((await as(MANAGER, () => mgmt.eduMgmtAccess())).canDownload, false);
+  assert.equal((await as(OWNER, () => mgmt.eduMgmtAccess())).canDownload, true);
 });
 
 test('기능이 꺼져 있으면 화면 진입도 숨기고 조회·내보내기·저장·지정 모두 멈추며 DB를 읽지 않는다', async () => {

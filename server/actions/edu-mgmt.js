@@ -31,6 +31,9 @@ async function who() {
   return { actor, grants, owner: grants === null, heads: [...new Set(heads.map((h) => h.affiliation))].sort() };
 }
 const managerOf = (w, m) => { const [t, id] = scopeOf(m); return permits(w.grants, t, id, 'attendance') || permits(w.grants, t, id, 'reports'); };
+// 11/17(사용자): 공무 결석자 내려받기는 김논 서무님 + 김정권(개발자)만 — 나머지 관리자는 불가
+const DOWNLOAD_NIDS = new Set(['13050200001', '20113000010']);
+const canDownload = (w) => w.owner || DOWNLOAD_NIDS.has(String(w.actor?.nid || ''));   // owner = 앱 책임자(김정권)
 const editorOf = (w, m) => { const [t, id] = scopeOf(m); return permits(w.grants, t, id, 'attendance'); };
 
 /** 그 주(월~일)의 두 교육 모임. 분류는 기존 edu_excused_state 와 같다. */
@@ -80,7 +83,7 @@ export async function eduMgmtAccess() {
   if (!eduMgmtEnabled()) return { enabled: false };
   const w = await who();
   const manager = w.owner || w.grants.some((g) => g.permissions.includes('attendance') || g.permissions.includes('reports'));
-  return { enabled: true, owner: w.owner, manager, heads: w.heads, visible: manager || w.heads.length > 0 };
+  return { enabled: true, owner: w.owner, manager, heads: w.heads, visible: manager || w.heads.length > 0, canDownload: canDownload(w) };
 }
 
 export async function getEduWeekly(body = {}) {
@@ -118,6 +121,8 @@ export async function getEduWeeklyDetail(body = {}) {
 const withSelf = (d, self) => ({ ...d, people: d.people.map((p) => (p.status === '공무' && self.has(p.memberId) ? { ...p, selfReason: self.get(p.memberId) } : p)) });
 
 export async function exportEduWeekly(body = {}) {
+  requireOn();
+  if (!canDownload(await who())) fail('내려받기는 김논 서무님만 할 수 있어요.', 403);
   const data = await getEduWeekly(body);
   return { filename: `주간교육출석_${data.week.from}.csv`, mime: 'text/csv;charset=utf-8', text: weeklyCsv(data.week, data.items) };
 }
@@ -252,11 +257,11 @@ export async function getExcusedList(body = {}) {
   const of = new Map(roster.map((p) => [p.nid, p])), rows = [], seen = new Set();
   const add = (nid, extra) => {
     if (seen.has(nid)) return; seen.add(nid);
-    const p = of.get(nid) || { name: extra.name || '(재적 밖)', dept: extra.dept || '' };
-    const { name: _n, dept: _d, ...rest } = extra;
+    const p = of.get(nid) || { name: extra.name || '(재적 밖)', dept: extra.dept || '', region: extra.region || '' };
+    const { name: _n, dept: _d, region: _r, ...rest } = extra;
     rows.push({ memberId: nid, name: p.name, group: xGroup(p), place: xPlace(p), attended: came ? came.has(nid) : null, ...rest });
   };
-  for (const r of selfRows) add(r.nid, { source: r.registered_by ? '관리자 등록' : '본인 신고', registeredBy: r.registered_by || '', reason: r.reason || '', at: r.updated_at, name: r.name, dept: r.dept });
+  for (const r of selfRows) add(r.nid, { source: r.registered_by ? '관리자 등록' : '본인 신고', registeredBy: r.registered_by || '', reason: r.reason || '', at: r.updated_at, name: r.name, dept: r.dept, region: r.region });
   for (const nid of listIds) add(nid, { source: '도우미연결 명단', registeredBy: '', reason: '', at: '' });
   rows.sort((a, b) => xRank(a.group) - xRank(b.group) || a.group.localeCompare(b.group, 'ko') || a.place.localeCompare(b.place, 'ko') || a.name.localeCompare(b.name, 'ko'));
   const counts = { total: rows.length, self: rows.filter((r) => r.source === '본인 신고').length, admin: rows.filter((r) => r.source === '관리자 등록').length,

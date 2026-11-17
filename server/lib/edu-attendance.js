@@ -589,6 +589,12 @@ export const roster24=()=>selectAll(()=>db().from('edu_roster').select('nid, mem
 export async function excusedOf(kind,date){
  return new Set((await selectAll(()=>db().from('cohort_summary_log').select('id,ref_id').eq('cohort_id','#excused').eq('kind',kind).eq('date',date).order('id'))).map(x=>x.ref_id));
 }
+// 11/17: 중진 방 공무 = 관리자 명단 ∪ 본인 신고(나의 교실 '공무 결석 보고')
+export async function jungjinExcusedOf(kind,date){
+ const ex=await excusedOf(kind,date);
+ try{const {selfExcusedOf}=await import('../actions/edu-excused-self.js');for(const n of (await selfExcusedOf(kind,date)).keys())ex.add(n);}catch(e){console.log('본인 공무 신고 읽기 실패: '+e.message);}
+ return ex;
+}
 export function buildJungjinReport(m,phase,kind,P,ex){
   const came = (p) => P.sessions.some((x) => p.att[x]);
   const isEx = (p) => !came(p) && ex.has(p.nid);
@@ -639,7 +645,7 @@ export function buildJungjinReport(m,phase,kind,P,ex){
 export async function jungjinReport(m,phase){
  const kind=await jungjinKindFor(m);if(!kind)return null;
  phase=validEduPhase(phase);
- const [roster,policies,ex]=await Promise.all([roster24(),run(db().from('edu_roster_policy').select('*').eq('roster_key','목요사명자')),excusedOf(kind,m.date)]);
+ const [roster,policies,ex]=await Promise.all([roster24(),run(db().from('edu_roster_policy').select('*').eq('roster_key','목요사명자')),jungjinExcusedOf(kind,m.date)]);
  if(!roster.length||!policies.length)throw new AccessError('24부서 재적과 확인된 교육 집계 기준이 필요해요.',409);
  const edu={series:{series_id:m.seriesId||'',title:m.title,roster_key:'목요사명자'},roster,policy:policies[0]};
  const P={...(await prepare(m,phase,edu)),phase};

@@ -7,7 +7,7 @@ export type EmDetail={kind:string;meetingId:string;date:string;title:string;grou
 export type EmScopePerson={memberId:string;name:string;position:string;excused:boolean;source:string;reason:string;followMethod:string;followResult:string;followDone:boolean;version:number|null;updatedAt:string|null};
 export type EmHistory={id:number;memberId:string;name:string;action:'register'|'update'|'cancel'|'followup';actorName:string;actorRole:string;at:string;reason:string;cancelReason:string;followMethod:string;followResult:string;followDone:boolean};
 export type EmScope={kind:string;date:string;affiliation:string;role:'head'|'manager';revision:string;options:string[];people:EmScopePerson[];history:EmHistory[]};
-export type EmAccess={enabled:boolean;owner?:boolean;manager?:boolean;heads?:string[];visible?:boolean};
+export type EmAccess={enabled:boolean;owner?:boolean;manager?:boolean;heads?:string[];visible?:boolean;canDownload?:boolean};
 export type EmDraft={on:boolean;reason:string;followMethod:string;cancelReason:string};
 export type EmChange={memberId:string;op:'register'|'cancel';reason:string;followMethod?:string};
 

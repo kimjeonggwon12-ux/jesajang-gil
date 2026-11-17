@@ -33,10 +33,16 @@ async function nextDates(kind) {
   return out;
 }
 
+// 11/17(사용자 "어떤 사람은 되고 어떤 사람은 안 된다"): 목사교 재적에 없는 교사는 버튼이 없었다 →
+//   재적 밖이라도 교사·관리자 명단에 있으면 화요 전도단은 신고 가능(목요 사명자 교육은 재적에 있는 분만).
 async function me() {
   const nid = requireActor().nid;
   const [p] = await run(db().from('edu_roster').select('nid, name, dept, region, district, affiliation, position').eq('roster_key', ROSTER).eq('nid', nid).limit(1));
-  return { nid, p: p && !excluded(p) ? p : null, outside: !!p && excluded(p) };
+  if (p) return { nid, p: excluded(p) ? null : p, outside: excluded(p), kinds: Object.keys(KINDS) };
+  const [t] = await run(db().from('teachers').select('nid, name, dept, region, affiliation, position').eq('nid', nid).limit(1));
+  const [a] = t ? [] : await run(db().from('admins').select('nid, name, dept, position').eq('nid', nid).limit(1));
+  const q = t || a;
+  return { nid, p: q ? { ...q, region: q.region || '', affiliation: q.affiliation || '', outsideRoster: true } : null, outside: false, kinds: q ? ['화전단'] : [] };
 }
 const view = (r) => r && { kind: r.kind, date: r.date, label: dayLabel(r.date), reason: r.reason, active: r.active, dept: r.dept, region: r.region, at: r.updated_at };
 
@@ -46,13 +52,13 @@ export async function getMyExcused(body = {}) {
   const m = await me();
   if (!m.p) return { enabled: true, eligible: false, reason: m.outside ? '원장님은 출석 집계 대상이 아니에요.' : '목요 사명자 교육 재적에 없어요.' };
   const kinds = [];
-  for (const kind of Object.keys(KINDS)) {
+  for (const kind of m.kinds) {
     const dates = await nextDates(kind);
     const rows = await run(db().from('edu_excused_self').select('*').eq('kind', kind).eq('nid', m.nid).in('date', dates));
     kinds.push({ kind, title: KINDS[kind].title, dates: dates.map((d) => ({ date: d, label: dayLabel(d), mine: view(rows.find((r) => r.date === d && r.active)) })) });
   }
   return { enabled: true, eligible: true, title: '화요 전도단 · 목요 사명자 교육 공무로 인한 결석자 보고', group: groupOf(m.p), dept: m.p.dept, region: m.p.dept === '24부서' ? '' : (m.p.region || ''),
-    name: m.p.name, kinds };
+    name: m.p.name, kinds, note: m.p.outsideRoster ? '목요 사명자 교육은 사명자 재적(부구역장 이상)에 있는 분만 신고해요.' : '' };
 }
 
 /** 공무 신고(바로 누르기: 사유 없으면 '공무'). 같은 날 다시 누르면 사유만 고친다. */
@@ -62,6 +68,7 @@ export async function submitMyExcused(body = {}) {
   if (!m.p) fail(m.outside ? '원장님은 출석 집계 대상이 아니에요.' : '목요 사명자 교육 재적에 없어요. 담당자에게 알려 주세요.');
   const kind = String(body.kind || '목사교'), date = String(body.date || ''), reason = String(body.reason || '').trim() || '공무';
   if (!KINDS[kind]) fail('교육을 골라 주세요.');
+  if (!m.kinds.includes(kind)) fail('목요 사명자 교육은 사명자 재적에 있는 분만 신고할 수 있어요.');
   if (!validDate(date) || !(await nextDates(kind)).includes(date)) fail('다가오는 교육 날짜만 신고할 수 있어요.');
   if (reason.length > 200) fail('사유는 200자 이내로 적어 주세요.');
   const row = { kind, date, nid: m.nid, name: m.p.name, dept: m.p.dept, region: m.p.dept === '24부서' ? (m.p.affiliation || '') : (m.p.region || ''), reason, active: true, registered_by: '', canceled_by: '', updated_at: new Date().toISOString() };
