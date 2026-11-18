@@ -8747,6 +8747,7 @@
     }
     // 11/18(3차, 사용자): 나의 교실 배너 = 피드백방(만드는 3단계) + 수업 계획표(칸 이름) — 한눈에. 피드백방 탭 배너도 같은 조각(FB_STEPS·LP_CHIPS)을 쓴다.
     const FB_STEPS = '<div class="fs3"><div><span>1</span><b>섭외자 누르기</b></div><i>›</i><div><span>2</span><b>피드백방</b></div><i>›</i><div><span>3</span><b>함께할 분 초대</b></div></div>';
+    const ROOM_CHIPS = '<div class="lpc rm">' + ["대화","수업 계획표","정보 기록","활동 이력","단계향상 피드백","감동주기 방법","센터 인도 계획","HEARTS 상세피드백","종합 피드백"].map(x => '<span>' + x + '</span>').join('') + '</div>';
     const LP_CHIPS = '<div class="lpc">' + ['수업 제목', '교육 목표', '감동 주기', '입막음', '피드백 실행', '진행 방식', '협력자', '상세 계획'].map(x => '<span>' + x + '</span>').join('') + '</div>';
     function actAdCss() {
       if (document.getElementById('actAdCss')) return;
@@ -8762,6 +8763,9 @@
       .fbp-ch { display:flex; align-items:center; justify-content:space-between; gap:8px; }
       .fbp-ch b { font-size:15.5px; font-weight:900; color:#0B4D3A; letter-spacing:-.03em; }
       .fbp-ch button { flex-shrink:0; border:none; background:#FF5A36; color:#fff; font-size:12.5px; font-weight:900; border-radius:999px; padding:6px 12px; cursor:pointer; }
+      .fbp-pill { display:inline-block; padding:4px 11px; border-radius:999px; background:#FFD600; color:#3A2E00; font-size:12.5px; font-weight:900; letter-spacing:-.03em; }
+      .fbp-must { margin-top:8px; padding:8px 10px; border-radius:10px; background:#FFF1EC; color:#C2410C; font-size:13.5px; font-weight:900; letter-spacing:-.03em; line-height:1.4; }
+      .lpc.rm span { background:#E6F7F1; color:#00875F; }
       .fbp-card small { display:block; margin-top:3px; font-size:12px; color:#4B5563; }
       .fbp-flow { margin-top:10px; font-size:12px; font-weight:800; text-align:center; color:#D5F3E8; letter-spacing:-.02em; }
       .fs3 { display:grid; grid-template-columns:1fr 12px 1fr 12px 1fr; align-items:center; gap:3px; margin-top:9px; }
@@ -8785,8 +8789,9 @@
       return `<div class="fbp">
           <span class="fbp-k">열두 가지 열매 맺는 피드백</span>
           <div class="fbp-t">교사님! <em>지금 어서 피드백방을 만드세요.</em></div>
-          <div class="fbp-card"><div class="fbp-ch"><b>피드백방 만들기</b><button type="button" data-fbp="rooms">방 만들기 ›</button></div>${FB_STEPS}</div>
-          <div class="fbp-card"><div class="fbp-ch"><b>수업 계획표</b><button type="button" data-fbp="lesson">계획 쓰기 ›</button></div><small>수업 전에 적어 두면 교관·지역장 조언이 달려요</small>${LP_CHIPS}</div>
+          <div class="fbp-card"><div class="fbp-ch"><span class="fbp-pill">피드백방 만드는 방법</span><button type="button" data-fbp="rooms">방 만들기 ›</button></div>${FB_STEPS}</div>
+          <div class="fbp-card"><div class="fbp-ch"><span class="fbp-pill">피드백방에서 모두 함께 보는 것</span></div>${ROOM_CHIPS}</div>
+          <div class="fbp-card"><div class="fbp-ch"><span class="fbp-pill">수업 계획표</span><button type="button" data-fbp="lesson">계획 쓰기 ›</button></div><div class="fbp-must">상담 이상의 모든 교사는 수업 계획표를 작성하세요.</div>${LP_CHIPS}</div>
         </div>`;
     }
     // 11/18(4차, 사용자): 내 활동 보고·피드백방 두 곳에 같은 배너 — 단추는 문서 한 곳에서 받음(다시 그려도 그대로)
