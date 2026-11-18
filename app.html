@@ -8899,7 +8899,13 @@
 .fbp-must { color:#C2410C; font-size:min(15px, 3.9vw); font-weight:900; letter-spacing:-.04em; line-height:1.4; text-align:center; }
 .lpc { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
 .lpc span { padding:4px 9px; border-radius:999px; background:#E6F7F1; color:#00875F; font-size:12px; font-weight:800; }
-      #actRoomsBody .fbp { margin:0 0 6px; }`;
+      #actRoomsBody .fbp { margin:0 0 6px; }
+      .fbp-t { font-size:min(17px, 4.3vw); }
+      .fbp-siren { display:inline-block; margin-right:4px; animation:fbpSiren 1s ease-in-out infinite; }
+      @keyframes fbpSiren { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.45; transform:scale(1.15); } }
+      .fbp-alert { background:#FFF5F3; border:2.5px solid #E53935; }
+      .fbp-must { font-size:min(15.5px, 4vw); line-height:1.55; color:#7F1D1D; }
+      .fbp-must mark { display:inline-block; margin:3px 2px 0 0; padding:3px 10px; border-radius:6px; background:#E53935; color:#fff; font-size:min(21px, 5.4vw); font-weight:900; letter-spacing:-.04em; box-shadow:0 3px 0 #9B1C1C; }`;
       document.head.appendChild(st);
     }
     // 11/18(7차, 사용자): 알림판 — 노란 쪽지 제목 + 압정 꽂은 쪽지 3장(만드는 방법 한 줄 / 교관·인교섬이 함께 보는 것 / 수업 계획표 한 마디). 단추·숫자·이름표 없음
@@ -8907,10 +8913,10 @@
       if (App.guest) return '';
       actAdCss();
       return `<div class="fbp">
-          <div class="fbp-t">교사님! 지금 어서 피드백방을 만드세요.</div>
+          <div class="fbp-t"><span class="fbp-siren">🚨</span>교사님! 지금 어서 피드백방을 만드세요.</div>
           <div class="fbp-note"><span class="fbp-pill">피드백방 만드는 방법</span><div class="fbp-steps">섭외자 누르기<i>›</i>피드백방<i>›</i>함께할 분 초대</div></div>
-          <div class="fbp-note"><span class="fbp-pill">교관/인교섬이 함께 보는 것</span><div class="lpc"><span>대화</span><span>수업 계획표</span><span>정보 기록</span><span>활동 이력</span><span>단계향상 피드백</span><span>감동주기 방법</span><span>센터 인도 계획</span><span>HEARTS 상세피드백</span><span>종합 피드백</span></div></div>
-          <div class="fbp-note"><div class="fbp-must">상담 이상의 모든 교사는 수업 계획표를 작성하세요.</div></div>
+          <div class="fbp-note"><span class="fbp-pill">피드백방에서 교관 / 인교섬이 함께 보는 것</span><div class="lpc"><span>대화</span><span>수업 계획표</span><span>정보 기록</span><span>활동 이력</span><span>단계향상 피드백</span><span>감동주기 방법</span><span>센터 인도 계획</span><span>HEARTS 상세피드백</span><span>종합 피드백</span></div></div>
+          <div class="fbp-note fbp-alert"><div class="fbp-must">상담 이상의 모든 교사는<br><mark>수업 계획표</mark>를 작성하세요.</div></div>
         </div>`;
     }
     window.fbBanner = () => actAdHtml();

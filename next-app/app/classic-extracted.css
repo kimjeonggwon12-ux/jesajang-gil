@@ -2117,3 +2117,11 @@
 .classic-ui .lpc span { padding:4px 9px; border-radius:999px; background:#E6F7F1; color:#00875F; font-size:12px; font-weight:800; }
 .classic-ui .fbp { overflow:visible; }
 .classic-ui .fbp-t { margin-top:4px; }
+
+/* 11/18(8차): 사이렌·수업 계획표 강조 */
+.classic-ui .fbp-t { font-size:min(17px, 4.3vw); }
+.classic-ui .fbp-siren { display:inline-block; margin-right:4px; animation:fbpSiren 1s ease-in-out infinite; }
+@keyframes fbpSiren { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.45; transform:scale(1.15); } }
+.classic-ui .fbp-alert { background:#FFF5F3; border:2.5px solid #E53935; }
+.classic-ui .fbp-must { font-size:min(15.5px, 4vw); line-height:1.55; color:#7F1D1D; }
+.classic-ui .fbp-must mark { display:inline-block; margin:3px 2px 0 0; padding:3px 10px; border-radius:6px; background:#E53935; color:#fff; font-size:min(21px, 5.4vw); font-weight:900; letter-spacing:-.04em; box-shadow:0 3px 0 #9B1C1C; }
