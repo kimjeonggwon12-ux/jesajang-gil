@@ -2030,3 +2030,20 @@
       .classic-ui .tr-list-item .m b { font-size:15.5px; font-weight:900; } .classic-ui .tr-list-item .m i { font-style:normal; font-size:12px; color:#6B7280; margin-left:6px; }
       .classic-ui .tr-list-item .m small { display:block; font-size:13px; color:#6B7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
       .classic-ui .tr-n { flex-shrink:0; min-width:22px; height:22px; padding:0 6px; border-radius:99px; background:linear-gradient(135deg,#FF3B5C,#FF8A00); color:#fff; font-size:12px; font-weight:900; display:inline-flex; align-items:center; justify-content:center; }
+
+/* 11/18: 피드백방 배너 수업 계획표 홍보 + 내 활동 보고 맨 위 일정·광고 */
+.classic-ui .fbh-lp { margin-top:10px; padding:11px 12px; border-radius:14px; background:#fff; color:#1F2937; }
+.classic-ui .fbh-lp-h { display:flex; align-items:center; gap:7px; }
+.classic-ui .fbh-lp-h span { padding:2px 7px; border-radius:6px; background:#FF5A36; color:#fff; font-size:11px; font-weight:900; }
+.classic-ui .fbh-lp-h b { font-size:15px; font-weight:900; letter-spacing:-.03em; color:#0B4D3A; }
+.classic-ui .fbh-lp-s { margin-top:5px; font-size:12.5px; line-height:1.55; color:#374151; }
+.classic-ui .fbh-lp-s b { color:#00875F; }
+.classic-ui .fbh-lp-flow { margin-top:7px; padding:6px 8px; border-radius:9px; background:#E6F7F1; color:#00875F; font-size:12px; font-weight:900; text-align:center; }
+.classic-ui .act-ad { margin:12px 14px 4px; padding:12px 12px 8px; border-radius:16px; background:#fff; border:1.5px solid #FFD8A8; box-shadow:0 4px 14px rgba(255,138,0,.10); }
+.classic-ui .act-ad-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.classic-ui .act-ad-h b { font-size:15.5px; font-weight:900; }
+.classic-ui .act-ad-h a { background:#FFF1E0; color:#C2410C; font-size:12.5px; font-weight:800; border-radius:999px; padding:5px 10px; text-decoration:none; }
+.classic-ui .act-ad-row { display:flex; align-items:center; gap:8px; padding:9px 2px; border-top:1px solid #F3F4F6; text-decoration:none; color:#111827; }
+.classic-ui .act-ad-row:first-of-type { border-top:none; }
+.classic-ui .act-ad-tag { flex-shrink:0; min-width:38px; text-align:center; padding:3px 7px; border-radius:7px; background:#FF8A00; color:#fff; font-size:11.5px; font-weight:900; }
+.classic-ui .act-ad-row b { flex:1; min-width:0; font-size:14px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

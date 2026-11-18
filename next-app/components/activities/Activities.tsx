@@ -8,6 +8,7 @@ import ClassicRoomPrompt from '../presentation/ClassicRoomPrompt';
 import ClassicAttention from '../presentation/ClassicAttention';
 import ClassicPersonDetail from '../presentation/ClassicPersonDetail';
 import ClassicContact from '../presentation/ClassicContact';
+import ActivityAds from '../calendar/ActivityAds';
 import {useRouter,useSearchParams} from 'next/navigation';
 import {useMember} from '../MemberArea';
 import {Counts,ErrorNote,Loading,Pager} from '../Ui';
@@ -43,6 +44,7 @@ export default function Activities(){
   {notice?<p className="notice" role="status">{notice}</p>:null}
   <ErrorNote message={summary.error} retry={summary.reload}/><ErrorNote message={targets.error} retry={targets.reload}/><ErrorNote message={tier.error} retry={tier.reload}/>{summary.loading||targets.loading||tier.loading?<Loading/>:null}
   {summary.data?<>{!name&&tab==='people'?<>
+   <ActivityAds/>
    <ClassicContact part="apply"/>
    {tier.data?<ClassicTierProgress tier={tier.data}/>:null}
    <ClassicAttention/>
