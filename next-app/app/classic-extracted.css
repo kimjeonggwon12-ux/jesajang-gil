@@ -2081,3 +2081,8 @@
 
 /* 11/18(4차): 제목 한 줄 */
 .classic-ui .fbp-t { font-size:min(21px, 5vw); white-space:nowrap; letter-spacing:-.05em; }
+
+/* 11/18(5차): 알약 제목·강권 문구·함께 보는 것 */
+.classic-ui .fbp-pill { display:inline-block; padding:4px 11px; border-radius:999px; background:#FFD600; color:#3A2E00; font-size:12.5px; font-weight:900; }
+.classic-ui .fbp-must { margin-top:8px; padding:8px 10px; border-radius:10px; background:#FFF1EC; color:#C2410C; font-size:13.5px; font-weight:900; line-height:1.4; }
+.classic-ui .lpc.rm span { background:#E6F7F1; color:#00875F; }
