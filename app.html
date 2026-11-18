@@ -11938,11 +11938,10 @@
       const fbb = window.fbBits ? fbBits() : { steps: '', chips: '' };
       const head = `<div class="fbh">
           <div class="fbh-tag">피드백방 만드는 방법</div>
-          <div class="fbh-t">세 번만 누르면 <em>피드백방 완성!</em></div>
           ${fbb.steps}
           ${need.length
             ? `<button type="button" class="fbh-go" onclick="trNeedOpen()">지금 피드백방 만들기 <i>${need.length}명 기다리는 중</i></button>`
-            : trSt.list && trSt.list.length ? '<div class="fbh-done">내 섭외자 모두 피드백방이 있어요. 오늘도 한 줄 나눠 주세요!</div>'
+            : trSt.list && trSt.list.length ? ''
             : `<button type="button" class="fbh-go" onclick="actSetPage('targets')">섭외자 등록하고 피드백방 열기</button>`}
           <div class="fbh-lp2"><b>방 안에 수업 계획표도 있어요</b>${fbb.chips}</div>
         </div>`
