@@ -344,13 +344,15 @@ async function planCohortLead(body) {
 
   const today = kstDate();
   const [gy, gm] = goal.split('-').map(Number);
-  const weeks = Math.max(0, Math.round((Date.UTC(gy, gm - 1, 1) - Date.parse(today + 'T00:00:00Z')) / (7 * 864e5)));
+  const op = openingOf(target);
+  const openAt = op ? Date.parse(op.date + 'T00:00:00Z') : Date.UTC(gy, gm - 1, 1);
+  const weeks = Math.max(0, Math.round((openAt - Date.parse(today + 'T00:00:00Z')) / (7 * 864e5)));
   const d = await targetDossier(target, mid);
 
   const prompt = [
     `당신은 교회 전도 교사를 돕는 전도 코치입니다. 아래 대상자를 ${gm}월 개강 때 센터에 인도하도록 '흐름' 위주의 인도 계획을 설계하세요.`,
     '',
-    `- 오늘: ${today} / 목표: ${gy}년 ${gm}월 개강(개강일은 그 달 초로 보고, 남은 기간 약 ${weeks}주)`,
+    op ? `- 오늘: ${today} / 목표: ${gy}년 ${gm}월 개강 — ${op.center || '다른 지역 센터'}, 개강일 ${op.date}(남은 기간 약 ${weeks}주). 전주 전도부의 개강 일정·계획이 아니라 이 센터 일정에 맞춰 인도하는 경우입니다.${op.note ? ' 센터 일정: ' + cut(op.note, 600) : ''}` : `- 오늘: ${today} / 목표: ${gy}년 ${gm}월 개강(개강일은 그 달 초로 보고, 남은 기간 약 ${weeks}주)`,
     `- 대상자: ${[target.gender, target.age_group].filter(Boolean).join(' ') || '정보 없음'} / 지금 단계: ${target.stage || '섭외'} / 처음 등록: ${fmtTs(target.created_at).slice(0, 10) || '모름'}`,
     target.memo ? `- 대상자 메모: ${cut(target.memo, 1000)}` : '',
     `- 단계 순서: ${FLOW}`,
@@ -382,6 +384,18 @@ async function planCohortLead(body) {
 }
 
 // ── 섭외자 한 사람 화면(2026-10-25, 내 활동 보고) ── HEARTS(AI상담·교관 답) 누적 + 지금까지 받은 AI 개강 계획 누적. 새것부터.
+// 11/18(사용자): 섭외자마다 '다른 지역 센터 개강'을 따로 둘 수 있게 — report_profile.opening = { center, date(YYYY-MM-DD), note }.
+//   있으면 AI가 전주 전도부 개강(그 달 초) 대신 이 센터·개강일 기준으로 계획한다. 없으면(다른 교사 전부) 예전 그대로.
+function openingOf(target) {
+  const o = (target && target.report_profile && target.report_profile.opening) || null;
+  return o && /^d{4}-d{2}-d{2}$/.test(String(o.date || '')) ? o : null;
+}
+function goalText(target, empty) {
+  if (!target.goal_cohort) return empty;
+  const o = openingOf(target), base = `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도`;
+  return o ? `${base}(${o.center || '다른 지역 센터'}, 개강일 ${Number(o.date.slice(5, 7))}/${Number(o.date.slice(8))} — 전주 전도부 개강 일정이 아님)` : base;
+}
+
 async function getTargetFile(body) {
   const mid = str(body.memberId);
   const target = await ownedTarget(mid, body.targetId);
@@ -729,7 +743,7 @@ async function targetMasterFeedback(body) {
   const n = (k) => notes.filter((x) => x.kind === k).length;
   const src = { info: n(INFO_KIND), stage: n('AI 단계향상 피드백'), swot: target.swot ? 1 : 0, hearts: d.coachN || 0, plan: n('개강 인도 계획') };
   if (!d.acts.length && !src.info) return { error: '아직 모을 기록이 없어요. 활동 기록이나 정보 기록을 먼저 남겨 주세요.' };
-  const goal = target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '아직 정하지 않음';
+  const goal = goalText(target, '아직 정하지 않음');
   const prompt = [
     '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 한 섭외자에 대해 지금까지 쌓인 모든 기록과 여러 AI·교관 피드백을 하나로 취합해, 교사가 이것 하나만 보면 되는 종합 피드백을 주세요.',
     `- 섭외자: ${target.gender || ''} ${target.age_group || ''} / 지금 단계: ${target.stage || '섭외'} / 목표: ${goal}`,
@@ -760,7 +774,7 @@ async function targetMovingFeedback(body) {
   if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
   const d = await targetDossier(target, mid);
   if (!d.acts.length && !d.info.length) return { error: '아직 모을 기록이 없어요. 활동 기록이나 정보 기록을 먼저 남겨 주세요.' };
-  const goal = target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '아직 정하지 않음';
+  const goal = goalText(target, '아직 정하지 않음');
   const prompt = [
     '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 한 섭외자에 대해 지금까지 쌓인 모든 기록을 읽고, 교사가 이 사람에게 진심으로 "감동"을 줄 수 있는 구체적인 방법을 알려 주세요.',
     '감동 = 그 사람이 "나를 이렇게까지 알아주고 챙겨 주는구나" 하고 마음이 열리는 순간. 말 한마디·기억해 주기·작은 배려·때 맞춘 연락 등, 기록에 근거한 맞춤 방법이어야 합니다.',
@@ -793,7 +807,7 @@ async function heartsDossier(body) {
   const p = target.report_profile || {};
   const prof = Object.entries(RP_LABEL).filter(([k]) => str(p[k])).map(([k, l]) => `${l}: ${str(p[k])}${k === 'enroll' && /^\d+$/.test(str(p[k])) ? '월' : ''}`);
   const lessons = Array.isArray(p.lessons) ? p.lessons.map((l) => l.title).filter(Boolean) : [];
-  const goal = target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '';
+  const goal = goalText(target, '');
   const context = [
     `■ 기본: ${[target.gender, target.age_group].filter(Boolean).join(' ') || '-'} / 지금 단계: ${target.stage || '섭외'}${goal ? ` / 목표: ${goal}` : ''}${prof.length ? ' / ' + prof.join(' · ') : ''}`,
     lessons.length ? `■ 지금까지 받은 교육(${lessons.length}과): ${cut(lessons.join(', '), 1500)}` : '',
@@ -832,7 +846,7 @@ async function targetInfoFeedback(body) {
   if (!d.info.length) return { error: '파악한 정보를 한 줄 이상 적어 주세요.' };
   const prompt = [
     '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 교사가 한 사람(섭외자)에 대해 파악한 정보를 모아 이 사람을 깊이 이해하고 다음 단계로 이끌 피드백을 주세요.',
-    `- 섭외자: ${target.gender || ''} ${target.age_group || ''} / 지금 단계: ${target.stage || '섭외'}${target.goal_cohort ? ` / 목표: ${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : ''}`,
+    `- 섭외자: ${target.gender || ''} ${target.age_group || ''} / 지금 단계: ${target.stage || '섭외'}${target.goal_cohort ? ` / 목표: ${goalText(target, '')}` : ''}`,
     '',
     '■ 교사가 파악한 정보(가장 중요)', ...d.info,
     '■ 활동 기록', ...d.acts,
