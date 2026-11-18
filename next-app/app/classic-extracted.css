@@ -2095,3 +2095,6 @@
 .classic-ui .fbp-t { text-align:center; }
 .classic-ui .fbp-t { margin-top:0; }
 .classic-ui .fbp { overflow:visible; }
+
+/* 11/18: 내 활동 보고 머리 숨김 */
+.classic-ui .er-hero { display:none !important; }
