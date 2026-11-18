@@ -1160,6 +1160,9 @@
     .er-act.case.hot { border-color:#DC2626; background:linear-gradient(135deg, #F87171, #DC2626); } .er-act.case.hot b, .er-act.case.hot > span:last-child { color:#fff; } .er-act.case.hot .er-act-i { background:rgba(255,255,255,.25); }
     .er-tg { font-style:normal; justify-self:end; padding:1px 6px; border-radius:6px; background:#FEF3C7; color:#B45309; font-size:10.5px; font-weight:800; }
     .er-tg.ok { background:#E3F6EF; color:#00875F; }
+    .er-todos { display:flex; flex-direction:column; gap:4px; width:100%; margin-top:6px; }
+    .er-todo { width:100%; padding:6px 4px; border:1.5px solid #E53935; border-radius:9px; background:#FFF1EF; color:#C62828; font-size:12px; font-weight:900; letter-spacing:-.04em; cursor:pointer; animation:erTodoBlink 1.6s ease-in-out infinite; }
+    @keyframes erTodoBlink { 0%,100% { background:#FFF1EF; } 50% { background:#FFD9D4; } }
     .er-un { padding:1px 7px; border-radius:99px; background:#FEF3C7; color:#B45309; font-size:11px; font-weight:800; }
     .er-btn { flex:1; height:44px; border-radius:12px; border:1.5px solid #00AE82; background:#fff; color:#00875F; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; }
     .er-btn.case { border-color:#E5E7EB; color:#374151; }
@@ -8785,7 +8788,7 @@
       return `<div class="fbp">
           <div class="fbp-t"><span class="fbp-siren">🚨</span>교사님! 지금 어서 피드백방을 만드세요.</div>
           <div class="fbp-note"><span class="fbp-pill">피드백방 만드는 방법</span><div class="fbp-steps">섭외자 누르기<i>›</i>피드백방<i>›</i>함께할 분 초대</div></div>
-          <div class="fbp-note"><span class="fbp-pill">피드백방에서 교관 / 인교섬이 함께 보는 것</span><div class="lpc"><span>대화</span><span>수업 계획표</span><span>정보 기록</span><span>활동 이력</span><span>단계향상 피드백</span><span>감동주기 방법</span><span>센터 인도 계획</span><span>HEARTS 상세피드백</span><span>종합 피드백</span></div></div>
+          <div class="fbp-note"><span class="fbp-pill">피드백방에서 교관 / 인교섬이 함께 보는 것</span><div class="lpc"><span>대화</span><span>수업 계획표</span><span>정보 기록</span><span>활동 이력</span><span>단계향상</span><span>감동주기</span><span>센터 인도 계획</span><span>HEARTS 상세피드백</span><span>종합 피드백</span></div></div>
           <div class="fbp-note fbp-alert"><div class="fbp-must">상담 이상의 모든 교사는<br><mark>수업 계획표</mark>를 작성하세요.</div></div>
         </div>`;
     }
@@ -9059,8 +9062,20 @@
               ${(last => last && !(last.tgPosts || []).some(y => y.kind === 'post') ? '<span class="er-un">미보고</span>' : '')(p.list[p.list.length - 1])}
               <span class="er-dt">${esc(actFeedTimeText(p.last))}</span>
               ${erSent(p.stage) ? '<span class="er-badge">✍️ 사례</span>' : ''}
+              ${erTodoHtml(p)}
             </div>`; }).join('')}</div>`}
         </div>`;
+    }
+    // 11/18(사용자): 섭외자 칸 아래 지시어 — 피드백방이 없으면 '피드백방을 만드세요', 상담 이상인데 수업 계획표가 없으면 '수업 계획표를 작성하세요'. 다 했으면 안 보임.
+    function erTodoHtml(p) {
+      const t = p.t; if (!t || !t.targetId) return '';
+      const room = t.hasRoom || (typeof trSt !== 'undefined' && trSt.byTarget && trSt.byTarget[t.targetId]);
+      const lesson = (t.lessonN || 0) > 0 || (typeof lpSt !== 'undefined' && lpSt[t.targetId] && (lpSt[t.targetId].items || []).length > 0);
+      const deep = p.stage && !/^(섭외|친분|만남)/.test(p.stage);
+      const out = [];
+      if (!room) out.push(`<button type="button" class="er-todo" onclick="event.stopPropagation();trOpen('${esc(t.targetId)}')">피드백방을 만드세요</button>`);
+      if (deep && !lesson) out.push(`<button type="button" class="er-todo" onclick="event.stopPropagation();erOpen('${esc(p.name)}');setTimeout(function(){erCellOpen('lesson')},250)">수업 계획표를 작성하세요</button>`);
+      return out.length ? '<span class="er-todos">' + out.join('') + '</span>' : '';
     }
     function erDetailHtml(p) {
       const t = p.t, prof = (t && t.reportProfile) || {}, st = stageTemp(p.stage);
@@ -9148,10 +9163,10 @@
         // 10/30(사용자): 파악한 정보 — 무제한 기록, 모아서 AI 피드백
         t && (inf => ['info', inf.items && inf.items.length ? 'done' : 'ready', '🗂', '정보 기록',
           inf.loading && !inf.items ? '확인 중…' : inf.items && inf.items.length ? `${inf.items.length}건${inf.feedback ? ' · AI 받음' : ''}` : '기록하기'])(erInfo[t.targetId] || {}),
-        ['fb', fbNow.loading ? 'busy' : fbs.length ? 'done' : 'ready', fbNow.loading ? spin : pfSvg('up'), '단계향상 피드백',
+        ['fb', fbNow.loading ? 'busy' : fbs.length ? 'done' : 'ready', fbNow.loading ? spin : pfSvg('up'), '단계향상',
           fbNow.loading ? '읽는 중…' : fbs.length ? `${fbs.length}회 · ${pfMD(fbs[fbs.length - 1].aiFeedbackAt) || '받음'}` : '받기'],
         // 11/17(사용자): 단계향상 피드백 옆에 '감동주기 방법' — 쌓인 기록 전부를 모아 그분 맞춤 감동 방법
-        t && (s => ['moving', s.mvBusy ? 'busy' : (s.moving || []).length ? 'done' : 'ready', s.mvBusy ? spin : '💝', '감동주기 방법',
+        t && (s => ['moving', s.mvBusy ? 'busy' : (s.moving || []).length ? 'done' : 'ready', s.mvBusy ? spin : '💝', '감동주기',
           s.mvBusy ? '읽는 중…' : (s.moving || []).length ? `${s.moving.length}회 · ${pfMD(s.moving[0].at) || '받음'}` : '받기'])(erInfo[t.targetId] || {}),
         // 10/30(사용자): 순서 = 보고 · 단계향상 피드백 · SWOT · HEARTS · 개강 계획 · 사례
         t && ['hearts', file.loading ? 'busy' : (file.hearts || []).length ? 'done' : 'off', file.loading ? spin : erSvg('heart'), 'HEARTS',
@@ -11407,7 +11422,7 @@
       // 11/10(사용자): 초대하는 탭을 맨 앞으로
       // 11/17(사용자): 위 탭에 '📅 수업 계획표'
       const tabs = [['members', `👥 초대${trSt.members.length ? ' ' + trSt.members.length : ''}`], ['chat', '💬 대화'], ['lesson', '📅 수업 계획표'], ['info', '🗂 정보 기록'], ['acts', '📝 활동 이력'],
-        ['stagefb', '📈 단계향상 피드백'], ['moving', '💝 감동주기 방법'], ['plan', `🧭 ${gm ? gm + '월 ' : ''}센터 인도 계획`], ['hearts', '❤️ HEARTS 상세피드백'], ['master', '🧠 종합 피드백']];
+        ['stagefb', '📈 단계향상'], ['moving', '💝 감동주기'], ['plan', `🧭 ${gm ? gm + '월 ' : ''}센터 인도 계획`], ['hearts', '❤️ HEARTS 상세피드백'], ['master', '🧠 종합 피드백']];
       let body;
       if (trSt.busy) body = '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 방을 여는 중…</div>';
       else if (trSt.err) body = `<div class="tr-note">⚠️ ${esc(trSt.err)}</div>`;

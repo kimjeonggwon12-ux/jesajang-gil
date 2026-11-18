@@ -154,6 +154,17 @@ async function getTargets(body) {
   const history = await selectAll(() => db().from('target_history').select('*').eq('nid', nid).order('id'));
   for (const h of history) byId.get(h.target_id.trim())?.history.push(toHistory(h));
   for (const t of rows) t.history.sort(newestFirst);
+  // 11/18(사용자): 섭외자 그리드 지시어 — 피드백방을 만들었는지(담당 교사가 방 멤버인지), 수업 계획표를 한 번이라도 적었는지
+  const ids = rows.map((t) => t.targetId).filter(Boolean);
+  for (let i = 0; i < ids.length; i += 80) {
+    const part = ids.slice(i, i + 80);
+    const [mem, lp] = await Promise.all([
+      run(db().from('target_room_members').select('target_id').eq('nid', nid).in('target_id', part)).catch(() => []),
+      run(db().from('target_ai_notes').select('target_id').eq('kind', '수업 계획표').in('target_id', part)).catch(() => []),
+    ]);
+    for (const m of mem) { const t = byId.get(String(m.target_id).trim()); if (t) t.hasRoom = true; }
+    for (const n of lp) { const t = byId.get(String(n.target_id).trim()); if (t) t.lessonN = (t.lessonN || 0) + 1; }
+  }
 
   rows.sort((a, b) => {
     if (!a.nextMeetingDate && !b.nextMeetingDate) return 0;
