@@ -283,7 +283,8 @@ async function sendStatusSummary({ date, force } = {}) {
 export async function summaryTick() {
   const hm = kstDateTime().slice(11, 16);
   const out = {};
-  if (hm >= '12:00' && hm < '15:00') out.noon = await sendNoonSummary().catch((e) => ({ error: String(e) }));
+  // 11/18(사용자): '정오 · 오전 활동 총합'은 앞으로 안 올림(끊음). 다시 켜려면 아래 줄 주석을 푼다.
+  // if (hm >= '12:00' && hm < '15:00') out.noon = await sendNoonSummary().catch((e) => ({ error: String(e) }));
   if (hm >= '22:00') out.evening = await sendEveningSummary({ tick: true }).catch((e) => ({ error: String(e) }));
   // 11/10(사용자): 교자장부청 '계' 큰 카드 + 그 설명 글 = 한 줄 데이터 뉴스 → 한 통으로(22:05 뉴스가 맨 마지막, 소통 방·교자장부청 방)
   if (hm >= '23:00') out.daily = await sendDailySummary({ date: kstDate() }).catch((e) => ({ error: String(e) }));
