@@ -9074,7 +9074,7 @@
       const t = p.t; if (!t || !t.targetId) return '';
       const room = t.hasRoom || (typeof trSt !== 'undefined' && trSt.byTarget && trSt.byTarget[t.targetId]);
       const lesson = (t.lessonN || 0) > 0 || (typeof lpSt !== 'undefined' && lpSt[t.targetId] && (lpSt[t.targetId].items || []).length > 0);
-      const deep = p.stage && !/^(섭외|친분|만남)/.test(p.stage);
+      const deep = /^(상담|복음방)/.test(p.stage || '');   // 11/18(사용자): 상담~복음방만(센터 수강 중이면 안 띄움)
       const out = [];
       if (!room) out.push(`<button type="button" class="er-todo" onclick="event.stopPropagation();trOpen('${esc(t.targetId)}')">피드백방을 만드세요</button>`);
       if (deep && !lesson) out.push(`<button type="button" class="er-todo" onclick="event.stopPropagation();erOpen('${esc(p.name)}');setTimeout(function(){erCellOpen('lesson')},250)">수업 계획표를 작성하세요</button>`);
