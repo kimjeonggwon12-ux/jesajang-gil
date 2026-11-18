@@ -2125,3 +2125,8 @@
 .classic-ui .fbp-alert { background:#FFF5F3; border:2.5px solid #E53935; }
 .classic-ui .fbp-must { font-size:min(15.5px, 4vw); line-height:1.55; color:#7F1D1D; }
 .classic-ui .fbp-must mark { display:inline-block; margin:3px 2px 0 0; padding:3px 10px; border-radius:6px; background:#E53935; color:#fff; font-size:min(21px, 5.4vw); font-weight:900; letter-spacing:-.04em; box-shadow:0 3px 0 #9B1C1C; }
+
+/* 11/18: 섭외자 칸 아래 지시어 */
+.classic-ui .er-todos { display:flex; flex-direction:column; gap:4px; width:100%; margin-top:6px; }
+.classic-ui .er-todo { display:block; width:100%; padding:6px 4px; border:1.5px solid #E53935; border-radius:9px; background:#FFF1EF; color:#C62828; font-size:12px; font-weight:900; text-align:center; animation:erTodoBlink 1.6s ease-in-out infinite; }
+@keyframes erTodoBlink { 0%,100% { background:#FFF1EF; } 50% { background:#FFD9D4; } }
