@@ -8875,52 +8875,47 @@
         </div>
         <div class="act-divider" style="margin-top:6px"></div>`;
     }
-    // 11/18(사용자): "나의 교실 들어가면 딱 내 활동 보고 뜨잖아 — 이제 일정·광고가 뜨게" — 내 활동 보고 맨 위에 광고·공지 3개 + 다가오는 일정 2개.
-    //   요청은 일정·광고 화면(calLoadAll)과 글자까지 같게(같은 기억 칸을 씀), 앱 한 번 켤 때 한 번만.
-    const actAdSt = { asked: false, ads: [], ups: [] };
+    // 11/18(2차, 사용자): 나의 교실엔 일정·광고 말고 "피드백방 + 수업 계획표" 동기부여 배너 하나만 — 깔끔하게.
     function actAdCss() {
       if (document.getElementById('actAdCss')) return;
       const st = document.createElement('style'); st.id = 'actAdCss';
       st.textContent = `
-      .act-ad { margin:12px 14px 4px; padding:12px 12px 8px; border-radius:16px; background:#fff; border:1.5px solid #FFD8A8; box-shadow:0 4px 14px rgba(255,138,0,.10); }
-      .act-ad-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-      .act-ad-h b { font-size:15.5px; font-weight:900; letter-spacing:-.03em; }
-      .act-ad-h button { border:none; background:#FFF1E0; color:#C2410C; font-size:12.5px; font-weight:800; border-radius:999px; padding:5px 10px; cursor:pointer; }
-      .act-ad-row { display:flex; align-items:center; gap:8px; width:100%; padding:9px 2px; border:none; border-top:1px solid #F3F4F6; background:none; text-align:left; cursor:pointer; }
-      .act-ad-row:first-of-type { border-top:none; }
-      .act-ad-tag { flex-shrink:0; min-width:38px; text-align:center; padding:3px 7px; border-radius:7px; background:#FF8A00; color:#fff; font-size:11.5px; font-weight:900; }
-      .act-ad-tag.ev { background:#00AE82; }
-      .act-ad-row b { flex:1; min-width:0; font-size:14px; font-weight:800; color:#111827; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .act-ad-row small { flex-shrink:0; max-width:40%; font-size:11.5px; color:#6B7280; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .act-ad-row .pz-new { margin-left:4px; }`;
+      .fbp { position:relative; overflow:hidden; margin:12px 14px 4px; padding:16px 16px 14px; border-radius:18px; color:#fff;
+        background:radial-gradient(circle at 100% 0%, rgba(255,214,0,.40), transparent 46%), linear-gradient(140deg,#0B4D3A 0%,#00AE82 62%,#14C79A 100%); box-shadow:0 8px 22px rgba(0,120,90,.25); }
+      .fbp-k { display:inline-block; padding:3px 9px; border-radius:999px; background:#FFD600; color:#3A2E00; font-size:11.5px; font-weight:900; }
+      .fbp-t { margin-top:8px; font-size:21px; line-height:1.3; font-weight:900; letter-spacing:-.04em; }
+      .fbp-t em { font-style:normal; color:#FFE45C; }
+      .fbp-s { margin-top:5px; font-size:13px; line-height:1.55; color:#E3FFF5; }
+      .fbp-two { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+      .fbp-two button { display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:11px 10px; border:none; border-radius:13px; background:#fff; color:#1F2937; text-align:left; cursor:pointer; }
+      .fbp-two b { font-size:14.5px; font-weight:900; color:#0B4D3A; letter-spacing:-.03em; }
+      .fbp-two small { font-size:11.5px; line-height:1.4; color:#4B5563; }
+      .fbp-two i { margin-top:3px; font-style:normal; font-size:12px; font-weight:900; color:#E8430F; }
+      .fbp-flow { margin-top:10px; font-size:12px; font-weight:800; text-align:center; color:#D5F3E8; letter-spacing:-.02em; }`;
       document.head.appendChild(st);
     }
     function actAdHtml() {
       if (App.guest) return '<div id="actAdStrip"></div>';
       actAdCss();
-      const ads = actAdSt.ads = (calSt.ads || []).slice(0, 3);
-      const ups = actAdSt.ups = calSt.events && calSt.events.length ? calUpcomingList(2) : [];
-      if (!ads.length && !ups.length) return '<div id="actAdStrip"></div>';
-      return `<div id="actAdStrip" class="act-ad">
-          <div class="act-ad-h"><b>📢 일정·광고</b><button type="button" data-act-ad-all>전체 보기 ›</button></div>
-          ${ads.map((a, i) => `<button type="button" class="act-ad-row" data-act-ad="${i}"><span class="act-ad-tag">광고</span><b>${esc(a.title)}${window.pzNew && pzNew.isNew('board', a.updatedAt) ? '<span class="pz-new">NEW</span>' : ''}</b></button>`).join('')}
-          ${ups.map((u, i) => `<button type="button" class="act-ad-row" data-act-ev="${i}"><span class="act-ad-tag ev">${u.d.getMonth() + 1}/${u.d.getDate()}</span><b>${esc(calTitleWithPrefix(u.e))}</b><small>${esc([calRangeText(u.e), u.e.place].filter(Boolean).join(' · '))}</small></button>`).join('')}
+      return `<div id="actAdStrip" class="fbp">
+          <span class="fbp-k">🌳 열두 가지 열매 맺는 피드백</span>
+          <div class="fbp-t">혼자 고민하지 마세요.<br><em>한 방에서 함께</em> 열매 맺어요</div>
+          <div class="fbp-s">섭외자 한 명에 피드백방 하나. 수업 전에 계획을 나누면 교관·지역장·인도자의 조언이 <b>다음 수업</b>을 바꿉니다.</div>
+          <div class="fbp-two">
+            <button type="button" data-fbp="rooms"><b>💬 피드백방</b><small>보고·자료·조언을<br>한 방에서 주고받기</small><i>방 만들기 ›</i></button>
+            <button type="button" data-fbp="lesson"><b>📅 수업 계획표</b><small>날짜별 목표·감동 주기<br>미리 적고 조언받기</small><i>계획 쓰기 ›</i></button>
+          </div>
+          <div class="fbp-flow">계획 ✍️ → 조언 💬 → 수업 📖 → 보고 📝 → 다음 계획 🔁</div>
         </div>`;
     }
     function actAdWire() {
       const el = document.getElementById('actAdStrip'); if (!el) return;
-      el.querySelectorAll('[data-act-ad]').forEach(b => { b.onclick = () => { const a = actAdSt.ads[Number(b.dataset.actAd)]; if (a) adqOpen(a.adId); }; });
-      el.querySelectorAll('[data-act-ev]').forEach(b => { b.onclick = () => { const u = actAdSt.ups[Number(b.dataset.actEv)]; if (u) calOpenEvent(u.e); }; });
-      const all = el.querySelector('[data-act-ad-all]'); if (all) all.onclick = () => switchTab('calendar');
-    }
-    function actAdRedraw() { const el = document.getElementById('actAdStrip'); if (!el) return; el.outerHTML = actAdHtml(); actAdWire(); }
-    function actAdLoad() {
-      if (actAdSt.asked || App.guest) return; actAdSt.asked = true;
-      apiSWR({ action: 'getCalendarAds' }, r => { if (r && !r.error) { calSt.ads = r.rows || []; calSt.adErr = ''; } actAdRedraw(); }).catch(() => {});
-      if (MEMBER_ID) apiSWR({ action: 'getCalendarEvents', memberId: MEMBER_ID }, r => {
-        if (r && !r.error) { calSt.events = r.rows || []; calSt.weeks = Object.fromEntries((r.weeks || []).map(w => [w.weekStart, w])); calSt.deptManager = r.deptManager || ''; calSt.official = !!r.official; }
-        actAdRedraw();
-      }).catch(() => {});
+      el.querySelectorAll('[data-fbp]').forEach(b => { b.onclick = () => {
+        if (b.dataset.fbp === 'rooms') return actSetPage('rooms');
+        const g = document.querySelector('.er-grid');
+        if (g) { g.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('섭외자를 누르고 위 칸 줄에서 📅 수업 계획표를 열어요'); }
+        else actSetPage('rooms');
+      }; });
     }
     function dashboardViewHtml() {
       if (home.loading) return `<div class="text-center py-16 text-sm text-base-content/40"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`;
@@ -9672,7 +9667,7 @@
       root.innerHTML = dashboardViewHtml();
       if (typeof trSt !== 'undefined' && !trSt.list && !trSt.listBusy && window.trListLoad) trListLoad();   // 피드백방 안내 띠용 목록
       if (actPage === 'edu') { actEduRender(); if (!actEduSt.done) actEduLoad(); lcEduCardFill(); }
-      actAdWire(); actAdLoad();
+      actAdWire();
       updateTierBadge();
       renderTargetsChart();
       wireHistoryAndCards();
