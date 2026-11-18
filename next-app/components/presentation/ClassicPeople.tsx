@@ -6,7 +6,7 @@ import {relativeActivityTime,classicStageStyle,classicFlowStep} from '../../lib/
 import ClassicIcon from './ClassicIcon';
 type Person=ReturnType<typeof activityPeople>[number];
 // 11/18(사용자): 칸 아래 지시어 — 피드백방이 없으면 / 상담 이상인데 수업 계획표가 없으면
-const todo=(p:Person)=>{const t=p.target;if(!t?.targetId)return [] as string[];const out:string[]=[];if(!t.hasRoom)out.push('피드백방을 만드세요');if(p.stage&&!/^(섭외|친분|만남)/.test(p.stage)&&!(t.lessonN||0))out.push('수업 계획표를 작성하세요');return out;};
+const todo=(p:Person)=>{const t=p.target;if(!t?.targetId)return [] as string[];const out:string[]=[];if(!t.hasRoom)out.push('피드백방을 만드세요');if(/^(상담|복음방)/.test(p.stage||'')&&!(t.lessonN||0))out.push('수업 계획표를 작성하세요');return out;};
 const flow=['섭외','친분','만남1','만남2','상담1','상담2','복음방','개강 준비','개강','초등','중등','고등','수료'];
 export default function ClassicPeople({people,visiblePeople=people,disabled=false,roomPrompt,onOpen,onDelete}:{people:Person[];visiblePeople?:Person[];disabled?:boolean;roomPrompt:ReactNode;onOpen:(person:Person)=>void;onDelete:(person:Person)=>void}){
  const total=people.reduce((n,p)=>n+p.total,0),sent=(stage:string)=>stage==='센터소개'||stage==='센터수강';
