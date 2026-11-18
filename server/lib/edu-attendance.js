@@ -674,8 +674,10 @@ export const JUNGJIN_ROOM_KEYS = [JUNGJIN_KEY, '#24부서'];
 export const jungjinKind = (m) => (/화요전도단|화전단/.test(String(m.title || '')) ? '화전단' : null);
 // 11/17(사용자): 화요 전도단 출석 집계에서 이경옥 님은 명단에서 아예 제외, 휴직자도 안 뜨게(직책·소속·구역·지역·이름에 '휴직')
 export const HWA_EXCLUDED_NAMES = ['이경옥'];
-export const isOnLeave = (p) => /휴직/.test([p.position, p.affiliation, p.district, p.region, p.name].join(' '));
-export const hwaExcluded = (p) => HWA_EXCLUDED_NAMES.includes(String(p.name || '').trim()) || isOnLeave(p);
+// 11/18(사용자): 근신(교사 명단 소속 '근신')도 집계·명단에서 빼고, 김영미 님(내무, 특전대 — 동명이인 있어 고유번호로)도 제외
+export const HWA_EXCLUDED_NIDS = ['24072200028'];
+export const isOnLeave = (p) => /휴직|근신/.test([p.position, p.affiliation, p.district, p.region, p.name].join(' '));
+export const hwaExcluded = (p) => HWA_EXCLUDED_NAMES.includes(String(p.name || '').trim()) || HWA_EXCLUDED_NIDS.includes(String(p.nid || '')) || isOnLeave(p);
 export async function roster24(kind) {
   const list = await roster24All();
   return kind === '화전단' ? list.filter((p) => !hwaExcluded(p)) : list;
