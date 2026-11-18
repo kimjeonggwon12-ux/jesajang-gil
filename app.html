@@ -8884,8 +8884,9 @@
       st.textContent = `
       .fbp { position:relative; overflow:hidden; margin:12px 14px 4px; padding:15px 14px 12px; border-radius:18px; color:#fff;
         background:radial-gradient(circle at 100% 0%, rgba(255,214,0,.40), transparent 46%), linear-gradient(140deg,#0B4D3A 0%,#00AE82 62%,#14C79A 100%); box-shadow:0 8px 22px rgba(0,120,90,.25); }
+      #actRoomsBody .fbp { margin:0 0 4px; }
       .fbp-k { display:inline-block; padding:3px 9px; border-radius:999px; background:#FFD600; color:#3A2E00; font-size:11.5px; font-weight:900; }
-      .fbp-t { margin-top:7px; font-size:22px; line-height:1.3; font-weight:900; letter-spacing:-.04em; }
+      .fbp-t { margin-top:7px; font-size:min(21px, 5vw); line-height:1.3; font-weight:900; letter-spacing:-.05em; white-space:nowrap; }
       .fbp-t em { font-style:normal; color:#FFE45C; }
       .fbp-card { margin-top:10px; padding:11px 11px 12px; border-radius:14px; background:#fff; color:#1F2937; }
       .fbp-ch { display:flex; align-items:center; justify-content:space-between; gap:8px; }
@@ -8909,23 +8910,31 @@
     }
     window.fbBits = () => (actAdCss(), { steps: FB_STEPS, chips: LP_CHIPS });   // 피드백방 탭(다른 묶음 안)에서도 같은 조각
     function actAdHtml() {
-      if (App.guest) return '<div id="actAdStrip"></div>';
+      if (App.guest) return '';
       actAdCss();
-      return `<div id="actAdStrip" class="fbp">
+      return `<div class="fbp">
           <span class="fbp-k">열두 가지 열매 맺는 피드백</span>
-          <div class="fbp-t">교사님!<br><em>지금 어서 피드백방을 만드세요.</em></div>
+          <div class="fbp-t">교사님! <em>지금 어서 피드백방을 만드세요.</em></div>
           <div class="fbp-card"><div class="fbp-ch"><b>피드백방 만들기</b><button type="button" data-fbp="rooms">방 만들기 ›</button></div>${FB_STEPS}</div>
           <div class="fbp-card"><div class="fbp-ch"><b>수업 계획표</b><button type="button" data-fbp="lesson">계획 쓰기 ›</button></div><small>수업 전에 적어 두면 교관·지역장 조언이 달려요</small>${LP_CHIPS}</div>
         </div>`;
     }
+    // 11/18(4차, 사용자): 내 활동 보고·피드백방 두 곳에 같은 배너 — 단추는 문서 한 곳에서 받음(다시 그려도 그대로)
+    window.fbBanner = () => actAdHtml();
+    let actAdWired = false;
     function actAdWire() {
-      const el = document.getElementById('actAdStrip'); if (!el) return;
-      el.querySelectorAll('[data-fbp]').forEach(b => { b.onclick = () => {
-        if (b.dataset.fbp === 'rooms') return actSetPage('rooms');
-        const g = document.querySelector('.er-grid');
-        if (g) { g.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('섭외자를 누르고 위 칸 줄에서 📅 수업 계획표를 열어요'); }
-        else actSetPage('rooms');
-      }; });
+      if (actAdWired) return; actAdWired = true;
+      document.addEventListener('click', e => {
+        const b = e.target.closest && e.target.closest('.fbp [data-fbp]'); if (!b) return;
+        if (b.dataset.fbp === 'rooms') {
+          if (actPage !== 'rooms') return actSetPage('rooms');
+          if (window.trNeedCount && trNeedCount()) return trNeedOpen();
+          actSetPage('targets'); return toast('섭외자를 누르고 위 칸 줄에서 피드백방을 열어요');
+        }
+        if (actPage !== 'targets') actSetPage('targets');
+        setTimeout(() => { const g = document.querySelector('.act-pages[data-act-page="targets"] .er-grid') || document.querySelector('.er-grid'); if (g) g.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+        toast('섭외자를 누르고 위 칸 줄에서 수업 계획표를 열어요');
+      });
     }
     function dashboardViewHtml() {
       if (home.loading) return `<div class="text-center py-16 text-sm text-base-content/40"><span class="loading loading-spinner loading-md align-middle mr-2"></span>불러오는 중...</div>`;
@@ -11904,6 +11913,7 @@
       if (!need.length) return (home.targets || []).length ? '✅ 모든 섭외자의 <b>피드백방</b>이 있어요. 방에서 교관·지역장님과 계속 나눠 주세요!' : base;
       return base + `<button type="button" class="fbn-b" onclick="trNeedOpen()">💬 피드백방 만들기 · ${need.length}명 아직 없어요 ›</button>`;
     };
+    window.trNeedCount = () => (trSt.list ? trNeedList().length : 0);
     window.trNeedOpen = function () {
       const need = trNeedList();
       if (!need.length) return;
@@ -11935,16 +11945,8 @@
       trCss();
       // 11/10(사용자): "완전 꼭 해야겠다는 생각이 드는 배너" — 피드백방 목록 맨 위
       const need = trSt.list ? trNeedList() : [];
-      const fbb = window.fbBits ? fbBits() : { steps: '', chips: '' };
-      const head = `<div class="fbh">
-          <div class="fbh-tag">피드백방 만드는 방법</div>
-          ${fbb.steps}
-          ${need.length
-            ? `<button type="button" class="fbh-go" onclick="trNeedOpen()">지금 피드백방 만들기 <i>${need.length}명 기다리는 중</i></button>`
-            : trSt.list && trSt.list.length ? ''
-            : `<button type="button" class="fbh-go" onclick="actSetPage('targets')">섭외자 등록하고 피드백방 열기</button>`}
-          <div class="fbh-lp2"><b>방 안에 수업 계획표도 있어요</b>${fbb.chips}</div>
-        </div>`
+      const head = (window.fbBanner ? fbBanner() : '')
+        + (need.length ? `<button type="button" class="fbh-go" style="margin:10px 0 12px" onclick="trNeedOpen()">지금 피드백방 만들기 <i>${need.length}명 기다리는 중</i></button>` : '')
         + '<form class="tr-search" data-tr-join onsubmit="trJoinSubmit(event)"><input id="trJoinCode" placeholder="초대 코드 (예: K7P2-9QXM)" autocomplete="off" autocapitalize="characters" maxlength="9"><button type="submit">들어가기</button></form>';
       if (!trSt.list) return head + '<div class="tr-note"><span class="loading loading-spinner loading-xs"></span> 불러오는 중…</div>';
       if (!trSt.list.length) return head + '<div class="tr-note">아직 들어가 있는 피드백방이 없어요.</div>';

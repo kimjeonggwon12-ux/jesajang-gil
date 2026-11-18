@@ -2078,3 +2078,6 @@
 .classic-ui .lpc span { padding:4px 9px; border-radius:999px; background:#FFF4E5; color:#9A3412; font-size:12px; font-weight:800; }
 .classic-ui .fbh-lp2 { margin-top:12px; padding:10px 11px; border-radius:14px; background:#fff; color:#1F2937; }
 .classic-ui .fbh-lp2 b { font-size:14px; font-weight:900; color:#0B4D3A; }
+
+/* 11/18(4차): 제목 한 줄 */
+.classic-ui .fbp-t { font-size:min(21px, 5vw); white-space:nowrap; letter-spacing:-.05em; }

@@ -7,6 +7,7 @@ import {maskName} from '../../lib/status-extra';
 import {cleanRoomCode,type RoomRow,type OpeningRoom} from '../../lib/rooms';
 import type {Target} from '../../lib/activities';
 import RoomView from './RoomView';
+import ActivityAds from '../calendar/ActivityAds';
 import ClassroomHeader from '../presentation/ClassroomHeader';
 import OpeningRooms,{type OpeningView} from './OpeningRooms';
 export default function Rooms({targetId,code,navigate}:{targetId:string;code:string;navigate:(id:string)=>void}){
@@ -19,7 +20,7 @@ export default function Rooms({targetId,code,navigate}:{targetId:string;code:str
   function createRoom(){if(missing.length===1)navigate(missing[0].targetId);else setChoose(true);}
   if(targetId)return <RoomView key={targetId} targetId={targetId} onClose={()=>{setRevision(v=>v+1);navigate('');}}/>;
   return <section id="sec-activity">{!session.account.guest&&tab!=='opening'?<ClassroomHeader rooms/>:null}<div className={session.account.guest?'classic-guest-room-body':'classic-room-body'}><div className="page-title"><div><p className="eyebrow">함께 이어가는 기록</p><h1>피드백방</h1><p className="muted">{session.account.guest?'초대받은 방의 대화와 기록을 볼 수 있어요.':'대상자의 기록과 피드백을 담당자들과 함께 나눠요.'}</p></div><button className="secondary" onClick={()=>setRevision(v=>v+1)}>목록 새로고침</button></div>
-    {!session.account.guest&&tab!=='opening'?<div className="fbh"><div className="fbh-tag">피드백방 만드는 방법</div><div className="fs3"><div><span>1</span><b>섭외자 누르기</b></div><i>›</i><div><span>2</span><b>피드백방</b></div><i>›</i><div><span>3</span><b>함께할 분 초대</b></div></div>{targets.error?<ErrorNote message={targets.error} retry={targets.reload}/>:targets.loading?<Loading/>:missing.length?<button className="fbh-go" disabled={!my.data} onClick={createRoom}>지금 피드백방 만들기 <i>{missing.length}명 기다리는 중</i></button>:my.data?.rows.length?null:<Link className="fbh-go" href="/activities?newTarget=1" prefetch={false}>섭외자 등록하고 피드백방 열기</Link>}<div className="fbh-lp2"><b>방 안에 수업 계획표도 있어요</b><div className="lpc">{['수업 제목','교육 목표','감동 주기','입막음','피드백 실행','진행 방식','협력자','상세 계획'].map(x=><span key={x}>{x}</span>)}</div></div></div>:null}
+    {!session.account.guest&&tab!=='opening'?<><ActivityAds/>{missing.length&&my.data?<button className="fbh-go" style={{margin:'10px 0 12px'}} onClick={createRoom}>지금 피드백방 만들기 <i>{missing.length}명 기다리는 중</i></button>:null}</>:null}
     <form className="tr-search" onSubmit={join}><input aria-label="초대 코드" value={joinCode} maxLength={9} autoComplete="off" autoCapitalize="characters" onChange={e=>setJoinCode(e.target.value)} placeholder="초대 코드 (예: K7P2-9QXM)"/><button disabled={busy||cleanRoomCode(joinCode).length!==8}>{busy?'입장 중…':'들어가기'}</button></form><ErrorNote message={error}/>
     {isAdmin?<nav className="tr-tabs" aria-label="피드백방 목록"><button className={tab==='mine'?'on':''} aria-pressed={tab==='mine'} onClick={()=>setTab('mine')}>참여 중인 방</button><button className={tab==='opening'?'on':''} aria-pressed={tab==='opening'} onClick={()=>setTab('opening')}>개강 피드백</button></nav>:null}
 
