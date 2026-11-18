@@ -2098,3 +2098,22 @@
 
 /* 11/18: 내 활동 보고 머리 숨김 */
 .classic-ui .er-hero { display:none !important; }
+
+/* 11/18(7차): 알림판(코르크·압정 쪽지) — 앞선 fbp 규칙을 덮어씀 */
+.classic-ui .fbp { position:relative; margin:12px 14px 6px; padding:14px 12px 14px; border-radius:12px; color:#2B2118;
+  background-color:#C9A06E; background-image:radial-gradient(rgba(90,55,20,.22) 1px, transparent 1.4px), radial-gradient(rgba(255,240,210,.25) 1px, transparent 1.4px);
+  background-size:9px 9px, 13px 13px; background-position:0 0, 4px 6px; border:7px solid #6B4423; box-shadow:inset 0 2px 6px rgba(0,0,0,.25), 0 6px 16px rgba(0,0,0,.18); }
+.classic-ui .fbp-t { position:relative; margin:4px auto 0; width:fit-content; max-width:100%; padding:10px 14px; background:#FFE45C; color:#3A2E00; border-radius:3px;
+  font-size:min(18px, 4.6vw); font-weight:900; letter-spacing:-.05em; white-space:nowrap; text-align:center; box-shadow:0 3px 6px rgba(0,0,0,.22); transform:rotate(-1deg); }
+.classic-ui .fbp-note { position:relative; margin-top:14px; padding:12px 11px 11px; background:#FFFDF6; border-radius:3px; box-shadow:0 3px 7px rgba(0,0,0,.20); }
+.classic-ui .fbp-note:nth-of-type(odd) { transform:rotate(.6deg); } .classic-ui .fbp-note:nth-of-type(even) { transform:rotate(-.6deg); }
+.classic-ui .fbp-t::before, .classic-ui .fbp-note::before { content:''; position:absolute; top:-6px; left:50%; width:12px; height:12px; margin-left:-6px; border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, #FF8A80, #D32F2F 60%, #8E1B1B); box-shadow:0 2px 3px rgba(0,0,0,.35); }
+.classic-ui .fbp-pill { display:inline-block; padding:3px 10px; border-radius:999px; background:#0B4D3A; color:#fff; font-size:12.5px; font-weight:900; letter-spacing:-.03em; }
+.classic-ui .fbp-steps { margin-top:7px; font-size:14px; font-weight:900; color:#0B4D3A; letter-spacing:-.04em; }
+.classic-ui .fbp-steps i { font-style:normal; margin:0 5px; color:#00AE82; }
+.classic-ui .fbp-must { color:#C2410C; font-size:min(15px, 3.9vw); font-weight:900; letter-spacing:-.04em; line-height:1.4; text-align:center; }
+.classic-ui .lpc { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.classic-ui .lpc span { padding:4px 9px; border-radius:999px; background:#E6F7F1; color:#00875F; font-size:12px; font-weight:800; }
+.classic-ui .fbp { overflow:visible; }
+.classic-ui .fbp-t { margin-top:4px; }

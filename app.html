@@ -8884,52 +8884,35 @@
     function actAdCss() {
       if (document.getElementById('actAdCss')) return;
       const st = document.createElement('style'); st.id = 'actAdCss';
-      st.textContent = `
-      .fbp { position:relative; margin:26px 14px 6px; padding:28px 11px 11px; border-radius:16px; color:#fff;
-        background:linear-gradient(180deg,#11634B 0%,#0B4D3A 100%); border:5px solid #7A5230; box-shadow:inset 0 0 0 2px rgba(255,255,255,.08), 0 8px 20px rgba(0,0,0,.18); }
-      .fbp-name { position:absolute; top:-17px; left:50%; transform:translateX(-50%); white-space:nowrap; padding:7px 18px; border-radius:10px; border:2px solid #fff;
-        background:linear-gradient(180deg,#FFE45C,#FFC800); color:#3A2E00; font-size:14.5px; font-weight:900; letter-spacing:-.03em; box-shadow:0 4px 10px rgba(0,0,0,.25); }
-      .fbp-t { text-align:center; }
-      #actRoomsBody .fbp { margin:18px 0 6px; }
-      .fbp-k { display:inline-block; padding:3px 9px; border-radius:999px; background:#FFD600; color:#3A2E00; font-size:11.5px; font-weight:900; }
-      .fbp-t { margin-top:0; font-size:min(21px, 5vw); line-height:1.3; font-weight:900; letter-spacing:-.05em; white-space:nowrap; text-align:center; }
-      .fbp-t em { font-style:normal; color:#FFE45C; }
-      .fbp-card { margin-top:10px; padding:11px 11px 12px; border-radius:14px; background:#fff; color:#1F2937; }
-      .fbp-ch { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-      .fbp-ch b { font-size:15.5px; font-weight:900; color:#0B4D3A; letter-spacing:-.03em; }
-      .fbp-ch button { flex-shrink:0; border:none; background:#FF5A36; color:#fff; font-size:12.5px; font-weight:900; border-radius:999px; padding:6px 12px; cursor:pointer; }
-      .fbp-pill { display:inline-block; padding:4px 11px; border-radius:999px; background:#FFD600; color:#3A2E00; font-size:12.5px; font-weight:900; letter-spacing:-.03em; }
-      .fbp-must { margin-top:8px; padding:8px 10px; border-radius:10px; background:#FFF1EC; color:#C2410C; font-size:13.5px; font-weight:900; letter-spacing:-.03em; line-height:1.4; }
-      .lpc.rm span { background:#E6F7F1; color:#00875F; }
-      .fbp-card small { display:block; margin-top:3px; font-size:12px; color:#4B5563; }
-      .fbp-flow { margin-top:10px; font-size:12px; font-weight:800; text-align:center; color:#D5F3E8; letter-spacing:-.02em; }
-      .fs3 { display:grid; grid-template-columns:1fr 12px 1fr 12px 1fr; align-items:center; gap:3px; margin-top:9px; }
-      .fs3 div { display:flex; flex-direction:column; align-items:center; gap:3px; padding:9px 2px; border-radius:12px; background:rgba(255,255,255,.18); text-align:center; }
-      .fs3 span { width:24px; height:24px; border-radius:50%; background:#FFD600; color:#3A2E00; font-size:13px; font-weight:900; line-height:24px; }
-      .fs3 b { font-size:12px; font-weight:900; letter-spacing:-.04em; white-space:nowrap; }
-      .fs3 i { font-style:normal; font-weight:900; font-size:16px; opacity:.75; text-align:center; }
-      .fbp-card .fs3 div { background:#E6F7F1; color:#0B4D3A; }
-      .fbp-card .fs3 i { color:#00AE82; }
-      .fbp-card .fs3 span { background:#00AE82; color:#fff; }
-      .lpc { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
-      .lpc span { padding:4px 9px; border-radius:999px; background:#FFF4E5; color:#9A3412; font-size:12px; font-weight:800; }
-      .fbh-lp2 { margin-top:12px; padding:10px 11px; border-radius:14px; background:#fff; color:#1F2937; }
-      .fbh-lp2 b { font-size:14px; font-weight:900; color:#0B4D3A; }`;
+      st.textContent = `.fbp { position:relative; margin:12px 14px 6px; padding:14px 12px 14px; border-radius:12px; color:#2B2118;
+  background-color:#C9A06E; background-image:radial-gradient(rgba(90,55,20,.22) 1px, transparent 1.4px), radial-gradient(rgba(255,240,210,.25) 1px, transparent 1.4px);
+  background-size:9px 9px, 13px 13px; background-position:0 0, 4px 6px; border:7px solid #6B4423; box-shadow:inset 0 2px 6px rgba(0,0,0,.25), 0 6px 16px rgba(0,0,0,.18); }
+.fbp-t { position:relative; margin:4px auto 0; width:fit-content; max-width:100%; padding:10px 14px; background:#FFE45C; color:#3A2E00; border-radius:3px;
+  font-size:min(18px, 4.6vw); font-weight:900; letter-spacing:-.05em; white-space:nowrap; text-align:center; box-shadow:0 3px 6px rgba(0,0,0,.22); transform:rotate(-1deg); }
+.fbp-note { position:relative; margin-top:14px; padding:12px 11px 11px; background:#FFFDF6; border-radius:3px; box-shadow:0 3px 7px rgba(0,0,0,.20); }
+.fbp-note:nth-of-type(odd) { transform:rotate(.6deg); } .fbp-note:nth-of-type(even) { transform:rotate(-.6deg); }
+.fbp-t::before, .fbp-note::before { content:''; position:absolute; top:-6px; left:50%; width:12px; height:12px; margin-left:-6px; border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, #FF8A80, #D32F2F 60%, #8E1B1B); box-shadow:0 2px 3px rgba(0,0,0,.35); }
+.fbp-pill { display:inline-block; padding:3px 10px; border-radius:999px; background:#0B4D3A; color:#fff; font-size:12.5px; font-weight:900; letter-spacing:-.03em; }
+.fbp-steps { margin-top:7px; font-size:14px; font-weight:900; color:#0B4D3A; letter-spacing:-.04em; }
+.fbp-steps i { font-style:normal; margin:0 5px; color:#00AE82; }
+.fbp-must { color:#C2410C; font-size:min(15px, 3.9vw); font-weight:900; letter-spacing:-.04em; line-height:1.4; text-align:center; }
+.lpc { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.lpc span { padding:4px 9px; border-radius:999px; background:#E6F7F1; color:#00875F; font-size:12px; font-weight:800; }
+      #actRoomsBody .fbp { margin:0 0 6px; }`;
       document.head.appendChild(st);
     }
-    window.fbBits = () => (actAdCss(), { steps: FB_STEPS, chips: LP_CHIPS });   // 피드백방 탭(다른 묶음 안)에서도 같은 조각
+    // 11/18(7차, 사용자): 알림판 — 노란 쪽지 제목 + 압정 꽂은 쪽지 3장(만드는 방법 한 줄 / 교관·인교섬이 함께 보는 것 / 수업 계획표 한 마디). 단추·숫자·이름표 없음
     function actAdHtml() {
       if (App.guest) return '';
       actAdCss();
       return `<div class="fbp">
-          <div class="fbp-name">열두 가지 열매 맺는 피드백</div>
-          <div class="fbp-t">교사님! <em>지금 어서 피드백방을 만드세요.</em></div>
-          <div class="fbp-card"><div class="fbp-ch"><span class="fbp-pill">피드백방 만드는 방법</span><button type="button" data-fbp="rooms">방 만들기 ›</button></div>${FB_STEPS}</div>
-          <div class="fbp-card"><div class="fbp-ch"><span class="fbp-pill">피드백방에서 모두 함께 보는 것</span></div>${ROOM_CHIPS}</div>
-          <div class="fbp-card"><div class="fbp-ch"><span class="fbp-pill">수업 계획표</span><button type="button" data-fbp="lesson">계획 쓰기 ›</button></div><div class="fbp-must">상담 이상의 모든 교사는 수업 계획표를 작성하세요.</div>${LP_CHIPS}</div>
+          <div class="fbp-t">교사님! 지금 어서 피드백방을 만드세요.</div>
+          <div class="fbp-note"><span class="fbp-pill">피드백방 만드는 방법</span><div class="fbp-steps">섭외자 누르기<i>›</i>피드백방<i>›</i>함께할 분 초대</div></div>
+          <div class="fbp-note"><span class="fbp-pill">교관/인교섬이 함께 보는 것</span><div class="lpc"><span>대화</span><span>수업 계획표</span><span>정보 기록</span><span>활동 이력</span><span>단계향상 피드백</span><span>감동주기 방법</span><span>센터 인도 계획</span><span>HEARTS 상세피드백</span><span>종합 피드백</span></div></div>
+          <div class="fbp-note"><div class="fbp-must">상담 이상의 모든 교사는 수업 계획표를 작성하세요.</div></div>
         </div>`;
     }
-    // 11/18(4차, 사용자): 내 활동 보고·피드백방 두 곳에 같은 배너 — 단추는 문서 한 곳에서 받음(다시 그려도 그대로)
     window.fbBanner = () => actAdHtml();
     let actAdWired = false;
     function actAdWire() {
