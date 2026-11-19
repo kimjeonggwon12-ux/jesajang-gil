@@ -50,6 +50,9 @@ export async function eduFor(m) {
 /** 사명자 한 명 → 방 열쇠(교역자 / 부서/지역 / '' = 방 없음) */
 // 11/12(사용자): 강지원·김강민 = 무진장·순창 사명자 → 오늘은 '협력 교회'로만 따로(나중에 정확히 정함, 추후 QR 따로)
 const DEPT_OVERRIDE = Object.fromEntries([['00120521-00001', '협력교회'], ['00210620-00049', '협력교회']].map(([id, d]) => [normId(id), d]));
+// 11/19 밤(사용자): 협력 교회(위 두 분)는 앞으로 목사교·화요 교육 출석 체크에서 아예 뺌 — 카드·글·재적 모두(COOP_EXCLUDED)
+export const COOP_NIDS = Object.keys(DEPT_OVERRIDE).filter((k) => DEPT_OVERRIDE[k] === '협력교회');
+export const isCoop = (p) => COOP_NIDS.includes(normId(String(p.nid || p.id || '')));
 const personRoom = (p) => (p.dept === '교회교역' || p.dept === '신학교역' || p.dept === '협력교회' ? '교역자' : DEPTS.includes(p.dept) ? roomKeyOf(p.dept, p.region) : '');
 
 async function prepare(m, phase, edu) {
@@ -75,7 +78,8 @@ async function prepare(m, phase, edu) {
   }
   // 11/12(사용자): 원장님들은 계수·참석·불참 명단에서 계속 뺀다(재적 밖 참석에도 안 나오게)
   const EXCLUDED = (p) => String(p.position || '').trim() === '원장';
-  const people = edu.roster.filter((p) => !EXCLUDED(p)).map((p) => ({ ...p, dept: (!edu.noOverride && DEPT_OVERRIDE[p.nid]) || p.dept })).map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
+  for (const nid of COOP_NIDS) byNid.delete(nid);   // 협력 교회 = 재적 밖 참석으로도 안 잡히게
+  const people = edu.roster.filter((p) => !EXCLUDED(p) && !isCoop(p)).map((p) => ({ ...p, dept: (!edu.noOverride && DEPT_OVERRIDE[p.nid]) || p.dept })).map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
   const inRoster = new Set(edu.roster.map((p) => p.nid));
   // 재적 밖 참석(교사·일반) — 교사면 등록 지역 방, 아니면 적은 부서
   const outside = [];
@@ -215,7 +219,7 @@ function nameListTexts(m, P, kind) {
 const XS = { plain: 0, head: 1, cell: 2, title: 3, session: 4, warn: 6, total: 7, text: 8 };
 const xc = (v, st = XS.cell) => ({ v, s: st });
 // 카드·총합 시트 줄(사용자 9/10 표 순서 + 교역자 둘을 맨 위에)
-export const CARD_ROWS = [['교회 교역자', ['교회교역']], ['신학부 교역자', ['신학교역']], ['협력 교회', ['협력교회']], ['24부서', ['24부서']], ['장로, 자문회', ['장로회', '자문회']], ['장년회', ['장년회']], ['부녀회', ['부녀회']], ['청년회', ['청년회']]];
+export const CARD_ROWS = [['교회 교역자', ['교회교역']], ['신학부 교역자', ['신학교역']], ['24부서', ['24부서']], ['장로, 자문회', ['장로회', '자문회']], ['장년회', ['장년회']], ['부녀회', ['부녀회']], ['청년회', ['청년회']]];
 /** 같은 정기 교육의 바로 앞 모임(지난주) 부서별 참석률 { label: 숫자% } — 없으면 null */
 const ORG_DEFS = CARD_ROWS.map(([l, d]) => [l, (p) => d.includes(p.dept)]);
 async function prevRates(m, edu, defs = ORG_DEFS) {
@@ -549,7 +553,7 @@ const deptSheetsOf = async (m, P, edu) => { const out = []; for (const d of ['24
 
 /** 교역자 카드 1장(교회 교역자·신학부·협력 교회) + 명단(교역자 방과 같은 것) */
 async function kyoWhole(m, phase, P, edu) {
-  const defs = [['교회 교역자', (p) => p.dept === '교회교역'], ['신학부 교역자', (p) => p.dept === '신학교역'], ['협력 교회', (p) => p.dept === '협력교회']];
+  const defs = [['교회 교역자', (p) => p.dept === '교회교역'], ['신학부 교역자', (p) => p.dept === '신학교역']];
   defs.scope = (p) => ['교회교역', '신학교역', '협력교회'].includes(p.dept);
   const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, '교역자 ', '부서');
   return [{ ...eduCard(m, P, C) }, ...kyoTexts(m, phase, P, await (await import('./room-attendance.js')).onLeaveNids()).map((text) => ({ text }))];
@@ -670,6 +674,7 @@ async function tsEduAttTest(body) {
   edu = { ...edu, series: { ...edu.series, summary_to: 'test' } };
   const phase = String(body.phase || '오전');
   const list = await buildEduAttendance(m, phase, edu, { test: true, allRegions: body.all !== false });
+  if (body.dry) return { ok: true, phase, list: list.map((p) => ({ dept: p.room.dept, text: p.text || p.caption || p.docCaption || '' })) };   // 보내지 않고 확인
   const sent = [];
   const skip = new Set(Array.isArray(body.skip) ? body.skip.map(String) : []);
   for (const p of list) {
@@ -700,7 +705,7 @@ export const HWA_EXCLUDED_NAMES = ['이경옥'];
 // 11/18(사용자): 근신(교사 명단 소속 '근신')도 집계·명단에서 빼고, 김영미 님(내무, 특전대 — 동명이인 있어 고유번호로)도 제외
 export const HWA_EXCLUDED_NIDS = ['24072200028'];
 export const isOnLeave = (p) => /휴직|근신/.test([p.position, p.affiliation, p.district, p.region, p.name].join(' '));
-export const hwaExcluded = (p) => HWA_EXCLUDED_NAMES.includes(String(p.name || '').trim()) || HWA_EXCLUDED_NIDS.includes(String(p.nid || '')) || isOnLeave(p);
+export const hwaExcluded = (p) => isCoop(p) || HWA_EXCLUDED_NAMES.includes(String(p.name || '').trim()) || HWA_EXCLUDED_NIDS.includes(String(p.nid || '')) || isOnLeave(p);
 export async function roster24(kind) {
   const list = await roster24All();
   return kind === '화전단' ? list.filter((p) => !hwaExcluded(p)) : list;

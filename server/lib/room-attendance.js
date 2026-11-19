@@ -175,7 +175,9 @@ async function prepare(m, phase) {
   const { closingData } = await import('../actions/attendance-closing.js');
   const data = await closingData(m);
   // 같은 날 다른 모임 출석은 섞지 않는다(이 모임 것만)
-  const rows = data.rows.filter((r) => r.meetingId === m.meetingId && (phase === '최종' || r.session === phase));
+  const { isCoop } = await import('./edu-attendance.js');
+  // 11/19 밤(사용자): 협력 교회는 화요·목요 교육 출석 체크에서 제외
+  const rows = data.rows.filter((r) => r.meetingId === m.meetingId && (phase === '최종' || r.session === phase) && !isCoop(r));
   const order = [...new Set([...slotsOf(m).map((s) => s.name), '오전', '오후', '저녁', ...rows.map((r) => r.session)])];
   // 11/17(사용자): 이용우 지파장님·김양주 지파총무님은 화요 전도단도 항상 오전 참석(정상)으로 — 목사교는 edu-attendance.js ALWAYS_PRESENT
   // 11/19(사용자): 목사교(목요 사명자 교육)도 교역자 글(중진·교역자 방)에서 두 분 항상 오전 참석 — 오늘부터
