@@ -274,7 +274,8 @@ const KYO_HEAD = ['지파장', '지파총무'];
 const nidOf = (id) => normId(id);
 const lateMinOf = (r) => (String(r?.late || '').match(/(\d+)분/) || [])[1] || '';
 // 11/18(사용자): 교역자 취합 글에서 이경옥 님·휴직자(교사 명단 소속 '휴직') 제외 — 목사교 행정 방 견본 확인 뒤 KYO_EXCLUDE_LIVE=true 로 실제 적용(다음 화요일 예정)
-export const KYO_EXCLUDE_LIVE = false;
+// 11/19(사용자): "교역자 현황에 휴직자와 근신자는 제외 — 화전단에도" → 실제 적용(목사교·화전단 교역자 글·카드 모두)
+export const KYO_EXCLUDE_LIVE = true;
 async function kyoRoster(exclude = KYO_EXCLUDE_LIVE) {
   const t = await selectAll(() => db().from('teachers').select('nid, name, region, affiliation, position, sort_order').eq('dept', '교역자').order('sort_order').order('member_id'), 3);
   const { hwaExcluded } = await import('./edu-attendance.js');
@@ -360,7 +361,7 @@ export async function kyoRoomText(m, phase, sess, order, o = {}) {
   const C = { title, rows: [stat('교회 교역자', churchList), stat('신학부 사명자', semList)], total, reasonTotal: total.absent, firstHead: '구분', excusedCol: true };
   let png = null;
   try { const { eduCardPng } = await import('./edu-card.js'); png = eduCardPng(C); } catch (e) { console.log('교역자 카드 오류: ' + e.message); }
-  const caption = [`📊 <b>${esc(title)}</b> (${basis}, 원장${(o.exclude ?? KYO_EXCLUDE_LIVE) ? '·휴직' : ''} 제외)`, '',
+  const caption = [`📊 <b>${esc(title)}</b> (${basis}, 원장${(o.exclude ?? KYO_EXCLUDE_LIVE) ? '·휴직·근신' : ''} 제외)`, '',
     `▸ 전체 참석률 ${total.rate} (대상 ${total.n}명 중 ${total.came}명 참석)`,
     ...C.rows.map((r) => `▸ ${r.label} ${r.rate} (${r.came}/${r.n}) · 공무 ${r.excused} · ${word} ${r.absent}`),
     `▸ 지각 ${nLate}명 · 공무(사전보고) ${nEx}명 · ${word} ${nAbs}명`].join(String.fromCharCode(10));

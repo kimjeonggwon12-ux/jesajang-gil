@@ -331,7 +331,9 @@ async function sendRoomDoc(chat, bytes, fileName, caption) {
   throw new Error('엑셀 전송 실패: ' + last);
 }
 
-function kyoTexts(m, phase, P) {
+// 11/19(사용자): 교역자 글에서 휴직·근신(교사 명단 표시)·원장 제외 명단(hwaExcluded) 빼기 — leave = onLeaveNids()
+function kyoTexts(m, phase, P, leave = new Set()) {
+  P = { ...P, people: P.people.filter((p) => !hwaExcluded(p) && !leave.has(p.nid)) };
   const outside = P.outside.filter((o) => o.key === '교역자');
   // 11/12 밤(사용자): 교역자 방엔 협력 교회 두 분을 교회 교역자 명단에 넣고 이름 옆에 '협력 교회'만
   const church = P.people.filter((p) => p.dept === '교회교역' || p.dept === '협력교회').map((p) => (p.dept === '협력교회' ? { ...p, name: p.name + '(협력 교회)' } : p));
@@ -529,7 +531,7 @@ async function kyoWhole(m, phase, P, edu) {
   const defs = [['교회 교역자', (p) => p.dept === '교회교역'], ['신학부 교역자', (p) => p.dept === '신학교역'], ['협력 교회', (p) => p.dept === '협력교회']];
   defs.scope = (p) => ['교회교역', '신학교역', '협력교회'].includes(p.dept);
   const C = cardData(m, P, await prevRates(m, edu, defs).catch(() => null), defs, defs.scope, '교역자 ', '부서');
-  return [{ ...eduCard(m, P, C) }, ...kyoTexts(m, phase, P).map((text) => ({ text }))];
+  return [{ ...eduCard(m, P, C) }, ...kyoTexts(m, phase, P, await (await import('./room-attendance.js')).onLeaveNids()).map((text) => ({ text }))];
 }
 
 // 11/18(사용자): 목사교 행정 방도 화전단과 같은 서식으로 — 24부서 = '24부서 장부청 소속' 카드+실명 명단(중진 방과 같은 것),
@@ -577,7 +579,7 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
     }
     if (eduOnly || room.dept.startsWith('#') || room.dept.includes('#')) continue;
     if (room.dept === '교역자') {
-      if (once('교역자|' + chat)) for (const t of kyoTexts(m, phase, P)) out.push({ room, text: t });
+      if (once('교역자|' + chat)) for (const t of kyoTexts(m, phase, P, await (await import('./room-attendance.js')).onLeaveNids())) out.push({ room, text: t });
       continue;
     }
     if (DEPTS.includes(room.dept)) {   // 부서 전체 방
@@ -710,7 +712,7 @@ export async function jungjinParts(m, phase, kind, o = {}) {
   const total = one('종합', all);
   const [mo, d] = m.date.slice(5).split('-').map(Number);
   const absentWord = o.absentWord || (phase === '최종' ? '불참' : '미참석');
-  const title = o.title ? `${mo}/${d} ${o.title}` : `${mo}/${d} 24부서 ${kind === '화전단' ? '화요전도단' : '목요 사명자 교육'} ${phase === '최종' ? '' : phase + ' '}출석현황`;
+  const title = o.title ? `${mo}/${d} ${o.title}` : `${mo}/${d} 24부서 ${kind === '화전단' ? '화요전도단' : '목요 사명자 교육'} ${phase === '최종' ? '' : phase + ' '}출석현황 (장부청 소속)`;   // 11/19(사용자): 카드 제목에 (장부청 소속) — 화전단·목사교 둘 다
   const C = { title, rows, total, reasonTotal: total.absent, firstHead: '부서', excusedCol: true };
   let png = null;
   try { png = eduCardPng(C); } catch (e) { console.log('중진 카드 오류: ' + e.message); }
