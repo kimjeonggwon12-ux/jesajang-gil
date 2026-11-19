@@ -824,7 +824,10 @@ async function attAutoSummary(body) {
   // 2026-11-01: 하루 한 번 휴교사 ↔ 활동교사 자동 전환(한 달 기록 기준)
   let tier = null;
   try { tier = await (await import('./tiers.js')).autoRestTick(); } catch (e) { console.log('등급 자동 전환 오류: ' + e); }
-  return { ok: true, closed, roomAm, cohort, daily, summary, tier };
+  // 2026-11-19: 오후 2시 '내일의양식' 방에 오늘의 양식 + 잠언(그날 일 = 장) 안내
+  let bread = null;
+  try { bread = await (await import('../lib/daily-bread.js')).dailyBreadTick(); } catch (e) { console.log('내일의양식 오류: ' + e); }
+  return { ok: true, closed, roomAm, cohort, daily, summary, tier, bread };
 }
 
 export default {
