@@ -302,7 +302,8 @@ export async function kyoRoomText(m, phase, sess, order, o = {}) {
   const roster = o.people || await kyoRoster(o.exclude ?? KYO_EXCLUDE_LIVE), rank = await kyoOrder();
   const basis = o.basis || '교사 재적 기준';
   const ea = await import('./edu-attendance.js');
-  const kind = ea.jungjinKind(m) || ((await ea.eduFor(m).catch(() => null))?.series?.roster_key === '목요사명자' ? '목사교' : null);
+  // 11/20: 금요 교사 교육도 공무(본인 신고·관리자 등록) 반영
+  const kind = ea.jungjinKind(m) || (/금요\s*교사/.test(String(m.title || '')) ? '금요교사' : null) || ((await ea.eduFor(m).catch(() => null))?.series?.roster_key === '목요사명자' ? '목사교' : null);
   const ex = kind ? await ea.excusedOf(kind, m.date).catch(() => new Set()) : new Set();
   if (kind) { try { const { selfExcusedOf } = await import('../actions/edu-excused-self.js'); for (const n of (await selfExcusedOf(kind, m.date)).keys()) ex.add(n); } catch (e) { console.log('본인 공무 신고 읽기 실패: ' + e.message); } }
   const att = new Map(), guests = new Map();   // nid → { 오전: row, … }

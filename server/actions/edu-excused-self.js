@@ -8,7 +8,9 @@ import { db, run } from '../lib/db.js';
 import { kstDate, kstDateTime } from '../lib/util.js';
 
 // 11/16(2차, 사용자): 화요전도단·목요 사명자 교육 둘 다 — 나의교실 '출석' 칸에서 교육·날짜를 골라 신고.
-const KINDS = { 화전단: { title: '화요 전도단', days: [2] }, 목사교: { title: '목요 사명자 교육', days: null } }, ROSTER = '목요사명자';
+// 11/20(사용자): 금요 교사 교육도 화전단·목사교와 같게 — 교사·관리자 명단에 있는 분 누구나(목사교 재적 아님).
+const KINDS = { 화전단: { title: '화요 전도단', days: [2] }, 목사교: { title: '목요 사명자 교육', days: null }, 금요교사: { title: '금요 교사 교육', days: [5] } }, ROSTER = '목요사명자';
+export const isFriTeacherMeeting = (m) => /금요\s*교사/.test(String(m?.title || ''));
 // 11/16(3차, 사용자): 24부서 포함 목사교 재적(교자장부청 부구역장 이상 사명자) 전원에게 카드. 원장은 집계 제외라 카드도 안 보임.
 const GROUP = { 교회교역: '교역자', 신학교역: '교역자', 협력교회: '교역자', 장로회: '장로·자문회', 자문회: '장로·자문회' };
 const groupOf = (p) => (p.dept === '24부서' ? '24부서 ' + (p.affiliation || '') : GROUP[p.dept] || p.dept);
@@ -40,6 +42,7 @@ const lastEnd = (rows) => rows.flatMap((r) => [hm(r.end_time), ...(Array.isArray
 async function endTimeOf(kind, date) {
   const ms = (await run(db().from('attend_meetings').select('title, end_time, slots, series_id').eq('date', date).neq('status', '삭제')).catch(() => [])).filter((m) => !String(m.title || '').startsWith('[TEST]'));
   if (kind === '화전단') return lastEnd(ms.filter((m) => /화요전도단|화전단/.test(m.title || ''))) || '22:00';
+  if (kind === '금요교사') return lastEnd(ms.filter(isFriTeacherMeeting)) || '22:00';
   const ss = await run(db().from('attend_series').select('series_id, slots').eq('roster_key', ROSTER).neq('status', '삭제')).catch(() => []);
   const ids = new Set(ss.map((x) => x.series_id));
   return lastEnd(ms.filter((m) => ids.has(m.series_id))) || lastEnd(ss.map((x) => ({ slots: x.slots }))) || '22:00';
@@ -58,11 +61,12 @@ async function me(body) {
   const nid = String(body?._actorNid || '');
   if (!nid) fail('로그인이 필요해요.');
   const [p] = await run(db().from('edu_roster').select('nid, name, dept, region, district, affiliation, position').eq('roster_key', ROSTER).eq('nid', nid).limit(1));
-  if (p) return { nid, p: excluded(p) ? null : p, outside: excluded(p), kinds: Object.keys(KINDS) };
   const [t] = await run(db().from('teachers').select('nid, name, dept, region, affiliation, position').eq('nid', nid).limit(1));
   const [a] = t ? [] : await run(db().from('admins').select('nid, name, dept, position').eq('nid', nid).limit(1));
   const q = t || a;
-  return { nid, p: q ? { ...q, region: q.region || '', affiliation: q.affiliation || '', outsideRoster: true } : null, outside: false, kinds: q ? ['화전단'] : [] };
+  // 11/20: 금요 교사 교육 = 교사·관리자 명단에 있는 분(목사교 재적만 있는 비교사는 제외)
+  if (p) return { nid, p: excluded(p) ? null : p, outside: excluded(p), kinds: q ? ['화전단', '목사교', '금요교사'] : ['화전단', '목사교'], teacher: q || null };
+  return { nid, p: q ? { ...q, region: q.region || '', affiliation: q.affiliation || '', outsideRoster: true } : null, outside: false, kinds: q ? ['화전단', '금요교사'] : [], teacher: q || null };
 }
 const view = (r) => r && { kind: r.kind, date: r.date, label: dayLabel(r.date), reason: r.reason, active: r.active, dept: r.dept, region: r.region, at: r.updated_at };
 
@@ -78,7 +82,7 @@ export async function getMyExcused(body = {}) {
     const ended = await Promise.all(dates.map((d) => isEnded(kind, d)));
     kinds.push({ kind, title: KINDS[kind].title, dates: dates.map((d, i) => ({ date: d, label: dayLabel(d), ended: ended[i], mine: view(rows.find((r) => r.date === d && r.active)) })) });
   }
-  return { enabled: true, eligible: true, title: '화요 전도단 · 목요 사명자 교육 공무로 인한 결석자 보고', group: groupOf(m.p), dept: m.p.dept, region: m.p.dept === '24부서' ? '' : (m.p.region || ''),
+  return { enabled: true, eligible: true, title: m.kinds.map((k) => KINDS[k].title).join(' · ') + ' 공무로 인한 결석자 보고', group: groupOf(m.p), dept: m.p.dept, region: m.p.dept === '24부서' ? '' : (m.p.region || ''),
     name: m.p.name, kinds, note: m.p.outsideRoster ? '목요 사명자 교육은 사명자 재적(부구역장 이상)에 있는 분만 신고해요.' : '' };
 }
 
@@ -96,11 +100,13 @@ export async function submitMyExcused(body = {}) {
   // 11/17(사용자): 공무 항목은 정해진 것만(드롭다운), 기타는 사유 직접 입력
   if (!validReason(reason)) fail(reasonProblem(reason));
   if (!KINDS[kind]) fail('교육을 골라 주세요.');
-  if (!m.kinds.includes(kind)) fail('목요 사명자 교육은 사명자 재적에 있는 분만 신고할 수 있어요.');
+  if (!m.kinds.includes(kind)) fail(kind === '금요교사' ? '금요 교사 교육은 교사 명단에 있는 분만 신고할 수 있어요.' : '목요 사명자 교육은 사명자 재적에 있는 분만 신고할 수 있어요.');
   if (!validDate(date) || !(await nextDates(kind)).includes(date)) fail('다가오는 교육 날짜만 신고할 수 있어요.');
   if (await isEnded(kind, date)) fail('이미 끝난(종료된) 교육이에요. 다음 회차를 골라 주세요.');
   if (reason.length > 200) fail('사유는 200자 이내로 적어 주세요.');
-  const row = { kind, date, nid: m.nid, name: m.p.name, dept: m.p.dept, region: m.p.dept === '24부서' ? (m.p.affiliation || '') : (m.p.region || ''), reason, active: true, registered_by: '', canceled_by: '', updated_at: new Date().toISOString() };
+  // 11/20: 금요 교사 교육은 교사 명단 소속(부서·지역)으로 기록
+  const src = kind === '금요교사' && m.teacher ? { ...m.teacher, region: m.teacher.region || '', affiliation: m.teacher.affiliation || '' } : m.p;
+  const row = { kind, date, nid: m.nid, name: src.name, dept: src.dept, region: src.dept === '24부서' ? (src.affiliation || '') : (src.region || ''), reason, active: true, registered_by: '', canceled_by: '', updated_at: new Date().toISOString() };
   await run(db().from('edu_excused_self').upsert(row, { onConflict: 'kind,date,nid' }));
   return { ok: true, label: KINDS[kind].title + ' ' + dayLabel(date), dept: m.p.dept, region: m.p.region || '' };
 }

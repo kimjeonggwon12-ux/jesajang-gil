@@ -2595,6 +2595,8 @@
     .ex-self-k.tue { border-color:#FDBA74; background:#FFF8F1; } .ex-self-k.tue .ex-self-kt { color:#C2410C; }
     .ex-self-k.thu { border-color:#A9C4FA; background:#F5F8FF; } .ex-self-k.thu .ex-self-kt { color:#1E40AF; }
     .ex-self-k.tue .ex-self-btn { background:#F97316; border-color:#F97316; } .ex-self-k.tue .ex-self-btn.line { background:#fff; color:#C2410C; }
+    .ex-self-k.fri { border-color:#C4B5FD; background:#FAF7FF; } .ex-self-k.fri .ex-self-kt { color:#6D28D9; }
+    .ex-self-k.fri .ex-self-btn { background:#7C3AED; border-color:#7C3AED; } .ex-self-k.fri .ex-self-btn.line { background:#fff; color:#6D28D9; }
     .ex-self-win { margin-top:4px; display:inline-block; padding:4px 10px; border-radius:999px; background:rgba(255,255,255,.85); font-size:13.5px; font-weight:800; color:#334155; }
     .ex-self-row { display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; } .ex-self-row b { min-width:76px; }
     .ex-self-row span { flex:1; min-width:120px; font-size:13.5px; color:#6b7280; } .ex-self-row span.on { color:#00875f; }
@@ -8568,7 +8570,7 @@
     function exsGroupText(d) { return d.group + (d.region ? ' · ' + d.region : ''); }
     function exsLine(x) { if (x.ended) return x.mine ? '✅ 공무 결석 신고됨 · 교육 종료' : '교육 종료'; return x.mine ? '✅ 공무 결석 신고됨' + (x.mine.reason && x.mine.reason !== '공무' ? ' · ' + x.mine.reason : '') : '아직 신고 안 함'; }
     // 11/16(사용자): '공무결석' 보고 가능시간 — 화전단 월09:00~화19:30, 목사교 수09:00~목19:30(표시만)
-    const EXS_WINDOW = { 화전단: '월 09:00 ~ 화 19:30', 목사교: '수 09:00 ~ 목 19:30' };
+    const EXS_WINDOW = { 화전단: '월 09:00 ~ 화 19:30', 목사교: '수 09:00 ~ 목 19:30', 금요교사: '목 09:00 ~ 금 19:30' };   // 11/20 금요 교사 교육 추가
     function exsWindowText(kind) { return EXS_WINDOW[kind] ? '⏰ 보고 가능시간 ' + EXS_WINDOW[kind] : ''; }
     /* EXS-VIEW-END */
     // 11/17(사용자): 공무 항목은 이것만 — 화전단·목사교 둘 다, 드롭다운. 기타는 사유 직접 입력('기타: …'로 저장). 서버 normReason 과 같은 목록
@@ -8616,7 +8618,7 @@
       const btn = (kind, x) => x.ended ? '<span class="ex-self-end">종료</span>' : x.mine
         ? '<button type="button" class="ex-self-btn line" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsCancel(\'' + kind + '\',\'' + x.date + '\')">취소</button>'
         : '<button type="button" class="ex-self-btn" ' + (exsState.busy ? 'disabled' : '') + ' onclick="exsSubmit(\'' + kind + '\',\'' + x.date + '\')">' + (exsState.busy === kind + x.date ? '신고하는 중…' : '공무 결석으로 신고') + '</button>';
-      const TH = { 화전단: ['tue', '🔥'], 목사교: ['thu', '📖'] };
+      const TH = { 화전단: ['tue', '🔥'], 목사교: ['thu', '📖'], 금요교사: ['fri', '🎓'] };
       const sections = d.kinds.map(k => '<div class="ex-self-k ' + (TH[k.kind] || [''])[0] + '"><div class="ex-self-kt"><span>' + ((TH[k.kind] || [, ''])[1]) + '</span>' + esc(k.title) + '</div>' + (exsWindowText(k.kind) ? '<div class="ex-self-win">' + esc(exsWindowText(k.kind)) + '</div>' : '')
         + k.dates.map(x => '<div class="ex-self-row"><b>' + esc(x.label) + '</b><span class="' + (x.mine ? 'on' : '') + '">' + esc(exsLine(x)) + '</span>' + btn(k.kind, x) + '</div>').join('') + '</div>').join('');
       return '<div class="ex-self-card">'
@@ -19445,7 +19447,8 @@ async function calAdmInit() {
       return String(h.at || '').slice(0, 16).replace('T', ' ') + ' · ' + who + ' · ' + h.name + ' ' + EM_ACTION[h.action] + what;
     }
     // 11/16(4차): 두 교육 테마 — 화요 전도단(주황) · 목요 사명자 교육(파랑)을 크게 구분
-    const EM_THEME = { 화전단: { icon: '🔥', title: '화요 전도단', cls: 'tue' }, 목사교: { icon: '📖', title: '목요 사명자 교육', cls: 'thu' } };
+    // 11/20(사용자): 금요 교사 교육(보라)도 화전단·목사교와 같게 — 대상은 교사 명단
+    const EM_THEME = { 화전단: { icon: '🔥', title: '화요 전도단', cls: 'tue' }, 목사교: { icon: '📖', title: '목요 사명자 교육', cls: 'thu' }, 금요교사: { icon: '🎓', title: '금요 교사 교육', cls: 'fri' } };
     function exlPlaceText(r) { return r.group + (r.place ? ' · ' + r.place : ''); }
     function exlSourceText(r) { return r.source + (r.registeredBy ? ' (' + r.registeredBy + ')' : ''); }
     function exlStatusText(r) { return (r.reason ? '사유: ' + r.reason : '사유 없음') + (r.attended === true ? ' · 그날 출석함(참석으로 셈)' : r.attended === false ? ' · 미출석' : ''); }
@@ -19460,12 +19463,12 @@ async function calAdmInit() {
       return out;
     }
     function emNextDate(kind, today) {
-      const want = kind === '화전단' ? 2 : 4;
+      const want = { 화전단: 2, 목사교: 4, 금요교사: 5 }[kind] || 4;
       for (let i = 0; i < 7; i++) { const d = new Date(Date.parse(today + 'T00:00:00Z') + i * 864e5); if (d.getUTCDay() === want) return d.toISOString().slice(0, 10); }
       return today;
     }
     // 11/16(6차): 탭을 열면 더 가까운 교육부터(같은 날이면 목요 사명자 교육)
-    function emNextKind(today) { return emNextDate('화전단', today) < emNextDate('목사교', today) ? '화전단' : '목사교'; }
+    function emNextKind(today) { return ['목사교', '화전단', '금요교사'].reduce((a, k) => (emNextDate(k, today) < emNextDate(a, today) ? k : a)); }
     /* EM-VIEW-END */
     const eduMgmt = (() => {
       const st = { lgrp: '', lkind: '목사교', ldate: '', list: null, q: '', hits: null, addReason: '', sure: '', access: null, on: false, view: 'list', week: null, detail: null, date: '', scope: null, drafts: {}, kind: '목사교', exDate: '', aff: '', confirm: null, heads: null, busy: false, msg: '', error: '' };
@@ -19488,9 +19491,9 @@ async function calAdmInit() {
           .em-p .em-two input,.em-p textarea{width:100%}.em-hist{font-size:12px;color:#5b6661;border-top:1px dashed #e3e8e6;padding:4px 0}
           .em-grps{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.em-grps button{min-width:44px;height:36px;padding:0 12px;border-radius:18px;border:1px solid #cfd8d4;background:#fff;font-weight:800;font-size:15px}.em-grps button b{color:#00875f;margin-left:2px}
           .em-grps button.on{background:#00AE82;border-color:#00AE82;color:#fff}.em-grps button.on b{color:#fff}.em-gh{margin-top:12px;padding:6px 10px;border-radius:8px;background:#eef3f1;font-weight:900;font-size:15px}.em-gh b{color:#00875f;margin-left:4px}
-          .em-themes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 8px}.em-theme{display:flex;align-items:center;justify-content:center;gap:6px;min-height:58px;border-radius:14px;font-size:17px;font-weight:900;border:2px solid transparent;background:#f3f4f6;color:#6b7280}
-          .em-theme span{font-size:22px}.em-theme.tue.on{background:#FFF1E6;border-color:#F97316;color:#C2410C}.em-theme.thu.on{background:#EAF1FF;border-color:#2F6BEB;color:#1E40AF}
-          .em-kcard.tue{border:2px solid #FDBA74;background:#FFFBF7}.em-kcard.thu{border:2px solid #A9C4FA;background:#F8FAFF}.em-kcard h4{font-size:18px}.em-src{color:#7c3aed}
+          .em-themes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0 8px}.em-theme{display:flex;align-items:center;justify-content:center;gap:6px;min-height:58px;padding:4px 6px;border-radius:14px;font-size:16px;word-break:keep-all;text-align:center;line-height:1.2;font-weight:900;border:2px solid transparent;background:#f3f4f6;color:#6b7280}
+          .em-theme span{font-size:22px}.em-theme.tue.on{background:#FFF1E6;border-color:#F97316;color:#C2410C}.em-theme.thu.on{background:#EAF1FF;border-color:#2F6BEB;color:#1E40AF}.em-theme.fri.on{background:#F3EEFF;border-color:#7C3AED;color:#6D28D9}
+          .em-kcard.tue{border:2px solid #FDBA74;background:#FFFBF7}.em-kcard.thu{border:2px solid #A9C4FA;background:#F8FAFF}.em-kcard.fri{border:2px solid #C4B5FD;background:#FBF9FF}.em-kcard h4{font-size:18px}.em-src{color:#7c3aed}
           #eduMgmtRoot .ra-btn{height:44px;padding:0 16px;border-radius:10px;border:1px solid #00AE82;background:#00AE82;color:#fff;font-weight:700;font-size:15px;white-space:nowrap}
           #eduMgmtRoot .ra-btn.line{background:#fff;color:#00875f}#eduMgmtRoot .ra-btn.warn{background:#fff;color:#c0392b;border-color:#e3b5ae}#eduMgmtRoot .ra-btn:disabled{opacity:.5}
           @media (max-width:520px){.em-p .em-two{grid-template-columns:1fr}}`;
@@ -19637,7 +19640,7 @@ async function calAdmInit() {
       }
       function findPeople() {
         const el = document.getElementById('emAddQ'); st.q = el ? el.value.trim() : '';
-        return busy(async () => { st.hits = need(await call({ action: 'searchEduRosterForExcused', q: st.q })).rows; });
+        return busy(async () => { st.hits = need(await call({ action: 'searchEduRosterForExcused', kind: st.lkind, q: st.q })).rows; });
       }
       function addOne(id) {
         const bad = exR.problem(st.addReason);
