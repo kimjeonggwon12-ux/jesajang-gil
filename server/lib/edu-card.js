@@ -14,7 +14,8 @@ export const REASONS = ['직장', '병결', '가정사', '개인사'];
  * rate·prev·absentRate 는 글자('83.2%' / '-')
  */
 export function eduCardPng(c) {
-  const F = 19, RH = 40, HH = 36, PAD = 18, TITLE = 64;
+  const F = 19, HH = 36, PAD = 18, TITLE = 64;
+  let RH = 40;
   const W = [150, 92, 92, 104, 88, 84, 98, ...REASONS.map(() => 82)];
   const xs = W.reduce((a, w, i) => (a.push(i ? a[i - 1] + W[i - 1] : PAD), a), []);
   const tableW = W.reduce((a, b) => a + b, 0);
@@ -22,7 +23,12 @@ export function eduCardPng(c) {
   const top = PAD + TITLE;
   const bodyTop = top + HH * 2;
   const rows = [...c.rows, { ...c.total, label: '종합', total: true }];
-  const ALERT = c.alert ? 78 : 0;   // 11/19(사용자): 표 아래 빨간 큰 글씨(예: "장년회와 청년회는 출석 대책회의 필요!")
+  // 11/19(사용자): 표 아래 빨간 큰 글씨(예: "장년회와 청년회는 출석 대책회의 필요!") — 68px(처음의 두 배), 폭을 넘으면 '는 ' 뒤에서 두 줄
+  const AS = 68, textW = (s) => [...s].reduce((a, ch) => a + (/[ -~]/.test(ch) ? 0.45 : 1) * AS, 0);
+  const alertLines = !c.alert ? [] : textW(c.alert) <= tableW ? [c.alert] : (() => { const i = c.alert.indexOf('는 '); return i > 0 ? [c.alert.slice(0, i + 1), c.alert.slice(i + 2)] : [c.alert]; })();
+  const ALERT = alertLines.length ? 40 + alertLines.length * 84 : 0;
+  // 11/19(사용자): c.square 면 줄 높이를 늘려 카드 전체를 정사각형으로(줄이 많아 이미 세로가 길면 그대로)
+  if (c.square) RH = Math.max(RH, Math.floor((width - bodyTop - PAD - ALERT) / rows.length));
   const height = bodyTop + RH * rows.length + PAD + ALERT;
   const P = [];
   const rect = (x, y, w, h, fill) => P.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}"/>`);
@@ -71,7 +77,7 @@ export function eduCardPng(c) {
   for (let i = 1; i < W.length; i++) line(xs[i], i >= 8 ? top + HH : top, xs[i], bottom, 1);
   P.push(`<rect x="${PAD}" y="${top}" width="${tableW}" height="${bottom - top}" fill="none" stroke="#333" stroke-width="2"/>`);
 
-  if (c.alert) text(width / 2, bottom + 54, c.alert, { size: 34, bold: true, color: RED });
+  alertLines.forEach((l, i) => text(width / 2, bottom + 40 + 64 + i * 84, l, { size: AS, bold: true, color: RED }));
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" font-family="NanumGothic">${P.join('')}</svg>`;
   return Buffer.from(new Resvg(svg, { font: { fontFiles: FONTS, loadSystemFonts: false, defaultFontFamily: 'NanumGothic' }, fitTo: { mode: 'zoom', value: 2 } }).render().asPng());

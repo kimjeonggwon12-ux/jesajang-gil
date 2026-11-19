@@ -262,7 +262,15 @@ function conclusion(C, P) {
   L.push(`불참 ${comma(T.absent)}명(${T.absentRate}) · 지각 ${comma(T.late)}명 · 불참 사유는 아직 받지 않아 칸이 비어 있음`);
   return L;
 }
+// 11/19(사용자): "장년회 청년회 관련 카드 뉴스에는 다 — 출석 대책회의 필요!" 빨간 큰 글씨 + 정사각형 카드
+export const ALERT_DEPTS = ['장년회', '청년회'];
+function cardAlert(C) {
+  const hit = C.firstHead === '지역' ? ALERT_DEPTS.filter((d) => String(C.title).includes(' ' + d + ' ')) : ALERT_DEPTS.filter((d) => C.rows.some((r) => r.label === d));
+  return hit.length ? hit.join('와 ') + '는 출석 대책회의 필요!' : '';
+}
 function eduCard(m, P, C) {
+  if (C.alert == null) C.alert = cardAlert(C);
+  if (C.alert) C.square = true;
   let png = null;
   try { png = eduCardPng(C); } catch (e) { console.log('출석현황 카드 오류: ' + e.message); }
   const caption = [`📊 <b>${esc(C.title)}</b> (사명자 재적 기준)`, '', ...conclusion(C, P).map((l) => '▸ ' + esc(l))].join(String.fromCharCode(10));
@@ -367,14 +375,12 @@ async function tsEduAttSend(body) {
     const edu = m && await eduFor(m);
     if (!edu) return { error: '모임 없음' };
     const P = { ...(await prepare(m, String(body.phase || '최종'), edu)), phase: String(body.phase || '최종') };
-    const C = cardData(m, P, await prevRates(m, edu).catch(() => null));
-    const low = [...C.rows].filter((r) => ['장년회', '부녀회', '청년회'].includes(r.label)).sort((a, b) => a.rateNum - b.rateNum);
-    const pick = Array.isArray(body.depts) && body.depts.length ? body.depts : low.slice(0, 2).map((r) => r.label).sort((x, y) => CARD_ROWS.findIndex(([l]) => l === x) - CARD_ROWS.findIndex(([l]) => l === y));   // 표 순서(장년→청년)
-    C.alert = pick.join('와 ') + '는 출석 대책회의 필요!';
-    const card = eduCard(m, P, C);
+    // 11/19 2차: 총합 카드 + 장년회·청년회 부서 카드(빨간 문구는 eduCard 가 자동) — 카드만, 시험 방(나만의 교사광장)에만
+    const cards = [eduCard(m, P, cardData(m, P, await prevRates(m, edu).catch(() => null)))];
+    for (const d of ALERT_DEPTS) if (P.people.some((x) => x.dept === d)) cards.push((await deptWhole(m, P.phase, P, edu, d))[0]);
     const room = { dept: '#test', chat_id: MY_TEST_CHAT };
-    if (!body.dry) await sendRoomBoard(room, card.png, card.caption, card.text);
-    return { ok: true, alert: C.alert, rows: C.rows.map((r) => [r.label, r.rate]), sent: !body.dry, png: body.dry && body.png ? card.png.toString('base64') : undefined };
+    if (!body.dry) for (const c of cards) { await sendRoomBoard(room, c.png, c.caption, c.text); await new Promise((r) => setTimeout(r, 1500)); }
+    return { ok: true, cards: cards.length, titles: cards.map((c) => c.caption.split(String.fromCharCode(10))[0]), sent: !body.dry, png: body.dry && body.png ? cards.map((c) => c.png.toString('base64')) : undefined };
   }
   if (body.excel) {   // 11/13: 부서 시트를 넣은 엑셀만 목사교 방에 다시(dry 면 파일 내용 base64)
     const { findMeeting } = await import('../actions/attendance.js');
