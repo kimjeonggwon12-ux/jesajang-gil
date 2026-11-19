@@ -361,6 +361,21 @@ async function tsEduAttSend(body) {
     const to = body.test ? { dept: JUNGJIN_KEY, chat_id: MY_TEST_CHAT } : null;
     return { ok: true, sent: await postJungjin(m, String(body.phase || '최종'), { to, force: true }) };
   }
+  if (body.alertCard) {   // 11/19(사용자): 목사교 총합 카드 + 표 아래 빨간 대책회의 문구 — 시험 방(나만의 교사광장)에만
+    const { findMeeting } = await import('../actions/attendance.js');
+    const m = await findMeeting(String(body.meetingId || ''));
+    const edu = m && await eduFor(m);
+    if (!edu) return { error: '모임 없음' };
+    const P = { ...(await prepare(m, String(body.phase || '최종'), edu)), phase: String(body.phase || '최종') };
+    const C = cardData(m, P, await prevRates(m, edu).catch(() => null));
+    const low = [...C.rows].filter((r) => ['장년회', '부녀회', '청년회'].includes(r.label)).sort((a, b) => a.rateNum - b.rateNum);
+    const pick = Array.isArray(body.depts) && body.depts.length ? body.depts : low.slice(0, 2).map((r) => r.label).sort((x, y) => CARD_ROWS.findIndex(([l]) => l === x) - CARD_ROWS.findIndex(([l]) => l === y));   // 표 순서(장년→청년)
+    C.alert = pick.join('와 ') + '는 출석 대책회의 필요!';
+    const card = eduCard(m, P, C);
+    const room = { dept: '#test', chat_id: MY_TEST_CHAT };
+    if (!body.dry) await sendRoomBoard(room, card.png, card.caption, card.text);
+    return { ok: true, alert: C.alert, rows: C.rows.map((r) => [r.label, r.rate]), sent: !body.dry, png: body.dry && body.png ? card.png.toString('base64') : undefined };
+  }
   if (body.excel) {   // 11/13: 부서 시트를 넣은 엑셀만 목사교 방에 다시(dry 면 파일 내용 base64)
     const { findMeeting } = await import('../actions/attendance.js');
     const m = await findMeeting(String(body.meetingId || ''));

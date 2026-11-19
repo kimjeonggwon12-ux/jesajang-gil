@@ -22,7 +22,8 @@ export function eduCardPng(c) {
   const top = PAD + TITLE;
   const bodyTop = top + HH * 2;
   const rows = [...c.rows, { ...c.total, label: '종합', total: true }];
-  const height = bodyTop + RH * rows.length + PAD;
+  const ALERT = c.alert ? 78 : 0;   // 11/19(사용자): 표 아래 빨간 큰 글씨(예: "장년회와 청년회는 출석 대책회의 필요!")
+  const height = bodyTop + RH * rows.length + PAD + ALERT;
   const P = [];
   const rect = (x, y, w, h, fill) => P.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}"/>`);
   const text = (x, y, s, { size = F, color = '#111', bold = false, anchor = 'middle' } = {}) =>
@@ -69,6 +70,8 @@ export function eduCardPng(c) {
   line(rx, top + HH, rx + rw, top + HH);
   for (let i = 1; i < W.length; i++) line(xs[i], i >= 8 ? top + HH : top, xs[i], bottom, 1);
   P.push(`<rect x="${PAD}" y="${top}" width="${tableW}" height="${bottom - top}" fill="none" stroke="#333" stroke-width="2"/>`);
+
+  if (c.alert) text(width / 2, bottom + 54, c.alert, { size: 34, bold: true, color: RED });
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" font-family="NanumGothic">${P.join('')}</svg>`;
   return Buffer.from(new Resvg(svg, { font: { fontFiles: FONTS, loadSystemFonts: false, defaultFontFamily: 'NanumGothic' }, fitTo: { mode: 'zoom', value: 2 } }).render().asPng());
