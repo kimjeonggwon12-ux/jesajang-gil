@@ -604,7 +604,8 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
     }
     if (eduOnly || room.dept.startsWith('#') || room.dept.includes('#')) continue;
     if (room.dept === '교역자') {
-      if (once('교역자|' + chat)) for (const t of kyoTexts(m, phase, P, await (await import('./room-attendance.js')).onLeaveNids())) out.push({ room, text: t });
+      // 11/19 밤(사용자): 교역자 방(교역자 전도 보고및소통)도 옛 2통 대신 중진 방과 같은 새 형식(교역자회 카드+실명 명단, 휴직·근신·협력 교회 제외)
+      if (once('교역자|' + chat)) { const k = await (await import('./room-attendance.js')).kyoPreview(m, phase); out.push({ room, png: k.png, text: k.texts[0], cardText: true }, ...k.texts.slice(1).map((text) => ({ room, text }))); }
       continue;
     }
     if (DEPTS.includes(room.dept)) {   // 부서 전체 방
