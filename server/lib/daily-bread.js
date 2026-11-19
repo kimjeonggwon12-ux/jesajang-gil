@@ -8,7 +8,7 @@ import { kstDate, kstDateTime } from './util.js';
 export const BREAD_CHAT_ID = '-1004481209815';   // 내일의양식
 const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
 
-/** 'YYYY-MM-DD' → 올릴 글. 신(新)년 = 서기 - 1983 (2026 = 신 43). */
+/** 'YYYY-MM-DD' → 올릴 글(텔레그램 HTML — 글에 <,>,& 를 새로 넣으면 이스케이프할 것). 신(新)년 = 서기 - 1983 (2026 = 신 43). */
 export function breadText(date) {
   const [y, m, d] = date.split('-').map(Number);
   const wd = WEEK[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
@@ -16,9 +16,9 @@ export function breadText(date) {
   return [
     `신 ${y - 1983}. ${m}. ${d}.(${wd})`,
     '🍒시온공부방-오늘의 양식 10문제 풀기',
-    ' (https://kimjeonggwon12-ux.github.io/-0722-3-/)https://zion-study-room.vercel.app/',
+    'https://zion-study-room.vercel.app/',
     '📣암호: 144000-12000',
-    `🌐잠언 ${d}장 읽기 (${link})`,
+    `🌐<a href="${link}">잠언 ${d}장 읽기</a>`,   // 11/19(사용자): 주소를 풀어 쓰지 말고 글자에 링크
     '← 누르면 링크로 이동',
     '◽️ 도마지파 교육부',
   ].join('\n');
@@ -29,7 +29,7 @@ async function send(text) {
   if (!token) throw new Error('ATT_BOT_TOKEN 없음');
   const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: BREAD_CHAT_ID, text }),
+    body: JSON.stringify({ chat_id: BREAD_CHAT_ID, text, parse_mode: 'HTML' }),
   });
   const j = await r.json().catch(() => ({}));
   if (!j.ok) throw new Error(j.description || String(r.status));
@@ -51,3 +51,19 @@ export async function dailyBreadTick() {
     return { date, error: e.message };
   }
 }
+
+// 관리용(운영 키): { action:'dailyBread', key, op:'preview'|'edit', date:'YYYY-MM-DD'(글에 들어갈 날), messageId? }
+//   edit = 이미 올린 글(messageId)을 지금 양식으로 고침(새 글을 올리지 않음).
+async function dailyBread(body) {
+  if (!process.env.TEACHERSQUARE_CRON_KEY || body.key !== process.env.TEACHERSQUARE_CRON_KEY) return { error: '권한이 없습니다.' };
+  const date = String(body.date || kstDate());
+  const text = breadText(date);
+  if (body.op !== 'edit') return { text };
+  const r = await fetch(`https://api.telegram.org/bot${process.env.ATT_BOT_TOKEN}/editMessageText`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: BREAD_CHAT_ID, message_id: Number(body.messageId), text, parse_mode: 'HTML' }),
+  });
+  const j = await r.json().catch(() => ({}));
+  return j.ok ? { ok: true } : { error: j.description || String(r.status) };
+}
+export default { dailyBread };
