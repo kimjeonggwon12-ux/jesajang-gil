@@ -895,6 +895,7 @@ const tsKyoResend = async (body) => {
   const m = await findMeeting(String(body.meetingId || ''));
   if (!m) return { error: '모임 없음' };
   const k = await kyoPreview(m, String(body.phase || '최종'));
+  if (body.dry) return { ok: true, caption: k.caption, texts: k.texts };   // 11/19: 보내지 않고 글만(운영 글 확인용)
   const rooms = await run(db().from('report_rooms').select('*').eq('dept', body.to === 'edu' ? '#교육:RS261112175202426' : body.to === 'jungjin' ? '#중진' : '교역자').eq('active', true));   // to:'edu' = 목사교 행정 방에서 먼저 확인, to:'jungjin' = 중진 대화방
   // 중진 방에 손으로 올리면 자동 발송(postJungjin '#jungjin:kyo')이 같은 단계를 또 올리지 않게 기록
   if (body.to === 'jungjin' && rooms.length) await db().from('cohort_summary_log').insert({ cohort_id: '#jungjin:kyo', kind: String(body.phase || '최종'), ref_id: m.meetingId, date: m.date, sent_at: kstDateTime() });
