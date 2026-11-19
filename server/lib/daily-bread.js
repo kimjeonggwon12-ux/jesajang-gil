@@ -56,6 +56,16 @@ async function send(text, date) {
   return j.result.message_id;
 }
 
+// 11/19 4차(사용자): 매주 월요일 한 주치 카드를 한꺼번에 올리게 됨 → 글에 들어갈 날짜별로 '올림' 기록('#daily-bread-sent', date = 글의 날).
+//   오후 2시 자동 글은 그 날짜가 이미 올라갔으면 건너뜀(같은 카드 두 번 방지).
+async function alreadySent(date) {
+  const { data } = await db().from('cohort_summary_log').select('id').eq('cohort_id', '#daily-bread-sent').eq('date', date).limit(1);
+  return !!(data && data.length);
+}
+async function markSent(date, messageId) {
+  await db().from('cohort_summary_log').insert({ cohort_id: '#daily-bread-sent', kind: '내일의양식', ref_id: String(messageId), date, sent_at: kstDateTime() });
+}
+
 /** 5분마다(attAutoSummary): 14:00~20:00 사이 첫 틱에 하루 한 번, 내일 날짜 글. 중복 기록 date = 올린 날. */
 export async function dailyBreadTick() {
   const hm = kstDateTime().slice(11, 16);
@@ -65,7 +75,8 @@ export async function dailyBreadTick() {
   if (error) return null;   // 오늘 이미 보냄
   const [y, m, d] = date.split('-').map(Number);
   const next = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);   // 내일 날짜(글에 들어갈 날)
-  try { return { date, for: next, messageId: await send(breadText(next), next) }; }
+  if (await alreadySent(next)) return { date, for: next, skipped: '이미 올림(주간 묶음 등)' };
+  try { const messageId = await send(breadText(next), next); await markSent(next, messageId); return { date, for: next, messageId }; }
   catch (e) {
     await db().from('cohort_summary_log').delete().eq('cohort_id', '#daily-bread').eq('date', date);   // 다음 5분에 다시
     return { date, error: e.message };
@@ -78,8 +89,13 @@ async function dailyBread(body) {
   if (!process.env.TEACHERSQUARE_CRON_KEY || body.key !== process.env.TEACHERSQUARE_CRON_KEY) return { error: '권한이 없습니다.' };
   const date = String(body.date || kstDate());
   const text = breadText(date);
-  if (body.op === 'send') return { ok: true, photo: fs.existsSync(cardPath(date)), messageId: await send(text, date) };   // 지금 바로 한 번 올림(예약 기록과 무관)
-  if (body.op !== 'edit') return { text, photo: fs.existsSync(cardPath(date)) };
+  if (body.op === 'send') {   // 지금 바로 올림. 이미 올린 날은 force 없으면 막음
+    if (!body.force && await alreadySent(date)) return { error: date + ' 은(는) 이미 올렸습니다(force:true 로 다시).' };
+    const messageId = await send(text, date); await markSent(date, messageId);
+    return { ok: true, photo: fs.existsSync(cardPath(date)), messageId };
+  }
+  if (body.op === 'mark') { await markSent(date, body.messageId || 'manual'); return { ok: true }; }   // 손으로 올린 날을 기록만
+  if (body.op !== 'edit') return { text, photo: fs.existsSync(cardPath(date)), sent: await alreadySent(date) };
   const r = await fetch(`https://api.telegram.org/bot${process.env.ATT_BOT_TOKEN}/editMessageText`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: BREAD_CHAT_ID, message_id: Number(body.messageId), text, parse_mode: 'HTML' }),
