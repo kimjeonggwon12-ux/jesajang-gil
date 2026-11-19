@@ -179,7 +179,8 @@ async function prepare(m, phase) {
   const rows = data.rows.filter((r) => r.meetingId === m.meetingId && (phase === '최종' || r.session === phase));
   const order = [...new Set([...slotsOf(m).map((s) => s.name), '오전', '오후', '저녁', ...rows.map((r) => r.session)])];
   // 11/17(사용자): 이용우 지파장님·김양주 지파총무님은 화요 전도단도 항상 오전 참석(정상)으로 — 목사교는 edu-attendance.js ALWAYS_PRESENT
-  if (/화요전도단|화전단/.test(String(m.title || '')) && (phase === '오전' || phase === '최종') && slotsOf(m).some((s) => s.name === '오전')) {
+  // 11/19(사용자): 목사교(목요 사명자 교육)도 교역자 글(중진·교역자 방)에서 두 분 항상 오전 참석 — 오늘부터
+  if ((/화요전도단|화전단|목요\s*사명자/.test(String(m.title || '')) || m.seriesId === 'RS261112175202426') && (phase === '오전' || phase === '최종') && slotsOf(m).some((s) => s.name === '오전')) {
     for (const [id, name] of ALWAYS_AM) {
       if (rows.some((r) => r.session === '오전' && normId(r.id) === normId(id))) continue;
       rows.push({ session: '오전', name, id, dept: '교역자', teacherDept: '교역자', region: '교회', late: '정상 출석', guest: false, dup: false, meetingId: m.meetingId });
