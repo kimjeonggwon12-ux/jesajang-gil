@@ -343,6 +343,8 @@ export async function kyoRoomText(m, phase, sess, order, o = {}) {
   const g = [...guests.values()];
   if (g.length) L.push(LINE, `🙋 ${o.people ? '재적 밖' : '비교사'} ${g.length}명: ${g.map((x) => esc(x.name)).join(', ')}`, `※ ${o.people ? '재적 밖 참석자' : '비교사'}는 재적·출석률에 넣지 않았어요`);
   while (L[L.length - 1] === '') L.pop();
+  // 11/19(사용자): 맨 아래 구분선 + 공무 사전 처리 안내
+  L.push('', '==========', '공무가 있으신 사명자 분들은 사전 공무 처리하세요. -교사광장-');
   const texts = []; let cur = '';
   for (const l of L) { if (cur && cur.length + l.length + 1 > 3900) { texts.push(cur); cur = ''; } cur += (cur ? '\n' : '') + l; }
   if (cur) texts.push(cur);
