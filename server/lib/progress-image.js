@@ -15,8 +15,11 @@ export function progressPng(b) {
   const W = 1100, PAD = 30, LABEL_W = 180, NUM_W = 275, BAR_H = 38, ROW_H = 54, PANEL_GAP = 24, TOP = 58;   // 11/4(사용자): 글자·막대 두껍게(가독성)
   const barX = PAD + LABEL_W, barW = W - PAD * 2 - LABEL_W - NUM_W;
   const titleH = 100;
-  const panelH = TOP + b.labels.length * ROW_H;
-  const H = titleH + b.panels.length * (panelH + PANEL_GAP) + PAD - PANEL_GAP + 10;
+  // 11/17: 판마다 줄(labels)을 따로 줄 수 있음(사용 수치는 자문회 빼고, 등급 막대는 자문회 포함)
+  const labelsOf = (p) => p.labels || b.labels;
+  const hOf = (p) => TOP + labelsOf(p).length * ROW_H;
+  const yOf = b.panels.map((p, i) => b.panels.slice(0, i).reduce((y, q) => y + hOf(q) + PANEL_GAP, titleH));
+  const H = titleH + b.panels.reduce((n, p) => n + hOf(p) + PANEL_GAP, 0) + PAD - PANEL_GAP + 10;
   /**
    * 11/4(사용자): 쌓는 막대 — p.stack = [{ label:'휴', name:'휴교사', color, values:[조직별 인원] }…]. 막대 전체 = 그 조직 인원 합(100%),
    * 왼쪽부터 stack 순서대로 채운다(휴 붉은색 → 우수 금색). 오른쪽엔 마지막 단계(우수) 비율과 전체 인원.
@@ -30,7 +33,7 @@ export function progressPng(b) {
       out.push(`<rect x="${lx}" y="${y0 + 19}" width="18" height="18" rx="5" fill="${paint(s.color)}"/>`,
         `<text x="${lx + 24}" y="${y0 + 34}" font-size="18" font-weight="700" fill="#333">${esc(s.name)}</text>`);
     });
-    b.labels.forEach((label, i) => {
+    labelsOf(p).forEach((label, i) => {
       const y = y0 + TOP + i * ROW_H;
       const vals = p.stack.map((s) => s.values[i] || 0);
       const total = vals.reduce((a, v) => a + v, 0);
@@ -65,7 +68,7 @@ export function progressPng(b) {
   out.unshift(`<defs><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe58a"/><stop offset="0.5" stop-color="#f4c430"/><stop offset="1" stop-color="#c9930a"/></linearGradient></defs>`);
   const paint = (c) => (c === 'gold' ? 'url(#gold)' : c);
   b.panels.forEach((p, pi) => {
-    const y0 = titleH + pi * (panelH + PANEL_GAP);
+    const y0 = yOf[pi], panelH = hOf(p);
     out.push(`<rect x="${PAD - 12}" y="${y0}" width="${W - PAD * 2 + 24}" height="${panelH}" rx="14" fill="#f7f9f8"/>`,
       `<rect x="${PAD}" y="${y0 + 16}" width="7" height="24" rx="3" fill="${paint(p.color || (p.stack && p.stack[p.stack.length - 1].color) || '#888')}"/>`,
       `<text x="${PAD + 16}" y="${y0 + 36}" font-size="24" font-weight="700" fill="#111">${esc(p.title)}</text>`);

@@ -35,6 +35,13 @@ const dayOf = (m) => { const [y, mo, d] = m.date.split('-').map(Number); return 
 const pct = (a, b) => (b ? (Math.round((a / b) * 1000) / 10).toFixed(1) + '%' : '-');
 const isLate = (r) => !!r && /지각/.test(r.late || '');
 const lateMin = (r) => (String(r.late || '').match(/(\d+)분/) || [])[1] || '';
+// 11/20(사용자): 화요 전도단·목요 사명자 교육·금요 교사 교육 모두 '항상 참석(오전 정상)'으로 셈 — 오봉림(요청엔 '오봉임')·탁미경·고병희(부녀회), 채희성(청년회 구역장)
+export const ALWAYS_ATTEND = [
+  { id: '00301128-00192', name: '오봉림', dept: '부녀회', region: '10지역', teacher: true },
+  { id: '00230526-00057', name: '탁미경', dept: '부녀회', region: '11지역', teacher: true },
+  { id: '00231119-00262', name: '고병희', dept: '부녀회', region: '기타', teacher: true },
+  { id: '00220123-00109', name: '채희성', dept: '청년회', region: '02지역', teacher: false },
+].map((p) => ({ ...p, nid: normId(p.id) }));
 const comma = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const groupOfKey = (key) => (key === '교역자' ? '교역자' : key.split('/')[0]);
 
@@ -78,8 +85,20 @@ async function prepareRaw(m, phase, edu) {
   }
   for (const nid of edu.policy.always_present_nids.map(normId)) {
     const att = byNid.get(nid) || {};
-    for (const s of sessions) att[s] = { ...(att[s] || {}), late: '정상 출석' };
+    // 11/17(사용자): 지파장·지파총무는 '항상 오전 교육 참석자'로(저녁까지 채우지 않음). 오전 타임이 없는 모임이면 첫 타임에
+    const s0 = sessions.includes('오전') ? '오전' : order.includes('오전') ? null : sessions[0];
+    if (s0) att[s0] = { ...(att[s0] || {}), late: '정상 출석' };
     byNid.set(nid, att);
+  }
+  // 11/20: ALWAYS_ATTEND — 재적에 있는 분만(재적 밖이면 이 교육 집계 대상 아님) 오전(없으면 첫 타임) 정상 참석
+  const rosterNids = new Set(edu.roster.map((p) => p.nid));
+  for (const a of ALWAYS_ATTEND) {
+    if (!rosterNids.has(a.nid)) continue;
+    const s0 = sessions.includes('오전') ? '오전' : order.includes('오전') ? null : sessions[0];
+    if (!s0) continue;
+    const att = byNid.get(a.nid) || {};
+    if (!att[s0]) att[s0] = { id: a.id, name: a.name, dept: a.dept, region: a.region, late: '정상 출석' };
+    byNid.set(a.nid, att);
   }
   // 11/12(사용자): 원장님들은 계수·참석·불참 명단에서 계속 뺀다(재적 밖 참석에도 안 나오게)
   const EXCLUDED = (p) => edu.policy.excluded_positions.includes(String(p.position || '').trim());
@@ -98,11 +117,12 @@ async function prepareRaw(m, phase, edu) {
 
 /** 한 묶음 숫자 */
 export function statOf(list, sessions) {
-  const st = { n: list.length, by: {}, came: 0, late: 0, absent: 0 };
+  const st = { n: list.length, by: {}, came: 0, late: 0, absent: 0, excused: 0 };
   for (const s of sessions) st.by[s] = list.filter((p) => p.att[s]).length;
   for (const p of list) {
     const came = sessions.some((s) => p.att[s]);
-    if (came) st.came++; else st.absent++;
+    // 11/20(사용자): 공무 사전보고(본인 신고·관리자 등록)는 불참에서 빼고 '공무'로 — p.excused 는 buildEduAttendance 에서 표시
+    if (came) st.came++; else if (p.excused) st.excused++; else st.absent++;
     if (sessions.some((s) => isLate(p.att[s]))) st.late++;
   }
   return st;
@@ -124,7 +144,7 @@ function sectionLines(label, list, outside, phase, sessions) {
   } else {
     L.push(`${ICON[sessions[0]] || '👥'} ${sessions[0]} 참석 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`);
   }
-  L.push(`⏰ 지각 ${st.late}명 · ❌ ${phase === '최종' ? '불참' : '미참석'} ${st.absent}명`, LINE);
+  L.push(`⏰ 지각 ${st.late}명 · 📋 공무 ${st.excused}명 · ❌ ${phase === '최종' ? '불참' : '미참석'} ${st.absent}명`, LINE);
   for (const s of sessions) {
     const came = list.filter((p) => p.att[s]);
     L.push(`${ICON[s] || '🙋'} <b>${s} 참석자 ${came.length}명</b>`);
@@ -136,7 +156,9 @@ function sectionLines(label, list, outside, phase, sessions) {
     L.push(`⏰ <b>지각자 ${late.length}명</b>`);
     L.push(...nameRows(late.map((p) => esc(p.name) + '(' + sessions.filter((s) => isLate(p.att[s])).map((s) => (sessions.length > 1 ? s : '') + lateMin(p.att[s]) + '분').join('·') + ')'), 4));
   }
-  const absent = list.filter((p) => !sessions.some((s) => p.att[s]));
+  const exs = list.filter((p) => p.excused && !sessions.some((s) => p.att[s]));
+  if (exs.length) { L.push(`📋 <b>공무(사전보고자) ${exs.length}명</b>`); L.push(...nameRows(exs.map((p) => esc(p.name)))); }
+  const absent = list.filter((p) => !p.excused && !sessions.some((s) => p.att[s]));
   L.push(`❌ <b>${phase === '최종' ? '불참자' : sessions[0] + ' 미참석자'} ${absent.length}명</b>`);
   L.push(...(absent.length ? nameRows(absent.map((p) => esc(p.name))) : ['   없음 🎉']));
   if (outside.length) {
@@ -194,7 +216,7 @@ function orgBoard(m, P) {
 
 /** 지각자·불참자 전체 명단(교육 방) — 부서 → 지역 */
 function nameListTexts(m, P, kind) {
-  const pick = kind === '지각' ? (p) => P.sessions.some((s) => isLate(p.att[s])) : (p) => !P.sessions.some((s) => p.att[s]);
+  const pick = kind === '지각' ? (p) => P.sessions.some((s) => isLate(p.att[s])) : (p) => !p.excused && !P.sessions.some((s) => p.att[s]);
   const label = kind === '지각' ? '⏰ 지각자 명단' : P.phase === '최종' ? '❌ 불참자 명단' : `❌ ${P.phase} 미참석자 명단`;
   const shown = (p) => esc(p.name) + (kind === '지각' ? '(' + P.sessions.filter((s) => isLate(p.att[s])).map((s) => (P.sessions.length > 1 ? s : '') + lateMin(p.att[s]) + '분').join('·') + ')' : '');
   const lines = [...top(m, P.phase, P.sessions), `${label} (사명자 재적 기준)`, ''];
@@ -223,7 +245,7 @@ function nameListTexts(m, P, kind) {
 const XS = { plain: 0, head: 1, cell: 2, title: 3, session: 4, warn: 6, total: 7, text: 8 };
 const xc = (v, st = XS.cell) => ({ v, s: st });
 // 카드·총합 시트 줄(사용자 9/10 표 순서 + 교역자 둘을 맨 위에)
-const CARD_ROWS = [['교회 교역자', ['교회교역']], ['신학부 교역자', ['신학교역']], ['협력 교회', ['협력교회']], ['24부서', ['24부서']], ['장로, 자문회', ['장로회', '자문회']], ['장년회', ['장년회']], ['부녀회', ['부녀회']], ['청년회', ['청년회']]];
+export const CARD_ROWS = [['교회 교역자', ['교회교역']], ['신학부 교역자', ['신학교역']], ['협력 교회', ['협력교회']], ['24부서', ['24부서']], ['장로, 자문회', ['장로회', '자문회']], ['장년회', ['장년회']], ['부녀회', ['부녀회']], ['청년회', ['청년회']]];
 /** 같은 정기 교육의 바로 앞 모임(지난주) 부서별 참석률 { label: 숫자% } — 없으면 null */
 const ORG_DEFS = CARD_ROWS.map(([l, d]) => [l, (p) => d.includes(p.dept)]);
 async function previousPeople(m, edu) {
@@ -251,7 +273,7 @@ export function cardData(m, P, prev, defs = ORG_DEFS, scope = null, head = '', f
   const one = (label, list) => {
     const t = statOf(list, P.sessions);
     const pv = prev && prev[label] != null ? prev[label].toFixed(1) + '%' : '-';
-    return { label, n: t.n, came: t.came, rate: pct(t.came, t.n), prev: pv, absent: t.absent, absentRate: pct(t.absent, t.n), late: t.late, by: t.by, rateNum: pctNum(t.came, t.n), prevNum: prev ? prev[label] : null };
+    return { label, n: t.n, came: t.came, rate: pct(t.came, t.n), prev: pv, excused: t.excused, absent: t.absent, absentRate: pct(t.absent, t.n), late: t.late, by: t.by, rateNum: pctNum(t.came, t.n), prevNum: prev ? prev[label] : null };
   };
   const all = scope ? P.people.filter(scope) : P.people;
   const rows = defs.map(([l, fn]) => one(l, all.filter(fn))).filter((r) => r.n);
@@ -271,14 +293,14 @@ function conclusion(C, P) {
   if (sorted.length > 1) L.push(`가장 높은 곳 ${sorted[0].label} ${sorted[0].rate} · 가장 낮은 곳 ${sorted.at(-1).label} ${sorted.at(-1).rate}`);
   const low = sorted.filter((r) => r.rateNum < 50).map((r) => r.label);
   if (low.length) L.push(`참석률 50% 아래: ${low.join(' · ')} — 집중 독려 필요`);
-  L.push(`불참 ${comma(T.absent)}명(${T.absentRate}) · 지각 ${comma(T.late)}명 · 불참 사유는 아직 받지 않아 칸이 비어 있음`);
+  L.push(`${T.excused ? `공무(사전보고) ${comma(T.excused)}명 · ` : ''}불참 ${comma(T.absent)}명(${T.absentRate}) · 지각 ${comma(T.late)}명 · 불참 사유는 아직 받지 않아 칸이 비어 있음`);
   return L;
 }
 function eduCard(m, P, C) {
   let png = null;
   try { png = eduCardPng(C); } catch (e) { console.log('출석현황 카드 오류: ' + e.message); }
   const caption = [`📊 <b>${esc(C.title)}</b> (사명자 재적 기준)`, '', ...conclusion(C, P).map((l) => '▸ ' + esc(l))].join(String.fromCharCode(10));
-  const text = [caption, '', ...C.rows.map((r) => ` ▸ ${esc(r.label)} ${r.came}/${r.n} (${r.rate}) · 불참 ${r.absent}`)].join(String.fromCharCode(10));
+  const text = [caption, '', ...C.rows.map((r) => ` ▸ ${esc(r.label)} ${r.came}/${r.n} (${r.rate})${r.excused ? ` · 공무 ${r.excused}` : ''} · 불참 ${r.absent}`)].join(String.fromCharCode(10));
   return { png, caption, text };
 }
 
@@ -372,13 +394,15 @@ function deptListTexts(m, phase, P, label, list, groupOf) {
   const L = [...top(m, phase, P.sessions), `📍 <b>${esc(label)} 전체</b> · 사명자 재적 ${st.n}명`, LINE];
   if (P.sessions.length > 1) { L.push(P.sessions.map((s) => `${ICON[s] || '🙋'} ${s} ${st.by[s]}명`).join(' · ')); L.push(`👥 합계 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`); }
   else L.push(`${ICON[P.sessions[0]] || '👥'} ${P.sessions[0]} 참석 <b>${st.came}명</b> / ${st.n}명 (${pct(st.came, st.n)})`);
-  L.push(`⏰ 지각 ${st.late}명 · ❌ ${phase === '최종' ? '불참' : '미참석'} ${st.absent}명`, LINE);
+  L.push(`⏰ 지각 ${st.late}명 · 📋 공무 ${st.excused}명 · ❌ ${phase === '최종' ? '불참' : '미참석'} ${st.absent}명`, LINE);
   const groups = [...new Set(list.map(groupOf))];
   const byGroup = (arr, fmt) => groups.map((g) => [g, arr.filter((p) => groupOf(p) === g)]).filter(([, a]) => a.length).map(([g, a]) => ` ▸ ${esc(g)}(${a.length}): ${a.map(fmt).join(', ')}`);
   for (const s of P.sessions) { const c = list.filter((p) => p.att[s]); L.push(`${ICON[s] || '🙋'} <b>${s} 참석자 ${c.length}명</b>`, ...(c.length ? byGroup(c, (p) => esc(p.name)) : ['   없음'])); }
   const late = list.filter((p) => P.sessions.some((s) => isLate(p.att[s])));
   if (late.length) L.push(`⏰ <b>지각자 ${late.length}명</b>`, ...byGroup(late, (p) => esc(p.name) + '(' + P.sessions.filter((s) => isLate(p.att[s])).map((s) => (P.sessions.length > 1 ? s : '') + lateMin(p.att[s]) + '분').join('·') + ')'));
-  const absent = list.filter((p) => !P.sessions.some((s) => p.att[s]));
+  const exs = list.filter((p) => p.excused && !P.sessions.some((s) => p.att[s]));
+  if (exs.length) L.push(`📋 <b>공무(사전보고자) ${exs.length}명</b>`, ...byGroup(exs, (p) => esc(p.name)));
+  const absent = list.filter((p) => !p.excused && !P.sessions.some((s) => p.att[s]));
   L.push(`❌ <b>${phase === '최종' ? '불참자' : '미참석자'} ${absent.length}명</b>`, ...(absent.length ? byGroup(absent, (p) => esc(p.name)) : ['   없음 🎉']));
   const parts = [];
   let cur = '';
@@ -415,7 +439,7 @@ async function deptSheet(m, P, edu, dept) {
     if (!r) return;
     const came = list.filter((p) => P.sessions.some((x) => p.att[x]));
     const late = list.filter((p) => P.sessions.some((x) => isLate(p.att[x])));
-    const absent = list.filter((p) => !P.sessions.some((x) => p.att[x]));
+    const absent = list.filter((p) => !p.excused && !P.sessions.some((x) => p.att[x]));
     const names = [came.map((p) => p.name + (both ? '(' + P.sessions.filter((x) => p.att[x]).join('·') + ')' : '')).join(', '), late.map(lateName).join(', '), absent.map((p) => p.name).join(', ')];
     heights[rows.length] = hOf(names);
     rows.push([xc(label), xc(r.n), xc(r.came), ...(both ? P.sessions.map((x) => xc(r.by[x])) : []), xc(r.rate), xc(r.prev), xc(r.late), xc(r.absent, XS.warn), xc(r.absentRate), ...names.map((t) => xc(t, XS.text))]);
@@ -437,9 +461,20 @@ async function kyoWhole(m, phase, P, edu) {
   return [{ ...eduCard(m, P, C) }, ...kyoTexts(m, phase, P).map((text) => ({ text }))];
 }
 
+// 11/20(사용자): 청년회 1·3·5지역 — 나의 교실 '공무 결석 보고'를 했는데 부서·지역 글에 불참으로 나옴.
+//   목사교 부서·지역 글·카드·명단도 공무(관리자 등록 '#excused' ∪ 본인 신고)를 불참에서 빼고 '공무'로 따로.
+export const eduKindOf = (m, edu) => { const t = String(edu?.series?.title || m.title || ''); return /화요전도단|화전단/.test(t) ? '화전단' : /금요\s*교사/.test(t) ? '금요교사' : '목사교'; };
+async function markExcused(m, P, edu) {
+  const kind = eduKindOf(m, edu);
+  const ex = await excusedOf(kind, m.date).catch(() => new Set());
+  try { const { selfExcusedOf } = await import('../actions/edu-excused-self.js'); for (const n of (await selfExcusedOf(kind, m.date)).keys()) ex.add(n); } catch (e) { console.log('본인 공무 신고 읽기 실패: ' + e.message); }
+  for (const p of P.people) if (ex.has(p.nid) && !P.sessions.some((s) => p.att[s])) p.excused = true;
+  return ex;
+}
 /** 보낼 것 목록 [{ room, text } | { room, png, caption, text }] */
 export async function buildEduAttendance(m, phase, edu, { test = false, allRegions = false, eduOnly = false } = {}) {
   const P = { ...(await prepare(m, phase, edu)), phase };
+  await markExcused(m, P, edu);
   const rooms = await selectAll(() => db().from('report_rooms').select('*').eq('active', true).order('dept'));
   const out = [], seen = new Set();
   const once = (k) => (seen.has(k) ? false : (seen.add(k), true));
@@ -589,6 +624,12 @@ export const roster24=()=>selectAll(()=>db().from('edu_roster').select('nid, mem
 export async function excusedOf(kind,date){
  return new Set((await selectAll(()=>db().from('cohort_summary_log').select('id,ref_id').eq('cohort_id','#excused').eq('kind',kind).eq('date',date).order('id'))).map(x=>x.ref_id));
 }
+// 11/17: 중진 방 공무 = 관리자 명단 ∪ 본인 신고(나의 교실 '공무 결석 보고')
+export async function jungjinExcusedOf(kind,date){
+ const ex=await excusedOf(kind,date);
+ try{const {selfExcusedOf}=await import('../actions/edu-excused-self.js');for(const n of (await selfExcusedOf(kind,date)).keys())ex.add(n);}catch(e){console.log('본인 공무 신고 읽기 실패: '+e.message);}
+ return ex;
+}
 export function buildJungjinReport(m,phase,kind,P,ex){
   const came = (p) => P.sessions.some((x) => p.att[x]);
   const isEx = (p) => !came(p) && ex.has(p.nid);
@@ -618,7 +659,7 @@ export function buildJungjinReport(m,phase,kind,P,ex){
   const g = (p) => labelOf.get(defs.keyOf(p)) || p.affiliation;
   const groups = [...new Set(all.map(g))];
   const byGroup = (arr, fmt) => groups.map((x) => [x, arr.filter((p) => g(p) === x)]).filter(([, a]) => a.length).flatMap(([x,a])=>{const head=` ▸ ${esc(x)}(${a.length}): `,out=[];let line=head;for(const p of a){const name=fmt(p);if(line.length+name.length+2>3800){out.push(line);line=head;}line+=(line===head?'':', ')+name;}out.push(line);return out;});
-  const L = [...top(m, phase, P.sessions), `📍 <b>24부서 전체</b> · 사명자 재적 ${total.n}명`, LINE];
+  const L = [...top(m, phase, P.sessions), `📍 <b>【 24부서 장부청 소속 】</b> · 사명자 재적 ${total.n}명`, LINE];
   if (P.sessions.length > 1) L.push(P.sessions.map((x) => `${ICON[x] || '🙋'} ${x} ${total.by[x]}명`).join(' · '), `👥 합계 <b>${total.came}명</b> / ${total.n}명 (${total.rate})`);
   else L.push(`${ICON[P.sessions[0]] || '👥'} ${P.sessions[0]} 참석 <b>${total.came}명</b> / ${total.n}명 (${total.rate})`);
   L.push(`⏰ 지각 ${total.late}명 · 📋 공무 ${total.excused}명 · ❌ ${absentWord} ${total.absent}명`, LINE);
@@ -639,7 +680,7 @@ export function buildJungjinReport(m,phase,kind,P,ex){
 export async function jungjinReport(m,phase){
  const kind=await jungjinKindFor(m);if(!kind)return null;
  phase=validEduPhase(phase);
- const [roster,policies,ex]=await Promise.all([roster24(),run(db().from('edu_roster_policy').select('*').eq('roster_key','목요사명자')),excusedOf(kind,m.date)]);
+ const [roster,policies,ex]=await Promise.all([roster24(),run(db().from('edu_roster_policy').select('*').eq('roster_key','목요사명자')),jungjinExcusedOf(kind,m.date)]);
  if(!roster.length||!policies.length)throw new AccessError('24부서 재적과 확인된 교육 집계 기준이 필요해요.',409);
  const edu={series:{series_id:m.seriesId||'',title:m.title,roster_key:'목요사명자'},roster,policy:policies[0]};
  const P={...(await prepare(m,phase,edu)),phase};
@@ -657,15 +698,37 @@ export async function jungjinPreview(m,phase,roomOverride=null){
  report.edu.series.summary_to=await jungjinMode(m);
  return{...report,parts:room&&!topicPending(room)?report.parts.map(p=>({...p,room})):[]};
 }
+// 11/17(사용자): '24부서 사랑(전도)하자!' 방 General(방 열쇠 '#24부서')에도 같은 24부서 장부청 소속 출석 — 화·목 오전 마감·최종마다
+export const JUNGJIN_ROOM_KEYS=[JUNGJIN_KEY,'#24부서'];
 export async function postJungjin(m,phase,{to=null,force=false,failures=[]}={}){
  phase=validEduPhase(phase);
  if(!await jungjinKindFor(m))return [];
- const [room]=to?[to]:await run(db().from('report_rooms').select('*').eq('dept',JUNGJIN_KEY).eq('active',true));
- if(!room||topicPending(room))return [];
- const mode=await jungjinMode(m),target=to||{...room,chat_id:mode==='test'?testChat():room.chat_id};
- const result=await deliverReportBatch({namespace:mode==='test'&&!to?'#jungjin-test':'#jungjin',kind:phase,ref:m.meetingId,date:m.date,room:target},async report=>{
-  for(const [i,p] of report.parts.entries()){if(i)await new Promise(r=>setTimeout(r,3200));await sendEduPart(p,target);}
- },{manual:force||!!to,prepare:()=>jungjinReport(m,phase)});
- if(!result.ok){failures.push({scope:'#jungjin',ref:m.meetingId,phase,state:result.state});console.log('중진 보고 수신 확인 필요: 자동 재전송하지 않습니다.');}
- return result.state==='delivered'?['중진']:[];
+ const rooms=to?[to]:await run(db().from('report_rooms').select('*').in('dept',JUNGJIN_ROOM_KEYS).eq('active',true));
+ const mode=await jungjinMode(m),sent=[];
+ for(const room of rooms){
+  if(!room||topicPending(room))continue;
+  const base=room.dept===JUNGJIN_KEY||to?'#jungjin':'#jungjin:'+room.dept;
+  const target=to||{...room,chat_id:mode==='test'?testChat():room.chat_id};
+  const result=await deliverReportBatch({namespace:mode==='test'&&!to?base+'-test':base,kind:phase,ref:m.meetingId,date:m.date,room:target},async report=>{
+   // 11/17(사용자): 카드 + 첫 명단 글을 한 통으로(카드 아래 요약 글은 없음)
+   const ps=report.parts,list=ps[0]?.png&&ps[1]?.text&&!ps[1].png?[{merged:true,png:ps[0].png,text:ps[1].text},...ps.slice(2)]:ps;
+   for(const [i,p] of list.entries()){if(i)await new Promise(r=>setTimeout(r,3200));if(p.merged){const {sendRoomCardText}=await import('./report-room.js');await sendRoomCardText(target,p.png,p.text);}else await sendEduPart(p,target);}
+  },{manual:force||!!to,prepare:()=>jungjinReport(m,phase)});
+  if(!result.ok){failures.push({scope:base,ref:m.meetingId,phase,state:result.state});console.log(room.dept+' 보고 수신 확인 필요: 자동 재전송하지 않습니다.');}
+  if(result.state==='delivered')sent.push(room.dept===JUNGJIN_KEY?'중진':room.dept);
+ }
+ // 11/17(사용자): 중진 대화방('#중진')에는 교역자 출석 현황도 — 교역자 방(교사 앱 기본)과 같은 카드+실명 명단. 오전 마감·최종마다 한 번
+ for(const room of rooms.filter(r=>r&&r.dept===JUNGJIN_KEY&&!topicPending(r))){
+  const target=to||{...room,chat_id:mode==='test'?testChat():room.chat_id};
+  const result=await deliverReportBatch({namespace:mode==='test'&&!to?'#jungjin:kyo-test':'#jungjin:kyo',kind:phase,ref:m.meetingId,date:m.date,room:target},async k=>{
+   const {sendRoomCardText,sendRoomText}=await import('./report-room.js');
+   await sendRoomCardText(target,k.png,k.texts[0]);
+   for(const t of k.texts.slice(1)){await new Promise(r=>setTimeout(r,3200));await sendRoomText(target.chat_id,t);}
+  },{manual:force||!!to,prepare:async()=>(await import('./room-attendance.js')).kyoPreview(m,phase)});
+  if(!result.ok)failures.push({scope:'#jungjin:kyo',ref:m.meetingId,phase,state:result.state});
+  if(result.state==='delivered')sent.push('중진:교역자');
+ }
+ return sent;
 }
+// 2026-11-16 교육 관리 탭(edu-mgmt.js)이 같은 재적·출석 판정(오전·저녁 중복 제거, 항상 출석·제외 직책)을 그대로 쓰도록 공개한다.
+export const eduPeople = (m, phase, edu) => prepare(m, validEduPhase(phase), edu);

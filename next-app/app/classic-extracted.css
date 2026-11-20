@@ -2030,3 +2030,108 @@
       .classic-ui .tr-list-item .m b { font-size:15.5px; font-weight:900; } .classic-ui .tr-list-item .m i { font-style:normal; font-size:12px; color:#6B7280; margin-left:6px; }
       .classic-ui .tr-list-item .m small { display:block; font-size:13px; color:#6B7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
       .classic-ui .tr-n { flex-shrink:0; min-width:22px; height:22px; padding:0 6px; border-radius:99px; background:linear-gradient(135deg,#FF3B5C,#FF8A00); color:#fff; font-size:12px; font-weight:900; display:inline-flex; align-items:center; justify-content:center; }
+
+/* 11/18: 피드백방 배너 수업 계획표 홍보 + 내 활동 보고 맨 위 일정·광고 */
+.classic-ui .fbh-lp { margin-top:10px; padding:11px 12px; border-radius:14px; background:#fff; color:#1F2937; }
+.classic-ui .fbh-lp-h { display:flex; align-items:center; gap:7px; }
+.classic-ui .fbh-lp-h span { padding:2px 7px; border-radius:6px; background:#FF5A36; color:#fff; font-size:11px; font-weight:900; }
+.classic-ui .fbh-lp-h b { font-size:15px; font-weight:900; letter-spacing:-.03em; color:#0B4D3A; }
+.classic-ui .fbh-lp-s { margin-top:5px; font-size:12.5px; line-height:1.55; color:#374151; }
+.classic-ui .fbh-lp-s b { color:#00875F; }
+.classic-ui .fbh-lp-flow { margin-top:7px; padding:6px 8px; border-radius:9px; background:#E6F7F1; color:#00875F; font-size:12px; font-weight:900; text-align:center; }
+.classic-ui .act-ad { margin:12px 14px 4px; padding:12px 12px 8px; border-radius:16px; background:#fff; border:1.5px solid #FFD8A8; box-shadow:0 4px 14px rgba(255,138,0,.10); }
+.classic-ui .act-ad-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.classic-ui .act-ad-h b { font-size:15.5px; font-weight:900; }
+.classic-ui .act-ad-h a { background:#FFF1E0; color:#C2410C; font-size:12.5px; font-weight:800; border-radius:999px; padding:5px 10px; text-decoration:none; }
+.classic-ui .act-ad-row { display:flex; align-items:center; gap:8px; padding:9px 2px; border-top:1px solid #F3F4F6; text-decoration:none; color:#111827; }
+.classic-ui .act-ad-row:first-of-type { border-top:none; }
+.classic-ui .act-ad-tag { flex-shrink:0; min-width:38px; text-align:center; padding:3px 7px; border-radius:7px; background:#FF8A00; color:#fff; font-size:11.5px; font-weight:900; }
+.classic-ui .act-ad-row b { flex:1; min-width:0; font-size:14px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* 11/18(2차): 나의 교실 피드백방·수업 계획표 배너 */
+.classic-ui .fbp { position:relative; overflow:hidden; margin:12px 14px 4px; padding:16px 16px 14px; border-radius:18px; color:#fff; background:radial-gradient(circle at 100% 0%, rgba(255,214,0,.40), transparent 46%), linear-gradient(140deg,#0B4D3A 0%,#00AE82 62%,#14C79A 100%); box-shadow:0 8px 22px rgba(0,120,90,.25); }
+.classic-ui .fbp-k { display:inline-block; padding:3px 9px; border-radius:999px; background:#FFD600; color:#3A2E00; font-size:11.5px; font-weight:900; }
+.classic-ui .fbp-t { margin-top:8px; font-size:22px; line-height:1.3; font-weight:900; letter-spacing:-.04em; }
+.classic-ui .fbp-t em { font-style:normal; color:#FFE45C; }
+.classic-ui .fbp-s { margin-top:5px; font-size:13px; line-height:1.55; color:#E3FFF5; }
+.classic-ui .fbp-two { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+.classic-ui .fbp-two a { display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:11px 10px; border-radius:13px; background:#fff; color:#1F2937; text-decoration:none; }
+.classic-ui .fbp-two b { font-size:14.5px; font-weight:900; color:#0B4D3A; }
+.classic-ui .fbp-two small { font-size:11.5px; line-height:1.4; color:#4B5563; }
+.classic-ui .fbp-two i { margin-top:3px; font-style:normal; font-size:12px; font-weight:900; color:#E8430F; }
+.classic-ui .fbp-flow { margin-top:10px; font-size:12px; font-weight:800; text-align:center; color:#D5F3E8; }
+
+/* 11/18(3차): 배너 한눈에 — 3단계·수업 계획표 칸 */
+.classic-ui .fbp-card { margin-top:10px; padding:11px 11px 12px; border-radius:14px; background:#fff; color:#1F2937; }
+.classic-ui .fbp-ch { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.classic-ui .fbp-ch b { font-size:15.5px; font-weight:900; color:#0B4D3A; }
+.classic-ui .fbp-ch a { flex-shrink:0; background:#FF5A36; color:#fff; font-size:12.5px; font-weight:900; border-radius:999px; padding:6px 12px; text-decoration:none; }
+.classic-ui .fbp-card small { display:block; margin-top:3px; font-size:12px; color:#4B5563; }
+.classic-ui .fs3 { display:grid; grid-template-columns:1fr 12px 1fr 12px 1fr; align-items:center; gap:3px; margin-top:9px; }
+.classic-ui .fs3 div { display:flex; flex-direction:column; align-items:center; gap:3px; padding:9px 2px; border-radius:12px; background:rgba(255,255,255,.18); text-align:center; }
+.classic-ui .fs3 span { width:24px; height:24px; border-radius:50%; background:#FFD600; color:#3A2E00; font-size:13px; font-weight:900; line-height:24px; }
+.classic-ui .fs3 b { font-size:12px; font-weight:900; white-space:nowrap; }
+.classic-ui .fs3 i { font-style:normal; font-weight:900; font-size:16px; opacity:.75; text-align:center; }
+.classic-ui .fbp-card .fs3 div { background:#E6F7F1; color:#0B4D3A; }
+.classic-ui .fbp-card .fs3 i { color:#00AE82; }
+      .fbp-card .fs3 span { background:#00AE82; color:#fff; }
+.classic-ui .lpc { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.classic-ui .lpc span { padding:4px 9px; border-radius:999px; background:#FFF4E5; color:#9A3412; font-size:12px; font-weight:800; }
+.classic-ui .fbh-lp2 { margin-top:12px; padding:10px 11px; border-radius:14px; background:#fff; color:#1F2937; }
+.classic-ui .fbh-lp2 b { font-size:14px; font-weight:900; color:#0B4D3A; }
+
+/* 11/18(4차): 제목 한 줄 */
+.classic-ui .fbp-t { font-size:min(21px, 5vw); white-space:nowrap; letter-spacing:-.05em; }
+
+/* 11/18(5차): 알약 제목·강권 문구·함께 보는 것 */
+.classic-ui .fbp-pill { display:inline-block; padding:4px 11px; border-radius:999px; background:#FFD600; color:#3A2E00; font-size:12.5px; font-weight:900; }
+.classic-ui .fbp-must { margin-top:8px; padding:8px 10px; border-radius:10px; background:#FFF1EC; color:#C2410C; font-size:13.5px; font-weight:900; line-height:1.4; }
+.classic-ui .lpc.rm span { background:#E6F7F1; color:#00875F; }
+
+/* 11/18(6차): 게시판 모양 + 가운데 위 이름표 */
+.classic-ui .fbp { position:relative; margin:26px 14px 6px; padding:28px 11px 11px; border-radius:16px; color:#fff;
+        background:linear-gradient(180deg,#11634B 0%,#0B4D3A 100%); border:5px solid #7A5230; box-shadow:inset 0 0 0 2px rgba(255,255,255,.08), 0 8px 20px rgba(0,0,0,.18); }
+.classic-ui .fbp-name { position:absolute; top:-17px; left:50%; transform:translateX(-50%); white-space:nowrap; padding:7px 18px; border-radius:10px; border:2px solid #fff;
+        background:linear-gradient(180deg,#FFE45C,#FFC800); color:#3A2E00; font-size:14.5px; font-weight:900; letter-spacing:-.03em; box-shadow:0 4px 10px rgba(0,0,0,.25); }
+.classic-ui .fbp-t { text-align:center; }
+.classic-ui .fbp-t { margin-top:0; }
+.classic-ui .fbp { overflow:visible; }
+
+/* 11/18: 내 활동 보고 머리 숨김 */
+.classic-ui .er-hero { display:none !important; }
+
+/* 11/18(7차): 알림판(코르크·압정 쪽지) — 앞선 fbp 규칙을 덮어씀 */
+.classic-ui .fbp { position:relative; margin:12px 14px 6px; padding:14px 12px 14px; border-radius:12px; color:#2B2118;
+  background-color:#C9A06E; background-image:radial-gradient(rgba(90,55,20,.22) 1px, transparent 1.4px), radial-gradient(rgba(255,240,210,.25) 1px, transparent 1.4px);
+  background-size:9px 9px, 13px 13px; background-position:0 0, 4px 6px; border:7px solid #6B4423; box-shadow:inset 0 2px 6px rgba(0,0,0,.25), 0 6px 16px rgba(0,0,0,.18); }
+.classic-ui .fbp-t { position:relative; margin:4px auto 0; width:fit-content; max-width:100%; padding:10px 14px; background:#FFE45C; color:#3A2E00; border-radius:3px;
+  font-size:min(18px, 4.6vw); font-weight:900; letter-spacing:-.05em; white-space:nowrap; text-align:center; box-shadow:0 3px 6px rgba(0,0,0,.22); transform:rotate(-1deg); }
+.classic-ui .fbp-note { position:relative; margin-top:14px; padding:12px 11px 11px; background:#FFFDF6; border-radius:3px; box-shadow:0 3px 7px rgba(0,0,0,.20); }
+.classic-ui .fbp-note:nth-of-type(odd) { transform:rotate(.6deg); } .classic-ui .fbp-note:nth-of-type(even) { transform:rotate(-.6deg); }
+.classic-ui .fbp-t::before, .classic-ui .fbp-note::before { content:''; position:absolute; top:-6px; left:50%; width:12px; height:12px; margin-left:-6px; border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, #FF8A80, #D32F2F 60%, #8E1B1B); box-shadow:0 2px 3px rgba(0,0,0,.35); }
+.classic-ui .fbp-pill { display:inline-block; padding:3px 10px; border-radius:999px; background:#0B4D3A; color:#fff; font-size:12.5px; font-weight:900; letter-spacing:-.03em; }
+.classic-ui .fbp-steps { margin-top:7px; font-size:14px; font-weight:900; color:#0B4D3A; letter-spacing:-.04em; }
+.classic-ui .fbp-steps i { font-style:normal; margin:0 5px; color:#00AE82; }
+.classic-ui .fbp-must { color:#C2410C; font-size:min(15px, 3.9vw); font-weight:900; letter-spacing:-.04em; line-height:1.4; text-align:center; }
+.classic-ui .lpc { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.classic-ui .lpc span { padding:4px 9px; border-radius:999px; background:#E6F7F1; color:#00875F; font-size:12px; font-weight:800; }
+.classic-ui .fbp { overflow:visible; }
+.classic-ui .fbp-t { margin-top:4px; }
+
+/* 11/18(8차): 사이렌·수업 계획표 강조 */
+.classic-ui .fbp-t { font-size:min(17px, 4.3vw); }
+.classic-ui .fbp-siren { display:inline-block; margin-right:4px; animation:fbpSiren 1s ease-in-out infinite; }
+@keyframes fbpSiren { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.45; transform:scale(1.15); } }
+.classic-ui .fbp-alert { background:#FFF5F3; border:2.5px solid #E53935; }
+.classic-ui .fbp-must { font-size:min(15.5px, 4vw); line-height:1.55; color:#7F1D1D; }
+.classic-ui .fbp-must mark { display:inline-block; margin:3px 2px 0 0; padding:3px 10px; border-radius:6px; background:#E53935; color:#fff; font-size:min(21px, 5.4vw); font-weight:900; letter-spacing:-.04em; box-shadow:0 3px 0 #9B1C1C; }
+
+/* 11/18: 섭외자 칸 아래 지시어 */
+.classic-ui .er-todos { display:flex; flex-direction:column; gap:4px; width:100%; margin-top:6px; }
+.classic-ui .er-todo { display:block; width:100%; padding:6px 4px; border:1.5px solid #E53935; border-radius:9px; background:#FFF1EF; color:#C62828; font-size:12px; font-weight:900; text-align:center; animation:erTodoBlink 1.6s ease-in-out infinite; }
+@keyframes erTodoBlink { 0%,100% { background:#FFF1EF; } 50% { background:#FFD9D4; } }
+
+/* 11/18(9차): 수업 계획표 쪽지 — 앱 초록·노랑 형광펜으로 부드럽게 */
+.classic-ui .fbp-alert { background:#FFFDF6; border:2px solid #00AE82; }
+.classic-ui .fbp-must { color:#0B4D3A; }
+.classic-ui .fbp-must mark { background:linear-gradient(transparent 45%, #FFE45C 45%); color:#0B4D3A; padding:0 3px; border-radius:0; box-shadow:none; font-size:min(20px, 5.2vw); }

@@ -2,7 +2,7 @@ import type {Activity,Target} from './activities';
 
 export type SavedFeedback={text:string;at:string;basis:string};
 export type TargetInfoItem={id:number;cat:string;cats:string[];text:string;at:string};
-export type TargetInfo={cats:string[];items:TargetInfoItem[];feedback:SavedFeedback|null;master:SavedFeedback|null};
+export type TargetInfo={cats:string[];items:TargetInfoItem[];feedback:SavedFeedback|null;master:SavedFeedback|null;moving?:SavedFeedback[]};
 export type TargetFile={plans:{at:string;input:string;text:string}[];hearts:{at:string;source:string;situation:string;ai:string;handler:string;answer:string;status:string}[]};
 export const TARGET_FLOW=['섭외','친분','만남1','만남2','상담1','상담2','복음방','개강 준비','개강','초등','중등','고등','수료'];
 export const TARGET_FLOW_SHORT=['섭외','친분','만1','만2','상1','상2','복음','준비','개강','초등','중등','고등','수료'];
