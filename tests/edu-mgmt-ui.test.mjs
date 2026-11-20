@@ -111,7 +111,7 @@ test('A·B 공무 본인 신고 카드 문구와 사람 표시(본인 신고 사
 
 test('A·B 공무자 관리 줄 문구와 두 교육 테마가 같다', () => {
   same(A.EM_THEME, B.EM_THEME);
-  assert.deepEqual(Object.values(B.EM_THEME).map((t) => t.title), ['화요 전도단', '목요 사명자 교육']);
+  assert.deepEqual(Object.values(B.EM_THEME).map((t) => t.title), ['화요 전도단', '목요 사명자 교육', '금요 교사 교육']);
   const rows = [
     { memberId: '1', name: '가', group: '교역자', place: '신학', source: '본인 신고', registeredBy: '', reason: '수업', attended: false },
     { memberId: '2', name: '나', group: '24부서', place: '기획부', source: '도우미연결 명단', registeredBy: '', reason: '', attended: true },
@@ -134,5 +134,5 @@ test('A·B 공무자 명단을 교자장부청·24부서로 같게 묶고, 가�
     for (const kind of ['화전단', '목사교']) assert.equal(A.emNextDate(kind, today), B.emNextDate(kind, today), kind + today);
   assert.equal(B.emNextDate('화전단', '2026-11-18'), '2026-11-24'); assert.equal(B.emNextDate('목사교', '2026-11-19'), '2026-11-19');
   for (const today of ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-22']) assert.equal(A.emNextKind(today), B.emNextKind(today), today);
-  assert.deepEqual(['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-20'].map(B.emNextKind), ['화전단', '화전단', '목사교', '화전단']);
+  assert.deepEqual(['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-20'].map(B.emNextKind), ['화전단', '화전단', '목사교', '금요교사']);
 });

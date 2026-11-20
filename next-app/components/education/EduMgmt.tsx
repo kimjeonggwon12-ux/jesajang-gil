@@ -99,7 +99,7 @@ function ExcusedList(){
  const load=(k=kind,d=date)=>task.run(async()=>{setSure('');const r=await request<ExlList>('getExcusedList',{kind:k,date:d});if(task.active())setList(r);});
  // eslint-disable-next-line react-hooks/exhaustive-deps
  useEffect(()=>{void load();},[]);
- const find=()=>task.run(async()=>{const r=await request<{rows:ExlHit[]}>('searchEduRosterForExcused',{q:q.trim()});if(task.active())setHits(r.rows);});
+ const find=()=>task.run(async()=>{const r=await request<{rows:ExlHit[]}>('searchEduRosterForExcused',{kind,q:q.trim()});if(task.active())setHits(r.rows);});
  const add=(id:string)=>task.run(async()=>{const r=await request<{name:string}>('adminSetExcused',{kind,date,memberId:id,reason:reason.trim()});const l=await request<ExlList>('getExcusedList',{kind,date});if(task.active()){setList(l);setHits(null);setQ('');setReason('');task.setNotice(r.name+' 님을 공무로 등록했어요.');}});
  const cancel=(id:string)=>{if(sure!==id){setSure(id);return;}void task.run(async()=>{await request('adminCancelExcused',{kind,date,memberId:id});const l=await request<ExlList>('getExcusedList',{kind,date});if(task.active()){setList(l);setSure('');task.setNotice('공무를 해제했어요.');}});};
  const th=EM_THEME[kind];

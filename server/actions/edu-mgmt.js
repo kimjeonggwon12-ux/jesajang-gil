@@ -11,12 +11,13 @@ import { educationGrants, permits } from '../lib/education-access.js';
 import { isOwner } from './roster.js';
 import { normId } from '../lib/util.js';
 import { eduFor, eduPeople, excusedOf, roster24 } from '../lib/edu-attendance.js';
-import { selfExcusedOf } from './edu-excused-self.js';
+import { selfExcusedOf, isFriTeacherMeeting } from './edu-excused-self.js';
 import { weeklySummary, weeklyDetail, groupDefs, subDefs, affiliations, weeklyCsv } from '../lib/edu-weekly.js';
 
 const fail = (message, status = 400) => { throw new AccessError(message, status); };
 export const eduMgmtEnabled = () => process.env.EDU_MGMT_ENABLED === '1';
-const KINDS = { 화전단: '화요전도단', 목사교: '목요사명자교육' };
+// 11/20(사용자): 금요 교사 교육도 공무자 관리에 — 대상은 교사 명단(teachers). 주간 출석 현황 표(재적 기준)는 화전단·목사교만.
+const KINDS = { 화전단: '화요전도단', 목사교: '목요사명자교육', 금요교사: '금요교사교육' };
 const validDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(d + 'T00:00:00Z').toISOString().slice(0, 10) === d;
 const requireOn = () => { if (!eduMgmtEnabled()) fail('교육 관리 기능이 아직 꺼져 있어요.', 503); };
 const scopeOf = (m) => (m.cohortId ? ['cohort', m.cohortId] : m.seriesId ? ['series', m.seriesId] : ['meeting', m.meetingId]);
@@ -51,7 +52,7 @@ async function weekMeetings(date) {
   for (const r of rows) {
     if (String(r.title || '').startsWith('[TEST]')) continue;
     if (r.series_id && !sOf.has(r.series_id)) continue;
-    const kind = /화요전도단|화전단/.test(r.title || '') ? '화전단' : sOf.get(r.series_id)?.roster_key === '목요사명자' ? '목사교' : null;
+    const kind = /화요전도단|화전단/.test(r.title || '') ? '화전단' : sOf.get(r.series_id)?.roster_key === '목요사명자' ? '목사교' : isFriTeacherMeeting(r) ? '금요교사' : null;
     if (!kind) continue;
     const m = await findMeeting(r.meeting_id);
     if (m) out.push({ kind, m });
@@ -91,6 +92,7 @@ export async function getEduWeekly(body = {}) {
   const w = await who(), { week, list } = await weekMeetings(String(body.date || ''));
   const items = [];
   for (const { kind, m } of list) {
+    if (kind === '금요교사') continue;   // 11/20: 주간 재적 표는 화전단·목사교만
     const full = managerOf(w, m);
     if (!full && !w.heads.length) continue;
     const { P, ex, basis } = await computeMeeting(kind, m);
@@ -241,6 +243,13 @@ const xPlace = (p) => (p.dept === '24부서' ? p.affiliation || '' : p.region ||
 const XORDER = ['교역자', '장로·자문회', '24부서', '장년회', '부녀회', '청년회'];
 const xRank = (g) => { const i = XORDER.indexOf(g); return i < 0 ? 99 : i; };
 async function requireManager(body) { const w = await who(body); if (!isManager(w)) fail('교육·전도 담당 관리자만 쓸 수 있어요.', 403); return w; }
+// 11/20: 금요 교사 교육 = 교사 명단
+const teacherRoster = () => selectAll(() => db().from('teachers').select('nid, name, dept, region, affiliation, position, sort_order').order('sort_order').order('member_id'), 3);
+const rosterOf = (kind) => (kind === '금요교사' ? teacherRoster() : eduRoster());
+async function attendedNids(m) {
+  const rows = await selectAll(() => db().from('attend_records').select('nid').eq('meeting_id', m.meetingId).order('id'));
+  return new Set(rows.map((r) => String(r.nid || '')).filter(Boolean));
+}
 const eduRoster = () => selectAll(() => db().from('edu_roster').select('nid, name, dept, region, affiliation, position, sort_order').eq('roster_key', '목요사명자').order('sort_order').order('id'));
 function kindDate(body) { const kind = String(body.kind || ''), date = String(body.date || ''); if (!KINDS[kind] || !validDate(date)) fail('교육과 날짜를 확인해 주세요.'); return { kind, date }; }
 
@@ -249,11 +258,12 @@ export async function getExcusedList(body = {}) {
   const { kind, date } = kindDate(body);
   const [selfRows, listIds, roster, wk] = await Promise.all([
     run(db().from('edu_excused_self').select('*').eq('kind', kind).eq('date', date).eq('active', true).order('id')),
-    excusedOf(kind, date), eduRoster(), weekMeetings(date),
+    excusedOf(kind, date), rosterOf(kind), weekMeetings(date),
   ]);
   const hit = wk.list.find((x) => x.kind === kind && x.m.date === date);
   let came = null;
-  if (hit) { const { P } = await computeMeeting(kind, hit.m); came = new Set(P.people.filter((p) => P.sessions.some((s) => p.att[s])).map((p) => p.nid)); }
+  if (hit && kind === '금요교사') came = await attendedNids(hit.m);
+  else if (hit) { const { P } = await computeMeeting(kind, hit.m); came = new Set(P.people.filter((p) => P.sessions.some((s) => p.att[s])).map((p) => p.nid)); }
   const of = new Map(roster.map((p) => [p.nid, p])), rows = [], seen = new Set();
   const add = (nid, extra) => {
     if (seen.has(nid)) return; seen.add(nid);
@@ -273,7 +283,8 @@ export async function searchEduRosterForExcused(body = {}) {
   requireOn(); await requireManager(body);
   const q = String(body.q || '').replace(/\s+/g, '');
   if (!q) fail('이름을 적어 주세요.');
-  const rows = (await eduRoster()).filter((p) => String(p.name || '').replace(/\s+/g, '').includes(q) && String(p.position || '').trim() !== '원장').slice(0, 20);
+  const kind = KINDS[String(body.kind || '')] ? String(body.kind) : '목사교';
+  const rows = (await rosterOf(kind)).filter((p) => String(p.name || '').replace(/\s+/g, '').includes(q) && String(p.position || '').trim() !== '원장').slice(0, 20);
   return { rows: rows.map((p) => ({ memberId: p.nid, name: p.name, group: xGroup(p), place: xPlace(p), position: p.position || '' })) };
 }
 
@@ -281,8 +292,10 @@ export async function adminSetExcused(body = {}) {
   requireOn(); const w = await requireManager(body);
   const { kind, date } = kindDate(body), nid = String(body.memberId || ''), reason = String(body.reason || '').trim() || '공무';
   if (reason.length > 200) fail('사유는 200자 이내로 적어 주세요.');
-  const [p] = await run(db().from('edu_roster').select('nid, name, dept, region, affiliation, position').eq('roster_key', '목요사명자').eq('nid', nid).limit(1));
-  if (!p) fail('목요 사명자 교육 재적에 없는 분이에요.', 404);
+  const [p] = kind === '금요교사'
+    ? await run(db().from('teachers').select('nid, name, dept, region, affiliation, position').eq('nid', nid).limit(1))
+    : await run(db().from('edu_roster').select('nid, name, dept, region, affiliation, position').eq('roster_key', '목요사명자').eq('nid', nid).limit(1));
+  if (!p) fail(kind === '금요교사' ? '교사 명단에 없는 분이에요.' : '목요 사명자 교육 재적에 없는 분이에요.', 404);
   if (String(p.position || '').trim() === '원장') fail('원장님은 출석 집계 대상이 아니에요.');
   await run(db().from('edu_excused_self').upsert({ kind, date, nid, name: p.name, dept: p.dept, region: xPlace(p), reason, active: true,
     registered_by: w.actor.name || w.actor.nid, canceled_by: '', updated_at: new Date().toISOString() }, { onConflict: 'kind,date,nid' }));

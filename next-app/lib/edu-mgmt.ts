@@ -45,7 +45,7 @@ export function emHistoryText(h:EmHistory){
 export const emToday=()=>new Date(Date.now()+9*3600e3).toISOString().slice(0,10);
 
 // 11/16(4차): 두 교육 테마 + 공무자 관리 줄(A EM-VIEW 블록과 같음)
-export const EM_THEME:Record<string,{icon:string;title:string;cls:string}>={화전단:{icon:'🔥',title:'화요 전도단',cls:'tue'},목사교:{icon:'📖',title:'목요 사명자 교육',cls:'thu'}};
+export const EM_THEME:Record<string,{icon:string;title:string;cls:string}>={화전단:{icon:'🔥',title:'화요 전도단',cls:'tue'},목사교:{icon:'📖',title:'목요 사명자 교육',cls:'thu'},금요교사:{icon:'🎓',title:'금요 교사 교육',cls:'fri'}};   // 11/20 금요 교사 교육
 export type ExlRow={memberId:string;name:string;group:string;place:string;source:string;registeredBy:string;reason:string;attended:boolean|null;at?:string};
 export type ExlList={kind:string;kindLabel:string;date:string;meeting:{title:string;date:string}|null;rows:ExlRow[];counts:{total:number;self:number;admin:number;list:number;attended:number}};
 export type ExlHit={memberId:string;name:string;group:string;place:string;position:string};
@@ -63,9 +63,9 @@ export function exlGroups(rows:ExlRow[]){
  return out;
 }
 // 11/16(6차): 탭을 열면 더 가까운 교육부터(같은 날이면 목요 사명자 교육)
-export function emNextKind(today:string){return emNextDate('화전단',today)<emNextDate('목사교',today)?'화전단':'목사교';}
+export function emNextKind(today:string){return ['목사교','화전단','금요교사'].reduce((a,k)=>(emNextDate(k,today)<emNextDate(a,today)?k:a));}
 export function emNextDate(kind:string,today:string){
- const want=kind==='화전단'?2:4;
+ const want=({화전단:2,목사교:4,금요교사:5} as Record<string,number>)[kind]||4;
  for(let i=0;i<7;i++){const d=new Date(Date.parse(today+'T00:00:00Z')+i*864e5);if(d.getUTCDay()===want)return d.toISOString().slice(0,10);}
  return today;
 }
