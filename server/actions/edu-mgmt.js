@@ -248,7 +248,8 @@ const teacherRoster = () => selectAll(() => db().from('teachers').select('nid, n
 const rosterOf = (kind) => (kind === '금요교사' ? teacherRoster() : eduRoster());
 async function attendedNids(m) {
   const rows = await selectAll(() => db().from('attend_records').select('nid').eq('meeting_id', m.meetingId).order('id'));
-  return new Set(rows.map((r) => String(r.nid || '')).filter(Boolean));
+  const { ALWAYS_ATTEND } = await import('../lib/edu-attendance.js');   // 11/20: 항상 참석으로 세는 분
+  return new Set([...rows.map((r) => String(r.nid || '')).filter(Boolean), ...ALWAYS_ATTEND.map((a) => a.nid)]);
 }
 const eduRoster = () => selectAll(() => db().from('edu_roster').select('nid, name, dept, region, affiliation, position, sort_order').eq('roster_key', '목요사명자').order('sort_order').order('id'));
 function kindDate(body) { const kind = String(body.kind || ''), date = String(body.date || ''); if (!KINDS[kind] || !validDate(date)) fail('교육과 날짜를 확인해 주세요.'); return { kind, date }; }
