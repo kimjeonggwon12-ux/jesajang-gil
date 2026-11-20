@@ -34,6 +34,13 @@ const isLate = (r) => !!r && /지각/.test(r.late || '');
 const lateMin = (r) => (String(r.late || '').match(/(\d+)분/) || [])[1] || '';
 // 11/12(사용자): "교역자에서 이용우·김양주는 무조건 참석으로, 앞으로도 계속" — 지파장·지파총무. 모든 타임 정상 참석으로 센다.
 const ALWAYS_PRESENT = ['00060830-00001', '00200202-00001'].map(normId);
+// 11/20(사용자): 화요 전도단·목요 사명자 교육·금요 교사 교육 모두 '항상 참석(오전 정상)'으로 셈 — 오봉림(요청엔 '오봉임')·탁미경·고병희(부녀회), 채희성(청년회 구역장)
+export const ALWAYS_ATTEND = [
+  { id: '00301128-00192', name: '오봉림', dept: '부녀회', region: '10지역', teacher: true },
+  { id: '00230526-00057', name: '탁미경', dept: '부녀회', region: '11지역', teacher: true },
+  { id: '00231119-00262', name: '고병희', dept: '부녀회', region: '기타', teacher: true },
+  { id: '00220123-00109', name: '채희성', dept: '청년회', region: '02지역', teacher: false },
+].map((p) => ({ ...p, nid: normId(p.id) }));
 const comma = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const groupOfKey = (key) => (key === '교역자' ? '교역자' : key.split('/')[0]);
 
@@ -75,6 +82,16 @@ async function prepare(m, phase, edu) {
     const s0 = sessions.includes('오전') ? '오전' : order.includes('오전') ? null : sessions[0];
     if (s0) att[s0] = { ...(att[s0] || {}), late: '정상 출석' };
     byNid.set(nid, att);
+  }
+  // 11/20: ALWAYS_ATTEND — 재적에 있는 분만(재적 밖이면 이 교육 집계 대상 아님) 오전(없으면 첫 타임) 정상 참석
+  const rosterNids = new Set(edu.roster.map((p) => p.nid));
+  for (const a of ALWAYS_ATTEND) {
+    if (!rosterNids.has(a.nid)) continue;
+    const s0 = sessions.includes('오전') ? '오전' : order.includes('오전') ? null : sessions[0];
+    if (!s0) continue;
+    const att = byNid.get(a.nid) || {};
+    if (!att[s0]) att[s0] = { id: a.id, name: a.name, dept: a.dept, region: a.region, late: '정상 출석' };
+    byNid.set(a.nid, att);
   }
   // 11/12(사용자): 원장님들은 계수·참석·불참 명단에서 계속 뺀다(재적 밖 참석에도 안 나오게)
   const EXCLUDED = (p) => String(p.position || '').trim() === '원장';

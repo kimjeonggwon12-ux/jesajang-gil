@@ -187,6 +187,17 @@ async function prepare(m, phase) {
       rows.push({ session: '오전', name, id, dept: '교역자', teacherDept: '교역자', region: '교회', late: '정상 출석', guest: false, dup: false, meetingId: m.meetingId });
     }
   }
+  // 11/20(사용자): 화요 전도단·목요 사명자 교육·금요 교사 교육 — ALWAYS_ATTEND 는 항상 오전(없으면 첫 타임) 정상 참석
+  if (/화요전도단|화전단|목요\s*사명자|금요\s*교사/.test(String(m.title || '')) || m.seriesId === 'RS261112175202426') {
+    const { ALWAYS_ATTEND } = await import('./edu-attendance.js');
+    const s0 = slotsOf(m).some((s) => s.name === '오전') ? '오전' : (slotsOf(m)[0] || {}).name;
+    if (s0 && (phase === '최종' || phase === s0)) {
+      for (const a of ALWAYS_ATTEND) {
+        if (rows.some((r) => r.session === s0 && normId(r.id) === a.nid)) continue;
+        rows.push({ session: s0, name: a.name, id: a.id, dept: a.dept, teacherDept: a.dept, region: a.region, late: '정상 출석', guest: !a.teacher, dup: false, meetingId: m.meetingId });
+      }
+    }
+  }
   return { by: groupRows(rows), counts: await rosterCounts(), order };
 }
 
