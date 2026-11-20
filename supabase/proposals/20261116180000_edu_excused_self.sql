@@ -4,7 +4,7 @@
 -- 되돌리기: drop table public.edu_excused_self; (기존 기능 영향 없음)
 create table public.edu_excused_self (
   id bigint generated always as identity primary key,
-  kind text not null check (kind in ('화전단','목사교')),
+  kind text not null check (kind in ('화전단','목사교','금요교사')),
   date text not null,
   nid text not null,
   name text not null default '',
