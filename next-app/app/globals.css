@@ -91,3 +91,6 @@
 .em-grps{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.em-grps button{min-width:44px;height:36px;padding:0 12px;border-radius:18px;border:1px solid #cfd8d4;background:#fff;font-weight:800}.em-grps button b{color:#00875f;margin-left:2px}.em-grps button.on{background:#00AE82;border-color:#00AE82;color:#fff}.em-grps button.on b{color:#fff}
 .em-gh{margin-top:12px;padding:6px 10px;border-radius:8px;background:#eef3f1;font-weight:900}.em-gh b{color:#00875f;margin-left:4px}
 .exs-win{justify-self:start;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.85);font-weight:800;color:#334155}
+
+/* 11/22 새 영상 NEW */
+.learning-new{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;background:#E5322D;color:#fff;font-size:10px;font-weight:800;font-style:normal;line-height:16px;vertical-align:middle}
