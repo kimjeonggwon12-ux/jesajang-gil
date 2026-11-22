@@ -827,7 +827,10 @@ async function attAutoSummary(body) {
   // 2026-11-19: 오후 2시 '내일의양식' 방에 오늘의 양식 + 잠언(그날 일 = 장) 안내
   let bread = null;
   try { bread = await (await import('../lib/daily-bread.js')).dailyBreadTick(); } catch (e) { console.log('내일의양식 오류: ' + e); }
-  return { ok: true, closed, roomAm, cohort, daily, summary, tier, bread };
+  // 2026-11-22: 월요일 아침 말씀광장 새 영상(성경·신앙 시리즈만) → 교사광장 영상
+  let wordsquare = null;
+  try { wordsquare = await (await import('../lib/wordsquare-videos.js')).wordsquareTick(); } catch (e) { console.log('말씀광장 영상 오류: ' + e); }
+  return { ok: true, closed, roomAm, cohort, daily, summary, tier, bread, wordsquare };
 }
 
 export default {

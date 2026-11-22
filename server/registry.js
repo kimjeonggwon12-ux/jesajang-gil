@@ -30,6 +30,7 @@ import newMarks from './actions/new-marks.js';
 import targetRoom from './actions/target-room.js';
 import auth from './actions/auth.js';
 import dailyBread from './lib/daily-bread.js';   // 11/19 내일의양식 방 글 관리
+import wordsquareVideos from './lib/wordsquare-videos.js';   // 11/22 말씀광장 새 영상 → 교사광장 영상(월요일 자동)
 import eduMgmt from './actions/edu-mgmt.js';
 import eduExcusedSelf from './actions/edu-excused-self.js';   // 11/16 공무 본인 신고   // 2026-11-16 교육보고(화전단·목사교 주간 현황·부서 공무 사전보고) — EDU_MGMT_ENABLED
 
@@ -67,6 +68,7 @@ export const actions = {
   ...targetRoom,
   ...auth,
   ...dailyBread,
+  ...wordsquareVideos,
 };
 
 // 11/4 개인정보: AI(제미나이)를 부르는 기능은 요청한 교사의 섭외자 이름을 '섭외자A·B…'로 가려서 보낸다(lib/gemini.js withPrivacy).
