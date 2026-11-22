@@ -13422,12 +13422,20 @@ function tbSearchRender() {
       catch (e) { if (!vdState.videos) { vdState.err = e.message; vdRender(); } }
       if (vdIsApprover()) vdLoadReqs();   // 승인 대기 숫자 — 일반 교사는 신청 탭을 열 때만 받음(요청 줄이기)
     }
+    // 11/22(사용자): "신규로 올라가는 거는 뉴 뱃지" — 교사광장에 올라온 지 7일 안의 영상은 제목 옆 NEW(올린 때 = 영상 번호 VD+yyMMddHHmmss)
+    function vdIsNew(v) {
+      const m = /^VD(\d{2})(\d{2})(\d{2})/.exec(String(v && v.id || ''));
+      if (!m) return false;
+      const at = Date.UTC(2000 + +m[1], +m[2] - 1, +m[3]), t = attNowKst().slice(0, 10).split('-').map(Number);
+      const days = (Date.UTC(t[0], t[1] - 1, t[2]) - at) / 864e5;
+      return days >= 0 && days < 7;
+    }
     function vdCardHtml(v, snip) {
       const adm = vdIsApprover();
       return `<div class="vd-card" data-vd-play="${esc(v.id)}">
           <div class="vd-thumb"><img src="${vdThumb(v.videoId)}" alt="" loading="lazy"><span class="vd-play">▶</span>${v.docs ? '<span class="vd-doc">녹취 · 교안</span>' : ''}</div>
           <div class="vd-info">
-            <div class="vd-t">${esc(v.title)}</div>
+            <div class="vd-t">${esc(v.title)}${vdIsNew(v) ? '<span class="pz-new">NEW</span>' : ''}</div>
             ${v.description ? `<div class="vd-d">${esc(v.description)}</div>` : ''}
             ${typeof snip === 'string' && snip ? `<div class="vd-snip">${snip}</div>` : ''}
             <div class="vd-m">${vdParts(v).map(p => `<span class="vd-tag">${esc(p)}</span>`).join('')}${esc(vdDate(v.uploadDate))}</div>
