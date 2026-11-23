@@ -206,7 +206,8 @@ export async function buildRoomAttendance(m, phase) {
   const { by, counts, order } = await prepare(m, phase);
   const rooms = await run(db().from('report_rooms').select('*').eq('active', true));
   const out = [], seenChat = new Set();
-  const hwa = /화요전도단|화전단/.test(String(m.title || ''));
+  // 11/23(사용자): 금요 교사 교육도 화전단과 같은 모양으로 교육 통계 방에(11/27 금요일부터)
+  const hwa = /화요전도단|화전단|금요\s*교사/.test(String(m.title || ''));
   for (const room of rooms) {
     if (SKIP(room.dept) || topicPending(room)) continue;
     const dept = room.dept.split('#')[0];
