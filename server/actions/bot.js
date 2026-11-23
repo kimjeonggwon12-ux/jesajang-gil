@@ -19,7 +19,7 @@ import {testChat} from '../lib/edu-attendance.js';
 
 // 11/5(사용자): "서머리 다섯 개에 번호를 매기고 머릿말에 어떤 서머리인지 설명" — 하루 순서대로 ①~⑤
 const SUMMARY_HEAD = {
-  status: ['①', '☀️', '아침 7시 · 교사 활동 현황', '교장부청별 명함 등록·활동 기록 참여·앱 입장(누적)과 교사 등급(휴·활·정·우, 자문회 포함)을 한눈에 보는 아침 점검표예요.'],
+  status: ['①', '☀️', '아침 7시 · 교사 등급 현황', '교자장부청 교사 등급(휴·활·정·우, 자문회 포함, 기타 제외)을 한눈에 보는 아침 점검표예요.'],
   noon: ['②', '🕛', '정오 · 오전 활동 총합', '오늘 0시~12시에 올라온 보고를 교장부청 × 활동 항목 표로 합쳤어요. 오전에 어디가 먼저 움직였는지 봐요.'],
   dept: ['③', '📊', '밤 10시 · 부서 지역별 총합', '우리 부서 지역마다 오늘 보고를 활동 항목별로 합친 표예요. 지역끼리 나란히 비교해요.'],
   evening: ['④', '🌙', '밤 10시 · 하루 활동 총합', '오늘 하루 전체 보고를 교장부청 × 활동 항목 표로 합쳤어요. 4개 조직의 하루를 비교해요.'],
@@ -257,19 +257,20 @@ async function composeStatus(day, { picture = true } = {}) {
   let png = null;
   if (picture) try {
     png = progressPng({
-      title: '교사 활동 현황 서머리', sub: `${day} (${weekdayOf(day)}) 아침 7시 기준 · 누적 · 막대 끝 = 그 조직 전체 교사`,
+      // 11/23(사용자): 명함 등록·활동 기록 참여·앱 입장 막대는 지우고 휴·활·정·우 막대만
+      title: '교사 등급 현황', sub: `${day} (${weekdayOf(day)}) 아침 7시 기준 · 휴·활·정·우(기타 제외) · 막대 끝 = 네 등급 합`,
       labels: orgs.map(([l]) => l), totals: orgs.map(([, s]) => s.total), sumLabel: '전주교회 전체',
       panels: [
-        { title: '명함 등록', color: '#00AE82', values: orgs.map(([, s]) => s.card) },
-        { title: '활동 기록 참여', color: '#2F6BFF', values: orgs.map(([, s]) => s.act) },
-        { title: '앱 입장 1회 이상', color: '#F08A00', values: orgs.map(([, s]) => s.seen) },
-        { title: '교사 등급 (휴·활·정·우 · 기타 제외)', labels: tierLabels, stack: TIER_STACK.map(([tier, short, color]) => ({ label: short, name: tier, color, values: tierRows.map((t) => t[tier] || 0) })) },
+        { title: '교사 등급 (휴·활·정·우)', labels: tierLabels, stack: TIER_STACK.map(([tier, short, color]) => ({ label: short, name: tier, color, values: tierRows.map((t) => t[tier] || 0) })) },
       ],
     });
   } catch (e) { console.log('[교사광장 봇] 참여 현황 그림 오류 ' + e); }
-  const caption = [...summaryHead('status'), `📅 ${day} (${weekdayOf(day)}) 아침 7시 기준 · 누적`, '',
-    ...orgs.map(([l, s]) => `${l === '전주교회 전체' ? '⛪' : '🏢'} <b>${l}</b> ${comma(s.total)}명 — 명함 ${comma(s.card)} · 기록 ${comma(s.act)} · 입장 ${comma(s.seen)}`)].join('\n');
-  return { text: lines.join('\n'), caption, png, stat, all, tierOf };
+  const tierLine = (label, t) => { const n = TIER_STACK.reduce((a, [tier]) => a + (t[tier] || 0), 0);
+    return `${label === '전주교회 전체' ? '⛪' : '🏢'} <b>${label}</b> ${comma(n)}명 — ${TIER_STACK.map(([tier, sh]) => `${sh} ${comma(t[tier] || 0)}`).join(' · ')}`; };
+  // 11/23(사용자): "밑에 텍스트도 지워" — 사진만(설명 글 없음). 글은 사진을 못 보낼 때만
+  const text = [...summaryHead('status'), `📅 ${day} (${weekdayOf(day)}) 아침 7시 기준`, '',
+    ...tierLabels.map((l, i) => tierLine(l, tierRows[i]))].join('\n');
+  return { text, caption: '', png, stat, all, tierOf };
 }
 async function sendStatusSummary({ date, force } = {}) {
   const day = date || kstDate();
