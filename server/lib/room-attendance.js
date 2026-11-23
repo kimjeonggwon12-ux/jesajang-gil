@@ -7,7 +7,7 @@
 //   교자장부청 = 같은 칸의 파랑 표(11/4 보라→파랑)(ATT_TOTAL_ROOM — 사용자 확인 전까지는 시험 방에만).
 import { db, run, selectAll } from './db.js';
 import { kstDate, kstDateTime, normId } from './util.js';
-import { sendRoomText, sendRoomBoard, sendRoomCardText, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
+import { sendRoomText, sendRoomBoard, sendRoomCardText, topicPending, orgLabel, BOARD_THEME, EDU_STAT_ROOMS, eduStatDeptOff } from './report-room.js';
 import { tablePng } from './table-image.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -206,9 +206,26 @@ export async function buildRoomAttendance(m, phase) {
   const { by, counts, order } = await prepare(m, phase);
   const rooms = await run(db().from('report_rooms').select('*').eq('active', true));
   const out = [], seenChat = new Set();
+  const hwa = /화요전도단|화전단/.test(String(m.title || ''));
   for (const room of rooms) {
     if (SKIP(room.dept) || topicPending(room)) continue;
     const dept = room.dept.split('#')[0];
+    // 11/23(사용자): 청년회 = 교사 방엔 교육 출석 일절 안 올림 → 드림런메이커 '교육' 주제에 화전단만(지역별 노랑 표 + 지역별 참석·지각 이름)
+    const statDept = EDU_STAT_ROOMS[room.dept];
+    if (statDept) {
+      const keys = [...by.keys()].filter((k) => k.startsWith(statDept + '/')).sort((a, b) => regionOrder(statDept)(a) - regionOrder(statDept)(b) || (a < b ? -1 : 1));
+      if (!hwa || !keys.length) continue;
+      out.push({ room, ...deptBoard(m, statDept, by, counts, phase, order) });
+      let cur = '';
+      for (const k of keys) {
+        const t = roomText(m, k, by.get(k), counts.get(k) || 0, phase, order);
+        if (cur && cur.length + t.length + 2 > 3900) { out.push({ room, text: cur }); cur = ''; }
+        cur += (cur ? '\n\n' : '') + t;
+      }
+      if (cur) out.push({ room, text: cur });
+      continue;
+    }
+    if (eduStatDeptOff(room.dept)) continue;
     if (room.dept.includes('#총합') || DEPTS.includes(room.dept)) {
       // 11/3(사용자): 부서 전체 방에도 총 취합 — 부서 전체 방과 총합 방이 같은 방이면 한 번만
       if (seenChat.has(dept + '|' + String(room.chat_id).split('/')[0])) continue;

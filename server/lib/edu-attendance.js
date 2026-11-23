@@ -7,7 +7,7 @@
 //   summary_to='test' 면 실제 방 대신 나만의 교사광장 시험 방으로(어느 방에 갈 글인지 머리에 적어서).
 import { db, run, selectAll } from './db.js';
 import { kstDateTime, normId } from './util.js';
-import { sendRoomText, sendRoomBoard, sendRoomCardText, topicPending, orgLabel, BOARD_THEME } from './report-room.js';
+import { sendRoomText, sendRoomBoard, sendRoomCardText, topicPending, orgLabel, BOARD_THEME, EDU_STAT_ROOMS, eduStatDeptOff } from './report-room.js';
 import { tablePng } from './table-image.js';
 import { workbookFiles } from './xlsx-multi.js';
 import { zip } from './zip.js';
@@ -635,6 +635,13 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
       out.push({ room, ...eduCard(m, P, C) });
       continue;
     }
+    // 11/23(사용자): 청년회 = 교사 방엔 목사교 내용 끊고 드림런메이커 '교육' 주제에만(부서 카드 + 부서 전체 참석·지각·공무·불참 명단)
+    const statDept = EDU_STAT_ROOMS[room.dept];
+    if (statDept) {
+      if (eduKindOf(m, edu) === '목사교' && once('stat|' + room.dept) && P.people.some((p) => p.dept === statDept)) for (const x of await deptWhole(m, phase, P, edu, statDept)) out.push({ room, ...x });
+      continue;
+    }
+    if (eduStatDeptOff(room.dept)) continue;
     if (eduOnly || room.dept.startsWith('#') || room.dept.includes('#')) continue;
     if (room.dept === '교역자') {
       // 11/19 밤(사용자): 교역자 방(교역자 전도 보고및소통)도 옛 2통 대신 중진 방과 같은 새 형식(교역자회 카드+실명 명단, 휴직·근신·협력 교회 제외)
