@@ -3238,13 +3238,14 @@
         <div class="adm-top"><span class="adm-top-t">관리자</span><button type="button" class="hdr-me" title="내 계정" onclick="openAccountSheet()"><svg class="lucide-i" style="width:22px;height:22px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button></div>
         <div id="admin-subtabs">
           <!-- 2026-10-04: 부서별 활동 관리를 맨 앞·기본 화면으로(맨 위 '부서별 참여 현황' 그래프를 바로 보고 공유하도록) -->
-          <button type="button" class="kko-tab kko-tab-active" data-subtab="dist" onclick="adminSwitchSubTab('dist')">활동</button>
+          <!-- 11/24(사용자): 개강피드백을 맨 왼쪽·기본 화면으로 -->
+          <button type="button" class="kko-tab kko-tab-active" data-subtab="openfb" onclick="adminSwitchSubTab('openfb')">개강피드백</button>   <!-- 2026-11-10 상담 이상 섭외자 피드백방 -->
+          <button type="button" class="kko-tab" data-subtab="dist" onclick="adminSwitchSubTab('dist')">활동</button>
           <button type="button" class="kko-tab" data-subtab="edu" onclick="adminSwitchSubTab('edu')">교사</button>
           <button type="button" class="kko-tab" data-subtab="connectAdmin" onclick="adminSwitchSubTab('connectAdmin')" style="display:none">연결</button>   <!-- 11/2(사용자): 탭은 숨김, 연결 관리 기능·서버는 그대로 -->
           <button type="button" class="kko-tab" data-subtab="calAdmin" onclick="adminSwitchSubTab('calAdmin')">행사</button>
           <button type="button" class="kko-tab" data-subtab="attend" onclick="adminSwitchSubTab('attend')">출석</button>
           <button type="button" class="kko-tab" data-subtab="eduReport" onclick="adminSwitchSubTab('eduReport')" style="display:none">공무결석현황</button>   <!-- 2026-11-16 화전단·목사교 주간 출석·부서 공무 사전보고(서버가 권한 확인 후 보임) -->
-          <button type="button" class="kko-tab" data-subtab="openfb" onclick="adminSwitchSubTab('openfb')">개강피드백</button>   <!-- 2026-11-10 상담 이상 섭외자 피드백방 -->
           <!-- 11/2(사용자): 명단은 '교사' 탭 맨 위 '교사명단'으로 옮김 -->
           <button type="button" class="kko-tab" data-subtab="rooms" onclick="adminSwitchSubTab('rooms')">도우미연결</button>   <!-- 2026-10-25 부서·지역 텔레그램 보고방 연결 -->
           <!-- 11/24(사용자): 관리자 '교육 관리'(교육생·교육 과정) 탭 없앰 — 서버 기능(cohorts.js 등)은 그대로 -->
@@ -19720,9 +19721,9 @@ async function calAdmInit() {
       const t = document.querySelector('#admin-subtabs [data-subtab="cohort"]');
       if (t) t.style.display = isOwnerSession() ? '' : 'none';   // 교육 관리는 7777(앱 관리자)만
       // 2026-10-16(사용자 요청): 새로 고침하면 보던 작은 탭으로(처음이면 '활동')
-      let sub = 'dist';
-      try { sub = sessionStorage.getItem('adm_sub') || 'dist'; } catch (e) {}
-      if (sub === 'cohort' || !document.getElementById('admin-pane-' + sub)) sub = 'dist';   // 11/24: 교육 관리 탭 없앰 — 기억된 탭이 그거면 '활동'으로
+      let sub = 'openfb';   // 11/24(사용자): 처음 열면 개강피드백
+      try { sub = sessionStorage.getItem('adm_sub') || 'openfb'; } catch (e) {}
+      if (sub === 'cohort' || !document.getElementById('admin-pane-' + sub)) sub = 'openfb';   // 11/24: 교육 관리 탭 없앰 — 기억된 탭이 그거면 개강피드백으로
       adminSwitchSubTab(sub);
       if (isAdmin()) eduMgmt.probe();   // 11/16 교육보고 탭(기능 꺼짐·권한 없음이면 숨김)
     } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
