@@ -34,7 +34,8 @@ const DEPTS = [['교역자', '교역자회'], ['자문회', '자문회'], ['장�
 const USAGE_DEPTS = DEPTS.filter(([d]) => d !== '자문회');
 const TIER_ICONS = [['휴교사', '🔴'], ['기타', '⚪'], ['활동교사', '🟡'], ['정교사', '🟢'], ['우수교사', '🏆']];
 // 등급 채움 막대(왼쪽부터): 휴 = 붉은색 → 우수 = 금색('gold' = progress-image.js 의 금빛 그라데이션)
-const TIER_STACK = [['휴교사', '휴', '#e5484d'], ['기타', '기타', '#a3a9b8'], ['활동교사', '활', '#f59e42'], ['정교사', '정', '#2f9e6e'], ['우수교사', '우수', 'gold']];
+// 11/23(사용자): 아침 7시 막대는 '기타'(출석으로 전환 대기) 빼고 순수 휴·활·정·우만 — 막대 100% = 네 등급 합
+const TIER_STACK = [['휴교사', '휴', '#e5484d'], ['활동교사', '활', '#f59e42'], ['정교사', '정', '#2f9e6e'], ['우수교사', '우수', 'gold']];
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 const comma = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -262,7 +263,7 @@ async function composeStatus(day, { picture = true } = {}) {
         { title: '명함 등록', color: '#00AE82', values: orgs.map(([, s]) => s.card) },
         { title: '활동 기록 참여', color: '#2F6BFF', values: orgs.map(([, s]) => s.act) },
         { title: '앱 입장 1회 이상', color: '#F08A00', values: orgs.map(([, s]) => s.seen) },
-        { title: '교사 등급 (휴·활·정·우)', labels: tierLabels, stack: TIER_STACK.map(([tier, short, color]) => ({ label: short, name: tier, color, values: tierRows.map((t) => t[tier] || 0) })) },
+        { title: '교사 등급 (휴·활·정·우 · 기타 제외)', labels: tierLabels, stack: TIER_STACK.map(([tier, short, color]) => ({ label: short, name: tier, color, values: tierRows.map((t) => t[tier] || 0) })) },
       ],
     });
   } catch (e) { console.log('[교사광장 봇] 참여 현황 그림 오류 ' + e); }
