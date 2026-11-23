@@ -3247,7 +3247,7 @@
           <button type="button" class="kko-tab" data-subtab="openfb" onclick="adminSwitchSubTab('openfb')">개강피드백</button>   <!-- 2026-11-10 상담 이상 섭외자 피드백방 -->
           <!-- 11/2(사용자): 명단은 '교사' 탭 맨 위 '교사명단'으로 옮김 -->
           <button type="button" class="kko-tab" data-subtab="rooms" onclick="adminSwitchSubTab('rooms')">도우미연결</button>   <!-- 2026-10-25 부서·지역 텔레그램 보고방 연결 -->
-          <button type="button" class="kko-tab" data-subtab="cohort" onclick="adminSwitchSubTab('cohort')" style="display:none">교육 관리</button>   <!-- 2026-10-16 교육생·교육 과정(7777만) -->
+          <!-- 11/24(사용자): 관리자 '교육 관리'(교육생·교육 과정) 탭 없앰 — 서버 기능(cohorts.js 등)은 그대로 -->
         </div>
         <div id="admin-pane-cohort" class="admin-pane"><div id="cohortAdmRoot" class="ra"></div></div>
         <div id="admin-pane-rooms" class="admin-pane"><div id="roomsAdmRoot" class="ra"></div></div>
@@ -19722,7 +19722,7 @@ async function calAdmInit() {
       // 2026-10-16(사용자 요청): 새로 고침하면 보던 작은 탭으로(처음이면 '활동')
       let sub = 'dist';
       try { sub = sessionStorage.getItem('adm_sub') || 'dist'; } catch (e) {}
-      if ((sub === 'cohort' && !isOwnerSession()) || !document.getElementById('admin-pane-' + sub)) sub = 'dist';
+      if (sub === 'cohort' || !document.getElementById('admin-pane-' + sub)) sub = 'dist';   // 11/24: 교육 관리 탭 없앰 — 기억된 탭이 그거면 '활동'으로
       adminSwitchSubTab(sub);
       if (isAdmin()) eduMgmt.probe();   // 11/16 교육보고 탭(기능 꺼짐·권한 없음이면 숨김)
     } };   // 2026-10-04: 부서별 활동 관리가 첫 화면
