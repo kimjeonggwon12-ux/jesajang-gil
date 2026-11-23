@@ -64,6 +64,9 @@ export async function eduFor(m) {
 const personRoom = (p) => (p.dept === '교회교역' || p.dept === '신학교역' || p.dept === '협력교회' ? '교역자' : DEPTS.includes(p.dept) ? roomKeyOf(p.dept, p.region) : '');
 
 const SPLIT_OTHER_DEPTS = ['청년회'];
+// 11/23(사용자): 교육 날 장년회·부녀회 전체 방·청년회 교육 통계 방 = 이름 명단 먼저, 부서 전체 카드는 맨 아래
+const CARD_LAST_ROOMS = ['장년회', '부녀회'];
+const cardLast = (parts) => (parts.length > 1 ? [...parts.slice(1), parts[0]] : parts);
 async function prepare(m, phase, edu) {
   edu.prepared ||= new Map();
   const key = m.meetingId + ':' + phase;
@@ -509,7 +512,8 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
     // 11/23(사용자): 청년회 = 교사 방엔 목사교 내용 끊고 드림런메이커 '교육' 주제에만(부서 카드 + 부서 전체 참석·지각·공무·불참 명단)
     const statDept = EDU_STAT_ROOMS[room.dept];
     if (statDept) {
-      if (eduKindOf(m, edu) === '목사교' && once('stat|' + room.dept) && P.people.some((p) => p.dept === statDept)) for (const x of await deptWhole(m, phase, P, edu, statDept)) out.push({ room, ...x });
+      // 11/23(사용자): 이름 명단 먼저 → 맨 아래 부서 카드(청년회 = '출석 대책회의 필요!')
+      if (eduKindOf(m, edu) === '목사교' && once('stat|' + room.dept) && P.people.some((p) => p.dept === statDept)) for (const x of cardLast(await deptWhole(m, phase, P, edu, statDept))) out.push({ room, ...x });
       continue;
     }
     if (eduStatDeptOff(room.dept)) continue;
@@ -519,7 +523,10 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
       continue;
     }
     if (DEPTS.includes(room.dept)) {   // 부서 전체 방
-      if (once('whole|' + room.dept) && P.people.some((p) => p.dept === room.dept)) for (const x of await deptWhole(m, phase, P, edu, room.dept)) out.push({ room, ...x });
+      if (once('whole|' + room.dept) && P.people.some((p) => p.dept === room.dept)) {
+        const parts = await deptWhole(m, phase, P, edu, room.dept);
+        for (const x of (CARD_LAST_ROOMS.includes(room.dept) ? cardLast(parts) : parts)) out.push({ room, ...x });   // 11/23: 장년회·부녀회 전체 방 = 명단 → 맨 아래 카드
+      }
       continue;
     }
     const list = P.people.filter((p) => p.key === room.dept);   // 지역 방
@@ -534,6 +541,7 @@ export async function buildEduAttendance(m, phase, edu, { test = false, allRegio
 export async function postEduAttendance(m, phase, edu, prefix = '', failures = []) {
   const test = edu.series.summary_to === 'test';
   const list = await buildEduAttendance(m, phase, edu, { test, eduOnly: edu.series.summary_to === 'room' });
+  if (!test && !prefix) await (await import('./room-attendance.js')).earlyNewsFirst(m, phase);   // 11/23: 교육 날 마감 = 10시 뉴스 먼저, 출석은 그 밑에
   const result = await deliverEduParts(m, phase, list, { testChat: test ? testChat() : '', manual: !!prefix, prefix });
   if (!result.ok) failures.push({scope:'#edu-att',ref:m.meetingId,phase,state:'unknown',count:result.failed.length});
   return result.sent.map(x => x.room);
