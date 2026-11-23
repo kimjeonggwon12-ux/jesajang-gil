@@ -193,10 +193,10 @@ async function composeBoard(day, kind = 'evening') {
 }
 
 /** 11/10(사용자): 장부청 전체 교사 방용 — 교자장부청 일일 보고 '계'만 아주 크게, 정사각형 카드 한 장. */
-async function composeTotalCard(day, board) {
+async function composeTotalCard(day, board, when = '밤 10시') {
   const r = board || await composeBoard(day, 'evening');
   const [, m, d] = day.split('-').map(Number);
-  const date = `${m}월 ${d}일(${weekdayOf(day)}) · 밤 10시`;   // 11/10(사용자): '10시 뉴스'처럼 10시 = 이 카드
+  const date = `${m}월 ${d}일(${weekdayOf(day)}) · ${when}`;   // 11/10(사용자): '10시 뉴스'처럼 10시 = 이 카드 (11/23 교육 날 일찍 보낼 땐 그 시각)
   const png = totalCardPng({ date, title: '교장부청 오늘 활동 기록', sum: r.sum, rows: r.per.map((p) => ({ label: p.label, n: p.sum })) });
   // 11/10(사용자): 카드에 나온 숫자를 아래 글로 또 적지 않는다 — 제목 한 줄만(데이터 뉴스가 바로 아래 이어짐)
   const caption = `📊 <b>교장부청 오늘 활동 기록</b> · ${date}`;
@@ -295,7 +295,32 @@ export async function summaryTick() {
   // 11/10(사용자): '10시 한 줄 데이터 뉴스' — 9시 뉴스처럼 22:00 틱에 바로(같은 틱에서 지역 표·보라 표 다음이라 맨 마지막). 옛: 11/5(사용자): "한 줄 데이터 뉴스 — 매일 밤 10시 맨 마지막, 글만, 내일(11/6)부터" → 22시 표들(③·④)이 먼저 나가게 22:05부터, 하루 한 번
   if (hm >= '22:00' && hm < '23:00' && kstDate() >= NEWS_START) out.news = await sendNewsOneline({ date: kstDate() }).catch((e) => ({ error: String(e) }));
   if (hm >= '22:00' && hm < '23:00') out.jungjin = await sendJungjinTiers(kstDate()).catch((e) => ({ error: String(e) }));
+  // 11/23(사용자): 교육 날(화전단·목사교·금요 교사)엔 장년회·부녀회 전체 방·청년회 교육 통계 방에 10시 뉴스를 20:50에(그 밑에 마감 출석)
+  if (hm >= EARLY_NEWS_AT && hm < '22:00' && await isEduDay(kstDate())) out.early = await sendEarlyNews(kstDate()).catch((e) => ({ error: String(e) }));
   return out;
+}
+
+const EARLY_NEWS_AT = '20:50';
+const EARLY_NEWS_KEYS = ['장년회', '부녀회', '청년회#교육'];
+/** 오늘 화전단·목사교·금요 교사 교육 모임이 있나 */
+async function isEduDay(day) {
+  const rows = await run(db().from('attend_meetings').select('title, series_id').eq('date', day).neq('status', '삭제')).catch(() => []);
+  const { isEduDayMeeting } = await import('../lib/room-attendance.js');
+  return rows.some((r) => !String(r.title || '').startsWith('[TEST]') && isEduDayMeeting({ title: r.title, seriesId: r.series_id }));
+}
+/** 교육 날: 그 방들에 10시 뉴스(계 카드 + 한 줄 데이터 뉴스)를 지금 — 방마다 하루 한 번, 22시 뉴스는 이 방들을 건너뜀(같은 '데이터뉴스' 기록). */
+export async function sendEarlyNews(day = kstDate()) {
+  const rows = await run(db().from('report_rooms').select('*').in('dept', EARLY_NEWS_KEYS).eq('active', true)).catch(() => []);
+  const done = new Set((await run(db().from('cohort_summary_log').select('ref_id').eq('cohort_id', '#church-room').eq('kind', '데이터뉴스').eq('date', day)).catch(() => [])).map((x) => x.ref_id));
+  const rooms = rows.filter((r) => !topicPending(r) && !done.has(r.dept));
+  if (!rooms.length) return { sent: [] };
+  const r = await composeNews(day, { oneline: true, today: true });
+  const hm = kstDateTime().slice(11, 16);
+  const h = Number(hm.slice(0, 2)), mi = Number(hm.slice(3, 5));
+  const when = `${h >= 12 ? '저녁 ' + (h - 12) : h}시${mi ? ` ${mi}분` : ''}`;
+  let png = null;
+  try { const c = await composeTotalCard(day, null, when); if (c.total) png = c.png; } catch (e) { console.log('[교사광장 봇] 이른 뉴스 카드 오류 ' + e); }
+  return { sent: await sendToRooms(rooms, '데이터뉴스', day, (room) => (png ? sendRoomBoard(room, png, r.text, r.text) : sendRoomText(room.chat_id, r.text))) };
 }
 
 // ── 저녁 서머리 ──

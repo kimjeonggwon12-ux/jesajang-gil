@@ -110,7 +110,7 @@ function roomText(m, key, sess, total, phase, order) {
 }
 
 /** 행 × 출석 칸 표(민트·보라) + 요약 글. groups = [[이름, sess, 재적]] */
-function attBoard({ m, title, firstHead, groups, phase, order, theme, sumLabel, place }) {
+function attBoard({ m, title, firstHead, groups, phase, order, theme, sumLabel, place, alert = '' }) {
   const T = BOARD_THEME[theme] || BOARD_THEME.mint;
   const used = phase === '최종' ? order.filter((s) => groups.some(([, sess]) => sess[s]?.length)) : [phase];
   const split = phase === '최종' && used.length > 1;
@@ -129,7 +129,7 @@ function attBoard({ m, title, firstHead, groups, phase, order, theme, sumLabel, 
   let png = null;
   try {
     png = tablePng({
-      title, sub: `${m.title} · ${dayOf(m)} · ${headOf(phase)}`,
+      title, sub: `${m.title} · ${dayOf(m)} · ${headOf(phase)}`, alert,
       foot: '※ 출석률 = 교사 참석 ÷ 재적(비교사 제외) · 정상·지각 = 출석 건수',
       head, rows, align: ['left'], headColor: T.head, stripe: T.stripe,
       style: (r, c, v) => {
@@ -152,12 +152,37 @@ function attBoard({ m, title, firstHead, groups, phase, order, theme, sumLabel, 
 
 const regionOrder = (dept) => (k) => (k.endsWith('/기타') && dept === '부녀회' ? -1 : (/\/\d+지역$/.test(k) ? Number(k.replace(/\D/g, '')) : 100));
 /** 부서 총합 방·부서 전체 방: 지역 × 출석 민트 표. */
-function deptBoard(m, dept, by, counts, phase, order) {
+function deptBoard(m, dept, by, counts, phase, order, alert = '') {
   const o = regionOrder(dept);
   const keys = [...new Set([...counts.keys(), ...by.keys()])].filter((k) => k.startsWith(dept + '/'))
     .sort((a, b) => o(a) - o(b) || (a < b ? -1 : 1));
-  return attBoard({ m, title: `${dept} 지역별 출석 현황`, firstHead: '지역', theme: 'yellow', sumLabel: '총합', place: '지역', phase, order,
+  return attBoard({ m, title: `${dept} 지역별 출석 현황`, firstHead: '지역', theme: 'yellow', sumLabel: '총합', place: '지역', phase, order, alert,
     groups: keys.map((k) => [orgLabel(dept, regionShow(k.split('/')[1])), by.get(k) || {}, counts.get(k) || 0]) });
+}
+
+// ── 교육 날 순서 (2026-11-23 사용자) ── 화전단·목사교·금요 교사 교육 날, 장년회·부녀회 전체 방과 청년회 교육 통계 방(드림런메이커 '교육')은
+//   ① 10시 뉴스를 20:50에(마감 출석보다 먼저) ② 지역별 이름 명단 ③ 맨 아래 부서 전체 집계(표·카드) — 장년회·청년회는 '출석 대책회의 필요!' 빨간 글씨.
+export const ORDER_ROOMS = ['장년회', '부녀회', '청년회#교육'];
+export const isEduDayMeeting = (m) => /화요전도단|화전단|목요\s*사명자|금요\s*교사/.test(String((m && m.title) || '')) || (m && m.seriesId) === 'RS261112175202426';
+const ATT_ALERT_DEPTS = ['장년회', '청년회'];
+const alertOf = (dept) => (ATT_ALERT_DEPTS.includes(dept) ? `${dept}는 출석 대책회의 필요!` : '');
+/** 그 부서 지역 방 글들을 지역 순서대로 모아 한 통(넘치면 여러 통) */
+function regionTexts(m, dept, by, counts, phase, order) {
+  const keys = [...by.keys()].filter((k) => k.startsWith(dept + '/')).sort((a, b) => regionOrder(dept)(a) - regionOrder(dept)(b) || (a < b ? -1 : 1));
+  const out = [];
+  let cur = '';
+  for (const k of keys) {
+    const t = roomText(m, k, by.get(k), counts.get(k) || 0, phase, order);
+    if (cur && cur.length + t.length + 2 > 3900) { out.push(cur); cur = ''; }
+    cur += (cur ? '\n\n' : '') + t;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+/** 교육 날 마감 전에 그 방들에 10시 뉴스를 먼저(이미 보냈으면 그냥 넘어감) */
+export async function earlyNewsFirst(m, phase) {
+  if (phase !== '최종' || !isEduDayMeeting(m) || m.date !== kstDate() || kstDateTime().slice(11, 16) < '18:00') return;   // 저녁 마감 때만
+  try { await (await import('../actions/bot.js')).sendEarlyNews(m.date); } catch (e) { console.log('교육 날 뉴스 먼저 오류: ' + e.message); }
 }
 /** 교자장부청: 부서 × 출석 보라 표. */
 function orgBoard(m, by, counts, phase, order) {
@@ -216,14 +241,9 @@ export async function buildRoomAttendance(m, phase) {
     if (statDept) {
       const keys = [...by.keys()].filter((k) => k.startsWith(statDept + '/')).sort((a, b) => regionOrder(statDept)(a) - regionOrder(statDept)(b) || (a < b ? -1 : 1));
       if (!hwa || !keys.length) continue;
-      out.push({ room, ...deptBoard(m, statDept, by, counts, phase, order) });
-      let cur = '';
-      for (const k of keys) {
-        const t = roomText(m, k, by.get(k), counts.get(k) || 0, phase, order);
-        if (cur && cur.length + t.length + 2 > 3900) { out.push({ room, text: cur }); cur = ''; }
-        cur += (cur ? '\n\n' : '') + t;
-      }
-      if (cur) out.push({ room, text: cur });
+      // 11/23(사용자): 이름 명단 먼저 → 맨 아래 부서 전체 표(청년회는 대책 필요 빨간 글씨)
+      for (const text of regionTexts(m, statDept, by, counts, phase, order)) out.push({ room, text });
+      out.push({ room, ...deptBoard(m, statDept, by, counts, phase, order, alertOf(statDept)) });
       continue;
     }
     if (eduStatDeptOff(room.dept)) continue;
@@ -232,6 +252,14 @@ export async function buildRoomAttendance(m, phase) {
       if (seenChat.has(dept + '|' + String(room.chat_id).split('/')[0])) continue;
       seenChat.add(dept + '|' + String(room.chat_id).split('/')[0]);
       if (![...by.keys()].some((k) => k.startsWith(dept + '/'))) continue;   // 그 부서에서 아무도 안 왔으면 안 올림
+      // 11/23(사용자): 장년회·부녀회 전체 방(그 방과 같은 방인 총합 열쇠 포함) = 교육 날엔 이름 명단 → 맨 아래 부서 전체 표
+      const chat0 = String(room.chat_id).split('/')[0];
+      const whole = hwa && ORDER_ROOMS.includes(dept) && rooms.some((r) => r.dept === dept && String(r.chat_id).split('/')[0] === chat0);
+      if (whole) {
+        for (const text of regionTexts(m, dept, by, counts, phase, order)) out.push({ room, text });
+        out.push({ room, ...deptBoard(m, dept, by, counts, phase, order, alertOf(dept)) });
+        continue;
+      }
       out.push({ room, ...deptBoard(m, dept, by, counts, phase, order) });
     } else {
       if (!by.has(room.dept)) continue;   // 아무도 안 온 지역 방엔 글을 안 올림
@@ -266,11 +294,17 @@ export async function postRoomAttendance(m, phase, prefix = '') {
   if (edu && edu.series.roster_key === ea.MONDAY_KEY) return prefix ? [] : [...jj, ...await ea.postMonday(m, phase, edu)];
   if (edu) return [...jj, ...await ea.postEduAttendance(m, phase, edu, prefix)];
   const sent = [...jj];
-  for (const p of await buildRoomAttendance(m, phase)) {
+  const list = await buildRoomAttendance(m, phase);
+  if (!prefix) await earlyNewsFirst(m, phase);   // 11/23: 교육 날 마감 = 10시 뉴스 먼저, 출석은 그 밑에
+  // 11/23: 한 방에 여러 통(이름 명단 + 표)이면 '보냄' 표시는 방마다 한 번 — 예전엔 둘째 통부터 이미 보냄으로 걸러졌다
+  const mine = new Set(), skip = new Set();
+  for (const p of list) {
     const { room } = p;
-    if (!prefix) {
+    if (!prefix && !mine.has(room.dept)) {
+      if (skip.has(room.dept)) continue;
       const { error } = await db().from('cohort_summary_log').insert({ cohort_id: '#room-att', kind: phase, ref_id: `${room.dept}|${m.meetingId}`, date: m.date, sent_at: kstDateTime() });
-      if (error) continue;   // 이미 보냄
+      if (error) { skip.add(room.dept); continue; }   // 이미 보냄
+      mine.add(room.dept);
     }
     try {
       if (p.kyo) { await sendRoomCardText(room, p.kyo.png, prefix + p.kyo.texts[0]); for (const t of p.kyo.texts.slice(1)) await sendRoomText(room.chat_id, prefix + t); }
