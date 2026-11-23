@@ -393,6 +393,39 @@ async function tsEduAttSend(body) {
     const to = body.test ? { dept: JUNGJIN_KEY, chat_id: MY_TEST_CHAT } : null;
     return { ok: true, sent: await postJungjin(m, String(body.phase || '최종'), { to, force: true }) };
   }
+  // 11/23(사용자): 부서 교육 통계 방(드림런메이커 '교육' 주제) 테스트 — { statSample:'청년회#교육', kind:'목사교'|'화전단', meetingId?, phase?, dry? }
+  //   meetingId 가 없으면 그 교육의 가장 최근 지난 모임. 글마다 맨 위에 테스트 표시. 기록(한 번만)은 남기지 않는다.
+  if (body.statSample) {
+    const { findMeeting } = await import('../actions/attendance.js');
+    const key = String(body.statSample), kind = String(body.kind || '목사교');
+    if (!EDU_STAT_ROOMS[key]) return { error: '교육 통계 방 열쇠가 아니에요' };
+    let id = String(body.meetingId || '');
+    if (!id) {
+      const rows = await run(db().from('attend_meetings').select('meeting_id, title, date, series_id').neq('status', '삭제').lt('date', kstDateTime().slice(0, 10)).order('date', { ascending: false }).limit(80));
+      const hit = rows.find((r) => (kind === '화전단' ? /화요전도단|화전단/.test(r.title || '') && !String(r.title).startsWith('[TEST]') : /목요\s*사명자|목사교/.test(r.title || '') || r.series_id === 'RS261112175202426'));
+      if (!hit) return { error: kind + ' 모임을 못 찾았어요' };
+      id = hit.meeting_id;
+    }
+    const m = await findMeeting(id);
+    if (!m) return { error: '모임 없음' };
+    const phase = String(body.phase || '최종');
+    const edu = await eduFor(m);
+    const list = edu ? await buildEduAttendance(m, phase, edu) : await (await import('./room-attendance.js')).buildRoomAttendance(m, phase);
+    const mine = list.filter((p) => p.room.dept === key);
+    const pre = `🧪 <b>[테스트] ${esc(kind)} 출석 현황</b> — ${esc(m.title)} (${esc(m.date)}) 기록으로 만든 샘플이에요\n`;
+    if (body.dry) return { ok: true, meetingId: id, title: m.title, date: m.date, count: mine.length, texts: mine.map((p) => p.caption || p.text) };
+    const sent = [];
+    for (const p of mine) {
+      try {
+        if (p.cardText) await sendRoomCardText(p.room, p.png, pre + p.text);
+        else if (p.caption) await sendRoomBoard(p.room, p.png, pre + p.caption, pre + p.text);
+        else await sendRoomText(p.room.chat_id, pre + p.text);
+        sent.push('성공');
+      } catch (e) { sent.push('실패 ' + e.message); }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    return { ok: sent.every((x) => x === '성공'), meetingId: id, title: m.title, date: m.date, sent };
+  }
   if (body.alertCard) {   // 11/19(사용자): 목사교 총합 카드 + 표 아래 빨간 대책회의 문구 — 시험 방(나만의 교사광장)에만
     const { findMeeting } = await import('../actions/attendance.js');
     const m = await findMeeting(String(body.meetingId || ''));
