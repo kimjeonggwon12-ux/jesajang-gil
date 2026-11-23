@@ -63,6 +63,7 @@ export async function eduFor(m) {
 /** 사명자 한 명 → 방 열쇠(교역자 / 부서/지역 / '' = 방 없음) */
 const personRoom = (p) => (p.dept === '교회교역' || p.dept === '신학교역' || p.dept === '협력교회' ? '교역자' : DEPTS.includes(p.dept) ? roomKeyOf(p.dept, p.region) : '');
 
+const SPLIT_OTHER_DEPTS = ['청년회'];
 async function prepare(m, phase, edu) {
   edu.prepared ||= new Map();
   const key = m.meetingId + ':' + phase;
@@ -103,6 +104,14 @@ async function prepareRaw(m, phase, edu) {
   // 11/12(사용자): 원장님들은 계수·참석·불참 명단에서 계속 뺀다(재적 밖 참석에도 안 나오게)
   const EXCLUDED = (p) => edu.policy.excluded_positions.includes(String(p.position || '').trim());
   const people = edu.roster.filter((p) => !EXCLUDED(p)).map((p) => ({ ...p, dept: edu.policy.dept_overrides[p.nid] || p.dept })).map((p) => ({ ...p, key: personRoom(p), att: byNid.get(p.nid) || {} }));
+  // 11/23(사용자): 사명자 엑셀은 숫자 지역이 아니면 모두 '기타' — 청년회는 교사 명단 지역(회장단·문화부·기타…)으로 나눠 화전단과 같은 줄로.
+  //   교사 명단에 없는 분은 그대로 '기타'.
+  const others = people.filter((p) => SPLIT_OTHER_DEPTS.includes(p.dept) && p.key === roomKeyOf(p.dept, '기타'));
+  if (others.length) {
+    const ts = await run(db().from('teachers').select('nid, dept, region').in('nid', others.map((p) => p.nid))).catch(() => []);
+    const reg = new Map(ts.map((t) => [t.nid, t]));
+    for (const p of others) { const t = reg.get(p.nid); if (t && t.dept === p.dept && t.region && !/^0*\d+지역$/.test(String(t.region).trim())) p.key = roomKeyOf(p.dept, t.region); }
+  }
   const inRoster = new Set(edu.roster.map((p) => p.nid));
   // 재적 밖 참석(교사·일반) — 교사면 등록 지역 방, 아니면 적은 부서
   const outside = [];
