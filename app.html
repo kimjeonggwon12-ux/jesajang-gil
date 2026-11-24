@@ -17723,7 +17723,8 @@ window.addEventListener('resize', () => { if (document.getElementById('partCanva
       function render() {
         const root = document.getElementById('ofbRoot'); if (!root) return;
         css();
-        const head = `<div class="ofb-hero"><b>🎯 개강피드백</b><span>담당 부서·지역 또는 직접 담당·초대 관계가 있는 상담 이상 섭외자예요. 누르면 그 <b style="display:inline;font-size:inherit;color:#FFE45C">피드백방</b>에서 기록을 보고 대화를 나눠요. 관리 권한이 있으면 <b style="display:inline;font-size:inherit;color:#FFE45C">👥 초대</b> 칸에서 인교섬협을 불러 모을 수 있어요. 남긴 피드백은 교사 앱에 바로 떠요.</span></div>`;
+        // 11/24(사용자): 제목 '개강피드백' 빼고, 딱 보면 알게 짧게
+        const head = `<div class="ofb-hero"><span style="margin-top:0;font-size:15px;font-weight:900;color:#fff">상담1 이상 섭외자 <small style="font-size:12px;font-weight:700;color:#D5F3E8">(상담1·2 · 복음방 · 센터)</small></span><span>👆 누르면 피드백방 → 담당 교사에게 피드백 <small style="color:#FFE45C;font-weight:800">교사 앱에 바로 떠요</small></span><span>👥 초대 → 인교섬협 부르기</span></div>`;
         if (st.err) { root.innerHTML = head + `<div class="tr-note">⚠️ ${esc(st.err)}</div>`; return; }
         if (!st.rows) { root.innerHTML = head + '<div style="text-align:center;padding:30px 0"><span class="loading loading-spinner"></span></div>'; return; }
         const cnt = d => (st.rows || []).filter(r => d === '전체' || deptOf(r) === d).length;
