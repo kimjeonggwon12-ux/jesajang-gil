@@ -1263,7 +1263,13 @@
 
     .classic-ui #sec-calendar .pz-pg b.pz-badge { position:absolute; top:-6px; right:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#E5322D; color:#fff; font-size:11px; line-height:18px; font-weight:800; }
     .classic-ui .pz-case-banner { position:relative; overflow:hidden; margin:4px 0 18px; padding:22px 20px 20px; border-radius:20px; background:linear-gradient(125deg, #FFF8E1 0%, #FFE9A8 55%, #FFD36B 100%); border:1px solid #F5C451; box-shadow:0 10px 24px -16px rgba(180,120,0,.8); }
-    .classic-ui .pz-case-banner.pz-fb-banner { background:linear-gradient(125deg, #E8FBF4 0%, #BFF0DD 55%, #7FDDB9 100%); border-color:#5CCFA4; box-shadow:0 10px 24px -16px rgba(0,120,80,.8); }   /* 11/24 참여 = 초록 배너 */
+    /* 11/24(사용자): '함께' 띠 배너 — 작게 */
+    .classic-ui .pz-fb-bar { display:flex; align-items:center; gap:10px; margin:4px 0 12px; padding:11px 12px; border-radius:16px; background:linear-gradient(125deg,#E8FBF4,#C6F2E1); border:1px solid #8FE0C2; }
+    .classic-ui .pz-fb-ic { flex-shrink:0; width:38px; height:38px; border-radius:12px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:21px; box-shadow:0 3px 8px -5px rgba(0,120,80,.7); }
+    .classic-ui .pz-fb-tx { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+    .classic-ui .pz-fb-tx b { font-size:15px; font-weight:900; letter-spacing:-.03em; color:#0B4D3A; }
+    .classic-ui .pz-fb-tx span { font-size:12.5px; line-height:1.4; color:#2E5E4E; word-break:keep-all; }
+    .classic-ui .pz-fb-bar button { flex-shrink:0; height:36px; padding:0 12px; border:none; border-radius:10px; background:#00AE82; color:#fff; font-size:13.5px; font-weight:900; box-shadow:0 3px 0 #00875F; }
     .classic-ui .pz-cb-eye { display:inline-flex; align-items:center; gap:6px; max-width:calc(100% - 92px); padding:3px 10px 3px 3px; border-radius:999px; background:#fff; border:1px solid #F5C451; color:#9A3412; font-size:12.5px; font-weight:800; line-height:1.35; }
     .classic-ui .pz-cb-eye b { flex-shrink:0; padding:2px 8px; border-radius:999px; background:#E8590C; color:#fff; font-size:11px; font-weight:900; letter-spacing:.06em; animation:pzEvt 1.6s ease-in-out infinite; }
     .classic-ui .pz-cb-t { margin-top:10px; font-size:23px; font-weight:900; line-height:1.3; letter-spacing:-0.04em; color:#111; padding-right:70px; }

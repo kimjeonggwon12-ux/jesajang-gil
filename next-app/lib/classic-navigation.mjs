@@ -6,7 +6,7 @@ export const CLASSIC_NAV=[
  {id:'story',label:'사례',href:'/community?section=story'},
  {id:'ai',label:'AI상담',href:'/coaching'},
  {id:'textbook',label:'교재·영상',href:'/library'},
- {id:'join',label:'참여',href:'/community?section=yard'},
+ {id:'join',label:'함께',href:'/community?section=yard'},   // 11/24(사용자): 참여 → 함께
  {id:'admin',label:'관리자',href:'/admin',admin:true},
 ];
 export function classicSection(path,search=''){
