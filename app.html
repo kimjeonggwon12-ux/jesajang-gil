@@ -2129,7 +2129,13 @@
     #sec-calendar .pz-pg b.pz-badge { position:absolute; top:-6px; right:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#E5322D; color:#fff; font-size:11px; line-height:18px; font-weight:800; }
     /* 2026-10-20: 사례 탭 맨 위 '성공 사례' 배너 — 앱의 정체성·온보딩이라 크게 */
     .pz-case-banner { position:relative; overflow:hidden; margin:4px 0 18px; padding:22px 20px 20px; border-radius:20px; background:linear-gradient(125deg, #FFF8E1 0%, #FFE9A8 55%, #FFD36B 100%); border:1px solid #F5C451; box-shadow:0 10px 24px -16px rgba(180,120,0,.8); }
-    .pz-case-banner.pz-fb-banner { background:linear-gradient(125deg, #E8FBF4 0%, #BFF0DD 55%, #7FDDB9 100%); border-color:#5CCFA4; box-shadow:0 10px 24px -16px rgba(0,120,80,.8); }   /* 11/24 참여 = 초록 배너 */
+    /* 11/24(사용자): '함께' 띠 배너 — 작게(사례 배너처럼 크지 않게) */
+    .pz-fb-bar { display:flex; align-items:center; gap:10px; margin:4px 0 12px; padding:11px 12px; border-radius:16px; background:linear-gradient(125deg,#E8FBF4,#C6F2E1); border:1px solid #8FE0C2; }
+    .pz-fb-ic { flex-shrink:0; width:38px; height:38px; border-radius:12px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:21px; box-shadow:0 3px 8px -5px rgba(0,120,80,.7); }
+    .pz-fb-tx { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+    .pz-fb-tx b { font-size:15px; font-weight:900; letter-spacing:-.03em; color:#0B4D3A; }
+    .pz-fb-tx span { font-size:12.5px; line-height:1.4; color:#2E5E4E; word-break:keep-all; }
+    .pz-fb-bar button { flex-shrink:0; height:36px; padding:0 12px; border:none; border-radius:10px; background:#00AE82; color:#fff; font-size:13.5px; font-weight:900; box-shadow:0 3px 0 #00875F; }
     /* 2026-10-20(2차): 이벤트 문구는 배너 안 첫 줄(EVENT 배지)로, 그림은 커피 쿠폰 티켓 — 색은 배너와 같은 주황·크림 한 벌 */
     .pz-cb-eye { display:inline-flex; align-items:center; gap:6px; max-width:calc(100% - 92px); padding:3px 10px 3px 3px; border-radius:999px; background:#fff; border:1px solid #F5C451; color:#9A3412; font-size:12.5px; font-weight:800; line-height:1.35; }
     .pz-cb-eye b { flex-shrink:0; padding:2px 8px; border-radius:999px; background:#E8590C; color:#fff; font-size:11px; font-weight:900; letter-spacing:.06em; animation:pzEvt 1.6s ease-in-out infinite; }
@@ -3152,15 +3158,11 @@
           <div class="pz-sec-title c-ad" id="pzFreeTitle"><span class="pz-sec-ic">📣</span><span class="pz-sec-txt">전도부 자유 게시판</span><button type="button" class="pz-sec-act" id="pzFreeWrite" style="display:none">+ 글쓰기</button></div>
           <div class="pz-box c-ad" id="pzFree"><div class="pz-empty">불러오는 중...</div></div>
           <div class="pz-ftabs pz-etc-tabs" id="pzEtcTabs"></div>
-          <!-- 11/24(사용자): 참여 = 사용 소감 및 건의 사항 — 자발적인 사용 소감(홍보) + 원하면 건의 -->
-          <div class="pz-case-banner pz-fb-banner" id="pzEtcBanner">
-            <div class="pz-cb-main">
-            <div class="pz-cb-eye"><b>함께 만들어요</b>사용 소감 및 건의 사항</div>
-            <div class="pz-cb-t">교사광장, 써 보니<br><span>어떠셨나요?</span></div>
-            <div class="pz-cb-s">도움이 됐던 순간, 좋았던 기능을 나눠 주세요. 여러분의 한마디가 다른 교사들에게 교사광장을 알리는 <b>가장 좋은 소개</b>가 됩니다. 바라는 점·불편한 점도 편하게 적어 주시면 더 좋은 교사광장으로 고쳐 갈게요.</div>
-            <button type="button" class="pz-cb-btn" onclick="pzWriteFeedback()">✍️ 소감·건의 남기기</button>
-            <span class="pz-cb-art" aria-hidden="true"><i>💬</i><b>THANKS</b><small>한마디</small></span>
-            </div>
+          <!-- 11/24(사용자): '함께' = 사용 소감 및 건의 사항 — 작은 띠 배너 '함께 만들어가는 교사광장' -->
+          <div class="pz-fb-bar" id="pzEtcBanner">
+            <span class="pz-fb-ic" aria-hidden="true">🤝</span>
+            <span class="pz-fb-tx"><b>함께 만들어가는 교사광장</b><span>좋았던 점은 다른 교사에게 힘이 되고, 바라는 점은 더 좋은 교사광장이 돼요.</span></span>
+            <button type="button" onclick="pzWriteFeedback()">✍️ 남기기</button>
           </div>
           <div id="pzTom"></div>
           <div class="pz-sec-title c-tom" id="pzContestTitle"><span class="pz-sec-ic">🏷️</span><span class="pz-sec-txt">앱 이름 공모</span><span id="pzContestCtc"></span></div>
@@ -3315,9 +3317,9 @@
         <span class="tab-icon" style="position:relative"><span id="textbookDot" class="tab-n">N</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(-0.6 -1.6) scale(.78)" stroke-width="2.4"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></g><rect x="10.6" y="11.6" width="13" height="9.8" rx="3" fill="currentColor" stroke="#fff" stroke-width="1.6" /><path d="M15.6 14.4v4.2l3.6-2.1z" fill="#fff" stroke="none" /></svg></span>
         <span class="tab-label">교재·영상</span>
       </button>
-      <button role="tab" class="tab" data-tab="join" onclick="switchTab('join')" title="참여" aria-label="참여">
+      <button role="tab" class="tab" data-tab="join" onclick="switchTab('join')" title="함께" aria-label="함께">
         <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 참여 = 든 손(질문·불편신고·이름 공모) --><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg><span id="joinDot" class="tab-n">N</span></span>
-        <span class="tab-label">참여</span>
+        <span class="tab-label">함께</span>   <!-- 11/24(사용자): 참여 → 함께 -->
       </button>
       <button role="tab" class="tab" data-tab="admin" id="adminTabBtn" onclick="switchTab('admin')" title="관리자" aria-label="관리자">
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9" /><path d="M14 17H5" /><circle cx="17" cy="17" r="3" /><circle cx="7" cy="7" r="3" /></svg></span>
@@ -4674,7 +4676,7 @@
       pzEtcTabs: 'none', pzEtcBanner: 'etc', pzTom: 'none', pzContestTitle: 'etc', pzContest: 'etc', pzWriters: 'etc' };
     // 2026-10-13(사용자 요청): 교사 이야기 = 사례만, 사례가 아닌 글은 모두 교사 마당. 두 쪽 모두 새 글이 먼저 보이고
     // '지금 뜨는 사례'·'이달의 교사'는 맨 위 한 줄 띠로 접어 둔다(누르면 펼침). 9월·10월 달 고르기는 없앰(지금 달만).
-    const PZ_PAGES = [['board', '📢', '일정·광고', '전도 일정 · 광고 · 공지'], ['story', '📖', '사례', '성공 사례 나눔'], ['etc', '💬', '참여', '사용 소감 및 건의 사항']];
+    const PZ_PAGES = [['board', '📢', '일정·광고', '전도 일정 · 광고 · 공지'], ['story', '📖', '사례', '성공 사례 나눔'], ['etc', '🤝', '함께', '사용 소감 및 건의 사항']];
     let pzPage = (() => { try { const v = localStorage.getItem('pz_page'); return PZ_PAGES.some(p => p[0] === v) ? v : 'board'; } catch (e) { return 'board'; } })();
     function pzSetPage(page, keepScroll) {
       if (!PZ_PAGES.some(p => p[0] === page)) page = 'board';
@@ -4744,6 +4746,7 @@
     function switchTab(tab, replace) {
       if (!TAB_IDS.includes(tab)) tab = 'activity';
       if (tab === 'admin' && !isAdmin()) tab = 'activity';
+      if (tab === 'join') { try { localStorage.setItem('ts_join_seen_v1', '1'); } catch (e) {} const jd = document.getElementById('joinDot'); if (jd) jd.style.display = 'none'; }   // 11/24: '함께' N 뱃지는 한 번 열면(새 글 N은 따로)
       Back.closeAll();   // 위에 떠 있던 시트·글 상세는 닫고 옮긴다
       if ((location.hash || '') !== '#' + tab) {
         if (replace) { try { history.replaceState(history.state, '', '#' + tab); } catch (e) { location.hash = tab; } }
@@ -4924,8 +4927,10 @@
       const tot = pg => pg === 'board' ? cnt.board + cnt.free : cnt[pg];
       function isNew(page, at) { const s = load(); const base = openedAt[page] || s[page]; return !!at && String(at) > String(base); }
       function count(page) { return tot(page) || 0; }
+      // 11/24(사용자): 새로 바뀐 '함께' 탭 — 한 번 열어 보기 전까지 N 뱃지
+      const joinSeen = () => { try { return !!localStorage.getItem('ts_join_seen_v1'); } catch (e) { return true; } };
       function paint(fromPoll) {
-        [['board', 'plazaDot'], ['story', 'storyDot'], ['etc', 'joinDot']].forEach(([pg, id]) => { const d = document.getElementById(id); if (d) d.style.display = tot(pg) ? 'flex' : 'none'; });
+        [['board', 'plazaDot'], ['story', 'storyDot'], ['etc', 'joinDot']].forEach(([pg, id]) => { const d = document.getElementById(id); if (d) d.style.display = tot(pg) || (pg === 'etc' && !joinSeen()) ? 'flex' : 'none'; });   // 11/24: '함께'는 처음 열어 볼 때까지 N
         if (typeof fillGnb === 'function') { fillGnb(document.getElementById('pzGnb')); fillGnb(document.getElementById('dkGnb')); }   // PC 위 메뉴 '사례' 옆 NEW
         if (window.pzRenderPills) pzRenderPills();
         ['board', 'story', 'etc'].forEach(pg => {
