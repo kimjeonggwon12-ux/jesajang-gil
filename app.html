@@ -2129,6 +2129,7 @@
     #sec-calendar .pz-pg b.pz-badge { position:absolute; top:-6px; right:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#E5322D; color:#fff; font-size:11px; line-height:18px; font-weight:800; }
     /* 2026-10-20: 사례 탭 맨 위 '성공 사례' 배너 — 앱의 정체성·온보딩이라 크게 */
     .pz-case-banner { position:relative; overflow:hidden; margin:4px 0 18px; padding:22px 20px 20px; border-radius:20px; background:linear-gradient(125deg, #FFF8E1 0%, #FFE9A8 55%, #FFD36B 100%); border:1px solid #F5C451; box-shadow:0 10px 24px -16px rgba(180,120,0,.8); }
+    .pz-case-banner.pz-fb-banner { background:linear-gradient(125deg, #E8FBF4 0%, #BFF0DD 55%, #7FDDB9 100%); border-color:#5CCFA4; box-shadow:0 10px 24px -16px rgba(0,120,80,.8); }   /* 11/24 참여 = 초록 배너 */
     /* 2026-10-20(2차): 이벤트 문구는 배너 안 첫 줄(EVENT 배지)로, 그림은 커피 쿠폰 티켓 — 색은 배너와 같은 주황·크림 한 벌 */
     .pz-cb-eye { display:inline-flex; align-items:center; gap:6px; max-width:calc(100% - 92px); padding:3px 10px 3px 3px; border-radius:999px; background:#fff; border:1px solid #F5C451; color:#9A3412; font-size:12.5px; font-weight:800; line-height:1.35; }
     .pz-cb-eye b { flex-shrink:0; padding:2px 8px; border-radius:999px; background:#E8590C; color:#fff; font-size:11px; font-weight:900; letter-spacing:.06em; animation:pzEvt 1.6s ease-in-out infinite; }
@@ -2188,7 +2189,7 @@
       box-shadow:0 2px 6px rgba(255,59,92,.45); animation:newBob 1.6s ease-in-out infinite; z-index:2; }
     .tab-n::after { content:''; position:absolute; top:0; left:-60%; width:40%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent); transform:skewX(-20deg); animation:newShine 2.4s ease-in-out infinite; }
     @media (prefers-reduced-motion: reduce) { .tab-n, .tab-n::after { animation:none; } }
-    #joinDot { display:none; position:absolute; top:-2px; right:-4px; width:9px; height:9px; border-radius:50%; background:#E5322D; border:1.5px solid #fff; }
+    /* 11/24(사용자): 참여도 다른 탭처럼 N 뱃지(.tab-n) */
     /* 2026-10-19: 쪽 탭(전도부 게시판·교사 이야기·교사 마당)은 하단 탭(일정·광고 / 사례 / 참여)으로 옮김 — 다른 화면에 끼워 넣은 embed=plaza만 위 쪽 탭을 씀 */
     html:not(.embed-plaza) #sec-calendar #pzPills { display:none !important; }
     /* 2026-10-19: [+ 일정 추가]가 잘 안 보여서 — 초록 꽉 찬 단추 */
@@ -3151,6 +3152,16 @@
           <div class="pz-sec-title c-ad" id="pzFreeTitle"><span class="pz-sec-ic">📣</span><span class="pz-sec-txt">전도부 자유 게시판</span><button type="button" class="pz-sec-act" id="pzFreeWrite" style="display:none">+ 글쓰기</button></div>
           <div class="pz-box c-ad" id="pzFree"><div class="pz-empty">불러오는 중...</div></div>
           <div class="pz-ftabs pz-etc-tabs" id="pzEtcTabs"></div>
+          <!-- 11/24(사용자): 참여 = 사용 소감 및 건의 사항 — 자발적인 사용 소감(홍보) + 원하면 건의 -->
+          <div class="pz-case-banner pz-fb-banner" id="pzEtcBanner">
+            <div class="pz-cb-main">
+            <div class="pz-cb-eye"><b>함께 만들어요</b>사용 소감 및 건의 사항</div>
+            <div class="pz-cb-t">교사광장, 써 보니<br><span>어떠셨나요?</span></div>
+            <div class="pz-cb-s">도움이 됐던 순간, 좋았던 기능을 나눠 주세요. 여러분의 한마디가 다른 교사들에게 교사광장을 알리는 <b>가장 좋은 소개</b>가 됩니다. 바라는 점·불편한 점도 편하게 적어 주시면 더 좋은 교사광장으로 고쳐 갈게요.</div>
+            <button type="button" class="pz-cb-btn" onclick="pzWriteFeedback()">✍️ 소감·건의 남기기</button>
+            <span class="pz-cb-art" aria-hidden="true"><i>💬</i><b>THANKS</b><small>한마디</small></span>
+            </div>
+          </div>
           <div id="pzTom"></div>
           <div class="pz-sec-title c-tom" id="pzContestTitle"><span class="pz-sec-ic">🏷️</span><span class="pz-sec-txt">앱 이름 공모</span><span id="pzContestCtc"></span></div>
           <div id="pzContest"></div>
@@ -3305,7 +3316,7 @@
         <span class="tab-label">교재·영상</span>
       </button>
       <button role="tab" class="tab" data-tab="join" onclick="switchTab('join')" title="참여" aria-label="참여">
-        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 참여 = 든 손(질문·불편신고·이름 공모) --><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg><span id="joinDot"></span></span>
+        <span class="tab-icon" style="position:relative"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><!-- 2026-10-19: 참여 = 든 손(질문·불편신고·이름 공모) --><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg><span id="joinDot" class="tab-n">N</span></span>
         <span class="tab-label">참여</span>
       </button>
       <button role="tab" class="tab" data-tab="admin" id="adminTabBtn" onclick="switchTab('admin')" title="관리자" aria-label="관리자">
@@ -4655,15 +4666,15 @@
     // 이달의 교사 / 교사 이야기] 순서로 옮기고, 앱바에 상단 메뉴(하단 탭바와 같은 탭)를 붙인다. 모바일 폭이 되면 원래 순서로 되돌린다.
     // 노드를 옮기기만 하므로(id 유지) 각 모둠을 그리는 코드는 그대로다.
     const PZ_DK_MQ = window.matchMedia('(min-width: 1024px)');
-    const PZ_ORDER = ['pzHero', 'pzCalTitle', 'pzCalBox', 'pzAdTitle', 'calAds', 'pzFreeTitle', 'pzFree', 'pzTom', 'pzEtcTabs', 'pzContestTitle', 'pzContest', 'pzCaseBanner', 'pzHotTitle', 'pzHot', 'pzFeedTitle', 'pzFeedTabs', 'pzFeed', 'pzWriters'];
+    const PZ_ORDER = ['pzHero', 'pzCalTitle', 'pzCalBox', 'pzAdTitle', 'calAds', 'pzFreeTitle', 'pzFree', 'pzTom', 'pzEtcTabs', 'pzEtcBanner', 'pzContestTitle', 'pzContest', 'pzCaseBanner', 'pzHotTitle', 'pzHot', 'pzFeedTitle', 'pzFeedTabs', 'pzFeed', 'pzWriters'];
     // 2026-10-09 광장 3쪽(사용자 요청): 전도부 게시판·교사 이야기가 메인, 나머지는 교사 마당(안에서 탭으로 나눔) — 모둠마다 어느 쪽에 속하는지.
     // 글 목록(pzFeedTitle·pzFeed)은 교사 이야기(사례)와 교사 마당(질문하기·불편신고·검색 결과)이 같이 쓰므로 pzOnPage가 쪽마다 다시 정함.
     const PZ_PAGE_OF = { pzHero: 'board', pzCalTitle: 'board', pzCalBox: 'board', pzAdTitle: 'board', calAds: 'board', pzFreeTitle: 'board', pzFree: 'board',
       pzCaseBanner: 'story', pzHotTitle: 'none', pzHot: 'story', pzFeedTitle: 'story', pzFeedTabs: 'none', pzFeed: 'story',
-      pzEtcTabs: 'etc', pzTom: 'none', pzContestTitle: 'etc', pzContest: 'etc', pzWriters: 'etc' };
+      pzEtcTabs: 'none', pzEtcBanner: 'etc', pzTom: 'none', pzContestTitle: 'etc', pzContest: 'etc', pzWriters: 'etc' };
     // 2026-10-13(사용자 요청): 교사 이야기 = 사례만, 사례가 아닌 글은 모두 교사 마당. 두 쪽 모두 새 글이 먼저 보이고
     // '지금 뜨는 사례'·'이달의 교사'는 맨 위 한 줄 띠로 접어 둔다(누르면 펼침). 9월·10월 달 고르기는 없앰(지금 달만).
-    const PZ_PAGES = [['board', '📢', '일정·광고', '전도 일정 · 광고 · 공지'], ['story', '📖', '사례', '성공 사례 나눔'], ['etc', '💬', '참여', '사용 소감 · 개선·불편 신고']];
+    const PZ_PAGES = [['board', '📢', '일정·광고', '전도 일정 · 광고 · 공지'], ['story', '📖', '사례', '성공 사례 나눔'], ['etc', '💬', '참여', '사용 소감 및 건의 사항']];
     let pzPage = (() => { try { const v = localStorage.getItem('pz_page'); return PZ_PAGES.some(p => p[0] === v) ? v : 'board'; } catch (e) { return 'board'; } })();
     function pzSetPage(page, keepScroll) {
       if (!PZ_PAGES.some(p => p[0] === page)) page = 'board';
@@ -4914,7 +4925,7 @@
       function isNew(page, at) { const s = load(); const base = openedAt[page] || s[page]; return !!at && String(at) > String(base); }
       function count(page) { return tot(page) || 0; }
       function paint(fromPoll) {
-        [['board', 'plazaDot'], ['story', 'storyDot'], ['etc', 'joinDot']].forEach(([pg, id]) => { const d = document.getElementById(id); if (d) d.style.display = tot(pg) ? (pg === 'etc' ? 'block' : 'flex') : 'none'; });
+        [['board', 'plazaDot'], ['story', 'storyDot'], ['etc', 'joinDot']].forEach(([pg, id]) => { const d = document.getElementById(id); if (d) d.style.display = tot(pg) ? 'flex' : 'none'; });
         if (typeof fillGnb === 'function') { fillGnb(document.getElementById('pzGnb')); fillGnb(document.getElementById('dkGnb')); }   // PC 위 메뉴 '사례' 옆 NEW
         if (window.pzRenderPills) pzRenderPills();
         ['board', 'story', 'etc'].forEach(pg => {
@@ -5871,9 +5882,9 @@
       // 2026-09-30(2차): 성공사례+실패사례 → '사례' 하나로, '나눔'은 뺌(앱 이름 공모 글 저장용으로만 남음).
       // 옛 글의 성공사례/실패사례는 '사례'로, 옛 나눔 글은 칩 없이 보여준다.
       // 2026-10-01: 어플 불편한 점은 질문과 따로 '불편신고' 코너로 받는다.
-      const PZ_CATS = ['사례', '전도부', '소감', '불편신고', '질문'];   // 11/24(사용자): 참여 = 사용 소감 + 개선·불편 신고('질문'은 옛 글 고치기용으로만)   // 2026-10-09: 글쓰기 주제 = 사례 / 전도부 자유 게시판(관리자만) / 질문하기 / 불편신고
+      const PZ_CATS = ['사례', '전도부', '소감', '불편신고', '질문'];   // 11/24 2차: 참여 = '사용 소감 및 건의 사항' 하나(불편신고·질문은 옛 글 고치기용)   // 11/24(사용자): 참여 = 사용 소감 + 개선·불편 신고('질문'은 옛 글 고치기용으로만)   // 2026-10-09: 글쓰기 주제 = 사례 / 전도부 자유 게시판(관리자만) / 질문하기 / 불편신고
       const PZ_CAT_CLS = { '사례': 'c-case', '성공사례': 'c-case', '실패사례': 'c-case', '질문': 'c-q', '불편신고': 'c-bug', '전도부': 'c-ad', '소감': 'c-case' };
-      const CAT_LABEL = { '사례': '성공 사례', '전도부': '전도부 자유 게시판', '질문': '질문하기', '소감': '사용 소감', '불편신고': '개선·불편 신고' };   // 2026-10-20: 사례 = 성공 사례
+      const CAT_LABEL = { '사례': '성공 사례', '전도부': '전도부 자유 게시판', '질문': '질문하기', '소감': '사용 소감 및 건의 사항', '불편신고': '건의 사항' };   // 2026-10-20: 사례 = 성공 사례
       const catLabel = c => CAT_LABEL[c] || c;
       const catOf = c => (c === '성공사례' || c === '실패사례') ? '사례' : c;
       // 주제마다 아이콘·색(CSS .c-*)·안내문 — 배너·카드·칩이 모두 이걸 쓴다
@@ -5884,7 +5895,7 @@
         '사례': { ic: '🎯', cls: 'c-case', t: '새로 올라온 성공 사례', g: '전도하며 열매 맺은 성공 사례 — 어떻게 섭외하고, 어떤 흐름으로 센터까지 인도했는지 나누면 다음 교사의 길잡이가 돼요.' },
         '전도부': { ic: '📣', cls: 'c-ad', t: '전도부 자유 게시판', g: '전도부가 수시로 올리는 알림·안내 글이에요. (전도부·관리자만 쓸 수 있어요)' },
         '질문': { ic: '🙋', cls: 'c-q', t: '질문하기', g: '궁금한 점을 묻고 선배 교사들의 답을 들어봐요. (어플이 불편한 점은 불편신고에)' },
-        '소감': { ic: '💬', cls: 'c-case', t: '사용 소감', g: '교사광장을 써 보니 좋았던 점, 도움이 된 순간을 자유롭게 나눠 주세요. 여러분의 한마디가 다른 교사들에게 큰 힘이 돼요.' },
+        '소감': { ic: '💬', cls: 'c-case', t: '사용 소감 및 건의 사항', g: '교사광장을 써 보니 좋았던 점, 도움이 된 순간을 나눠 주세요. 바라는 점·불편한 점도 함께 적어 주시면 더 좋게 고쳐 갈게요.' },
         '불편신고': { ic: '🛠️', cls: 'c-bug', t: '개선·불편 신고', g: '어플을 쓰다 불편하거나 안 되는 점을 알려 주세요. 어떤 화면에서 무엇을 했는지 적어 주시면 빨리 고칠 수 있어요.' }
       };
       const catIc = c => (PZ_META[catOf(c)] || {}).ic || '🍇';
@@ -5950,7 +5961,7 @@
         $('pzFeedIc').textContent = m.ic;
         $('pzFeedLabel').textContent = m.t;
         $('pzFeedCount').textContent = P.total ? `${P.total}개` : '';
-        $('pzFeedTabs').innerHTML = [['사례', '교사 이야기'], ['', '전체'], ['소감', '사용 소감'], ['불편신고', '개선·불편']].map(([k, l]) =>
+        $('pzFeedTabs').innerHTML = [['사례', '교사 이야기'], ['', '전체'], ['소감', '소감·건의']].map(([k, l]) =>
           `<button type="button" class="${(PZ_META[k] || {}).cls || ''}${!P.kw && k === P.cat ? ' on' : ''}" data-pz-pill="${esc(k)}">${esc(l)}</button>`).join('');
         const rows = P.rows;
         $('pzFeed').innerHTML = (P.kw ? '' : `<div class="pz-box">${guideHtml(P.cat)}</div>`) + (rows.length
@@ -5989,7 +6000,7 @@
       window.pzLoadFree = loadFree;
       // 2026-10-09(2차) 교사 마당 안 탭 — 이달의 교사·이름 공모는 그 모둠만, 질문하기·불편신고는 글 목록을 그 주제로
       // 2026-10-13: 맨 앞 = 새 글(사례·전도부가 아닌 모든 글, 최신순). 이달의 교사는 탭이 아니라 맨 위 띠(누르면 펼침).
-      const ETC_TABS = [['소감', '💬 사용 소감'], ['불편신고', '개선·불편 신고']];   // 11/24(사용자): 질문하기·불편신고·이름 공모 셋을 없애고 '사용 소감' 란으로(개선·불편 신고도 그 안에서)   // 2026-10-19: '새 글' 탭 뺌(사용자 요청)   // 'search' = 검색 결과(탭 없음)
+      const ETC_TABS = [['소감', '💬 사용 소감 및 건의 사항']];   // 11/24 2차(사용자): 소감·건의를 둘로 나누지 말고 하나로(탭 줄은 숨김, 위에 안내 배너)   // 11/24(사용자): 질문하기·불편신고·이름 공모 셋을 없애고 '사용 소감' 란으로(개선·불편 신고도 그 안에서)   // 2026-10-19: '새 글' 탭 뺌(사용자 요청)   // 'search' = 검색 결과(탭 없음)
       let pzEtc = (() => { try { const v = localStorage.getItem('pz_etc'); return ETC_TABS.some(t => t[0] === v) ? v : '소감'; } catch (e) { return '소감'; } })();
       const etcIsFeed = () => pzEtc !== 'contest';
       function renderEtcTabs() {
@@ -6004,7 +6015,7 @@
           renderEtcTabs();
         } else if (page === 'story') show(['pzFeedTitle', 'pzFeed'], true);
         else if (page === 'board' && FREE.rows) renderFree();   // 관리자 판정이 늦게 와도 [+ 글쓰기]가 보이게
-        ctcSet('pzFeedCtc', page === 'etc' && pzEtc === '불편신고' ? 'roster' : 'story');   // 불편신고·질문 = ② 명단, 사례·새 글 = ⑦ 사례
+        ctcSet('pzFeedCtc', page === 'etc' ? 'roster' : 'story');   // 소감·건의 = ② 명단 담당   // 불편신고·질문 = ② 명단, 사례·새 글 = ⑦ 사례
         const want = page === 'story' ? '사례' : page === 'etc' && etcIsFeed() ? (pzEtc === 'search' ? '' : pzEtc) : null;
         if (want !== null && !P.kw && P.cat !== want && P.mounted) { P.cat = want; load(true); }
       };
@@ -6482,8 +6493,8 @@
       const writeCats = () => PZ_CATS.filter(c => c !== '전도부' || isAdmin());   // 전도부 자유 게시판은 관리자만(서버도 막음)
       // 2026-10-20(사용자): "성공 사례 쓰는 그것만 남겨줘, 전도부 게시판·질문·불편신고는 그 코너로만" —
       // 글쓰기 주제는 그 글이 속한 코너(사례 / 일정·광고 / 참여) 것만 보인다. 한 가지뿐이면 고르는 칸 없이 바로 쓴다.
-      const CORNER_CATS = { story: ['사례'], board: ['전도부'], etc: ['소감', '불편신고'] };   // 11/24: 참여 = 사용 소감(기본) · 개선·불편 신고
-      const CORNER_TITLE = { story: '✍️ 성공 사례 쓰기', board: '전도부 게시판 글쓰기', etc: '💬 사용 소감 쓰기' };
+      const CORNER_CATS = { story: ['사례'], board: ['전도부'], etc: ['소감'] };   // 11/24: 참여 = 사용 소감(기본) · 개선·불편 신고
+      const CORNER_TITLE = { story: '✍️ 성공 사례 쓰기', board: '전도부 게시판 글쓰기', etc: '💬 사용 소감 및 건의 사항 쓰기' };
       const cornerOfCat = c => c === '사례' ? 'story' : c === '전도부' ? 'board' : c ? 'etc' : '';
       function openWrite(existing, presetCat, draft) {   // draft {title, body}: 10/25 '사례로 남기기' AI 초안
         const exCat = existing && PZ_CATS.includes(catOf(existing.category)) ? catOf(existing.category) : '';
@@ -6753,9 +6764,10 @@
         if (pzEtc === 'search') pzEtc = '질문';
         if (pzPage === 'etc' && etcIsFeed()) P.cat = pzEtc;   // 첫 목록을 지금 쪽에 맞게
         renderPills(); renderEtcTabs(); pzSetPage(pzPage, true); pzNew.start();
-        window.pzWriteCase = () => openWrite(null, '사례');   // 2026-10-20: 사례 배너의 [내 성공 사례 쓰기]
+        window.pzWriteCase = () => openWrite(null, '사례');
+        window.pzWriteFeedback = () => openWrite(null, '소감');   // 11/24: 참여 배너의 [소감·건의 남기기]   // 2026-10-20: 사례 배너의 [내 성공 사례 쓰기]
         window.pzWriteCaseDraft = d => openWrite(null, '사례', d);   // 2026-10-25: 나의교실 '사례로 남기기'
-        $('pzFab').onclick = () => openWrite(null, pzPage === 'story' ? '사례' : pzPage === 'board' ? '전도부' : ['소감', '불편신고'].includes(pzEtc) ? pzEtc : '소감');
+        $('pzFab').onclick = () => openWrite(null, pzPage === 'story' ? '사례' : pzPage === 'board' ? '전도부' : '소감');
         $('pzFreeWrite').onclick = () => openWrite(null, '전도부');
         loadFree();
         const s = $('pzSearch');
