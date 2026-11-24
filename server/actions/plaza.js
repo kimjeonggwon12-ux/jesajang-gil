@@ -8,7 +8,7 @@ import { storeImage, isStoredUrl } from '../lib/images.js';
 import { TARGET_STAGES } from './targets.js';
 import { targetNamesOf, targetNamesByOwner, scrubDeep } from '../lib/name-scrub.js';
 
-const CATEGORIES = ['사례', '질문', '나눔', '불편신고', '전도부'];
+const CATEGORIES = ['사례', '질문', '나눔', '불편신고', '전도부', '소감'];   // 11/24(사용자): '소감' = 참여 칸 사용 소감
 // 예전에 '성공사례'·'실패사례'로 나뉘어 있던 글도 '사례'로 본다.
 const CATEGORY_ALIASES = { 사례: ['사례', '성공사례', '실패사례'] };
 // '마당' = 교사 마당: 사례(교사 이야기)와 전도부(전도부 게시판)가 아닌 모든 글
