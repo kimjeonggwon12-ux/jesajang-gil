@@ -917,7 +917,10 @@ async function attAutoSummary(body) {
   let tier = null;
   try { tier = await (await import('./tiers.js')).autoRestTick(); } catch (e) { tier={pending:true}; console.log('등급 자동 전환 오류: ' + e); }
   if(Object.values(summary).some(x=>x?.error||x?.ok===false&&!x.skipped))failures.push({scope:'summary',state:'review'});
-  return { ok: failures.length===0, closed, roomAm, cohort, daily, summary, tier, failures };
+  // 2026-11-22: 월요일 아침 말씀광장 새 영상(성경·신앙 시리즈만) → 교사광장 영상
+  let wordsquare = null;
+  try { wordsquare = await (await import('../lib/wordsquare-videos.js')).wordsquareTick(); } catch (e) { console.log('말씀광장 영상 오류: ' + e); }
+  return { ok: failures.length===0, closed, roomAm, cohort, daily, summary, tier, wordsquare, failures };
 }
 
 export default {

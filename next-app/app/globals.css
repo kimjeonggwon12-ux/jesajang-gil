@@ -78,3 +78,19 @@
 
 /* 공무 명단은 이름 전체를 누를 수 있도록 터치 높이를 확보한다. */
 .excused-person{min-height:44px}
+/* 2026-11-16 교육 관리 > 화전단·목사교 */
+.em-switch{display:flex;gap:6px;margin:12px 0}.em-switch button{flex:1}.em-card{margin:12px 0}.em-scroll{overflow-x:auto}.em-tbl{width:100%;border-collapse:collapse;font-size:.9rem}.em-tbl th,.em-tbl td{border-bottom:1px solid #eef1f0;padding:6px 4px;text-align:right;white-space:nowrap}.em-tbl th:first-child,.em-tbl td:first-child{text-align:left}.em-tbl tr.sum td{font-weight:800;background:#f6faf8}.em-p{border-top:1px solid #eef1f0;padding:8px 0}.em-two{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}.em-two input{width:100%;min-width:0}.em-hist{font-size:.8rem;color:#5b6661;border-top:1px dashed #e3e8e6;padding:4px 0;margin:0}@media (max-width:520px){.em-two{grid-template-columns:1fr}}
+/* 2026-11-16 공무 본인 신고 카드 */
+.exs-card{display:grid;gap:6px;margin:12px 0;padding:14px 16px;border-radius:14px;background:#EEF6FF;border:1px solid #CFE3FB}.exs-card>strong{color:#1E3A8A}.exs-card>small{color:#475569}.exs-card input{height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:0 10px}.exs-k{margin-top:8px;padding-top:8px;border-top:1px dashed #c7d8f0;display:grid;gap:6px}.exs-kt{color:#1E40AF}.exs-empty{margin:14px;padding:24px 16px;text-align:center;color:#64748b;background:#f8fafc;border-radius:14px}.exs-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.exs-row b{min-width:76px}.exs-row span{flex:1;min-width:120px;color:#6b7280}.exs-row span.on{color:#00875f}
+/* 2026-11-16(4차) 두 교육 테마 — 화요 전도단(주황)·목요 사명자 교육(파랑), 공무자 관리 */
+.exs-card,.exs-card input{box-sizing:border-box}.exs-k{padding:14px;border-radius:14px;border:2px solid #A9C4FA;background:#fff}.exs-kt{display:flex;align-items:center;gap:8px;font-size:1.3rem;font-weight:900}.exs-kt span{font-size:1.6rem}
+.exs-k.tue{border-color:#FDBA74;background:#FFF8F1}.exs-k.tue .exs-kt{color:#C2410C}.exs-k.thu{border-color:#A9C4FA;background:#F5F8FF}.exs-k.thu .exs-kt{color:#1E40AF}.exs-k.fri{border-color:#C4B5FD;background:#FAF7FF}.exs-k.fri .exs-kt{color:#6D28D9}
+.em-themes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}.em-theme{display:flex;align-items:center;justify-content:center;gap:6px;min-height:58px;padding:4px 6px;border-radius:14px;font-size:1rem;word-break:keep-all;text-align:center;line-height:1.2;font-weight:900;border:2px solid transparent;background:#f3f4f6;color:#6b7280}.em-theme span{font-size:1.4rem}
+.em-theme.tue.on{background:#FFF1E6;border-color:#F97316;color:#C2410C}.em-theme.thu.on{background:#EAF1FF;border-color:#2F6BEB;color:#1E40AF}.em-kcard.tue{border:2px solid #FDBA74;background:#FFFBF7}.em-kcard.thu{border:2px solid #A9C4FA;background:#F8FAFF}.em-theme.fri.on{background:#F3EEFF;border-color:#7C3AED;color:#6D28D9}.em-kcard.fri{border:2px solid #C4B5FD;background:#FBF9FF}.em-src{color:#7c3aed}
+/* 2026-11-16(5차) 공무자 관리 교자장부청 묶음 */
+.em-grps{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.em-grps button{min-width:44px;height:36px;padding:0 12px;border-radius:18px;border:1px solid #cfd8d4;background:#fff;font-weight:800}.em-grps button b{color:#00875f;margin-left:2px}.em-grps button.on{background:#00AE82;border-color:#00AE82;color:#fff}.em-grps button.on b{color:#fff}
+.em-gh{margin-top:12px;padding:6px 10px;border-radius:8px;background:#eef3f1;font-weight:900}.em-gh b{color:#00875f;margin-left:4px}
+.exs-win{justify-self:start;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.85);font-weight:800;color:#334155}
+
+/* 11/22 새 영상 NEW */
+.learning-new{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;background:#E5322D;color:#fff;font-size:10px;font-weight:800;font-style:normal;line-height:16px;vertical-align:middle}

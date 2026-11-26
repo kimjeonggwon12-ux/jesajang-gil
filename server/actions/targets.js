@@ -156,6 +156,17 @@ async function getTargets(body) {
     ? await selectAll(() => db().from('target_history').select('target_id, changed_at, from_stage, to_stage, memo').eq('nid', nid).order('id')) : [];
   for (const h of history) byId.get(h.target_id.trim())?.history.push(toHistory(h));
   for (const t of rows) t.history.sort(newestFirst);
+  // 11/18(사용자): 섭외자 그리드 지시어 — 피드백방을 만들었는지(담당 교사가 방 멤버인지), 수업 계획표를 한 번이라도 적었는지
+  const ids = rows.map((t) => t.targetId).filter(Boolean);
+  for (let i = 0; i < ids.length; i += 80) {
+    const part = ids.slice(i, i + 80);
+    const [mem, lp] = await Promise.all([
+      run(db().from('target_room_members').select('target_id').eq('nid', nid).in('target_id', part)).catch(() => []),
+      run(db().from('target_ai_notes').select('target_id').eq('kind', '수업 계획표').in('target_id', part)).catch(() => []),
+    ]);
+    for (const m of mem) { const t = byId.get(String(m.target_id).trim()); if (t) t.hasRoom = true; }
+    for (const n of lp) { const t = byId.get(String(n.target_id).trim()); if (t) t.lessonN = (t.lessonN || 0) + 1; }
+  }
 
   rows.sort((a, b) => {
     if (!a.nextMeetingDate && !b.nextMeetingDate) return 0;
@@ -346,13 +357,15 @@ async function planCohortLead(body) {
 
   const today = kstDate();
   const [gy, gm] = goal.split('-').map(Number);
-  const weeks = Math.max(0, Math.round((Date.UTC(gy, gm - 1, 1) - Date.parse(today + 'T00:00:00Z')) / (7 * 864e5)));
+  const op = openingOf(target);
+  const openAt = op ? Date.parse(op.date + 'T00:00:00Z') : Date.UTC(gy, gm - 1, 1);
+  const weeks = Math.max(0, Math.round((openAt - Date.parse(today + 'T00:00:00Z')) / (7 * 864e5)));
   const d = await targetDossier(target, mid);
 
   const prompt = [
     `당신은 교회 전도 교사를 돕는 전도 코치입니다. 아래 대상자를 ${gm}월 개강 때 센터에 인도하도록 '흐름' 위주의 인도 계획을 설계하세요.`,
     '',
-    `- 오늘: ${today} / 목표: ${gy}년 ${gm}월 개강(개강일은 그 달 초로 보고, 남은 기간 약 ${weeks}주)`,
+    op ? `- 오늘: ${today} / 목표: ${gy}년 ${gm}월 개강 — ${op.center || '다른 지역 센터'}, 개강일 ${op.date}(남은 기간 약 ${weeks}주). 전주 전도부의 개강 일정·계획이 아니라 이 센터 일정에 맞춰 인도하는 경우입니다.${op.note ? ' 센터 일정: ' + cut(op.note, 600) : ''}` : `- 오늘: ${today} / 목표: ${gy}년 ${gm}월 개강(개강일은 그 달 초로 보고, 남은 기간 약 ${weeks}주)`,
     `- 대상자: ${[target.gender, target.age_group].filter(Boolean).join(' ') || '정보 없음'} / 지금 단계: ${target.stage || '섭외'} / 처음 등록: ${fmtTs(target.created_at).slice(0, 10) || '모름'}`,
     target.memo ? `- 대상자 메모: ${cut(target.memo, 1000)}` : '',
     `- 단계 순서: ${FLOW}`,
@@ -384,6 +397,18 @@ async function planCohortLead(body) {
 }
 
 // ── 섭외자 한 사람 화면(2026-10-25, 내 활동 보고) ── HEARTS(AI상담·교관 답) 누적 + 지금까지 받은 AI 개강 계획 누적. 새것부터.
+// 11/18(사용자): 섭외자마다 '다른 지역 센터 개강'을 따로 둘 수 있게 — report_profile.opening = { center, date(YYYY-MM-DD), note }.
+//   있으면 AI가 전주 전도부 개강(그 달 초) 대신 이 센터·개강일 기준으로 계획한다. 없으면(다른 교사 전부) 예전 그대로.
+function openingOf(target) {
+  const o = (target && target.report_profile && target.report_profile.opening) || null;
+  return o && /^d{4}-d{2}-d{2}$/.test(String(o.date || '')) ? o : null;
+}
+function goalText(target, empty) {
+  if (!target.goal_cohort) return empty;
+  const o = openingOf(target), base = `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도`;
+  return o ? `${base}(${o.center || '다른 지역 센터'}, 개강일 ${Number(o.date.slice(5, 7))}/${Number(o.date.slice(8))} — 전주 전도부 개강 일정이 아님)` : base;
+}
+
 async function getTargetFile(body) {
   const mid = str(body.memberId);
   const target = await ownedTarget(mid, body.targetId);
@@ -676,7 +701,8 @@ async function getKeyStageCount() {
 //   target_ai_notes 에 kind '파악정보'(input = 분류, text = 내용)로 한 줄씩 — 개수 제한 없음. 모든 AI(단계향상·개강 계획·SWOT·사례)가 읽는다.
 const INFO_KIND = '파악정보';
 const INFO_FB_KIND = 'AI 파악정보 피드백';
-const INFO_CATS = ['가족', '직장·학업', '관심사·취미', '고민·필요', '신앙 배경', '성격·성향', '일정·연락', '기타'];
+// 11/17(사용자): 정보 기록에 '수업 반응' 소항목
+const INFO_CATS = ['가족', '직장·학업', '관심사·취미', '고민·필요', '신앙 배경', '성격·성향', '수업 반응', '일정·연락', '기타'];
 const infoRow = (n) => ({ id: n.id, cat: n.input || '기타', cats: String(n.input || '기타').split(',').map((c) => c.trim()).filter(Boolean), text: n.text, at: fmtTs(n.created_at), mine: true });
 
 async function getTargetInfo(body) {
@@ -685,7 +711,8 @@ async function getTargetInfo(body) {
   const rows = await run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).in('kind', [INFO_KIND, INFO_FB_KIND, MASTER_KIND]).order('id'));
   const fb = rows.filter((n) => n.kind === INFO_FB_KIND).pop();
   const ms = rows.filter((n) => n.kind === MASTER_KIND).pop();
-  return { ok: true, cats: INFO_CATS, items: rows.filter((n) => n.kind === INFO_KIND).map(infoRow).reverse(), feedback: fb ? { text: fb.text, at: fmtTs(fb.created_at), basis: fb.input } : null, master: ms ? { text: ms.text, at: fmtTs(ms.created_at), basis: ms.input } : null };
+  const mv = await run(db().from('target_ai_notes').select('*').eq('target_id', target.target_id).eq('kind', MOVING_KIND).order('id', { ascending: false })).catch(() => []);
+  return { ok: true, moving: mv.map((n) => ({ text: n.text, at: fmtTs(n.created_at), basis: n.input })), cats: INFO_CATS, items: rows.filter((n) => n.kind === INFO_KIND).map(infoRow).reverse(), feedback: fb ? { text: fb.text, at: fmtTs(fb.created_at), basis: fb.input } : null, master: ms ? { text: ms.text, at: fmtTs(ms.created_at), basis: ms.input } : null };
 }
 async function addTargetInfo(body) {
   const target = await ownedTarget(body.memberId, body.targetId);
@@ -718,7 +745,7 @@ async function targetMasterFeedback(body) {
   const n = (k) => notes.filter((x) => x.kind === k).length;
   const src = { info: n(INFO_KIND), stage: n('AI 단계향상 피드백'), swot: target.swot ? 1 : 0, hearts: d.coachN || 0, plan: n('개강 인도 계획') };
   if (!d.acts.length && !src.info) return { error: '아직 모을 기록이 없어요. 활동 기록이나 정보 기록을 먼저 남겨 주세요.' };
-  const goal = target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '아직 정하지 않음';
+  const goal = goalText(target, '아직 정하지 않음');
   const prompt = [
     '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 한 섭외자에 대해 지금까지 쌓인 모든 기록과 여러 AI·교관 피드백을 하나로 취합해, 교사가 이것 하나만 보면 되는 종합 피드백을 주세요.',
     `- 섭외자: ${target.gender || ''} ${target.age_group || ''} / 지금 단계: ${target.stage || '섭외'} / 목표: ${goal}`,
@@ -740,6 +767,36 @@ async function targetMasterFeedback(body) {
   await addTargetAiNote(target.target_id, mid, MASTER_KIND, basis, text);
   return { ok: true, text, at: fmtTs(kstDateTime()), basis, src };
 }
+// ── 감동주기 방법 (2026-11-17) ── 사용자: "감동주기 방법도 하나 — 단계향상 피드백 옆 탭, 지금까지의 기록을 총합하는 것은 그대로".
+//   부를 때마다 그 사람에 대해 쌓인 것 전부(정보 기록·수업 반응·활동·단계·HEARTS·교관·이전 AI)를 읽어 '마음을 움직이는 방법'을 정리. kind 'AI 감동주기 방법'.
+const MOVING_KIND = 'AI 감동주기 방법';
+async function targetMovingFeedback(body) {
+  const mid = str(body.memberId);
+  const target = await ownedTarget(mid, body.targetId);
+  if (!target) return { error: '본인 담당의 섭외자가 아닙니다.' };
+  const d = await targetDossier(target, mid);
+  if (!d.acts.length && !d.info.length) return { error: '아직 모을 기록이 없어요. 활동 기록이나 정보 기록을 먼저 남겨 주세요.' };
+  const goal = goalText(target, '아직 정하지 않음');
+  const prompt = [
+    '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 한 섭외자에 대해 지금까지 쌓인 모든 기록을 읽고, 교사가 이 사람에게 진심으로 "감동"을 줄 수 있는 구체적인 방법을 알려 주세요.',
+    '감동 = 그 사람이 "나를 이렇게까지 알아주고 챙겨 주는구나" 하고 마음이 열리는 순간. 말 한마디·기억해 주기·작은 배려·때 맞춘 연락 등, 기록에 근거한 맞춤 방법이어야 합니다.',
+    `- 섭외자: ${target.gender || ''} ${target.age_group || ''} / 지금 단계: ${target.stage || '섭외'} / 목표: ${goal}`,
+    '',
+    '■ 교사가 파악한 정보(수업 반응 포함 — 가장 중요)', ...(d.info.length ? d.info : ['(없음)']),
+    '■ 활동 기록', ...d.acts,
+    '■ 단계 변경 이력', ...d.history,
+    '■ HEARTS(AI상담)·교관 답변', ...d.coaching,
+    '■ 이전에 받은 AI 피드백', ...d.notes,
+    '',
+    '규칙: 기록에 있는 사실(가족·고민·관심사·일정·수업 반응 등)을 콕 집어 근거로 대고, 이 사람에게만 맞는 말로 짧고 구체적으로. 일반론·지어낸 사실·과한 선물 금지. 실명 대신 "그분".',
+    '반드시 아래 5개 마크다운 제목을 그대로 쓰고 다른 제목은 추가하지 마세요:',
+    '## 💝 이분이 감동받는 포인트', '## 🎁 감동주기 방법 (3가지, 근거와 함께)', '## 💬 건넬 한마디 (문자·대면 예시)', '## 🗓 언제 하면 좋을까', '## ⚠️ 오히려 부담 주는 것',
+  ].join(String.fromCharCode(10));
+  const text = await askAiModels(prompt, PLAN_MODELS);
+  if (text.startsWith('⚠️')) return { error: text.replace(/^⚠️\s*/, '') };
+  await addTargetAiNote(target.target_id, mid, MOVING_KIND, d.basis, text);
+  return { ok: true, text, at: fmtTs(kstDateTime()), basis: d.basis };
+}
 // ── HEARTS 섭외자 불러오기 (2026-11-05) ── 사용자: "하츠에서 섭외자·수강생 이름을 불러오면 지금까지의 모든 데이터를 총합해
 //   하츠를 자동으로 돌려주게 — 단타성 한 번의 사실·사건으로만 하는 구조가 아쉽다". AI는 부르지 않고 쌓인 기록만 묶어 준다.
 //   앱이 이 글(context)을 HEARTS 프롬프트 뒤에 붙여 aiCoach 로 보낸다(aiCoach 의 withPrivacy 가 이름·연락처를 가림).
@@ -752,7 +809,7 @@ async function heartsDossier(body) {
   const p = target.report_profile || {};
   const prof = Object.entries(RP_LABEL).filter(([k]) => str(p[k])).map(([k, l]) => `${l}: ${str(p[k])}${k === 'enroll' && /^\d+$/.test(str(p[k])) ? '월' : ''}`);
   const lessons = Array.isArray(p.lessons) ? p.lessons.map((l) => l.title).filter(Boolean) : [];
-  const goal = target.goal_cohort ? `${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : '';
+  const goal = goalText(target, '');
   const context = [
     `■ 기본: ${[target.gender, target.age_group].filter(Boolean).join(' ') || '-'} / 지금 단계: ${target.stage || '섭외'}${goal ? ` / 목표: ${goal}` : ''}${prof.length ? ' / ' + prof.join(' · ') : ''}`,
     lessons.length ? `■ 지금까지 받은 교육(${lessons.length}과): ${cut(lessons.join(', '), 1500)}` : '',
@@ -791,7 +848,7 @@ async function targetInfoFeedback(body) {
   if (!d.info.length) return { error: '파악한 정보를 한 줄 이상 적어 주세요.' };
   const prompt = [
     '당신은 교회 전도 교사를 돕는 베테랑 전도 코치입니다. 교사가 한 사람(섭외자)에 대해 파악한 정보를 모아 이 사람을 깊이 이해하고 다음 단계로 이끌 피드백을 주세요.',
-    `- 섭외자: ${target.gender || ''} ${target.age_group || ''} / 지금 단계: ${target.stage || '섭외'}${target.goal_cohort ? ` / 목표: ${Number(target.goal_cohort.slice(5))}월 개강 센터 인도` : ''}`,
+    `- 섭외자: ${target.gender || ''} ${target.age_group || ''} / 지금 단계: ${target.stage || '섭외'}${target.goal_cohort ? ` / 목표: ${goalText(target, '')}` : ''}`,
     '',
     '■ 교사가 파악한 정보(가장 중요)', ...d.info,
     '■ 활동 기록', ...d.acts,
@@ -813,5 +870,5 @@ export default {
   getTargetStageDistribution, getActivityItemDistribution, getKeyStageCount,
   addTarget, getTargets, getMyTargets: getTargets, updateTarget, updateTargetStage: updateTarget,
   getTargetJournal, deleteTarget, planCohortLead, writeCaseDraft, getTargetFile,
-  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons, targetMasterFeedback, heartsDossier,
+  getTargetInfo, addTargetInfo, deleteTargetInfo, targetInfoFeedback, setTargetLessons, targetMasterFeedback, targetMovingFeedback, heartsDossier,
 };

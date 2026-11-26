@@ -22,7 +22,8 @@ test('중진 오전·저녁·하루 카드와 명단이 운영 계산/문구와 
  for(const sessions of [['오전'],['저녁'],['오전','저녁']])for(const kind of ['목사교','화전단']){
   const phase=sessions.length>1?'최종':sessions[0],P={people:people(sessions),sessions,phase,outside:[]},ex=new Set([P.people[0].nid,P.people[2].nid]);
   const old=education(before('server/lib/edu-attendance.js'),P,ex),now=education(after('server/lib/edu-attendance.js'),P,ex);
-  const a=await old.api.jungjinParts(m,phase,kind),b=now.api.buildJungjinReport(m,phase,kind,P,ex);
+  // 11/17(사용자): 머리 이름만 '24부서 전체' → '【 24부서 장부청 소속 】' 로 바뀜(나머지는 같아야 함)
+  const a=JSON.parse(JSON.stringify(await old.api.jungjinParts(m,phase,kind)).replaceAll('<b>24부서 전체</b>','<b>【 24부서 장부청 소속 】</b>')),b=now.api.buildJungjinReport(m,phase,kind,P,ex);
   assert.deepEqual(json(b.parts.map(({part,...p})=>p)),json(a));assert.equal(b.C.total.n,4);assert.equal(b.C.total.excused,1);
   assert.equal(b.C.total.came+b.C.total.excused+b.C.total.absent,4);assert.equal(b.C.total.rate,sessions[0]==='오전'&&sessions.length===1?'25.0%':'50.0%');
  }

@@ -37,10 +37,12 @@ export function tablePng(b) {
   const tableW = colW.reduce((a, x) => a + x, 0);
   const titleH = 34 + (b.sub ? 24 : 0);
   const footLines = b.foot ? String(b.foot).match(/.{1,60}(\s|$)|.{1,60}/g).map((x) => x.trim()).filter(Boolean) : [];
-  const W = Math.max(tableW, textW(b.title, 22), b.sub ? textW(b.sub, 14) : 0, ...footLines.map((l) => textW(l, 14))) + PAD * 2;
+  const W = Math.max(tableW, textW(b.title, 22), b.sub ? textW(b.sub, 14) : 0, ...footLines.map((l) => textW(l, 14)), b.alert ? textW(b.alert, 34) : 0) + PAD * 2;
   const GH = b.groups ? H : 0;   // 묶음 머리 줄
   const tableTop = PAD + titleH + 6 + GH;
-  const Hgt = tableTop + HH + H * b.rows.length + (footLines.length ? 14 + footLines.length * 20 : 0) + PAD;
+  // 11/23(사용자): b.alert = 표 맨 아래 빨간 큰 글씨(예: '장년회는 출석 대책 필요!')
+  const ALERT_H = b.alert ? 70 : 0;
+  const Hgt = tableTop + HH + H * b.rows.length + (footLines.length ? 14 + footLines.length * 20 : 0) + ALERT_H + PAD;
   const xs = colW.reduce((a, w, i) => (a.push(i ? a[i - 1] + colW[i - 1] : PAD), a), []);
   const align = b.align || [];
   const cellText = (v, c, y, opt = {}) => {
@@ -90,6 +92,7 @@ export function tablePng(b) {
   for (let r = -1; r <= b.rows.length; r++) { const y = r < 0 ? tableTop : rowY(r); parts.push(`<line x1="${PAD}" x2="${PAD + tableW}" y1="${y}" y2="${y}" stroke="#dfe5e2"/>`); }
   for (let c = 0; c <= cols; c++) { const x = c < cols ? xs[c] : PAD + tableW; parts.push(`<line x1="${x}" x2="${x}" y1="${tableTop}" y2="${rowY(b.rows.length)}" stroke="#dfe5e2"/>`); }
   footLines.forEach((l, i) => parts.push(`<text x="${PAD}" y="${rowY(b.rows.length) + 26 + i * 20}" font-size="14" fill="#4b5651">${esc(l)}</text>`));
+  if (b.alert) parts.push(`<text x="${W / 2}" y="${Hgt - PAD - 18}" font-size="34" font-weight="700" text-anchor="middle" fill="#d92d20">${esc(b.alert)}</text>`);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(W)}" height="${Math.ceil(Hgt)}" font-family="NanumGothic">${parts.join('')}</svg>`;
   const png = new Resvg(svg, { font: { fontFiles: FONTS, loadSystemFonts: false, defaultFontFamily: 'NanumGothic' }, fitTo: { mode: 'zoom', value: 2 } }).render().asPng();
   return Buffer.from(png);

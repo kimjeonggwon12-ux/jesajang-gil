@@ -18,7 +18,7 @@ import { targetNamesOf, scrubDeep, scrubNames } from '../lib/name-scrub.js';
 import { findTarget, owns, activitiesAbout, coachingAbout } from './targets.js';
 
 // targets.js 와 같은 값
-const INFO_KIND = '파악정보', INFO_FB_KIND = 'AI 파악정보 피드백', MASTER_KIND = 'AI 종합 피드백', PLAN_KIND = '개강 인도 계획';
+const INFO_KIND = '파악정보', INFO_FB_KIND = 'AI 파악정보 피드백', MASTER_KIND = 'AI 종합 피드백', PLAN_KIND = '개강 인도 계획', MOVING_KIND = 'AI 감동주기 방법';
 const MAX_TEXT = 3000;
 
 // 11/10(사용자) 개강피드백: 상담 이상 섭외자 방은 관리자(교관 이상)가 목록에서 눌러 바로 들어가고, 인교섬협 초대를 맡는다.
@@ -362,7 +362,7 @@ async function getRoomRecords(body) {
   const t = a.target;
   const [notes, acts, hist, coach] = await Promise.all([
     run(db().from('target_ai_notes').select('id, kind, input, text, created_at').eq('target_id', t.target_id)
-      .in('kind', [INFO_KIND, INFO_FB_KIND, MASTER_KIND, PLAN_KIND]).order('id', { ascending: false })),
+      .in('kind', [INFO_KIND, INFO_FB_KIND, MASTER_KIND, PLAN_KIND, MOVING_KIND]).order('id', { ascending: false })),
     activitiesAbout(t),
     run(db().from('target_history').select('*').eq('target_id', t.target_id).order('id', { ascending: false })),
     coachingAbout(t, t.creator_id).catch(() => []),
@@ -373,7 +373,7 @@ async function getRoomRecords(body) {
   return forViewer(a, {
     ok: true,
     goalMonth: t.goal_cohort ? Number(t.goal_cohort.slice(5)) : 0,
-    infoFeedback: of(INFO_FB_KIND), master: of(MASTER_KIND), plans,
+    infoFeedback: of(INFO_FB_KIND), master: of(MASTER_KIND), moving: of(MOVING_KIND), plans,
     stageFb: acts.filter((x) => x.ai_feedback).sort((x, y) => (String(x.submitted_at) < String(y.submitted_at) ? 1 : -1))
       .map((x) => ({ at: fmtTs(x.ai_feedback_at || x.submitted_at).slice(0, 16), about: `${fmtTs(x.submitted_at).slice(5, 10).replace('-', '/')} ${(x.activities || []).join(', ')}`, text: x.ai_feedback })),
     hearts: coach.slice().reverse().map((f) => ({ at: fmtTs(f.submitted_at).slice(0, 16), source: f.source, situation: f.situation, ai: f.ai_coach_text, handler: f.handler, answer: f.handler_answer })),

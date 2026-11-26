@@ -38,7 +38,10 @@ import educationAccess from './actions/education-access.js';
 import eduAtt from './lib/edu-attendance.js';
 import eduReports from './actions/edu-reports.js';
 import eduRosterAdmin from './actions/edu-roster-admin.js';
+import wordsquareVideos from './lib/wordsquare-videos.js';   // 11/22 말씀광장 새 영상 → 교사광장 영상(월요일 자동)
 import eduExcused from './actions/edu-excused.js';
+import eduMgmt from './actions/edu-mgmt.js';
+import eduExcusedSelf from './actions/edu-excused-self.js';   // 11/16 공무 본인 신고   // 2026-11-16 교육 관리(화전단·목사교) — 기본 꺼짐 EDU_MGMT_ENABLED
 
 export const actions = {
   ...pilot,
@@ -76,10 +79,13 @@ export const actions = {
   ...targetRoom,
   ...auth,
   ...educationAccess,
+  ...wordsquareVideos,
   ...eduAtt,
   ...eduReports,
   ...eduRosterAdmin,
   ...eduExcused,
+  ...eduMgmt,
+  ...eduExcusedSelf,
   ...deliveryReview,
 };
 

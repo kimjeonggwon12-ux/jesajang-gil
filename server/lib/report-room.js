@@ -457,7 +457,8 @@ export async function buildSummaryReports(date, onlyKey = '') {
   // '부녀회#총합' = 부서 대표 방, '부녀회#총합:활동현황' 처럼 뒤에 붙이면 같은 총합을 다른 방에도(10/27 교사광장 교사활동현황 방)
   // 10/29(사용자): 교사광장 활동 방처럼 여러 부서 총합이 한 방에 모이면 교자장부청 순서로
   // 11/10(사용자): 장부청 복음방교사 전체 방엔 교자장부청 '계' 카드(bot.js)만 — 지역별 민트 표는 안 보냄(손으로 그 방만 고르면 보냄)
-  const CARD_ONLY = ['장년회#총합', '청년회#총합', '부녀회#총합:전체'];
+  // 11/23(사용자): 청년회 전체 방엔 다시 청년회 지역별 민트 표(22시, 그 밑에 10시 뉴스) — 소통 방의 청년회 민트 표('청년회#총합:활동현황')는 끔
+  const CARD_ONLY = ['장년회#총합', '부녀회#총합:전체'];
   const sums = all.filter((r) => r.dept.includes('#총합') && (onlyKey ? r.dept === onlyKey : !CARD_ONLY.includes(r.dept)))
     .sort((a, b) => deptRank(a.dept) - deptRank(b.dept) || a.dept.localeCompare(b.dept));
   if (!sums.length) return [];
@@ -490,7 +491,12 @@ export async function buildSummaryReports(date, onlyKey = '') {
 // 방 열쇠 → 주제 이름에 든 글자(띄어쓰기 빼고)
 const TOPIC_OF_ROOM = { '청년회/06지역': '전도', '청년회/03지역': '보고', '부녀회#총합:회장단': '전도활동', '부녀회/기타': '전도활동', '부녀회/기타#출결': '출결',
   // 11/2(사용자): 교역자 방이 주제 방으로 바뀜(공지·기본(교사어플)…) — 보고는 '기본(교사어플)' 주제로
-  '교역자': '교사어플' };
+  '교역자': '교사어플',
+  // 11/23(사용자): 청년회 사명자 방 '드림런메이커'(-1002249119516)의 '교육' 주제 — 화전단·목사교 청년회 출석 통계
+  '청년회#교육': '교육' };
+// 11/23(사용자): 부서 교육 통계 방 — 방 열쇠 → 부서. 이 부서의 교사 방(전체·지역·총합)엔 교육 출석을 일절 안 올리고 여기로만(화전단·목사교).
+export const EDU_STAT_ROOMS = { '청년회#교육': '청년회' };
+export const eduStatDeptOff = (roomKey) => Object.values(EDU_STAT_ROOMS).some((d) => roomKey === d || roomKey.startsWith(d + '/') || roomKey.startsWith(d + '#'));
 // 주제 번호를 배우기 전에도 지금처럼 일반 주제로 계속 보내는 방(이미 보고가 오가던 방이라 끊기지 않게)
 const TOPIC_FALLBACK_OK = ['교역자'];
 /** 정한 주제가 있는 방인데 아직 주제 번호를 모르면(그 주제에 아무도 글을 안 씀) 보내지 않는다 — 일반 주제로 새지 않게. */
@@ -512,6 +518,7 @@ export async function learnSummaryTopic(msg) {
       : '✅ 이 주제로 교사들의 활동 보고와 매일 22시 일일 보고가 올라와요.')),
     ...sums.map((r) => `✅ 이 주제로 매일 22시 ${esc(deptLabelOf(r.dept.split('#')[0]))} 지역별 일일 보고 총합이 올라와요.`),
     ...rolls.map((r) => `✅ 이 주제로 ${esc(ORG_LABEL[r.dept.split('#')[0]] || r.dept)} 멤버 출결 현황이 모임마다 마감 때 취합돼 올라와요.`),
+    ...rows.filter((r) => EDU_STAT_ROOMS[r.dept]).map((r) => `✅ 이 주제로 ${esc(EDU_STAT_ROOMS[r.dept])} 화요 전도단·목요 사명자 교육 출석 통계가 오전 마감·최종 때 올라와요.`),
   ];
   if (rows.length) await sendText(`${msg.chat.id}/${th}`, lines.join('\n')).catch(() => {});
   // 11/3(사용자): "샘플은 이제 올리지 말고 마감되면 제대로" — 주제를 배워도 샘플은 안 올린다(연결 안내 한 줄만)
@@ -732,7 +739,7 @@ export async function reportRooms(body) {
   }
   if (op === 'set') {
     const dept = String(body.dept || '').trim(), chatId = String(body.chatId || '').trim();
-    if (!dept || !/^-?\d+$/.test(chatId)) return { error: 'dept, chatId 가 필요합니다.' };
+    if (!dept || !/^-?\d+(\/\d+)?$/.test(chatId)) return { error: 'dept, chatId 가 필요합니다.' };   // 11/23: '방번호/주제번호'도
     await run(db().from('report_rooms').upsert({ dept, chat_id: chatId, title: String(body.title || ''), active: true, created_at: kstDateTime() }));
   } else if (op === 'off') {
     await run(db().from('report_rooms').update({ active: false }).eq('dept', String(body.dept || '')));
@@ -803,4 +810,28 @@ export async function reportRoomsAdmin(body) {
     edus: series.filter((x) => !String(x.title).startsWith('[TEST]')).map((x) => ({ key: '#교육:' + x.series_id, title: x.title })),
     depts: Object.values(slots).map((s) => ({ dept: s.dept, n: s.n, regions: Object.entries(s.regions).map(([region, n]) => ({ region, n })).sort((a, b) => a.region.localeCompare(b.region, 'ko', { numeric: true })) })),
   };
+}
+
+/**
+ * 11/17(사용자 "카드와 텍스트를 합체"): 출석 카드 + 실명 명단을 한 통으로.
+ * 사진 설명은 1024자까지라 명단이 안 들어감 → 카드를 R2 공개 주소에 올리고, 글(4096자) 위에 큰 미리보기로 붙인다.
+ * R2 가 안 되거나 실패하면 예전처럼 카드 사진 → 명단 글 두 통.
+ */
+export async function sendRoomCardText(room, png, text) {
+  if (png) {
+    try {
+      const { putImage, r2Configured } = await import('./images.js');
+      if (r2Configured()) {
+        const url = await putImage(png, 'image/png', 'card');
+        const body = `<a href="${url}">&#8205;</a>` + text;
+        const res = await healed(room.chat_id, (c) => tg('sendMessage', { ...target(c), text: body.slice(0, 4096), parse_mode: 'HTML',
+          link_preview_options: { url, show_above_text: true, prefer_large_media: true } }, tokenFor(c)));
+        return res.message_id;
+      }
+    } catch (e) { console.log('카드+명단 한 통 실패, 나눠 보냄: ' + e.message); }
+    const r = { room, png, caption: '', text, html: true };
+    const id = await sendDaily(r);
+    if (r.via !== '사진') return id;   // 사진이 안 돼 이미 글로 보냄
+  }
+  return sendText(room.chat_id, text);
 }
