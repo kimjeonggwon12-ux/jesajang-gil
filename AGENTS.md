@@ -2,6 +2,8 @@
 
 작업 전 `docs/handoff/START_HERE.md`, 교육 개발 시 `docs/handoff/EDUCATION.md`, 권한 변경 시 `docs/handoff/BOUNDARIES.md`를 먼저 읽는다. Next.js 파일은 `next-app/AGENTS.md`도 따른다.
 
+업무를 맡거나 운영에 반영할 때는 [공동 배포 절차와 작업 현황](docs/handoff/OPERATIONS.md)을 확인한다. Claude와 Codex는 작업마다 담당자를 정하고 운영 배포는 한 번에 하나씩 진행한다.
+
 ## 목표와 기준
 
 - A(기존 HTML)와 B(Next.js)는 같은 업무 DB/API를 사용한다. 계정별로 화면을 분기하며 기능·권한·계산·기존 UI/동선을 보존한다.
@@ -12,7 +14,7 @@
 ## 운영 보호
 
 - `main`, `vercel-supabase`에 push/merge하지 않는다. 기능 PR은 `codex/ab-education-baseline-20261116`을 대상으로 한다. force push 금지.
-- 루트와 `next-app/vercel.json`의 `git.deploymentEnabled: false`를 유지한다. Git 연결·도메인·배포·예약·GitHub 작업 실행·운영 환경변수는 바꾸지 않는다.
+- 루트와 `next-app/vercel.json`의 `git.deploymentEnabled: false`를 유지한다. 사용자와 범위를 결정한 운영 배포는 [공동 배포 절차](docs/handoff/OPERATIONS.md)를 따른다. Git 연결·도메인·예약·GitHub 작업 실행·운영 환경변수 변경은 별도 범위로 검토한다.
 - 운영 DB 변경·복원·seed·기존 마이그레이션 재실행 금지. SQL은 검토용 소스이며 자동 적용하지 않는다. 필요한 추가 변경은 제안과 격리 검증 결과로 전달한다.
 - Telegram 실제 발송, 봇/웹훅 변경, R2 실파일 저장/삭제, 백업 생성/복원, 실제 A/B 배정은 사용자와 범위를 검토한 뒤에만 한다.
 - 실제 고유번호·연락처·상담 기록·명단·비밀값·원격 캡처·DB 덤프를 Git에 넣지 않는다. 예시와 테스트에는 가짜 데이터만 쓴다.
