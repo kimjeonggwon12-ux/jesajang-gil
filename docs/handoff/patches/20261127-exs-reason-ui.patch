@@ -1,0 +1,46 @@
+--- app.orig.html	2026-11-27 18:57:36.607919400 +0900
++++ app.html	2026-11-27 18:57:52.140793100 +0900
+@@ -2616,6 +2616,17 @@
+     .ex-self-row span { flex:1; min-width:120px; font-size:13.5px; color:#6b7280; } .ex-self-row span.on { color:#00875f; }
+     .ex-self-btn { height:36px; padding:0 14px; border-radius:10px; border:1px solid #2F6BEB; background:#2F6BEB; color:#fff; font-weight:700; font-size:14px; }
+     .ex-self-btn.line { background:#fff; color:#2F6BEB; } .ex-self-btn:disabled { opacity:.5; }
++    /* 11/27(사용자): 공무 항목 고르기가 제목 밑에 묻혀 안 보이던 것 → ① 단계 상자로 크게 */
++    .ex-self-reason { margin-top:12px; padding:14px; border-radius:14px; background:#fff; border:2px dashed #2F6BEB; }
++    .ex-self-reason.done { border-style:solid; border-color:#16A34A; background:#F0FDF4; }
++    .ex-self-reason.need { border-style:solid; border-color:#DC2626; background:#FEF2F2; animation:exsShake .45s; }
++    .ex-self-step { font-size:16px; font-weight:900; color:#1E3A8A; letter-spacing:-.2px; }
++    .ex-self-reason.done .ex-self-step { color:#15803D; } .ex-self-reason.need .ex-self-step { color:#B91C1C; }
++    .ex-self-reason label { display:block; margin-top:8px; font-size:13px; font-weight:700; color:#475569; }
++    .ex-self-reason select, .ex-self-reason input { display:block; box-sizing:border-box; width:100%; height:46px; margin-top:6px; padding:0 12px; border:1.5px solid #94A3B8; border-radius:10px; font-size:16px; font-weight:700; color:#0f172a; background:#fff; }
++    .ex-self-reason select:focus, .ex-self-reason input:focus { outline:3px solid rgba(47,107,235,.25); border-color:#2F6BEB; }
++    .ex-self-step2 { margin-top:14px; font-size:16px; font-weight:900; color:#1E3A8A; }
++    @keyframes exsShake { 0%,100% { transform:translateX(0); } 25% { transform:translateX(-6px); } 75% { transform:translateX(6px); } }
+     .ex-self-empty { margin:14px; padding:24px 16px; text-align:center; color:#64748b; background:#f8fafc; border-radius:14px; font-size:14px; }
+     .act-pages[data-act-page="attend"] > [data-ap]:not([data-ap="attend"]),
+     .act-pages[data-act-page="targets"] > [data-ap]:not([data-ap="targets"]),
+@@ -9002,7 +9013,10 @@
+         + '<div class="ex-self-t">📋 ' + esc(d.title) + '</div>'
+         + '<div class="ex-self-sub">' + esc(d.name) + ' · ' + esc(exsGroupText(d)) + ' — 누르면 소속까지 자동으로 기록돼요</div>'
+         + (d.note ? '<div class="ex-self-sub">ℹ️ ' + esc(d.note) + '</div>' : '')
+-        + exReasonHtml(d.reasonOptions, exsState.reason, exsState.detail, 'exsCat(this.value)', 'exsState.detail=this.value', exsState.busy)
++        + '<div class="ex-self-reason' + (exReasonValue(exsState.reason, exsState.detail) ? ' done' : '') + '">'
++        + '<div class="ex-self-step">' + (exReasonValue(exsState.reason, exsState.detail) ? '✅ ① 공무 항목: ' + esc(exReasonValue(exsState.reason, exsState.detail)) : '① 먼저 공무 항목을 골라 주세요') + '</div>'
++        + exReasonHtml(d.reasonOptions, exsState.reason, exsState.detail, 'exsCat(this.value)', 'exsState.detail=this.value', exsState.busy) + '</div>'
++        + '<div class="ex-self-step2">② 결석하는 날짜의 버튼을 눌러 주세요</div>'
+         + sections + '</div>';
+     }
+     window.exsState = exsState;
+@@ -9010,7 +9024,12 @@
+     window.exsSubmit = async function (kind, date) {
+       if (exsState.busy) return;
+       const reason = exReasonValue(exsState.reason, exsState.detail);
+-      if (!reason) { toast(exsState.reason === '기타' ? '기타 사유를 직접 적어 주세요.' : '공무 항목을 골라 주세요.', true); return; }
++      if (!reason) {
++        toast(exsState.reason === '기타' ? '기타 사유를 직접 적어 주세요.' : '공무 항목을 먼저 골라 주세요.', true);
++        const box = document.querySelector('.ex-self-reason');   // 11/27: 고를 칸으로 데려가 빨갛게 표시
++        if (box) { box.classList.remove('need'); void box.offsetWidth; box.classList.add('need'); box.scrollIntoView({ behavior: 'smooth', block: 'center' }); const f = box.querySelector(exsState.reason === '기타' ? 'input' : 'select'); if (f) setTimeout(() => f.focus(), 300); }
++        return;
++      }
+       exsState.busy = kind + date; renderHome();
+       try {
+         const r = await callApi({ action: 'submitMyExcused', memberId, kind, date, reason });
