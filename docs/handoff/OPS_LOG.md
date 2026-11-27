@@ -17,6 +17,19 @@
 - 2~4의 `roster_changes.actor_name`은 운영자 계정 이름으로 남겼다(작업은 Claude가 함). 같은 날 14:57에 4명에게 나간 `PIN 임시 발급` 기록은 다른 작업자의 것이다.
 - PIN 해시 방식은 운영 `server/actions/pins.js`와 같다(scrypt 32바이트, salt 16바이트 hex, `ver`=UUID). DB의 해시와 발급한 값이 맞는지 대조해서 확인했다.
 
+## 2026-11-27 (Claude, 운영자 요청)
+
+| # | 시각(KST) | 표·설정 | 내용 | 이유 | 되돌리기 |
+|---|---|---|---|---|---|
+| 7 | 10:4x | `education_delegations` | 전도부 서무 1명(관리자 명단에 있음)에게 정기 교육 3개(화요전도단·목요 사명자·금요 교사, `scope_type='series'`)의 `permissions=['reports']` 위임 3행. `actor_nid`=운영자 | 공무 결석자 화면 조회(canRead) | `update education_delegations set revoked=true where actor_nid=<운영자> and permissions='{reports}' and updated_at::date='2026-11-27'` |
+| 8 | 10:46 | Vercel env `EDU_EXCUSED_EXPORT_NIDS`(Production) | 위 1명의 고유번호 1개. 운영자(owner)와 이 사람만 공무 결석자 엑셀 내려받기 | 운영자 요청("나랑 둘") | env 삭제 후 재배포 |
+| 9 | 10:47 | Vercel | `dpl_4zrC…`(11/26 22:49 Codex) **소스 그대로** redeploy(env 반영) → `dpl_EQCw…` | env 반영 | — |
+| 10 | 10:50 | Vercel 배포 `dpl_6TVJeKNBbiTZ2tiraaehk8bTgfRS` | `dpl_4zrC…` 운영 소스 + **2줄 변경**: `shared/login-options.js` LOGIN_DEPTS에 `'장로회'`(교역자 뒤), `app.html` 입장 부서 `<option>장로회</option>` | 운영자 요청: 장로도 입장 부서 선택 | `dpl_4zrC…`/`dpl_EQCw…` 로 promote. **다음 배포 후보에 이 2줄을 포함해 주세요** |
+| 11 | 10:5x | `teachers`, `roster_changes` | 목요 사명자 재적의 `dept='장로회'` 3명을 교사 명단에 추가(dept·region·affiliation·note='장로회', tier 활동교사). `roster_changes` kind `교사 추가` 3행 | 장로가 교사광장 전체 기능 사용 | `delete from teachers where dept='장로회'` |
+
+- 11: 교사 명단 엑셀을 다시 반영하면 엑셀에 없는 장로 3명이 '빠질 사람'으로 나온다. 반영 화면에서 '남기기'를 고르거나 엑셀에 넣어야 한다.
+- 장로회는 대부분의 통계 부서 목록(교자장부청)에 없어 부서별 수치에는 잡히지 않는다(의도: 사용만 허용).
+
 ## 앞으로 적는 방법
 
 새 줄을 맨 아래 날짜 묶음에 추가한다. SQL 원문이 필요하면 값(개인정보)을 빼고 형태만 적는다.

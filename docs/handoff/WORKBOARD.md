@@ -9,6 +9,7 @@
 | W-001 | Codex | 출석 집계 장애 코드 수정·구조 개선(오류 문구 기록, 반복 실패 알림, policy 검증) | `server/actions/attendance.js`, `server/lib/edu-attendance.js`, `room-attendance.js`, `report-delivery-batch.js`, `edu-delivery.js` | (Codex 기입) | 진행 중 | | INCIDENT_20261126 R4 |
 | W-002 | Codex(제안: Claude) | 목사교 교역자 방 = 카드+명단(R1), 청년회 기타 나누기(R2), 장년회#사명자 방(R3) | 위와 같은 파일, `report-room.js` | | 대기 | | W-001과 파일이 겹쳐 Codex가 함께 처리 |
 | W-003 | Claude | 11/26 운영 DB 조치 기록·발송 검증·규칙 대조 문서 | `docs/handoff/*` | `claude/ops-record-20261126` | 완료 | (이 커밋) | 코드 변경 없음 |
+| W-004 | Claude | 공무 결석자 내려받기 1명 추가(env+위임), 장로회 입장 부서 | `shared/login-options.js`, `app.html`(입장 option 1줄) / DB `teachers`·`education_delegations` | 운영 소스 `dpl_4zrC…` 직접 | 배포 | `dpl_6TVJeKNBbiTZ2tiraaehk8bTgfRS` | OPS_LOG #7~11. 출석 파일 안 건드림. **Codex 다음 후보에 2줄 포함 요청** |
 
 ## 상태 값
 `대기` → `진행 중` → `검토` → `배포` → `완료` / `보류`
